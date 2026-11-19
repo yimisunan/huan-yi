@@ -8,7 +8,7 @@ let busy = null;
 let lastError = '';
 let monitorTimer = null, monitorBusy = false, starting = null;
 let controlSupported = null, sessionReady = false;
-const PLUGIN_VERSION = '1.9.0';
+const PLUGIN_VERSION = '1.9.1';
 let heartbeats = new Set();
 const FILE_TOOLS = ['list_files', 'find_files', 'grep_code', 'read_file', 'read_file_full', 'read_file_part', 'file_info', 'file_exists'];
 const LIVE_READ_TOOLS = ['read_file','read_file_full','read_file_part','file_info','grep_code'];
@@ -43,7 +43,7 @@ function roleChanges(model, scene = false) {
     if (scene === 'live') return { ...roleChanges(model, true),
         toolAccessConfig:{enabled:true,allowedBuiltinTools:LIVE_READ_TOOLS,allowedPackages:[],allowedSkills:[],allowedMcpServers:[]}, name: '同席互动·项目只读',
         characterSetting: '你是正式互动故事生成者。entry_mode=live_interaction时先按packet.read_ranges逐项照用path/start_line/end_line调用read_file_part，核对实际返回的末行再继续；取得全部正文后才生成。文件尾空白不等同缺正文，旧会话草稿和失败回复不能作为已接受事实；grep_code仅定位指定文件，不算正文覆盖，不用list_files/find_files，依据设定、实际存档和玩家意图推演有发展且连贯的剧情，在需要玩家新决定处停下。只按本次output_contract输出messages/decision/operation/handoff/checks及resolution裸JSON，decision提供本段A/B/C。玩家点按演播完成后才行动。resolution只交原文事件依据、分类、游戏时刻及本次记忆事实，费用/退款/低体力由程序计算。不写旧整回合或SYSTEM_LOG，不写文件或执行命令。',
-        otherContentChat: '遵循本次output_contract；正式传输中operation无操作时明确写空字符串两个双引号，不省略值，桥接在合法解析后转换为内部null。resolution.task、resolution.sleep.start、resolution.conditions及其中npc无内容同样写空字符串，不得省略值；有任务/时间/条件则写合法对象。严格区分玩家私有状态与角色共同知情。正文与登记操作一致；未支持操作写待处理，不宣称完成。' };
+        otherContentChat: '遵循本次output_contract；正式传输中operation无操作时明确写空字符串两个双引号，不省略值，桥接在合法解析后转换为内部null。resolution.task、resolution.sleep.start及conditions.npc无内容写空字符串，不得省略值；有任务/时间则写合法对象。conditions依本次resolution_policy：普通付费必须七字段完整对象，无NPC仅npc为空；免费SYSTEM才无条件。严格区分玩家私有状态与角色共同知情。正文与登记操作一致；未支持操作写待处理，不宣称完成。' };
     return { name: scene ? '场景交流·项目只读' : '故事生成·项目只读', description: '网页故事桥接的专用只读生成参与者。',
         characterSetting: scene ? '你是隔离场景交流参与者。entry_mode=scene_chat时只真实读取指定packet，按其中交流规范回应；不执行完整回合读取链、字数、节拍、OPTIONS或结算。当前packet覆盖事实，不从旧会话引入其他场景。只输出裸JSON，不写文件、不执行命令。' : '你是项目故事回合生成器。按本次网页信封调用真实只读文件工具；当前文件是事实源，历史会话不能代替本轮读取。最终只返回契约JSON；禁止写文件、执行命令、外部服务或自行提交。',
         otherContentChat: scene ? '完整读取指定packet，截断则分段补全；只返回messages/facts_delta/needs/handoff。' : '工具读取可以分多步，最终回复只包含单个裸JSON。遵循当前reading_policy与output_contract；不能伪造读取、阅据或V1。',
@@ -180,6 +180,10 @@ function finalMessage(receipt, snapshots, mode = false) {
     // Explicit scene wire encoding: empty string means no handoff. Never repair malformed JSON.
     if ((mode === true || mode === 'scene_chat') && value.handoff === '') { value.handoff = null; text = JSON.stringify(value); }
     if (mode === 'live_interaction') {
+        if (value.resolution && ['A','B','C'].includes(value.resolution.category)
+                && (!value.resolution.conditions || typeof value.resolution.conditions!=='object' || Array.isArray(value.resolution.conditions))) {
+            throw new Error('普通付费行动的resolution.conditions必须是完整对象；澄清或未移动也须填写，无NPC只将npc留空');
+        }
         const paths = [['operation'], ['resolution','task'], ['resolution','conditions'],
             ['resolution','sleep','start'], ['resolution','conditions','npc']];
         const edits = [];
@@ -222,7 +226,7 @@ function sessionText(task, previousError) {
 }
 
 async function executeSession(config, task, model, session) {
-    if (task.reading_preflight !== 1 || task.entry_mode==='live_interaction' && task.live_reading_revision!==2) throw new Error('请重启Pydroid3服务并重试原行动，以加载提交前读取校验');
+    if (task.reading_preflight !== 1 || task.entry_mode==='live_interaction' && (task.live_reading_revision!==2 || task.action_contract_revision!==1)) throw new Error('请重启Pydroid3服务并重试原行动，以加载提交前读取校验');
     const returnChatId = await currentChat();
     const startedAt = Date.now();
     config.inFlight = { request_id: task.request_id, lease: task.lease, model_key: model.key, entry_mode: task.entry_mode,
@@ -462,6 +466,14 @@ function oversizedMemory(text) {
     } catch (_) { return null; }
 }
 
+function resolutionReminder(envelope) {
+    const policy=envelope.resolution_policy;
+    const paid=policy ? policy.conditions_required : envelope.output_contract.resolution && envelope.output_contract.resolution.category!=='SYSTEM';
+    return paid
+        ? '本次是普通付费行动：resolution.conditions必须是完整对象，恰含intensity/effective_progress/scene/npc/action_changed/stress_signals/breakout_triggered，不能为空或null。只作澄清、未移动、未接触也交对象；无推进/无变化按事实填false，无NPC仅npc写空字符串，stress_signals为0、breakout_triggered为数组。禁止progress/action_change/stress_count/breakout等别名。'
+        : '本次是免费SYSTEM：resolution.category为SYSTEM，conditions写空字符串（传输后为null），不提交行动计数对象。';
+}
+
 function generationTurns(task, previousError) {
     if (task.entry_mode === 'live_interaction') {
         const turns = task.turns.map(turn => {
@@ -475,12 +487,13 @@ function generationTurns(task, previousError) {
                 if (resolution.sleep) resolution.sleep.start = '';
                 if (resolution.conditions && typeof resolution.conditions === 'object') resolution.conditions.npc = '';
             }
-            envelope.instruction += ' 最终传输约定：无操作operation、无任务resolution.task、无睡眠起点resolution.sleep.start、无行动条件resolution.conditions及无对象conditions.npc均写空字符串两个双引号；不要留空。有对象则交原合法对象。按packet.read_ranges依序读完全部范围；grep_code只定位不替代正文读取，不用list_files/find_files；截断缩小范围补齐，不读许可外文件。';
+            envelope.instruction += ' '+resolutionReminder(envelope)+' 最终传输约定：无操作operation、无任务resolution.task、无睡眠起点resolution.sleep.start及无对象conditions.npc均写空字符串两个双引号；不要留空。有对象则交原合法对象。按packet.read_ranges依序读完全部范围；grep_code只定位不替代正文读取，不用list_files/find_files；截断缩小范围补齐，不读许可外文件。';
             return { ...turn, content: JSON.stringify(envelope) };
         });
-        const contract = { ...JSON.parse(turns[0].content).output_contract, operation:'', handoff:'' };
-        return [...turns, {kind:'user',content:JSON.stringify({output_contract:contract,
-            instruction:'最终仅交单个合法JSON，键恰为本次output_contract所列；不照抄结构说明。读取阶段逐项照用packet.path和packet.read_ranges中的start_line、end_line调用read_file_part，核对真实返回末行；完成全部范围及必需补读后才输出。文件尾空白不等于正文未读；grep_code只定位，不计正文覆盖；禁止list_files/find_files，遇截断缩小范围补齐未覆盖行，重试也重新读取本次更新后的资料包；上一失败草稿不是事实，承接正式存档与accepted_history。无操作operation、无待处理handoff、无任务resolution.task、无睡眠起点resolution.sleep.start、无行动条件resolution.conditions和无对象conditions.npc均明确写空字符串两个双引号；例如sleep为{\"kind\":\"none\",\"start\":\"\",\"evidence\":\"\"}且task为空字符串。禁止冒号后直接接逗号，不修补残缺JSON。按设定/存档/意图推演连贯剧情及本段decision，不定长、不等整场结束。若契约要求resolution，完整提交分类/实际游戏时间/事件原文依据/本次记忆事实及必要源摘要、有效行动条件；程序算费用与实际结算。事件group=host_events时target必须是系统宿主，其他事件用实际场内登记姓名；固定ABC不能重新定价；自定义只判档，不填面板数值；预扣不代表疲劳，最终不足5由执行器判断。SYSTEM休息须实际过渡及睡眠起止，不伪造整夜；纯道具由执行器处理。严格保留角色知情，不以系统数值写NPC台词。',
+        const envelope=JSON.parse(turns[0].content);
+        const contract = { ...envelope.output_contract, operation:'', handoff:'' };
+        return [...turns, {kind:'user',content:JSON.stringify({output_contract:contract,resolution_policy:envelope.resolution_policy,operation_context:envelope.operation_context,
+            instruction:resolutionReminder(envelope)+' 已预检operation_context.requested须保持；地点别名以operation_context为准，不能再把已解析回家写成歧义。'+'最终仅交单个合法JSON，键恰为本次output_contract所列；不照抄结构说明。读取阶段逐项照用packet.path和packet.read_ranges中的start_line、end_line调用read_file_part，核对真实返回末行；完成全部范围及必需补读后才输出。文件尾空白不等于正文未读；grep_code只定位，不计正文覆盖；禁止list_files/find_files，遇截断缩小范围补齐未覆盖行，重试也重新读取本次更新后的资料包；上一失败草稿不是事实，承接正式存档与accepted_history。无操作operation、无待处理handoff、无任务resolution.task、无睡眠起点resolution.sleep.start和无对象conditions.npc均明确写空字符串两个双引号；例如sleep为{\"kind\":\"none\",\"start\":\"\",\"evidence\":\"\"}且task为空字符串。禁止冒号后直接接逗号，不修补残缺JSON。按设定/存档/意图推演连贯剧情及本段decision，不定长、不等整场结束。若契约要求resolution，完整提交分类/实际游戏时间/事件原文依据/本次记忆事实及必要源摘要、有效行动条件；程序算费用与实际结算。事件group=host_events时target必须是系统宿主，其他事件用实际场内登记姓名；固定ABC不能重新定价；自定义只判档，不填面板数值；预扣不代表疲劳，最终不足5由执行器判断。SYSTEM休息须实际过渡及睡眠起止，不伪造整夜；纯道具由执行器处理。严格保留角色知情，不以系统数值写NPC台词。',
             previous_validation_error:previousError||JSON.parse(turns[0].content).previous_validation_error||''})}];
     }
     if (task.entry_mode === 'scene_chat') return [...task.turns, {kind: 'user', content: JSON.stringify({
@@ -561,7 +574,7 @@ async function work() {
     }
     const status = await http('/api/story/tasks');
     if (status.story_protocol !== 3 || status.reading_preflight !== 1) throw new Error('请在 Pydroid3 停止旧服务并重新运行语音运行.py，以加载正式会话读取接口（协议3）。');
-    if (status.task && status.task.status === 'queued' && status.task.entry_mode === 'live_interaction' && (status.interaction_protocol !== 3 || status.live_reading_revision !== 2)) throw new Error('请先在Pydroid3重启语音运行.py，加载互动结算协议3后再重试；旧任务未领取。');
+    if (status.task && status.task.status === 'queued' && status.task.entry_mode === 'live_interaction' && (status.interaction_protocol !== 3 || status.live_reading_revision !== 2 || status.action_contract_revision !== 1)) throw new Error('请先在Pydroid3重启语音运行.py，加载互动结算协议3后再重试；旧任务未领取。');
     await rememberRejection(config, status.task);
     const model = await resolveModel(config);
     lastError = '';

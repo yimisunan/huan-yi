@@ -183,6 +183,29 @@ def view(store, files=None):
             'policy': policy(store.root)}
 
 
+def location_aliases(root):
+    configured=policy(root);aliases=configured.get('location_aliases',{})
+    if (not isinstance(aliases,dict) or any(not isinstance(k,str) or not k.strip() or len(k)>40
+            or not isinstance(v,str) or v not in configured['locations']
+            or k in configured['locations'] and k!=v for k,v in aliases.items())):
+        raise rr.RoundError('地点别名配置无效')
+    return aliases
+
+
+def travel_intent(root, text):
+    """Resolve only a direct present player command, using registered aliases."""
+    names={name:name for name in policy(root)['locations']};names.update(location_aliases(root))
+    options='|'.join(re.escape(n) for n in sorted(names,key=len,reverse=True))
+    match=re.fullmatch(r'\s*(?:我)?(?:现在|这就|马上|先)?(?:要)?\s*(回到|返回|前往|走到|出发去|回|去)\s*('
+                       +options+r')(?=$|[\s，,。！!；;、]|看看|查看|看|找|问|探望|确认|一趟|一下|吧)(.*)',text,re.S)
+    if not match:return None
+    tail=match[3]
+    if re.search(r'还是|或者|要不要|是否前往|[？?]|(?:明天|后天|下午|晚上|稍后|以后|待会|等会|如果|假如|到时候)',tail):return None
+    if re.search(r'(?:去|回到|返回|前往|走到|回)\s*(?:'+options+r')',tail):return None
+    return {'operation':{'code':'move_player','destination':names[match[2]]},
+            'matched_text':match[1]+match[2],'destination_text':match[2],'input':text}
+
+
 def operation(root, files, proposed, text='', explicit=False):
     """Only player travel and transfer of a complete held stack are currently supported."""
     if proposed is None:
@@ -204,7 +227,8 @@ def operation(root, files, proposed, text='', explicit=False):
         target = proposed['destination']
         if target not in policy(root)['locations'] or target == player_place:
             raise rr.RoundError('目的地未开放或已经位于该地点')
-        if not explicit and (target not in text or not re.search(r'去|前往|回到|返回|走到|出发', text)):
+        intent=travel_intent(root,text) if not explicit else None
+        if not explicit and (not intent or intent['operation']['destination']!=target):
             raise rr.RoundError('移动缺少玩家明确目的地与行动依据')
         return copy.deepcopy(proposed)
     if code == 'transfer_item':
@@ -472,11 +496,9 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
     helper = SceneService(story.root, story)
     files = {n: v.encode('utf-8') if v is not None else None for n, v in prepared['snapshot'].items()}
     state = view(story.store, files)
-    if command is None:
-        for destination in state['policy']['locations']:
-            if re.fullmatch(r'\s*(?:前往|去|回到|返回)\s*' + re.escape(destination) + r'[。！!]*\s*', text):
-                command = {'code': 'move_player', 'destination': destination}
-                break
+    intent=travel_intent(story.root,text)
+    if command is None and intent and intent['operation']['destination']!=state['location']:
+        command=copy.deepcopy(intent['operation'])
     resolved = operation(story.root, files, command, text, explicit=True) if command else None
     charged = sp.enabled(story.root)
     preview_cost = reservation['quote'] if charged and reservation else quote(story.root, files, resolved)
@@ -540,7 +562,7 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
             'sovereignty': (story.root / 'txt文件/全局执行法典.md').read_text(),
             'characters': characters, 'relationships': relationships, 'knowledge_rules': relevant,
             'scenario': {'location': effective['location'], 'cast': effective['cast'], 'presence': state['presence']},
-            'operation_policy': {'locations': state['policy']['locations'],
+            'operation_policy': {'locations': state['policy']['locations'],'location_aliases':location_aliases(story.root),
                 'templates': [{'code': 'move_player', 'destination': '登记地点'},
                               {'code': 'transfer_item', 'item_id': 'ITEM-编号', 'recipient': '在场人物'}]},
             'player_private_state': {'memory': projection['text'], 'items': state['items'], 'tasks': state['tasks'],
@@ -553,7 +575,7 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
                   'event_registry':rr._engine(story.root,story.root)._load_event_registry(),
                   'memory_transfer_sources':{}} if charged else None),
               'story_pacing': '依据当前人物、既有事务、矛盾及玩家意图推进连贯剧情，在真实抉择处交还；偶尔可短答，不固定一两句，不等整场结束，不按字数填充。',
-            'operation': {'requested': resolved, 'rule': '玩家明确操作已预检；仅确认执行后的现场反应，不改参数。自由输入最多提议一个有原文依据的登记操作。'},
+            'operation': {'requested': resolved,'input_evidence':intent,'source_location':state['location'], 'rule': '玩家明确操作已预检；仅确认执行后的现场反应，不改参数。自由输入最多提议一个有原文依据的登记操作。'},
             'resource_policy': state['policy']['resource'], 'cost_preview': preview_cost,
             'history_archive': {'paths': omitted_archive[-limits['index_entries']:], 'omitted_count':len(omitted_archive),
                 'index':archive_index,'required_reads':required_history,
@@ -577,14 +599,16 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
                 'handoff': '无待处理时空字符串',
                 'checks': {'intent': '具体依据', 'knowledge': '本场信息边界', 'action': '操作与正文一致或无动作', 'pace': '本段推进及此处交还控制权的依据'}}
     if charged:
-        contract['resolution'] = sp.contract(story.root)
+        contract['resolution'] = sp.contract(story.root,preview_cost['kind'])
     envelope = {'entry_mode': MODE, 'packet': {'path': relative, 'through_line': len(raw.decode().splitlines()), 'read_ranges':packet_read_ranges(raw)},
                 'reading_tools':list(LIVE_READ_TOOLS),'previous_validation_error':previous_error,
                 'continuity':{'source':'正式存档与accepted_history','rule':'本次资料包含当前正式记忆、已接受原文及原行动；旧会话未提交草稿不属于事实。重试承接同一冻结点，不跳到下一行动。'},
                 'required_memory_reads':projection['required'],'required_history_reads':required_history,
+                'operation_context':{'requested':resolved,'input_evidence':intent,'source_location':state['location'],'location_aliases':location_aliases(story.root)},
+                **({'resolution_policy':sp.resolution_policy(preview_cost['kind'])} if charged else {}),
                 'output_contract': contract, 'instruction': '先执行读取阶段：逐一照用packet.path和packet.read_ranges中的start_line/end_line调用read_file_part，读完每一段；header显示请求范围不代表正文已齐，核对实际返回的末行。需要时补齐截断正文，文件末尾空白不作为未读正文。再读required_memory_reads与required_history_reads，最后生成完整JSON；只允许reading_tools和本任务文件路径，grep_code只定位不计正文覆盖，禁止list_files/find_files或读取许可外文件；其余旧事实按本任务精确行号或归档索引补读。返回单个裸JSON，生成连贯剧情及decision中的A/B/C；无需演完一场戏，不写旧完整回合、L1或SYSTEM_LOG。'}
     if charged:
-        envelope['instruction'] += ' 必须同时返回resolution：只分类和提供依据，不计算成本/最终面板；免费休息为SYSTEM且实际休息推进，睡眠有正文起止，不以短休冒充整夜。判档/事件/事实/时间只按当前资料；不能把人物系统数值或玩家私有记忆写成NPC知情。'
+        envelope['instruction'] += ' 必须同时返回resolution并逐项遵循resolution_policy：普通付费action即使只澄清或未发生移动也必须交完整conditions对象，字段名称不改；SYSTEM才允许无条件。已预检的operation_context.requested直接对应玩家原文与登记别名，不再猜地点。只分类和提供依据，不计算成本/最终面板；免费休息为SYSTEM且实际休息推进，睡眠有正文起止，不以短休冒充整夜。判档/事件/事实/时间只按当前资料；不能把人物系统数值或玩家私有记忆写成NPC知情。'
     return {'protocol': 3, 'interaction_protocol': 3 if charged else 2, 'entry_mode': MODE, 'audit': sources,
             'packet': {**envelope['packet'], 'sha256': rr._digest(raw)},
             'allowed_archive': [*omitted_archive,archive_index,memory_index],

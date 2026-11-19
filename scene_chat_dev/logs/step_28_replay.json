@@ -1,0 +1,22 @@
+[
+  {
+    "label": "move",
+    "chat": "80cdc412-b93e-4ede-81d0-4c48e56a9e22",
+    "stamp": 1795106340187,
+    "transport": "PASS",
+    "tools": 15,
+    "validation": "PASS production preflight on copied real save",
+    "resolved_destination": "徐家主宅",
+    "action": "回到家里，看看妈妈在不在家",
+    "story_written": false,
+    "live_model_called": false,
+    "read_receipts": "synthetic source-exact offline packet read for current copied sources; original transport replay uses actual tool snapshots"
+  },
+  {
+    "label": "conditions",
+    "chat": "984026ba-7ff4-42b1-9ef9-7e4f57c11f47",
+    "stamp": 1795107009241,
+    "transport": "REJECTED as required",
+    "error": "普通付费行动的resolution.conditions必须是完整对象；澄清或未移动也须填写，无NPC只将npc留空"
+  }
+]

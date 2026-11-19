@@ -195,7 +195,7 @@ class StoryService:
         connected = bridge['present'] and bridge['running'] and bridge['phase'] in ('ready', 'generating', 'legacy') and not bridge['last_error']
         return {'task': self._public(state['jobs'].get(state['latest'])),
                 'bridge_connected': bool(connected), 'bridge': bridge,
-                'reading_preflight': 1, 'live_reading_revision': 2,
+                'reading_preflight': 1, 'live_reading_revision': 2, 'action_contract_revision':1,
                 'service_epoch':self.service_epoch,
                 'story_protocol': STORY_PROTOCOL, 'bridge_model': state.get('bridge_model'),
                 'save_epoch': self._save_epoch(), 'interaction_protocol': 3 if sp.enabled(self.root) else 2}
@@ -919,7 +919,7 @@ class StoryService:
             return {'task': {'request_id': job['request_id'], 'lease': job['lease'],
                              'turns': context['turns'], 'model_key': job.get('model_key'),
                               'previous_validation_error':context.get('previous_validation_error',''),
-                              'service_epoch':self.service_epoch,'attempt':job['attempt'],'live_reading_revision':2,
+                              'service_epoch':self.service_epoch,'attempt':job['attempt'],'live_reading_revision':2,'action_contract_revision':1,
                               'entry_mode': job.get('entry_mode'), 'save_epoch': self._save_epoch(),
                               'interaction_scope': context.get('interaction_scope'),
                               'packet_bytes': self.store._path(context['packet']['path']).stat().st_size if context.get('packet') else 0,

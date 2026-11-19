@@ -62,7 +62,8 @@ assert.equal(converted.handoff,'');assert.equal(converted.resolution.memory.fact
 assert.equal(converted.resolution.memory.compact,'');assert.equal(converted.messages[0].speaker,'');
 for(const name of ['task','start','npc']) assert.throws(()=>final(nullableText.replace('"'+name+'":""','"'+name+'":')),new RegExp(name+'缺少值'));
 const noConditions=JSON.parse(nullableText);noConditions.resolution.conditions='';
-assert.equal(JSON.parse(final(JSON.stringify(noConditions)).text).resolution.conditions,null);
+assert.throws(()=>final(JSON.stringify(noConditions)),/conditions必须是完整对象/);
+noConditions.resolution.category='SYSTEM';assert.equal(JSON.parse(final(JSON.stringify(noConditions)).text).resolution.conditions,null);
 const realValues=JSON.parse(nullableText);realValues.operation=null;realValues.resolution.task={title:'明确任务'};realValues.resolution.sleep.start={day:1,time:'22:00'};realValues.resolution.conditions.npc='苏婉青';
 assert.equal(final(JSON.stringify(realValues)).text,JSON.stringify(realValues));
 assert.throws(()=>final(nullableText.replace('"task":""','"task":null,"task":""')),/resolution.task字段重复/);
@@ -80,3 +81,12 @@ console.log('LIVE_NULLABLE_WIRE_OK task/start/npc/conditions, exact paths, dupli
 
 assert.deepEqual(Array.from(role.toolAccessConfig.allowedBuiltinTools).sort(),["read_file","read_file_full","read_file_part","file_info","grep_code"].sort());
 console.log("LIVE_READ_TOOLS_OK exact readonly tools, no directory browse");
+
+const paidEnvelope={entry_mode:'live_interaction',instruction:'read',output_contract:nullable,resolution_policy:{kind:'action',conditions_required:true},operation_context:{requested:{code:'move_player',destination:'徐家主宅'}}};
+box.paidTask={...box.task,turns:[{kind:'user',content:JSON.stringify(paidEnvelope)}]};
+const paidPrompt=vm.runInContext('generationTurns(paidTask,"")',box).map(x=>JSON.parse(x.content));
+assert(paidPrompt[0].instruction.includes('不能为空或null'));assert(paidPrompt[1].instruction.includes('禁止progress'));assert.deepEqual(paidPrompt[1].operation_context.requested,{code:'move_player',destination:'徐家主宅'});
+paidEnvelope.resolution_policy={kind:'begin',conditions_required:false};paidEnvelope.output_contract={...nullable,resolution:{...nullable.resolution,category:'SYSTEM',conditions:null}};
+box.systemTask={...box.task,turns:[{kind:'user',content:JSON.stringify(paidEnvelope)}]};
+const systemPrompt=vm.runInContext('generationTurns(systemTask,"")',box).map(x=>JSON.parse(x.content));assert(systemPrompt[1].instruction.includes('本次是免费SYSTEM'));assert.equal(systemPrompt[0].output_contract.resolution.conditions,null);
+console.log('LIVE_ACTION_CONTRACT_OK paid object, SYSTEM nullable, exact fields, resolved travel');

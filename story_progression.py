@@ -305,7 +305,10 @@ def resolution(root,files,body):
     forbidden={engine._event_tag('HOST_13'),engine._event_tag('HOST_14'),engine._event_tag('HOST_15'),engine._event_tag('HOST_07')}
     grouped['host_events']=[tag for tag in grouped['host_events'] if tag not in forbidden]
     if kind=='action':
-        rr._round_conditions(value['conditions'],grouped)
+        if not isinstance(value['conditions'],dict):
+            raise rr.RoundError('普通付费行动的resolution.conditions必须是完整对象，即使只作澄清或未移动；字段为intensity/effective_progress/scene/npc/action_changed/stress_signals/breakout_triggered，无NPC仅npc为null')
+        try:rr._round_conditions(value['conditions'],grouped)
+        except rr.RoundError as exc:raise rr.RoundError('resolution.conditions字段不符：'+str(exc)) from exc
         if value['conditions']['intensity']!=value['category']:
             raise rr.RoundError('有效行动烈度须与本次实际判档一致')
     elif value['conditions'] is not None:
@@ -436,15 +439,21 @@ def apply_staged(store,engine,stage,body,files,parsed):
     return runtime,receipt
 
 
-def contract(root=None):
+def resolution_policy(kind):
+    return {'kind':kind,'conditions_required':kind=='action',
+            'conditions_fields':['intensity','effective_progress','scene','npc','action_changed','stress_signals','breakout_triggered'],
+            'instruction':'普通付费行动必须提交七字段conditions对象；澄清/未移动也填，按事实用false，不改字段名；无NPC仅npc为空。免费SYSTEM的conditions为空。'}
+
+
+def contract(root=None,kind='action'):
     limits=memory_policy(root) if root is not None else MEMORY_DEFAULTS
-    return {'category':'A|B|C；免费系统SYSTEM','basis':'按玩家实际输入分类，不猜费用',
+    return {'category':'A|B|C' if kind=='action' else 'SYSTEM','basis':'按玩家实际输入分类，不猜费用',
             'clock':{'day':1,'time':'HH:MM','basis':'实际经过的行为与时间依据，首次从剧情初始化'},
             'events':[{'group':'登记事件组','target':'本场对象或系统宿主','tags':['登记原标签'],'evidence':'本段原文子串'}],
             'memory':{'fact':f"无长期新增价值时空串；否则<={limits['fact_chars']}字符，仅记承诺/待办/关系或信息变化/不可逆事实，计划保留未执行状态",
                       'compact':f"可省略或空串；同回合摘要预计超过{limits['round_chars']}字符或旧条已超限时必交<={limits['round_chars']}字符的完整合并摘要，合并旧事实与本次fact，保留重要承诺、因果、待办及知情范围",
                       'transfers':{}},
-            'conditions':{'intensity':'A|B|C','effective_progress':True,'scene':'现场地点','npc':None,'action_changed':True,'stress_signals':0,'breakout_triggered':[]},
+            'conditions':{'intensity':'A|B|C','effective_progress':True,'scene':'现场地点','npc':None,'action_changed':True,'stress_signals':0,'breakout_triggered':[]} if kind=='action' else None,
             'sleep':{'kind':'none|collapse|interrupted|overnight','start':None,'evidence':''},'task':None,'items':[]}
 
 
