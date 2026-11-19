@@ -33,3 +33,29 @@ dist/
 /日志/
 /vosi/
 /语音仓库/
+
+# Removed backups, prototypes and obsolete generated material
+*.prev
+*.orig
+*.rej
+*~
+.trashed-*
+.pytest_cache/
+.mypy_cache/
+/开发者功能/归档/
+/开发者功能/Operit故事桥接/
+/开发者功能/开发者工具/生图提示词/
+/开发者功能/开发者工具/故事桥接验收.mjs
+/scene_chat_dev/src/continuous-stage/
+/gemini rule/
+/Operit场景交流协议审阅稿.md
+/Operit频繁交互降重复设计.md
+/修改计划方向.md
+/频繁交互式可行性方案.md
+/scene_chat_dev/下一阶段审阅稿.md
+/scene_chat_dev/世界状态与行动契约审阅稿.md
+/scene_chat_dev/主窗口接入调整计划.md
+/scene_chat_dev/主窗口连续交互结构稿.md
+/scene_chat_dev/交流消耗与结算讨论记录.md
+/scene_chat_dev/artifacts/*
+!/scene_chat_dev/artifacts/故事桥接-continuous-1.9.1.toolpkg
