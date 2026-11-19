@@ -1,0 +1,27 @@
+{
+  "version": "1.9.0",
+  "package_sha256": "d06478fee78fe36a5830f09c6d19a8acd02c3cc69717c140bbe09b0e038ba454",
+  "import": "Package imported: local.story.operit_bridge; stored /operitapp/data/extensions/device/packages/故事桥接.toolpkg",
+  "status": {
+    "version": "1.9.0",
+    "enabled": true,
+    "running": true,
+    "busy": false,
+    "lastError": "",
+    "inFlight": null,
+    "pendingResult": false,
+    "liveSession": {
+      "chat_id": "a8c5df23-74a8-4e03-a14b-34a3bcfe13fe",
+      "policy": "continuous",
+      "generation": 0,
+      "reset_reason": ""
+    },
+    "controlSupported": null,
+    "sessionReady": false
+  },
+  "command_check": "/storybridge session continuous -> 已更新会话方式，下一次行动生效。",
+  "python_service_restarted": false,
+  "real_model_called": false,
+  "tts_called": false,
+  "limitation": "Old Python service does not support new session status; restart Python required. Next model/save identity check may create one new isolated chat after upgrade."
+}

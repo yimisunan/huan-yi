@@ -1,0 +1,23 @@
+{
+  "method": "Workspace Browser DOM with local fetch interception; no real bridge command or generation sent",
+  "controls_present": true,
+  "initial": {
+    "disabled": false,
+    "policy": "continuous",
+    "status": "当前会话 test-ses · 首次连接"
+  },
+  "sent": [
+    {
+      "action": "session_policy",
+      "session_policy": "service_restart"
+    },
+    {
+      "action": "reset_session"
+    }
+  ],
+  "final_status": "下次行动建立新会话 · 首次连接",
+  "final_policy": "service_restart",
+  "viewport_available": false,
+  "resize_supported": false,
+  "layout_visual_acceptance": "not available in this browser host"
+}

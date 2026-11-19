@@ -460,6 +460,20 @@
     $('bridgeInfo').textContent = (bridgeOnline ? '桥接已连接' : '桥接未连接')
       + (snapshot?.bridge_model ? ' · ' + snapshot.bridge_model.model_id : '')
       + (snapshot?.bridge?.last_error ? ' · ' + snapshot.bridge.last_error : '');
+    const session = snapshot?.bridge?.session;
+    const waiting = snapshot?.bridge?.control?.status === 'requested';
+    const sessionBusy = posting || isAct || snapshot?.bridge?.busy || waiting || !snapshot?.bridge?.present || !session;
+    const sessionPolicy = $('storySessionPolicy');
+    if (sessionPolicy) {
+      sessionPolicy.disabled = !!sessionBusy;
+      sessionPolicy.value = session?.policy || 'continuous';
+    }
+    if ($('storySessionReset')) $('storySessionReset').disabled = !!sessionBusy;
+    if ($('storySessionStatus')) $('storySessionStatus').textContent = snapshot?.bridge?.control?.status === 'failed' ? snapshot.bridge.control.error
+      : waiting ? '正在应用会话设置…'
+      : !session ? '会话控制需要新版桥接与 Python 服务。'
+      : (session.chat_id ? '当前会话 ' + session.chat_id.slice(0, 8) : '下次行动建立新会话')
+        + (session.reset_reason ? ' · ' + session.reset_reason : '');
 
     updateHudVitals();
   }
@@ -2155,6 +2169,18 @@
       finally { posting = false; await restore(); }
     };
   }
+
+  async function changeStorySession(action, policy) {
+    if (posting) return;
+    posting = true; haptic(10); controls();
+    try {
+      await api('bridge/control', { action, ...(policy ? { session_policy: policy } : {}) });
+      toast(action === 'reset_session' ? '已请求下次行动新建会话，旧聊天保留' : '已请求更新会话方式');
+    } catch (e) { error = e.message; }
+    finally { posting = false; await restore(); }
+  }
+  $('storySessionPolicy').onchange = event => changeStorySession('session_policy', event.target.value);
+  $('storySessionReset').onclick = () => changeStorySession('reset_session');
 
   // Close Buttons & Backdrop Tap-to-Dismiss on Sheets
   document.querySelectorAll('[data-close]').forEach(b => {

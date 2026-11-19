@@ -489,6 +489,17 @@
       <button id="bridgeStop" type="button" class="btn-outline">暂停桥接</button>
       <a href="/admin" target="_blank" rel="noopener" class="btn-outline">语音工坊</a>
     </div>
+    <div class="picker-block">
+      <label for="storySessionPolicy">剧情会话</label>
+      <select id="storySessionPolicy" aria-describedby="storySessionHelp">
+        <option value="continuous">持续沿用（推荐）</option>
+        <option value="service_restart">重启 Python 服务后新建</option>
+        <option value="per_action">每次新行动新建</option>
+      </select>
+      <p id="storySessionHelp" class="muted">重试沿用当前会话；新会话会携带正式记忆和已接受剧情。失败草稿不会写入存档。</p>
+      <p id="storySessionStatus" class="muted" role="status"></p>
+      <div class="world-actions"><button id="storySessionReset" type="button" class="btn-outline">下次行动新建会话</button></div>
+    </div>
     <p class="muted">保持 Operit 小窗可见；首次更新后请重启本地服务以加载最新桥接协议。</p>
     <details class="tech-details">
       <summary>查看技术诊断参数</summary>

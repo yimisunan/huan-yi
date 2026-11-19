@@ -470,6 +470,7 @@ def create(service,body,retry_key=None):
         cost=quote(service.root,files,selected,action,command)
         if cost['kind']=='item':command={'code':'use_recovery_item','item_id':cost['item']['item_id']}
         if command:ir.operation(service.root,files,command,action,True)
+        previous_error=(existing or {}).get('error','') if retry_key is not None else ''
         job={**(existing or {}),'request_id':key,'base_revision':revision,'action':action,'entry_mode':ir.MODE,
              'model_key':model_key,'operation':body.get('operation'),'save_epoch':body['save_epoch'],'selection':selected,
              'current_round':state(service.root,files)['memory_round'],'status':'preparing','attempt':(existing or {}).get('attempt',0),
@@ -483,7 +484,7 @@ def create(service,body,retry_key=None):
         if cost['kind']=='item':
             context={'protocol':3,'interaction_protocol':3,'entry_mode':ir.MODE,'audit':{n:rr._digest(service.store._path(n).read_bytes()) for n in ('story_progression.py','injection_core.py','txt文件/互动运行配置.json','txt文件/事件注册表.json')},'system_item':True,'command':command,'selection':selected}
         else:
-            context=ir.packet(service,prepared,key,action,command,selected=selected,reservation=job['reservation'])
+            context=ir.packet(service,prepared,key,action,command,previous_error=previous_error,selected=selected,reservation=job['reservation'])
         with service.store._locked():
             tasks=service._read();current=tasks['jobs'][key]
             if current['status']!='preparing' or current['reservation']!=job['reservation']:raise rr.ConflictError('任务已取消')

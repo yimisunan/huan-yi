@@ -1,0 +1,87 @@
+{
+  "node --check scene_chat_dev/local.story.operit_bridge/main.js": {
+    "exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "before_final_refinement": {
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  "node --check story_client.js": {
+    "exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "before_final_refinement": {
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  },
+  "node scene_chat_dev/tests/bridge_interaction.js": {
+    "exit": 0,
+    "stdout": "LIVE_WIRE_OK two real failures rejected; empty operation normalized; action/null/duplicates/legacy preserved; complete reread required\nLIVE_RESOLUTION_OK actual envelope contract forwarded, ABC/pacing/accounting present, strict empty wire preserved\nLIVE_NULLABLE_WIRE_OK task/start/npc/conditions, exact paths, duplicates, malformed rejected, objects and legacy preserved\nLIVE_READ_TOOLS_OK exact readonly tools, no directory browse\nBRIDGE_INTERACTION_OK routes, reminder, role, no automatic memory repair\n",
+    "stderr": "",
+    "initial_failure": {
+      "exit": 1,
+      "stdout": "LIVE_WIRE_OK two real failures rejected; empty operation normalized; action/null/duplicates/legacy preserved; complete reread required\nLIVE_RESOLUTION_OK actual envelope contract forwarded, ABC/pacing/accounting present, strict empty wire preserved\n",
+      "stderr": "node:internal/assert/utils:77\n    throw err;\n    ^\n\nAssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:\n\n  assert(latest[1].instruction.includes('packet.read_ranges'))\n\n    at Object.<anonymous> (/sdcard/互动对话项目/Gemini网页版/scene_chat_dev/tests/bridge_interaction.js:78:48)\n    at Module._compile (node:internal/modules/cjs/loader:1871:14)\n    at Object..js (node:internal/modules/cjs/loader:2002:10)\n    at Module.load (node:internal/modules/cjs/loader:1594:32)\n    at Module._load (node:internal/modules/cjs/loader:1396:12)\n    at wrapModuleLoad (node:internal/modules/cjs/loader:255:19)\n    at Module.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:154:5)\n    at node:internal/main/run_main_module:33:47 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: false,\n  expected: true,\n  operator: '==',\n  diff: 'simple'\n}\n\nNode.js v24.18.1\n"
+    }
+  },
+  "node scene_chat_dev/tests/bridge_contract.js": {
+    "exit": 0,
+    "stdout": "PASS bridge routing, no scene legacy reminder, separate role\nPASS separate role names\nPASS explicit null contract\nPASS valid JSON accepted and observed malformed JSON rejected\nPASS scene empty-string encoding normalized; legacy unchanged\n",
+    "stderr": ""
+  },
+  "node scene_chat_dev/tests/bridge_sessions.js": {
+    "exit": 0,
+    "stdout": "PASS continuous/restart/per-action/retry/manual/model/save session policies; no chat deletion\nPASS same-chat one repair, cumulative proof, full contract, error handoff, second missing stops\n",
+    "stderr": "",
+    "before_final_refinement": {
+      "exit": 0,
+      "stdout": "PASS continuous/restart/per-action/retry/manual/model/save session policies; no chat deletion\nPASS same-chat one repair, cumulative proof, full contract, error handoff, second missing stops\n",
+      "stderr": "",
+      "initial_failure": {
+        "exit": 1,
+        "stdout": "PASS continuous/restart/per-action/retry/manual/model/save session policies; no chat deletion\n",
+        "stderr": "TypeError: Cannot read properties of undefined (reading 'observedChars')\n    at executeSession (evalmachine.<anonymous>:264:24)\n    at async run (/sdcard/互动对话项目/Gemini网页版/scene_chat_dev/tests/bridge_sessions.js:31:13)\n"
+      }
+    }
+  },
+  "python scene_chat_dev/tests/test_live_read_audit.py": {
+    "exit": 0,
+    "stdout": "",
+    "stderr": "........\n----------------------------------------------------------------------\nRan 8 tests in 0.172s\n\nOK\n"
+  },
+  "python scene_chat_dev/tests/test_live_packet_format.py": {
+    "exit": 0,
+    "stdout": "",
+    "stderr": "...\n----------------------------------------------------------------------\nRan 3 tests in 0.012s\n\nOK\n"
+  },
+  "python scene_chat_dev/tests/test_live_read_recovery.py": {
+    "exit": 0,
+    "stdout": "",
+    "stderr": ".......\n----------------------------------------------------------------------\nRan 7 tests in 16.496s\n\nOK\n",
+    "previous_failure": {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "  File \"/sdcard/互动对话项目/Gemini网页版/scene_chat_dev/tests/test_live_read_recovery.py\", line 68\n    response=client.post('/api/story/bridge/control',headers={'X-Story-Client':9'},json={'action':'session_policy','session_policy':'service_restart'});self.assertEqual(response.status_code,200,response.json)\n                                                                                                                                                    ^\nSyntaxError: unterminated string literal (detected at line 68)\n",
+      "initial_failure": {
+        "exit": 1,
+        "stdout": "",
+        "stderr": "......E\n======================================================================\nERROR: test_web_session_control_and_runtime_visibility_busy_rejection (__main__.RetryAndControlChecks.test_web_session_control_and_runtime_visibility_busy_rejection)\n----------------------------------------------------------------------\nTraceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/scene_chat_dev/tests/test_live_read_recovery.py\", line 67, in test_web_session_control_and_runtime_visibility_busy_rejection\n    app=Flask('session-controls');register_story_routes(app,self.service);client=app.test_client()\n                                  ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^\n  File \"/sdcard/互动对话项目/Gemini网页版/story_service.py\", line 1100, in register_story_routes\n    service = StoryService(root)\n  File \"/sdcard/互动对话项目/Gemini网页版/story_service.py\", line 37, in __init__\n    self.store = rr.RoundStore(root)\n                 ~~~~~~~~~~~~~^^^^^^\n  File \"/sdcard/互动对话项目/Gemini网页版/round_runtime.py\", line 791, in __init__\n    self.root = Path(root or Path(__file__).parent).resolve()\n                ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.14/pathlib/__init__.py\", line 150, in __init__\n    raise TypeError(\n    ...<2 lines>...\n        f\"not {type(path).__name__!r}\")\nTypeError: argument should be a str or an os.PathLike object where __fspath__ returns a str, not 'StoryService'\n\n----------------------------------------------------------------------\nRan 7 tests in 11.864s\n\nFAILED (errors=1)\n"
+      }
+    }
+  },
+  "python -m unittest test_progression.ProgressionChecks.test_failure_cancel_retry_and_late_result": {
+    "exit": 0,
+    "stdout": "",
+    "stderr": ".\n----------------------------------------------------------------------\nRan 1 test in 12.774s\n\nOK\n"
+  },
+  "python scene_chat_dev/build.py": {
+    "exit": 0,
+    "stdout": "ARCHIVE_OK /sdcard/互动对话项目/Gemini网页版/scene_chat_dev/artifacts/故事桥接-continuous-1.9.0.toolpkg\n",
+    "stderr": ""
+  }
+}

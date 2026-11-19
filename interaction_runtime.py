@@ -449,7 +449,7 @@ def encode_live_packet(data):
         elif char=='"':quoted=True
         elif char in '{[,':out.append('\n')
         elif char in '}]':out.append('\n')
-    return (''.join(out)+'\n').encode('utf-8')
+    return (''.join(out).rstrip('\n')+'\n').encode('utf-8')
 
 
 def packet_read_ranges(raw):
@@ -579,9 +579,10 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
     if charged:
         contract['resolution'] = sp.contract(story.root)
     envelope = {'entry_mode': MODE, 'packet': {'path': relative, 'through_line': len(raw.decode().splitlines()), 'read_ranges':packet_read_ranges(raw)},
-                'reading_tools':list(LIVE_READ_TOOLS),
+                'reading_tools':list(LIVE_READ_TOOLS),'previous_validation_error':previous_error,
+                'continuity':{'source':'正式存档与accepted_history','rule':'本次资料包含当前正式记忆、已接受原文及原行动；旧会话未提交草稿不属于事实。重试承接同一冻结点，不跳到下一行动。'},
                 'required_memory_reads':projection['required'],'required_history_reads':required_history,
-                'output_contract': contract, 'instruction': '真实完整读取本次packet、memory_transfer_sources.required_reads和history_archive.required_reads指定原文；先按packet.read_ranges依序read_file_part读完全部范围（不是只读搜索命中），截断则缩小范围补齐未覆盖行；只允许reading_tools和本任务文件路径，grep_code只定位不计正文覆盖，禁止list_files/find_files或读取许可外文件；其余旧事实按本任务精确行号或归档索引补读。返回单个裸JSON，生成连贯剧情及decision中的A/B/C；无需演完一场戏，不写旧完整回合、L1或SYSTEM_LOG。'}
+                'output_contract': contract, 'instruction': '先执行读取阶段：逐一照用packet.path和packet.read_ranges中的start_line/end_line调用read_file_part，读完每一段；header显示请求范围不代表正文已齐，核对实际返回的末行。需要时补齐截断正文，文件末尾空白不作为未读正文。再读required_memory_reads与required_history_reads，最后生成完整JSON；只允许reading_tools和本任务文件路径，grep_code只定位不计正文覆盖，禁止list_files/find_files或读取许可外文件；其余旧事实按本任务精确行号或归档索引补读。返回单个裸JSON，生成连贯剧情及decision中的A/B/C；无需演完一场戏，不写旧完整回合、L1或SYSTEM_LOG。'}
     if charged:
         envelope['instruction'] += ' 必须同时返回resolution：只分类和提供依据，不计算成本/最终面板；免费休息为SYSTEM且实际休息推进，睡眠有正文起止，不以短休冒充整夜。判档/事件/事实/时间只按当前资料；不能把人物系统数值或玩家私有记忆写成NPC知情。'
     return {'protocol': 3, 'interaction_protocol': 3 if charged else 2, 'entry_mode': MODE, 'audit': sources,
@@ -589,14 +590,33 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
             'allowed_archive': [*omitted_archive,archive_index,memory_index],
             'allowed_memory_reads':projection['all_refs']+projection['allowed'], 'required_memory_reads':projection['required'],
             'required_history_reads':required_history,
-            'command': resolved, 'cast': effective['cast'], 'selection': selected,
+            'command': resolved, 'cast': effective['cast'], 'selection': selected, 'previous_validation_error':previous_error,
             'interaction_scope': rr._digest(rr._json([effective['location'], effective['cast']])),
             'cost_preview': preview_cost,
             'reading_policy': {'version': sr.VERSION},
             'turns': [{'kind': 'user', 'content': json.dumps(envelope, ensure_ascii=False)}]}
 
 
-def verify(story, key, proof):
+def required_source_lines(raw, through=None):
+    lines=raw.decode('utf-8').splitlines()
+    end=min(through if through is not None else len(lines),len(lines))
+    while end and not lines[end-1].strip():end-=1
+    return set(range(1,end+1))
+
+
+def missing_read_target(key, path, raw, missing):
+    pages=packet_read_ranges(raw);reads=[]
+    for page in pages:
+        begin=None
+        for number in range(page['start_line'],page['end_line']+2):
+            if number<=page['end_line'] and number in missing:
+                if begin is None:begin=number
+            elif begin is not None:
+                reads.append({'path':path,'start_line':begin,'end_line':number-1});begin=None
+    return {'key':key,'reads':reads}
+
+
+def verify(story, key, proof, allow_missing=False):
     context = json.loads(story._blob(key, '.context.json').read_bytes())
     story._source_check(context)
     if not isinstance(proof, dict) or proof.get('api') != 'Tools.Chat.sendMessageStreaming':
@@ -612,6 +632,20 @@ def verify(story, key, proof):
     tools = proof.get('tools')
     if not isinstance(tools, list) or not 1 <= len(tools) <= 128:
         raise rr.RoundError('读取工具审计无效')
+    passes=proof.get('read_passes')
+    if passes is not None:
+        if not isinstance(passes,list) or not 1<=len(passes)<=2:raise rr.RoundError('正式互动只允许一次提交前补读')
+        cursor=0;stamps=set()
+        for stage in passes:
+            if not isinstance(stage,dict):raise rr.RoundError('补读阶段无效')
+            receipt=stage.get('outcome',{});timestamp=stage.get('snapshot_message_timestamp');count=stage.get('tool_count')
+            if (not isinstance(receipt,dict) or receipt.get('type')!='committed' or receipt.get('status')!='completed'
+                    or not isinstance(receipt.get('assistant'),dict) or type(timestamp) is not int or timestamp in stamps
+                    or receipt['assistant'].get('messageTimestamp')!=timestamp or stage.get('tool_start')!=cursor
+                    or type(count) is not int or count<1):raise rr.RoundError('补读回执身份或工具范围不符')
+            stamps.add(timestamp);cursor+=count
+        if cursor!=len(tools) or passes[-1]['outcome']!=outcome or passes[-1]['snapshot_message_timestamp']!=stamp:
+            raise rr.RoundError('补读累计工具或最终快照不符')
     wanted = context['packet']; covered = set(); verified = []
     memory_refs=context.get('allowed_memory_reads',[])
     required_memory=context.get('required_memory_reads',[])
@@ -656,16 +690,27 @@ def verify(story, key, proof):
             if path==rr.FILES[0]:memory_covered.update(lines)
             if path in context.get('required_history_reads',[]):history_covered.setdefault(path,set()).update(lines)
         verified.append(entry)
-    if not set(range(1, wanted['through_line'] + 1)) <= covered:
-        raise rr.RoundError('正式互动资料包未完整读取；截断须补完')
-    if any(not set(range(ref['start_line'],ref['end_line']+1))<=memory_covered for ref in required_memory):
-        raise rr.RoundError('必要记忆源未完整补读，不能用截断视图合并或转移')
-    for path in context.get('required_history_reads',[]):
-        if not set(range(1,len(story.store._path(path).read_text().splitlines())+1))<=history_covered.get(path,set()):
-            raise rr.RoundError('最近剧情原文超过自动预算，须完整补读后再续写')
-    return {'required_reads_verified': True, 'origin': 'operit_session', 'chat_id': proof['chat_id'],
+    targets=[];messages=[]
+    missing=required_source_lines(raw,wanted['through_line'])-covered
+    if missing:
+        targets.append(missing_read_target('packet',wanted['path'],raw,missing))
+        messages.append('正式互动资料包未完整读取；缺少行 '+','.join(str(x) for x in sorted(missing)[:12])+'；截断须补完')
+    for index,ref in enumerate(required_memory):
+        missing=set(range(ref['start_line'],ref['end_line']+1))-memory_covered
+        if missing:
+            source=story.store._path(ref['path']).read_bytes()
+            targets.append(missing_read_target('memory.'+str(index),ref['path'],source,missing))
+            messages.append('必要记忆源未完整补读，不能用截断视图合并或转移')
+    for index,path in enumerate(context.get('required_history_reads',[])):
+        source=story.store._path(path).read_bytes();missing=required_source_lines(source)-history_covered.get(path,set())
+        if missing:
+            targets.append(missing_read_target('history.'+str(index),path,source,missing))
+            messages.append('最近剧情原文超过自动预算，须完整补读后再续写')
+    if targets and not allow_missing:raise rr.RoundError('；'.join(messages))
+    return {'required_reads_verified': not targets, 'origin': 'operit_session', 'chat_id': proof['chat_id'],
             'verified_tools': verified, 'source_manifest': context['audit'],
-            'snapshot_message_timestamp': stamp, 'packet_sha256': wanted['sha256']}
+            'snapshot_message_timestamp': stamp, 'packet_sha256': wanted['sha256'],
+            'missing_keys':[item['key'] for item in targets],'read_targets':targets}
 
 
 def assemble(story, key, job, result, context, audit):

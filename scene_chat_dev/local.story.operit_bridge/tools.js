@@ -34,7 +34,8 @@
         },
         {"name":"workspacePath","type":"string","required":false,"description":"项目工作区的VFS绝对路径"},
         {"name":"endpoint","type":"string","required":false,"description":"本机故事服务地址，例如http://127.0.0.1:5000"},
-        {"name":"resetSession","type":"boolean","required":false,"description":"清除桥接自有聊天以重新绑定，仅空闲时使用"}
+        {"name":"resetSession","type":"boolean","required":false,"description":"空闲时重建桥接会话，保留旧聊天与正式存档"},
+        {"name":"sessionPolicy","type":"string","required":false,"description":"continuous持续沿用；service_restart重启Python后新建；per_action每个新行动新建，重试沿用"}
       ]
     }
   ]

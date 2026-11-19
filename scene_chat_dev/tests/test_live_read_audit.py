@@ -6,7 +6,7 @@ ROOT=Path(__file__).resolve().parents[2];sys.path.insert(0,str(ROOT));sys.dont_w
 import round_runtime as rr
 import story_reading as sr
 source=ast.parse((ROOT/'interaction_runtime.py').read_text())
-wanted={'packet_read_ranges','verify'}
+wanted={'packet_read_ranges','required_source_lines','missing_read_target','verify'}
 nodes=[n for n in source.body if isinstance(n,ast.FunctionDef) and n.name in wanted or isinstance(n,ast.Assign) and any(isinstance(t,ast.Name) and t.id=='LIVE_READ_TOOLS' for t in n.targets)]
 space={'json':json,'re':re,'rr':rr,'sr':sr};exec(compile(ast.Module(body=nodes,type_ignores=[]),'interaction_runtime.py','exec'),space)
 verify=space['verify'];ranges=space['packet_read_ranges']

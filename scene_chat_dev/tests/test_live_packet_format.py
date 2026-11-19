@@ -14,6 +14,8 @@ class LivePacketFormatChecks(unittest.TestCase):
   obj={'rule':'括号{[逗号,引号"与反斜杠\\\n保持原文','array':[None,True,False,3,{'a':'b'}],'empty':{},'list':[]}
   raw=encode(obj);self.assertEqual(json.loads(raw),obj)
   self.assertGreater(len(raw.splitlines()),8)
+  self.assertTrue(raw.endswith(b'\n'));self.assertFalse(raw.endswith(b'\n\n'))
+  self.assertTrue(raw.decode().splitlines()[-1].strip())
  def test_large_rules_are_not_one_giant_knowledge_line(self):
   entries=json.loads((ROOT/'txt文件/知识库/系统标签类.json').read_text())['data']['entries']
   obj={'knowledge_rules':[{'body':x['content']} for x in entries]}

@@ -1,0 +1,32 @@
+[
+  {
+    "chat_id": "bdd18b0b-48b3-45e9-b93d-246f483af969",
+    "calls": 12,
+    "actual_verified_lines": 2363,
+    "old_expected_lines": 2364,
+    "old_missing_lines": [
+      2364
+    ],
+    "source_sha256": "87d076cd3748698410734d815a7cdfe8d9864ef5a6ac8878be0f36760d025ce2",
+    "tail_blank_only": true,
+    "new_read_verification": "PASS",
+    "removed_last_page_rejected": "正式互动资料包未完整读取；缺少行 2300,2301,2302,2303,2304,2305,2306,2307,2308,2309,2310,2311；截断须补完",
+    "source_freshness_checked": false,
+    "note": "Use original snapshot for displayed text; current runtime sources have since changed. No commit or story assembly performed."
+  },
+  {
+    "chat_id": "a8c5df23-74a8-4e03-a14b-34a3bcfe13fe",
+    "calls": 12,
+    "actual_verified_lines": 2363,
+    "old_expected_lines": 2364,
+    "old_missing_lines": [
+      2364
+    ],
+    "source_sha256": "ac62b051af0aabd56568952a0edf97c6f4b7ab27714f55e3195c7e8bad4cdfac",
+    "tail_blank_only": true,
+    "new_read_verification": "PASS",
+    "removed_last_page_rejected": "正式互动资料包未完整读取；缺少行 2300,2301,2302,2303,2304,2305,2306,2307,2308,2309,2310,2311；截断须补完",
+    "source_freshness_checked": false,
+    "note": "Use original snapshot for displayed text; current runtime sources have since changed. No commit or story assembly performed."
+  }
+]

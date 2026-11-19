@@ -39,6 +39,7 @@ class StoryService:
         self.directory = self.store._path('.round-runtime/story')
         self.start_lock = threading.Lock()
         self.started = False
+        self.service_epoch = secrets.token_hex(16)
 
     def _path(self, name):
         return self.store._path('.round-runtime/story/' + name)
@@ -124,20 +125,27 @@ class StoryService:
         present = now - monitor['received_at'] < 15
         return {'control_supported': True, 'present': present,
                 **{key: monitor[key] for key in ('running', 'busy', 'last_error', 'plugin_version')},
+                'session': monitor.get('session'),
                 'phase': monitor['phase'] if present else 'offline', 'control': command}
 
     def bridge_control(self, body):
         self.start()
-        rr._keys(body, {'action'}, '桥接控制', {'action'})
-        if body['action'] not in ('start', 'stop'):
-            raise rr.RoundError('桥接控制只接受start或stop')
+        rr._keys(body, {'action','session_policy'}, '桥接控制', {'action'})
+        if body['action'] not in ('start','stop','reset_session','session_policy'):
+            raise rr.RoundError('桥接控制操作无效')
+        if body['action']=='session_policy' and body.get('session_policy') not in ('continuous','service_restart','per_action'):
+            raise rr.RoundError('会话方式无效')
+        if body['action']!='session_policy' and 'session_policy' in body:raise rr.RoundError('仅会话设置接收session_policy')
         with self.store._locked():
             state = self._read()
+            if body['action'] in ('reset_session','session_policy') and any(j['status'] in ACTIVE or j['status'] in ('preparing','refund_pending') for j in state['jobs'].values()):
+                raise rr.ConflictError('请等待当前行动结束后调整会话')
             previous = state.get('bridge_control')
-            if not (previous and previous['action'] == body['action'] and previous['status'] == 'requested'
+            if not (previous and previous['action'] == body['action'] and previous.get('session_policy')==body.get('session_policy') and previous['status'] == 'requested'
                     and time.time() - previous['issued_at'] <= 120):
                 state['bridge_control'] = {'id': secrets.token_hex(16), 'action': body['action'],
-                    'issued_at': time.time(), 'status': 'requested'}
+                    'issued_at': time.time(), 'status': 'requested',
+                    **({'session_policy':body['session_policy']} if body['action']=='session_policy' else {})}
                 self._write(state)
             return self._status(state)
 
@@ -146,7 +154,13 @@ class StoryService:
         rr._keys(body, {'runtime', 'ack_id', 'ack_error'}, '桥接状态', {'runtime'})
         runtime = body['runtime']
         fields = {'phase', 'running', 'busy', 'last_error', 'plugin_version', 'model'}
-        rr._keys(runtime, fields, 'runtime', fields)
+        rr._keys(runtime, fields | {'session'}, 'runtime', fields)
+        if runtime.get('session') is not None:
+            session=runtime['session'];sf={'policy','chat_id','generation','reset_reason'}
+            rr._keys(session,sf,'session',sf)
+            if session['policy'] not in ('continuous','service_restart','per_action') or type(session['generation']) is not int or session['generation']<0:
+                raise rr.RoundError('桥接会话状态无效')
+            if any(not isinstance(session[k],str) or len(session[k])>200 for k in ('chat_id','reset_reason')):raise rr.RoundError('桥接会话标识无效')
         if runtime['phase'] not in ('ready', 'paused', 'starting', 'generating', 'error'):
             raise rr.RoundError('桥接运行阶段无效')
         if type(runtime['running']) is not bool or type(runtime['busy']) is not bool:
@@ -181,7 +195,8 @@ class StoryService:
         connected = bridge['present'] and bridge['running'] and bridge['phase'] in ('ready', 'generating', 'legacy') and not bridge['last_error']
         return {'task': self._public(state['jobs'].get(state['latest'])),
                 'bridge_connected': bool(connected), 'bridge': bridge,
-                'reading_preflight': 1,
+                'reading_preflight': 1, 'live_reading_revision': 2,
+                'service_epoch':self.service_epoch,
                 'story_protocol': STORY_PROTOCOL, 'bridge_model': state.get('bridge_model'),
                 'save_epoch': self._save_epoch(), 'interaction_protocol': 3 if sp.enabled(self.root) else 2}
 
@@ -903,6 +918,8 @@ class StoryService:
             self._write(state)
             return {'task': {'request_id': job['request_id'], 'lease': job['lease'],
                              'turns': context['turns'], 'model_key': job.get('model_key'),
+                              'previous_validation_error':context.get('previous_validation_error',''),
+                              'service_epoch':self.service_epoch,'attempt':job['attempt'],'live_reading_revision':2,
                               'entry_mode': job.get('entry_mode'), 'save_epoch': self._save_epoch(),
                               'interaction_scope': context.get('interaction_scope'),
                               'packet_bytes': self.store._path(context['packet']['path']).stat().st_size if context.get('packet') else 0,
@@ -950,7 +967,11 @@ class StoryService:
         if not isinstance(result, dict):
             raise rr.RoundError('模型结果必须为JSON对象')
         context = json.loads(self._blob(key, '.context.json').read_bytes())
-        audit = self._verify_audit(key, body['conversation_audit'])
+        if context.get('entry_mode') == ir.MODE:
+            audit=ir.verify(self,key,body['conversation_audit'],allow_missing=True)
+            if not audit['required_reads_verified']:
+                return {'ready':False,'missing_keys':audit['missing_keys'],'read_targets':audit['read_targets']}
+        else:audit = self._verify_audit(key, body['conversation_audit'])
         if context.get('entry_mode') == ir.MODE:
             payload = ir.assemble(self, key, job, result, context, audit)
             with self.store._locked():
