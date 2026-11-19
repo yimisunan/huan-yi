@@ -51,3 +51,29 @@ assert.equal(reminder.output_contract.decision.options.map(o=>o.id).join(''),'AB
 assert(reminder.output_contract.checks.pace);assert(role.characterSetting.includes('推演'));
 assert(!role.characterSetting.includes('不生成整回合、L1、A/B/C'));
 assert(reminder.output_contract.resolution);console.log('LIVE_RESOLUTION_OK actual envelope contract forwarded, ABC/pacing/accounting present, strict empty wire preserved');
+
+// Nullable resolution wire values: normalize only legal JSON at exact paths.
+const nullable={messages:[{kind:'narration',speaker:'',text:'内容内的task和start保持原文。'}],decision:{prompt:'下一步？',options:[{id:'A'},{id:'B'},{id:'C'}]},operation:'',handoff:'',checks:{intent:'task: nested'},resolution:{category:'A',task:'',conditions:{npc:'',effective_progress:true},sleep:{kind:'none',start:'',evidence:''},memory:{fact:'',compact:'',transfers:{}}}};
+const nullableText=JSON.stringify(nullable),nullableFinal=final(nullableText).text;
+const converted=JSON.parse(nullableFinal);
+assert.equal(converted.operation,null);assert.equal(converted.resolution.task,null);
+assert.equal(converted.resolution.sleep.start,null);assert.equal(converted.resolution.conditions.npc,null);
+assert.equal(converted.handoff,'');assert.equal(converted.resolution.memory.fact,'');
+assert.equal(converted.resolution.memory.compact,'');assert.equal(converted.messages[0].speaker,'');
+for(const name of ['task','start','npc']) assert.throws(()=>final(nullableText.replace('"'+name+'":""','"'+name+'":')),new RegExp(name+'缺少值'));
+const noConditions=JSON.parse(nullableText);noConditions.resolution.conditions='';
+assert.equal(JSON.parse(final(JSON.stringify(noConditions)).text).resolution.conditions,null);
+const realValues=JSON.parse(nullableText);realValues.operation=null;realValues.resolution.task={title:'明确任务'};realValues.resolution.sleep.start={day:1,time:'22:00'};realValues.resolution.conditions.npc='苏婉青';
+assert.equal(final(JSON.stringify(realValues)).text,JSON.stringify(realValues));
+assert.throws(()=>final(nullableText.replace('"task":""','"task":null,"task":""')),/resolution.task字段重复/);
+assert.throws(()=>final(nullableText.replace('"sleep":{','"sleep":null,"sleep":{')),/sleep.start字段重复/);
+const untouchedDuplicate=nullableText.replace('"fact":""','"fact":"first","fact":""');
+assert(final(untouchedDuplicate).text.includes('"fact":"first","fact":""'));
+assert.equal(final(nullableText,1,false).text,nullableText);
+box.task2={...box.task,turns:[{kind:'user',content:JSON.stringify({entry_mode:'live_interaction',instruction:'read',output_contract:nullable})}]};
+const latest=vm.runInContext('generationTurns(task2,"")',box).map(x=>JSON.parse(x.content));
+assert.equal(latest[0].output_contract.resolution.task,'');
+assert.equal(latest[0].output_contract.resolution.sleep.start,'');
+assert.equal(latest[1].output_contract.resolution.conditions.npc,'');
+assert(latest[1].instruction.includes('系统宿主'));assert(latest[1].instruction.includes('10至20行'));
+console.log('LIVE_NULLABLE_WIRE_OK task/start/npc/conditions, exact paths, duplicates, malformed rejected, objects and legacy preserved');

@@ -435,6 +435,22 @@ def bounded_history(candidates, limits):
     return list(reversed(chosen))
 
 
+def encode_live_packet(data):
+    """Lossless physical line breaks between JSON tokens, including nested objects."""
+    raw=json.dumps(data,ensure_ascii=False,separators=(',',':'),allow_nan=False)
+    out=[];quoted=False;escaped=False
+    for char in raw:
+        out.append(char)
+        if quoted:
+            if escaped:escaped=False
+            elif char=='\\':escaped=True
+            elif char=='"':quoted=False
+        elif char=='"':quoted=True
+        elif char in '{[,':out.append('\n')
+        elif char in '}]':out.append('\n')
+    return (''.join(out)+'\n').encode('utf-8')
+
+
 def packet(story, prepared, key, text, command=None, previous_error='', selected=None, reservation=None):
     """Deterministic source extracts, scoped knowledge and original accepted messages."""
     from scene_chat import SceneService, encode_packet
@@ -537,7 +553,7 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
         data['knowledge_rules'] = [{'source':'txt文件/知识库/'+name+'.json','body':e['content']}
             for name in ('世界观类','叙事判断','系统标签类')
             for e in json.loads((story.root/('txt文件/知识库/'+name+'.json')).read_text())['data']['entries']]
-    raw = encode_packet(data)
+    raw = encode_live_packet(data)
     relative = sr.CACHE + '/' + hashlib.sha256(key.encode()).hexdigest()[:32] + '/live.txt'
     rr._atomic(story.store._path(relative), raw)
     contract = {'messages': [{'kind': 'dialogue|action|narration', 'speaker': '在场人物或旁白空串', 'text': '本段剧情'}],
@@ -548,7 +564,7 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
     if charged:
         contract['resolution'] = sp.contract(story.root)
     envelope = {'entry_mode': MODE, 'packet': {'path': relative, 'through_line': len(raw.decode().splitlines())},
-                'output_contract': contract, 'instruction': '真实完整读取本次packet、memory_transfer_sources.required_reads和history_archive.required_reads指定原文；其余旧事实按本任务精确行号或归档索引补读。返回单个裸JSON，生成连贯剧情及decision中的A/B/C；无需演完一场戏，不写旧完整回合、L1或SYSTEM_LOG。'}
+                'output_contract': contract, 'instruction': '真实完整读取本次packet、memory_transfer_sources.required_reads和history_archive.required_reads指定原文；packet建议每次10至20行读取，结果截断则缩小范围继续未覆盖行，不可重复整读或补读许可外文件；其余旧事实按本任务精确行号或归档索引补读。返回单个裸JSON，生成连贯剧情及decision中的A/B/C；无需演完一场戏，不写旧完整回合、L1或SYSTEM_LOG。'}
     if charged:
         envelope['instruction'] += ' 必须同时返回resolution：只分类和提供依据，不计算成本/最终面板；免费休息为SYSTEM且实际休息推进，睡眠有正文起止，不以短休冒充整夜。判档/事件/事实/时间只按当前资料；不能把人物系统数值或玩家私有记忆写成NPC知情。'
     return {'protocol': 3, 'interaction_protocol': 3 if charged else 2, 'entry_mode': MODE, 'audit': sources,
