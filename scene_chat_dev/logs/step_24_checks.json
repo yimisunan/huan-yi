@@ -16,5 +16,14 @@
     "old backups",
     "historical portrait archive"
   ],
-  "root": "/sdcard/互动对话项目/Gemini网页版"
+  "root": "/sdcard/互动对话项目/Gemini网页版",
+  "first_push_commit": "8842436c94b715f88c2e922a44fad35326f53ec6",
+  "first_push_remote_sha": "8842436c94b715f88c2e922a44fad35326f53ec6",
+  "push_verified": true,
+  "git_fsck_passed": true,
+  "repository_still_private": true,
+  "local_expected_difference": [
+    "语音运行.py"
+  ],
+  "current_snapshot_contains_runtime_archive": false
 }
