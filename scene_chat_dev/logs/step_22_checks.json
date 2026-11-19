@@ -1,0 +1,84 @@
+{
+  "python_parse": true,
+  "system_dependencies_installed": false,
+  "prologue": {
+    "command": [
+      "/usr/bin/python",
+      "-B",
+      "-m",
+      "unittest",
+      "test_prologue",
+      "-v"
+    ],
+    "exit_code": 0,
+    "output": "test_all_eight_scenarios_are_deterministic_valid_and_nonmutating (test_prologue.PrologueChecks.test_all_eight_scenarios_are_deterministic_valid_and_nonmutating) ... ok\ntest_idempotent_prologue_never_overwrites_an_existing_game (test_prologue.PrologueChecks.test_idempotent_prologue_never_overwrites_an_existing_game) ... ok\ntest_new_game_api_same_id_preserves_selected_prologue_and_epoch (test_prologue.PrologueChecks.test_new_game_api_same_id_preserves_selected_prologue_and_epoch) ... ok\ntest_opening_commit_journal_rolls_back_partial_published_files (test_prologue.PrologueChecks.test_opening_commit_journal_rolls_back_partial_published_files) ... ok\ntest_prologue_hidden_until_played_and_first_choice_costs_five (test_prologue.PrologueChecks.test_prologue_hidden_until_played_and_first_choice_costs_five) ... ok\ntest_reset_failure_inside_prologue_restores_all_prior_sources (test_prologue.PrologueChecks.test_reset_failure_inside_prologue_restores_all_prior_sources) ... ok\n\n----------------------------------------------------------------------\nRan 6 tests in 9.025s\n\nOK\n"
+  },
+  "js": {
+    "command": [
+      "node",
+      "--check",
+      "story_client.js"
+    ],
+    "exit_code": 0,
+    "output": ""
+  },
+  "browser": {
+    "prologue_available_without_begin_input": true,
+    "initial_messages_hidden": true,
+    "initial_choices_custom_hidden": true,
+    "one_node_per_tap": true,
+    "choices_after_final_ack": true,
+    "first_A_cost5": true,
+    "svg_icons": 4,
+    "stamina_meter95": true,
+    "reward_points2_exp1": true,
+    "details_collapsed_then_expand": true,
+    "no_script_or_onclick_in_receipt": true,
+    "exact_numbers": true,
+    "mobile_viewport_verified": false,
+    "real_audio_verified": false
+  },
+  "final_copy_reset": {
+    "command": [
+      "/usr/bin/python",
+      "-B",
+      "-m",
+      "unittest",
+      "test_prologue.PrologueChecks.test_all_eight_scenarios_are_deterministic_valid_and_nonmutating",
+      "test_interaction.InteractionChecks.test_new_game_api_idempotent_and_rejects_inflight",
+      "test_interaction.InteractionChecks.test_reset_removes_official_and_experimental_history_and_changes_epoch",
+      "-v"
+    ],
+    "exit_code": 0,
+    "output": "test_all_eight_scenarios_are_deterministic_valid_and_nonmutating (test_prologue.PrologueChecks.test_all_eight_scenarios_are_deterministic_valid_and_nonmutating) ... ok\ntest_new_game_api_idempotent_and_rejects_inflight (test_interaction.InteractionChecks.test_new_game_api_idempotent_and_rejects_inflight) ... ok\ntest_reset_removes_official_and_experimental_history_and_changes_epoch (test_interaction.InteractionChecks.test_reset_removes_official_and_experimental_history_and_changes_epoch) ... ok\n\n----------------------------------------------------------------------\nRan 3 tests in 4.040s\n\nOK\n"
+  },
+  "static_ui": {
+    "reduced_motion": true,
+    "static_svg_only": true,
+    "text_content_for_values": true,
+    "syntax_passed": true
+  },
+  "environment": {
+    "temp_only_dependencies": true,
+    "initial_MarkupSafe_wheel_suffix_mismatch": "fallback to package wheel pure Python implementation; runtime tests passed",
+    "real_model_tts_calls": 0
+  },
+  "deployment": {
+    "bridge": "1.8.0",
+    "enabled": true,
+    "running": true,
+    "busy": false,
+    "inFlight": null,
+    "pendingResult": false,
+    "model": "gpt-6.1-sol",
+    "workspace_preserved": true,
+    "live_interaction_protocol": 1,
+    "python_restart_required": true,
+    "real_model_tts_calls": 0
+  },
+  "cleanup": {
+    "server8774_closed": true,
+    "browser": "about:blank",
+    "temp_dependencies_removed_at_seal": true
+  }
+}

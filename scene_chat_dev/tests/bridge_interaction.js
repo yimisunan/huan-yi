@@ -1,0 +1,53 @@
+'use strict';
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+const path=require('path');
+const source=fs.readFileSync(path.join(__dirname,'../local.story.operit_bridge/main.js'),'utf8');
+const box={exports:{},ToolPkg:{ipc:{on(){}}},console,setTimeout,clearTimeout,setInterval,clearInterval};
+vm.createContext(box);vm.runInContext(source,box);
+const model={provider_id:'provider',model_id:'model'};
+box.task={entry_mode:'live_interaction',request_id:'live-test',save_epoch:'new',turns:[{kind:'user',content:JSON.stringify({entry_mode:'live_interaction',instruction:'read',output_contract:{messages:[],decision:{prompt:'抉择',options:[{id:'A'},{id:'B'},{id:'C'}]},operation:'old',handoff:'old',checks:{pace:'具体依据'},resolution:{category:'A',events:[]}}})}]};
+box.model=model;
+assert.equal(vm.runInContext('workerPath(task,"result")',box),'/api/story/worker/live-test/result');
+const turns=vm.runInContext('generationTurns(task,"")',box);
+assert(turns[1].content.includes('messages'));assert(!turns[1].content.includes('150～220'));
+const role=vm.runInContext('roleChanges(model,"live")',box);
+assert(role.characterSetting.includes('live_interaction'));
+assert(role.otherContentChat.includes('知情'));
+box.pending={entry_mode:'live_interaction',body:{text:'{"memory_deltas":{"l1_new_round":"unused"}}'}};
+box.config={outbox:box.pending};
+(async()=>{await vm.runInContext('repairMemory(config)',box);assert(!box.config.outbox.repairAttempted);console.log('BRIDGE_INTERACTION_OK routes, reminder, role, no automatic memory repair');})().catch(e=>{console.error(e);process.exitCode=1;});
+// Real final replies from the two failed user attempts; keep malformed values rejected.
+const reply='{"messages":[{"kind":"action","speaker":"沈知韫","text":"沈知韫看向你，轻轻拍了拍身旁的空位。"},{"kind":"dialogue","speaker":"沈知韫","text":"志北，过来坐会儿。今天过得怎么样？"}],"operation":,"handoff":"","checks":{"intent":"玩家输入“开始”，以简短招呼开启交流，留待玩家回应，不代写其决定。","knowledge":"母子当前同在徐家主宅；无已接受交流，不引入共同往事、玩家私有状态或继承秘密。","action":"仅沈知韫示意就座并问候，未宣称玩家已坐下，无移动或物品交付。"}}';
+const readParts=[{kind:'tool_call',toolName:'read_file',partId:'r',attributes:{path:'packet'}},{kind:'tool_result',toolName:'read_file',attributes:{status:'success'},content:'read'}];
+function final(text,stamp=1,mode='live_interaction',prefix=readParts){
+ box.receipt={outcome:{type:'committed',status:'completed',assistant:{messageTimestamp:stamp}}};
+ box.snapshots=new Map([[stamp,{messageTimestamp:stamp,parts:[...prefix,{kind:'markdown',content:text}]}]]);box.mode=mode;
+ return vm.runInContext('finalMessage(receipt,snapshots,mode)',box);
+}
+for(const stamp of [1795071121710,1795071196559]) assert.throws(()=>final(reply,stamp),/operation缺少值/);
+const wire=reply.replace('"operation":,','"operation":"",');
+const normal=final(wire).text;
+assert.equal(normal,reply.replace('"operation":,','"operation":null,'));
+assert.equal(JSON.parse(normal).operation,null);assert.equal(JSON.parse(normal).handoff,'');
+const action=wire.replace('"operation":""','"operation":{"code":"move_player","destination":"大学"}');
+assert.equal(final(action).text,action);assert.equal(final(normal).text,normal);
+const nested='{"messages":[{"kind":"narration","speaker":"","text":"字符串中 \\\"operation\\\": 不是字段"}],"checks":{"operation":"nested"},"operation" : "","handoff":""}';
+assert.equal(final(nested).text,nested.replace('"operation" : ""','"operation" : null'));
+const duplicate=wire.replace('"handoff":""','"handoff":"first","handoff":""');
+assert(final(duplicate).text.includes('"handoff":"first","handoff":""'));
+assert.throws(()=>final(wire.replace('"operation":""','"operation":null,"operation":""')),/operation字段重复/);
+assert.throws(()=>final(wire.replace('"handoff":""','"handoff":')),/handoff/);
+assert.throws(()=>final('```json\n'+wire+'\n```'),/合法JSON/);
+assert.throws(()=>final(wire,1,'live_interaction',[]),/文件工具结果/);
+assert.equal(final(wire,1,false).text,wire);
+const envelope=JSON.parse(turns[0].content),reminder=JSON.parse(turns[1].content);
+assert.equal(envelope.output_contract.operation,'');assert.equal(reminder.output_contract.operation,'');
+assert.equal(reminder.output_contract.handoff,'');assert(reminder.instruction.includes('重试也重新读取'));
+assert(role.otherContentChat.includes('空字符串'));
+console.log('LIVE_WIRE_OK two real failures rejected; empty operation normalized; action/null/duplicates/legacy preserved; complete reread required');
+
+assert.deepEqual(Object.keys(reminder.output_contract).sort(), ['checks','decision','handoff','messages','operation','resolution']);
+assert.equal(reminder.output_contract.decision.options.map(o=>o.id).join(''),'ABC');
+assert(reminder.output_contract.checks.pace);assert(role.characterSetting.includes('推演'));
+assert(!role.characterSetting.includes('不生成整回合、L1、A/B/C'));
+assert(reminder.output_contract.resolution);console.log('LIVE_RESOLUTION_OK actual envelope contract forwarded, ABC/pacing/accounting present, strict empty wire preserved');

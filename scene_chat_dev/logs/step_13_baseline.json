@@ -1,0 +1,22 @@
+{
+  "story_reading.py": {
+    "bytes": 12455,
+    "sha256": "530ad4129327c57cea5739256c644b040142a4ce10d1678fb68d5b97ec504611",
+    "backup": "开发者功能/归档/项目清理/历史修改备份/story_reading.py.bak-20261119-044240"
+  },
+  "scene_chat_dev/主窗口接入调整计划.md": {
+    "bytes": 6530,
+    "sha256": "dec9bc8c05add20c0c0d92fe60d19f8a720a11ed8ccff606c766488e9ec94323",
+    "backup": "开发者功能/归档/项目清理/历史修改备份/scene_chat_dev/主窗口接入调整计划.md.bak-20261119-044456"
+  },
+  "scene_chat_dev/src/scene_live/README.md": {
+    "bytes": 2299,
+    "sha256": "0973d84378dbce2522fb6ad1db6de6079918817c39d638b8a4a824a25915074e",
+    "backup": "开发者功能/归档/项目清理/历史修改备份/scene_chat_dev/src/scene_live/README.md.bak-20261119-044456"
+  },
+  "开发者功能/开发者说明书/开发者说明书.md": {
+    "bytes": 26631,
+    "sha256": "1dc56b2fb69cdcf6a9522d4df76ffd842ec2bd884c41661733ab3c4af0941346",
+    "backup": "开发者功能/归档/项目清理/历史修改备份/开发者功能/开发者说明书/开发者说明书.md.bak-20261119-044456"
+  }
+}

@@ -1,0 +1,156 @@
+{
+  "interaction": {
+    "actions": 0,
+    "count": 3,
+    "last_sequence": 3,
+    "segment_id": "live-8a1c5c47-bd6b-46e7-8190-4ae55ea536cd"
+  },
+  "last_settlement": {
+    "changes": [
+      {
+        "after": 4,
+        "attribute": "积分",
+        "before": 2,
+        "delta": 2,
+        "target": "系统宿主"
+      },
+      {
+        "after": 2,
+        "attribute": "经验值",
+        "before": 1,
+        "delta": 1,
+        "target": "系统宿主"
+      },
+      {
+        "after": 90,
+        "attribute": "体力",
+        "before": 95,
+        "delta": -5,
+        "target": "系统宿主"
+      },
+      {
+        "after": 42,
+        "attribute": "好感",
+        "before": 41,
+        "delta": 1,
+        "target": "苏婉青"
+      }
+    ],
+    "clock": {
+      "day": 1,
+      "time": "09:05"
+    },
+    "closed_round": null,
+    "events": {
+      "affection_events": {
+        "苏婉青": [
+          "社交微幅回馈"
+        ]
+      },
+      "depravity_events": {},
+      "ds_events": {},
+      "host_events": [
+        "日常_信任建立"
+      ],
+      "shame_events": {},
+      "vigilance_events": {}
+    },
+    "item": null,
+    "item_budget": 20,
+    "items_changed": false,
+    "kind": "action",
+    "memory_round": 1,
+    "net_cost": 5,
+    "phase": "ready",
+    "refunded": 10,
+    "request_id": "live-8a1c5c47-bd6b-46e7-8190-4ae55ea536cd",
+    "reserved": 15,
+    "sleep_completed": false,
+    "stamina_after": 90,
+    "stamina_before": 95,
+    "task_after": {
+      "current": null,
+      "history": [],
+      "pending_item": null
+    }
+  },
+  "options_text": "",
+  "presence": {
+    "徐志北": {
+      "location": "市中心顶层公寓",
+      "reason": "到访"
+    },
+    "徐念薇": {
+      "location": "大学",
+      "reason": "工作日在大学"
+    },
+    "沈知韫": {
+      "location": "公司",
+      "reason": "工作日上班中"
+    },
+    "苏婉青": {
+      "location": "市中心顶层公寓",
+      "reason": "常住"
+    }
+  },
+  "prologue": {
+    "request_id": "reset-20261119_184550_851c5b18aa8c4fbdbe26e8bf7b9152f8",
+    "scenario_id": "wanqing_apartment_morning",
+    "title": "工作日上午 · 公寓 · 嫂子",
+    "weekday": "周二"
+  },
+  "request_id": "live-8a1c5c47-bd6b-46e7-8190-4ae55ea536cd",
+  "round": 1,
+  "sceneTitle": "市中心顶层公寓",
+  "state_version": 3,
+  "storyNodes": [
+    {
+      "text": "你留在餐台旁，告诉嫂子今天就待在这里陪陪她。",
+      "type": "narration"
+    },
+    {
+      "text": "苏婉青正要去取餐巾，闻言回过头。她把餐巾放在桌边，朝你笑了笑。",
+      "type": "narration"
+    },
+    {
+      "speaker": "苏婉青",
+      "text": "那就留下来呀。有人陪着吃早饭，我也高兴。",
+      "type": "dialogue"
+    },
+    {
+      "text": "她把已经盛好的煎蛋摆到你这侧，添好餐具，又给你拉开一把椅子。随后回到灶边，把用过的锅移稳，擦净手。",
+      "type": "narration"
+    },
+    {
+      "text": "你搭着台沿的指腹触到石面的凉意，椅脚擦过地砖的轻响就在身侧。她给你留的位置隔着餐桌，能面对面说话，也各有活动的余地。",
+      "type": "narration"
+    },
+    {
+      "speaker": "苏婉青",
+      "text": "不过下午我还是照原来的安排去看婆婆。上午收拾屋子时，你跟我说说话就好，不用特意找事情做。",
+      "type": "dialogue"
+    },
+    {
+      "text": "她在桌子的另一侧坐下，把那只空杯移到你的餐位前，抬眼等你的意思。",
+      "type": "narration"
+    },
+    {
+      "speaker": "苏婉青",
+      "text": "先坐吧。咖啡还是温水？等吃完，你也帮我想想，下午带哪两样水果合适。",
+      "type": "dialogue"
+    }
+  ],
+  "story_runtime": {
+    "action_index": 2,
+    "clock": {
+      "day": 1,
+      "time": "09:05"
+    },
+    "closed_by": "",
+    "item_recovered": 0,
+    "last_closed": 0,
+    "memory_round": 1,
+    "phase": "ready",
+    "version": 1
+  }
+}

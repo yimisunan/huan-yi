@@ -1,0 +1,134 @@
+{
+  "stage": "task_response_20",
+  "cases": [
+    {
+      "name": "python_and_javascript_syntax",
+      "status": "PASS"
+    },
+    {
+      "name": "missing_task_get_json404",
+      "status": "PASS"
+    },
+    {
+      "name": "missing_task_retry_json404",
+      "status": "PASS"
+    },
+    {
+      "name": "unknown_story_route_json404",
+      "status": "PASS"
+    },
+    {
+      "name": "json405_retains_allow_header",
+      "status": "PASS"
+    },
+    {
+      "name": "client_header_guard_json403",
+      "status": "PASS"
+    },
+    {
+      "name": "non_json_body_guard_json415",
+      "status": "PASS"
+    },
+    {
+      "name": "worker_auth_guard_json403",
+      "status": "PASS"
+    },
+    {
+      "name": "cross_origin_guard_json403",
+      "status": "PASS"
+    },
+    {
+      "name": "explicit_http500_is_json",
+      "status": "PASS"
+    },
+    {
+      "name": "unhandled_exception_json500_no_details",
+      "status": "PASS"
+    },
+    {
+      "name": "round_error_keeps_json400",
+      "status": "PASS"
+    },
+    {
+      "name": "conflict_keeps_json409",
+      "status": "PASS"
+    },
+    {
+      "name": "outside404_keeps_html",
+      "status": "PASS"
+    },
+    {
+      "name": "outside403_keeps_html",
+      "status": "PASS"
+    },
+    {
+      "name": "existing_task_json_unchanged",
+      "status": "PASS"
+    },
+    {
+      "name": "task_list_remains_usable",
+      "status": "PASS"
+    },
+    {
+      "name": "error_requests_do_not_mutate_jobs",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend.html404_poll_continues_and_original_request_retries",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend.json404_poll_compatibility",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend.html403_keeps_status_and_pending",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend.html500_keeps_status_and_pending",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend.invalid_success_<!doctyp",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend.invalid_success_null",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend.invalid_success_[]",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend.json409_error_message_preserved",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend.response_body_abort_uses_timeout_message",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend.accepted_submission_preserves_payload_shape",
+      "status": "PASS"
+    },
+    {
+      "name": "frontend.post409_keeps_action_for_manual_retry",
+      "status": "PASS"
+    }
+  ],
+  "passed": 29,
+  "failed": 0,
+  "installed": false,
+  "real_flask_test_client": true,
+  "real_story_service": true,
+  "real_frontend_script": true,
+  "dom_adapter": true,
+  "real_browser": false,
+  "live_http_mutations": false,
+  "live_story_submissions": false,
+  "real_model_called": false,
+  "tts_called": false,
+  "system_dependencies_installed": false
+}

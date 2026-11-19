@@ -1,0 +1,587 @@
+{
+  "version": 1,
+  "entities": {
+    "沈知韫": {
+      "short": "知韫",
+      "status": "active"
+    },
+    "苏婉青": {
+      "short": "婉青",
+      "status": "active"
+    },
+    "徐念薇": {
+      "short": "念薇",
+      "status": "active"
+    },
+    "徐承邺": {
+      "short": "承邺",
+      "status": "active"
+    },
+    "徐志北": {
+      "short": "志北",
+      "status": "active"
+    },
+    "徐家亡父": {
+      "short": "徐家亡父",
+      "status": "deceased"
+    },
+    "次要NPC": {
+      "short": "对方",
+      "status": "category"
+    }
+  },
+  "types": {
+    "mother_son": {
+      "layer": "blood",
+      "roles": [
+        "mother",
+        "son"
+      ]
+    },
+    "father_son": {
+      "layer": "blood",
+      "roles": [
+        "father",
+        "son"
+      ]
+    },
+    "adoptive_mother_son": {
+      "layer": "social",
+      "roles": [
+        "adoptive_mother",
+        "adopted_son"
+      ]
+    },
+    "adoptive_mother_daughter": {
+      "layer": "social",
+      "roles": [
+        "adoptive_mother",
+        "adopted_daughter"
+      ]
+    },
+    "marriage": {
+      "layer": "social",
+      "roles": [
+        "husband",
+        "wife"
+      ]
+    },
+    "in_law_mother": {
+      "layer": "social",
+      "roles": [
+        "mother_in_law",
+        "daughter_in_law"
+      ]
+    },
+    "brothers": {
+      "layer": "social",
+      "roles": [
+        "elder_brother",
+        "younger_brother"
+      ]
+    },
+    "brother_sister": {
+      "layer": "social",
+      "roles": [
+        "elder_brother",
+        "younger_sister"
+      ]
+    },
+    "sister_brother": {
+      "layer": "social",
+      "roles": [
+        "elder_sister",
+        "younger_brother"
+      ]
+    },
+    "in_law_brother": {
+      "layer": "social",
+      "roles": [
+        "sister_in_law",
+        "husbands_younger_brother"
+      ]
+    },
+    "in_law_sister": {
+      "layer": "social",
+      "roles": [
+        "sister_in_law",
+        "husbands_younger_sister"
+      ]
+    },
+    "heir": {
+      "layer": "legal",
+      "roles": []
+    }
+  },
+  "facts": {
+    "R01": {
+      "type": "mother_son",
+      "subject": "沈知韫",
+      "object": "徐志北",
+      "known_by": "*",
+      "text": "沈知韫为徐志北生母；徐志北是亲生子，不能写成养子。"
+    },
+    "R02": {
+      "type": "father_son",
+      "subject": "徐家亡父",
+      "object": "徐志北",
+      "known_by": "*",
+      "text": "徐家亡父是徐志北生父，已故，为徐家创始人与遗嘱立者。"
+    },
+    "R03": {
+      "type": "marriage",
+      "subject": "徐家亡父",
+      "object": "沈知韫",
+      "known_by": "*",
+      "text": "沈知韫为徐家亡父之妻；亡夫已故。"
+    },
+    "R04": {
+      "type": "adoptive_mother_son",
+      "subject": "沈知韫",
+      "object": "徐承邺",
+      "known_by": "*",
+      "text": "沈知韫为徐承邺养母，徐承邺为徐家养子。"
+    },
+    "R05": {
+      "type": "adoptive_mother_daughter",
+      "subject": "沈知韫",
+      "object": "徐念薇",
+      "known_by": "*",
+      "text": "沈知韫为徐念薇养母，徐念薇为徐家养女。"
+    },
+    "R06": {
+      "type": "marriage",
+      "subject": "徐承邺",
+      "object": "苏婉青",
+      "known_by": "*",
+      "text": "徐承邺与苏婉青是夫妻；苏婉青在徐家为少奶奶。"
+    },
+    "R07": {
+      "type": "in_law_mother",
+      "subject": "沈知韫",
+      "object": "苏婉青",
+      "known_by": "*",
+      "text": "沈知韫是苏婉青的婆婆，苏婉青为其儿媳。"
+    },
+    "R08": {
+      "type": "brothers",
+      "subject": "徐承邺",
+      "object": "徐志北",
+      "known_by": "*",
+      "text": "徐承邺是徐志北的养兄、长兄；徐志北为其养弟。"
+    },
+    "R09": {
+      "type": "brother_sister",
+      "subject": "徐承邺",
+      "object": "徐念薇",
+      "known_by": "*",
+      "text": "徐承邺是徐念薇的养兄；徐念薇为其养妹、家中二姐。"
+    },
+    "R10": {
+      "type": "sister_brother",
+      "subject": "徐念薇",
+      "object": "徐志北",
+      "known_by": "*",
+      "text": "徐念薇是徐志北的养姐、二姐；徐志北为其养弟。"
+    },
+    "R11": {
+      "type": "in_law_brother",
+      "subject": "苏婉青",
+      "object": "徐志北",
+      "known_by": "*",
+      "text": "苏婉青是徐志北的嫂子；徐志北为其小叔。"
+    },
+    "R12": {
+      "type": "in_law_sister",
+      "subject": "苏婉青",
+      "object": "徐念薇",
+      "known_by": "*",
+      "text": "苏婉青是徐念薇的嫂子；徐念薇为其小姑。"
+    },
+    "K01": {
+      "type": "heir",
+      "subject": "徐家亡父",
+      "object": "徐志北",
+      "known_by": [
+        "沈知韫"
+      ],
+      "text": "亡夫遗嘱指定徐志北为千亿家产唯一合法继承人，而非徐承邺。"
+    }
+  },
+  "roles": {
+    "mother": {
+      "label": "生母",
+      "self": {
+        "formal": [],
+        "relaxed": [
+          "妈妈"
+        ],
+        "business": []
+      },
+      "address": {
+        "formal": [
+          "母亲"
+        ],
+        "relaxed": [
+          "妈",
+          "妈妈"
+        ],
+        "business": []
+      }
+    },
+    "son": {
+      "label": "亲生子",
+      "self": {
+        "formal": [
+          "儿子"
+        ],
+        "relaxed": [
+          "儿子"
+        ],
+        "business": []
+      },
+      "address": {
+        "formal": [
+          "儿子"
+        ],
+        "relaxed": [
+          "儿子"
+        ],
+        "business": []
+      }
+    },
+    "adoptive_mother": {
+      "label": "养母",
+      "self": {
+        "formal": [],
+        "relaxed": [
+          "妈妈"
+        ],
+        "business": []
+      },
+      "address": {
+        "formal": [
+          "母亲"
+        ],
+        "relaxed": [
+          "妈",
+          "妈妈"
+        ],
+        "business": []
+      }
+    },
+    "adopted_son": {
+      "label": "养子",
+      "self": {
+        "formal": [
+          "儿子"
+        ],
+        "relaxed": [
+          "儿子"
+        ],
+        "business": []
+      },
+      "address": {
+        "formal": [
+          "儿子"
+        ],
+        "relaxed": [
+          "儿子"
+        ],
+        "business": []
+      }
+    },
+    "adopted_daughter": {
+      "label": "养女",
+      "self": {
+        "formal": [
+          "女儿"
+        ],
+        "relaxed": [
+          "女儿"
+        ],
+        "business": []
+      },
+      "address": {
+        "formal": [
+          "女儿"
+        ],
+        "relaxed": [
+          "女儿"
+        ],
+        "business": []
+      }
+    },
+    "father": {
+      "label": "生父",
+      "self": {
+        "formal": [
+          "父亲"
+        ],
+        "relaxed": [
+          "爸爸"
+        ],
+        "business": []
+      },
+      "address": {
+        "formal": [
+          "父亲"
+        ],
+        "relaxed": [
+          "爸",
+          "爸爸"
+        ],
+        "business": []
+      }
+    },
+    "husband": {
+      "label": "丈夫",
+      "self": {
+        "formal": [],
+        "relaxed": [],
+        "business": []
+      },
+      "address": {
+        "formal": [
+          "丈夫"
+        ],
+        "relaxed": [
+          "老公"
+        ],
+        "business": []
+      }
+    },
+    "wife": {
+      "label": "妻子",
+      "self": {
+        "formal": [],
+        "relaxed": [],
+        "business": []
+      },
+      "address": {
+        "formal": [
+          "妻子"
+        ],
+        "relaxed": [
+          "老婆"
+        ],
+        "business": []
+      }
+    },
+    "mother_in_law": {
+      "label": "婆婆",
+      "self": {
+        "formal": [],
+        "relaxed": [],
+        "business": []
+      },
+      "address": {
+        "formal": [
+          "母亲"
+        ],
+        "relaxed": [
+          "妈",
+          "妈妈"
+        ],
+        "business": []
+      }
+    },
+    "daughter_in_law": {
+      "label": "儿媳",
+      "self": {
+        "formal": [
+          "儿媳"
+        ],
+        "relaxed": [],
+        "business": []
+      },
+      "address": {
+        "formal": [
+          "儿媳"
+        ],
+        "relaxed": [
+          "儿媳"
+        ],
+        "business": []
+      }
+    },
+    "elder_brother": {
+      "label": "养兄",
+      "self": {
+        "formal": [
+          "哥哥"
+        ],
+        "relaxed": [
+          "哥",
+          "哥哥"
+        ],
+        "business": []
+      },
+      "address": {
+        "formal": [
+          "大哥"
+        ],
+        "relaxed": [
+          "哥",
+          "哥哥"
+        ],
+        "business": []
+      }
+    },
+    "younger_brother": {
+      "label": "养弟",
+      "self": {
+        "formal": [
+          "弟弟"
+        ],
+        "relaxed": [
+          "弟弟"
+        ],
+        "business": []
+      },
+      "address": {
+        "formal": [
+          "弟弟"
+        ],
+        "relaxed": [
+          "弟弟"
+        ],
+        "business": []
+      }
+    },
+    "elder_sister": {
+      "label": "养姐",
+      "self": {
+        "formal": [
+          "姐姐"
+        ],
+        "relaxed": [
+          "姐",
+          "姐姐"
+        ],
+        "business": []
+      },
+      "address": {
+        "formal": [
+          "二姐"
+        ],
+        "relaxed": [
+          "姐",
+          "姐姐"
+        ],
+        "business": []
+      }
+    },
+    "younger_sister": {
+      "label": "养妹",
+      "self": {
+        "formal": [
+          "妹妹"
+        ],
+        "relaxed": [
+          "妹妹"
+        ],
+        "business": []
+      },
+      "address": {
+        "formal": [
+          "妹妹"
+        ],
+        "relaxed": [
+          "妹妹"
+        ],
+        "business": []
+      }
+    },
+    "sister_in_law": {
+      "label": "嫂子",
+      "self": {
+        "formal": [
+          "嫂子"
+        ],
+        "relaxed": [
+          "嫂子"
+        ],
+        "business": []
+      },
+      "address": {
+        "formal": [
+          "嫂子"
+        ],
+        "relaxed": [
+          "嫂子",
+          "嫂嫂"
+        ],
+        "business": []
+      }
+    },
+    "husbands_younger_brother": {
+      "label": "小叔",
+      "self": {
+        "formal": [],
+        "relaxed": [],
+        "business": []
+      },
+      "address": {
+        "formal": [
+          "小叔"
+        ],
+        "relaxed": [
+          "小叔"
+        ],
+        "business": []
+      }
+    },
+    "husbands_younger_sister": {
+      "label": "小姑",
+      "self": {
+        "formal": [],
+        "relaxed": [],
+        "business": []
+      },
+      "address": {
+        "formal": [
+          "小姑"
+        ],
+        "relaxed": [
+          "小姑"
+        ],
+        "business": []
+      }
+    }
+  },
+  "title_rules": [
+    {
+      "speaker": "苏婉青",
+      "listener": "次要NPC",
+      "fact": "R06",
+      "forms": {
+        "formal": [
+          "少奶奶"
+        ],
+        "relaxed": [
+          "少奶奶"
+        ],
+        "business": []
+      }
+    }
+  ],
+  "beliefs": {
+    "B01": {
+      "holder": "徐承邺",
+      "text": "坚信自己能继承家业，试图获得母亲对继承权的认可。"
+    },
+    "B02": {
+      "holder": "徐念薇",
+      "text": "仅知自己是家族利益中的局外人。"
+    },
+    "B03": {
+      "holder": "沈知韫",
+      "text": "自认家业给亲生子、偏爱给养子是两全；为庇护养子自尊而死守遗嘱秘密至今，独自承受守密与偏爱不公的内疚。"
+    }
+  },
+  "selection": {
+    "optional": true,
+    "rule": "称谓均为合法候选，不是必用台词。正式/放松/商务按实际话轮选择，可用我、姓名或省略；亲属自称只对明确听话者成立，不把叙述称呼复制为自称。"
+  }
+}

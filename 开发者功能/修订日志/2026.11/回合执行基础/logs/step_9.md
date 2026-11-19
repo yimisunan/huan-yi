@@ -1,0 +1,11 @@
+- 【步骤编号】step_9
+- 【上游依赖】logs/step_8.md，SHA-256=eba60268c892f0399008e1439d2840759701cb773224e2d1fcd0f7c184c5e3c1；src/安装清单_8.json，SHA-256=7997fb9ddf2dde61442b9f8558b2d5d69e40992056f4f2312e7412aa80fb429c；用户要求「本次先写一个计划方向，等待我阅读后，我们一个个点去修补」。
+- 【做了什么】将五项只读调研整理为P1—P12修补方向，逐项列明目标、依据、候选影响面、依赖、程序/创作验收、风险与回滚；给出建议顺序与量化基线，本次不实施任何修补项。
+- 【产物】plan/step_9.md，SHA-256=722e9fc47a28e730cfb8c40a9655d452e0e48734e1d42d2537a6f01397d86f13，28421字节、11793字符、202行；本交接单。沿用已有项目plan目录，不另复制到src；无临时文件、无现役文件备份。
+- 【验收证据】
+  - V1 改前基线：终端pwd为/storage/emulated/0/互动对话项目/Gemini网页版，规范化实际路径为/sdcard/互动对话项目/Gemini网页版；项目文件存在且两目标不存在（TARGETS_ABSENT 2）；tmp空。按step_8清单对9个已安装文件及23项保护文件进行SHA-256比对，输出BASELINE_CHECK {"checked": 32, "changed": []}。六份必读口径以story_service.py的REQUIRED_READS核对：含data.json、合计33144字符；AGENTS.md自动注入另计5672字符；四库原始37940、正文23263，全读比较基线71084字符。工作区根目录名称集合已记录在本次真实终端观测中。
+  - V2 改后结果：通过super_admin:bash内系统python3重读计划、验证编号与必需字段并比对保护指纹，真实退出码0。输出：VERIFY_PASS items=12 required_fields=7 per_item_save_boundary=true existing_files_unchanged=32 upstream_log_unchanged=true tmp_empty=true root_names_unchanged=true。计划全文UTF-8，重读内容与写入一致；P1—P12均未执行。交接单保存后另作一次同名配对与本文件重读核对，不将未执行的最终观测提前写为通过。
+  - V3 反向可行：R0免回滚（纯新增），父版/配置/存档均未覆盖；撤销时只删本步两份新增文档即可，不需恢复现役文件。未实际删除或回滚。
+- 【成本与异常】T1一个L1文档新增事务，R0；本次摘要续接预计21次实际子工具调用：预检/读取/技能激活16、写入尝试3（含1次失败）、验证与收尾2（最后一次在交接单写完后执行；并行包装层不重复计数），验证预算2次。已使用into、iter-revise、任务五步走·落盘规范。rg在此终端不可用，已改用grep_code取得相同定位证据，未安装工具；首次交接单终端命令因传递时转义失真而在Python解析阶段报SyntaxError、退出1，未执行写入，改用内置create_file保存；原计划无需回滚。没有代码运行器、模型或真实TTS请求。Fish文档两次失败属于上轮调研，本次未重试，相关能力保留待验证。
+- 【回滚方式】R0：免回滚（删新增物）。确需撤销时在工作区根执行：python3 -c 'from pathlib import Path; p=Path("开发者功能/修订日志/2026.11/回合执行基础"); [(p/s).unlink(missing_ok=True) for s in ("plan/step_9.md", "logs/step_9.md")]'。此命令仅作为恢复说明，未执行。
+- 【下一步】阻塞：按用户要求等待阅读本计划并点选P编号；可从P1开始，P3可按人物细分。收到具体范围后续写step_10契约，再实施该范围；不得默认批准全部12项。正式data.json、存档、语音配置、规则与代码本步均未变，剧情仍为第4回合。

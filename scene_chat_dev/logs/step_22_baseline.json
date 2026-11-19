@@ -1,0 +1,129 @@
+{
+  "step": "step_22",
+  "root": "/sdcard/互动对话项目/Gemini网页版",
+  "upstream": "b42cf2c8aeb53f17db1a2ff94914ca96503fcbcfeb86766ae2689375ef2f3c79",
+  "contract": "a1fe113dafdfbae33edcaa78205539519fb39c0d4829518ec666a6a901749e14",
+  "files": {
+    "存档开局随机盲盒.py": {
+      "exists": true,
+      "sha256": "64e1744448787e5ffaa9996dbd114a6f60658445007d41c845ee79028d617219",
+      "bytes": 11075,
+      "mtime_ns": 1795015935677847866,
+      "backup": "开发者功能/归档/项目清理/历史修改备份/存档开局随机盲盒.py.into-backup-step22-20261119-102643-327399"
+    },
+    "存档清理器.py": {
+      "exists": true,
+      "sha256": "4c94708e2fd20f8cf55816cd8a14e4e83dff9736760c0908422575e9e4e71213",
+      "bytes": 21303,
+      "mtime_ns": 1794311359343000000,
+      "backup": "开发者功能/归档/项目清理/历史修改备份/存档清理器.py.into-backup-step22-20261119-102643-327399"
+    },
+    "story_service.py": {
+      "exists": true,
+      "sha256": "95eadd5e0c4d8fe81ee3fc5659596c8ae191db90bd6412c86afed0f9864d3d3f",
+      "bytes": 71193,
+      "mtime_ns": 1795078170470998131,
+      "backup": "开发者功能/归档/项目清理/历史修改备份/story_service.py.into-backup-step22-20261119-102643-327399"
+    },
+    "txt文件/互动运行配置.json": {
+      "exists": true,
+      "sha256": "dbda0757b3b0f7e359376809b3af16530190d71c5a851e10fae2f39ebad5a581",
+      "bytes": 1120,
+      "mtime_ns": 1795068449139264272,
+      "backup": "开发者功能/归档/项目清理/历史修改备份/txt文件/互动运行配置.json.into-backup-step22-20261119-102643-327399"
+    },
+    "main_template.html": {
+      "exists": true,
+      "sha256": "bcb3929fe3563e9e38dae050606c0ce9592c54e49496733d3d106f7c46c4d7fa",
+      "bytes": 7102,
+      "mtime_ns": 1795069390491263913,
+      "backup": "开发者功能/归档/项目清理/历史修改备份/main_template.html.into-backup-step22-20261119-102840-925539"
+    },
+    "story_client.js": {
+      "exists": true,
+      "sha256": "ac20490f88197b675b514c87db73c543eea3e7fe4d98baab868a51435ab3175a",
+      "bytes": 26483,
+      "mtime_ns": 1795077982270998203,
+      "backup": "开发者功能/归档/项目清理/历史修改备份/story_client.js.into-backup-step22-20261119-102840-925539"
+    },
+    "story_client.css": {
+      "exists": true,
+      "sha256": "94dd6073c4f75317cdc13753a539084533af2449a5911b7e01f086f83115fcc9",
+      "bytes": 15759,
+      "mtime_ns": 1794853767752271546,
+      "backup": "开发者功能/归档/项目清理/历史修改备份/story_client.css.into-backup-step22-20261119-102840-925539"
+    },
+    "scene_chat_dev/tests/test_interaction.py": {
+      "exists": true,
+      "sha256": "25204a2077f4835e9303b0d6d6190cbb3641f0a1cfcc4d29425a6b587ff89b4a",
+      "bytes": 17230,
+      "mtime_ns": 1795070186839263609,
+      "backup": "开发者功能/归档/项目清理/历史修改备份/scene_chat_dev/tests/test_interaction.py.into-backup-step22-20261119-102643-327399"
+    },
+    "scene_chat_dev/tests/test_prologue.py": {
+      "exists": false,
+      "sha256": null,
+      "bytes": 0,
+      "mtime_ns": null
+    },
+    "scene_chat_dev/主窗口接入调整计划.md": {
+      "exists": true,
+      "sha256": "8e4e5e66d8d62bcf027aeed8d1f4830e96cc7538e4f12325c7be11dec41a14fb",
+      "bytes": 22243,
+      "mtime_ns": 1795075146918999284,
+      "backup": "开发者功能/归档/项目清理/历史修改备份/scene_chat_dev/主窗口接入调整计划.md.into-backup-step22-20261119-103829-030435"
+    },
+    "开发者功能/开发者说明书/开发者说明书.md": {
+      "exists": true,
+      "sha256": "7f8353de4d7dd2604af0e8232c939242bb4f0fcc3b9ab76068b106ae8e60ca9c",
+      "bytes": 33125,
+      "mtime_ns": 1795075146934999284,
+      "backup": "开发者功能/归档/项目清理/历史修改备份/开发者功能/开发者说明书/开发者说明书.md.into-backup-step22-20261119-103829-030435"
+    },
+    "开发者功能/修订日志/2026.11/随机序幕与游戏结算.md": {
+      "exists": false,
+      "sha256": null,
+      "bytes": 0,
+      "mtime_ns": null
+    }
+  },
+  "written": {
+    "存档开局随机盲盒.py": "5792a59771a92ed1f5f4e1bc464c5001d81cfe3a07d7eecaa9aa6d4900efe29f",
+    "存档清理器.py": "9417538732b70f9160c284b40ea48609c47d16fdbcef9f156b659efd946725a2",
+    "story_service.py": "b6bcbb7dc62be40c972c4b670fc3448055175f9dcb39e18a5c6dcd8264698eae",
+    "txt文件/互动运行配置.json": "93a20c707cb7b93d2783f718ed47eef2ffc84e0ffa8ef94092589f07f7ff84ef",
+    "scene_chat_dev/tests/test_interaction.py": "3dae7ccb70b916212ce665403bc87cd7606a808608d3f966142ac6adfc9994f8",
+    "story_client.js": "5bdf6a15164350122dcd8b874765cebfd95a80952302128b6e0303e6c8cb5f41",
+    "main_template.html": "5683ae3c203471a0f833d4f93c40f16a27f0783392963bb222e7842f04ba46dd",
+    "story_client.css": "fcb371c70058784ce77b4da862b2a883742ca7ef74d8b472d4377b1580e474c2",
+    "scene_chat_dev/tests/test_prologue.py": "fd433acc1c4274a05fe3d9552a28ed54c8c5f6e1e711de6bc01c8d6e4ed869b1",
+    "scene_chat_dev/主窗口接入调整计划.md": "5eaadb0c919f3e9936711b18953e5d3297bb33ad2611b8ecd02c91fc7af2608a",
+    "开发者功能/开发者说明书/开发者说明书.md": "21b43c13420bd487c25f6f62cd0ddee7496e8b559acb1a73bb6fe22e98bda4bb",
+    "开发者功能/修订日志/2026.11/随机序幕与游戏结算.md": "425f633afe5e3612484d88691ae676cd21b93dd89abbe3826eeb6d03ea8d9015"
+  },
+  "created": [
+    "scene_chat_dev/tests/test_prologue.py",
+    "开发者功能/修订日志/2026.11/随机序幕与游戏结算.md"
+  ],
+  "protected": {
+    "存档/全局记忆库.txt": "55dd58d5d16ce13050885ffed51f9b93b69ccd00e7fa1d06e3d6cf3176d7fa98",
+    "存档/徐志北道具图鉴.txt": "d031d1fce29ab2464f89e990e4e1cfd19a0fac4cbf2615d3f2f45bb596ca126e",
+    "存档/次要NPC名册.txt": "7c6c74b8790273b8d71294c1e9ebe700cf97ff5dfb14b10ac213c9d83c836f0f",
+    "data.json": "bea48fcd6c167b9b0a63ad04d38fb2cc66fe1774fe22e9397eaa551af45fd55a",
+    "voice_config.json": "6bbd1ad3f537b8a52ad3a1aec684d52358f9c0b3aaf9cbbeace994715573cec0",
+    "txt文件/关系称谓库.json": "b256e42669e1a1939d037579d90ded67e3ac04235c77626644ebd0d02479461a",
+    "txt文件/关系称谓查询.jsonl": "dc30de2cc2df577a04189c5155369248ea7147e0d8e84968072d3b34ada15e23",
+    "txt文件/知识库/角色类.json": "489b4bcd6248ccf07649c2d831367fe779aaa10a0fbe3f4cc5929dbb37e8c8d5",
+    "语音运行.py": "831ba774e99418e45fcc86c4dc1a95f9027582bb0150fa5ef853b03cb58998d2",
+    "voice_client.js": "79ce9d1fba27bffcbfad2b3b255f6b5ad54d014a2c8c737a7c8c9801eda67f6c",
+    "scene_chat_dev/local.story.operit_bridge/main.js": "82499e8241cb15201036a54838342db21b54d5e269c88cc74cac39fe81254662",
+    "scene_chat_dev/local.story.operit_bridge/manifest.json": "01d82ba0f0a7c0caf0ab11e499cffbc014d750a133de32759d458c6cebebbe19",
+    ".operit/sync.json": "21ea83e301e0af067fa9c0dcc9b185450b17c5c833a9015d19e1e0ad87c35761"
+  },
+  "checks": {
+    "parents_verified": 10,
+    "protected_verified": 13,
+    "written_verified": 12,
+    "checks_sha256": "0b924915e7bc3778ab53f4ac8a8ecd5c31f417b8bc28311cd7a82bc493876962"
+  }
+}

@@ -1,0 +1,11 @@
+- 【步骤编号】step_10
+- 【上游依赖】logs/step_9.md，SHA-256=582a572ca29a99297865e45a857282ac16f54d1831d263a5da2addec8c4543b1；plan/step_9.md 的P1；本契约plan/step_10.md，SHA-256=8c545b0dd5f22715af533807f9ffd08d4775f8e1918e9ec646f7879fbae5303c。用户「开始，按阶段一轮轮进行修改」授权先执行P1。
+- 【做了什么】一次L1事务安装P1：更正卷四与NPC社交层级指针，统一主提示/指南/索引的字符串定界转义说明，还原两个vigilance条目的31处换行；更新说明书摘要与世界书导出，未改人物行为或结算。
+- 【产物】src/P1修补与验收_10.md；src/安装清单_10.json（SHA-256=97e8cf6bd8e43d4deb8ed0e93eac7911d36d40aaecc59cf26aab8fedc2754ab8）；九个现役目标及各自同目录父版，完整路径见清单，后缀.into-backup-20261117_073521；本plan/log配对。tmp候选与脚本在最终收尾删除。
+- 【验收证据】
+  - V1 改前基线：终端pwd与绑定项目一致，真实路径/sdcard/互动对话项目/Gemini网页版；每个锚点唯一，9个目标的SHA-256/大小/mtime/权限、23项保护指纹记录在安装清单。候选输出PREPARED targets=9 protected=23 source_jsons=4 export_entries=22 always_active=7 metadata_unchanged=true；换行两项为10与21处。写入前原件复核、9份父版逐项校验。
+  - V2 改后结果：安装真实输出INSTALLED 9 BACKUPS_VERIFIED 9 PROTECTED_UNCHANGED 23。系统python3定向重读验收退出0，输出P1_PASS files=9 backups=9 protected=23 json_sources=4 changed_entries=4 metadata_unchanged=true export_entries=22 always_active=7 stale_references=0 rollback_parses=true unexpected_root_entries=0。四库除两角色指针与两vigilance换行外无正文差异；非content元数据不变，导出与既有转换函数一致；未请求模型/TTS，未推进剧情。最后一次配对/清理/字符量观测追加到src验收文档，留待真实执行后记录。
+  - V3 反向可行：9份父版改前指纹一致，rollback_command已通过shlex参数与Python静态解析；未实际恢复。命令先校验所有父版与当前文件归属，再逐文件原子恢复。
+- 【成本与异常】一个L1/R1事务；本轮预计30次实际子工具调用：预检/读取/激活/候选21、写入与收尾7、验证2；并行包装层不重复计数。最终调用同时清理已知tmp和记录真实收尾结果。沿用into、iter-revise、任务五步走·落盘规范。首次终端大输出被自动保存，后续以范围读取取得必要上下文；无失败修改或回滚。主提示中同类旧引号禁令纳入P1上下游修正，不越入P2；NPC社交层级实际命中苏婉青与徐念薇，按现役证据处理。
+- 【回滚方式】R1：在项目根执行src/安装清单_10.json内rollback_command；可用一条命令调取执行：python3 -c 'import json,subprocess; from pathlib import Path; p=Path("开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_10.json"); subprocess.run(json.loads(p.read_text(encoding="utf-8"))["rollback_command"],shell=True,check=True)'。该说明未执行；新增过程文档属R0，无需额外备份。
+- 【下一步】按用户分轮要求，本轮P1完成后停下交付；下一轮P2：明确入口分支、叙事权限与数据合法性。P2—P12未执行；正式data.json、存档、语音配置、引擎与前端保护指纹不变，故事仍为第4回合。

@@ -1,0 +1,421 @@
+{
+  "root": "/sdcard/互动对话项目/Gemini网页版",
+  "stage": "P8",
+  "status": "INSTALLED",
+  "risk": "L2/R1",
+  "changes": [
+    {
+      "path": "story_service.py",
+      "realpath": "/sdcard/互动对话项目/Gemini网页版/story_service.py",
+      "before": {
+        "sha256": "d6beccbffa4b4c1e9a2fe8e8a09162b351a33688e4d5e0aeb672d8251a75dd7d",
+        "bytes": 32254,
+        "mtime_ns": 1794853515956271642,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "49f8d200e9de69b0fd5af1f5041bf0f0d3c522facf2955fa8ef3d53a8238d43f",
+        "bytes": 40294
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate14_0.txt",
+      "backup": "story_service.py.into-backup-20261117_091120",
+      "character_delta": 7386
+    },
+    {
+      "path": "round_runtime.py",
+      "realpath": "/sdcard/互动对话项目/Gemini网页版/round_runtime.py",
+      "before": {
+        "sha256": "1747af3593f006e7fe878984ebfecd7a5fd3d15683f484b4f69e1a6055dda80a",
+        "bytes": 31591,
+        "mtime_ns": 1794846792400274207,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "36dde820c54c11980451a293fc14e517319f6ab947e37f2c025dbc3cdcb19c4e",
+        "bytes": 38079
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate14_1.txt",
+      "backup": "round_runtime.py.into-backup-20261117_091120",
+      "character_delta": 5946
+    },
+    {
+      "path": "txt文件/提示词.md",
+      "realpath": "/sdcard/互动对话项目/Gemini网页版/txt文件/提示词.md",
+      "before": {
+        "sha256": "c9f40635c77a58ec40c7bf2eeaad6cf49b22def1bd3f9ac5a5e89d0e3467460a",
+        "bytes": 13990,
+        "mtime_ns": 1786001188000000000,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "c3ade24b3d6d7434469b354e349b58fe4588f8b624246bdf135f57b68f22c169",
+        "bytes": 15798
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate14_2.txt",
+      "backup": "txt文件/提示词.md.into-backup-20261117_091120",
+      "character_delta": 852
+    },
+    {
+      "path": "txt文件/一键注入指南.txt",
+      "realpath": "/sdcard/互动对话项目/Gemini网页版/txt文件/一键注入指南.txt",
+      "before": {
+        "sha256": "4ee8e331f2674424a5c9cd3676038f40c2937af9784f8fe83d07abdc6d84102d",
+        "bytes": 47773,
+        "mtime_ns": 1794846792420274207,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "b332748f70d5c5644556bcfc005d4355380c3d6ebeae501170920cf447b76432",
+        "bytes": 48753
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate14_3.txt",
+      "backup": "txt文件/一键注入指南.txt.into-backup-20261117_091120",
+      "character_delta": 487
+    },
+    {
+      "path": "开发者功能/开发者说明书/开发者说明书.md",
+      "realpath": "/sdcard/互动对话项目/Gemini网页版/开发者功能/开发者说明书/开发者说明书.md",
+      "before": {
+        "sha256": "1d79ff9b5982b1bbf717c1eb05f6d9a2d67895fd8a69879a6edbd46948362a65",
+        "bytes": 13672,
+        "mtime_ns": 1794903828874436972,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "9211ea24e3513dd1afee1fcfe68292d7f25a6cde9d3e9a569a87e0e5c5e77ef0",
+        "bytes": 13949
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate14_4.txt",
+      "backup": "开发者功能/开发者说明书/开发者说明书.md.into-backup-20261117_091120",
+      "character_delta": 119
+    }
+  ],
+  "protected": {
+    ".operit/sync.json": {
+      "sha256": "50c49bae70db0e2db14017498a6802035819e45927ead4a1454e5495636461dd",
+      "bytes": 403,
+      "mtime_ns": 1794845848988274567,
+      "mode": 432
+    },
+    "AGENTS.md": {
+      "sha256": "0e325b92fd04f69096546f2d3b7fb1e710d351d035d3ce49139a06ad3f8c8dc6",
+      "bytes": 10877,
+      "mtime_ns": 1794310247394000000,
+      "mode": 432
+    },
+    "Operit世界书导出/convert_to_operit.py": {
+      "sha256": "db092c67a64ab0c92507eb1423ee0183d9f1d46702655b53d4c6d083df414157",
+      "bytes": 6470,
+      "mtime_ns": 1785992744000000000,
+      "mode": 432
+    },
+    "Operit世界书导出/operit_worldbook_深渊天平.json": {
+      "sha256": "6f0757aa6a908e2815c4b8a4c832efa3a57193452b54cbc492eafd31957279f3",
+      "bytes": 75568,
+      "mtime_ns": 1794903828858436972,
+      "mode": 432
+    },
+    "data.json": {
+      "sha256": "c538e2d3a36320fe674b57a915f11980c17cf177abd5396ec28eda5072810eb1",
+      "bytes": 2537,
+      "mtime_ns": 1794859504240269358,
+      "mode": 432
+    },
+    "injection_core.py": {
+      "sha256": "b665b9ccf7fc1205a5baf726fc248556e20eeb9650b0fc4754695d0258af8752",
+      "bytes": 111118,
+      "mtime_ns": 1794311346881000000,
+      "mode": 432
+    },
+    "main_template.html": {
+      "sha256": "d7d5b001f7cca00b09ec3c9de55957ff510eefaceadca45919d0131aa633b794",
+      "bytes": 274301,
+      "mtime_ns": 1794853515940271642,
+      "mode": 432
+    },
+    "story_client.css": {
+      "sha256": "c7d929cfa6a986ae2391e45af0947084e49dc0816d26968df0ccc7d76df22ebc",
+      "bytes": 9109,
+      "mtime_ns": 1794853767752271546,
+      "mode": 432
+    },
+    "story_client.js": {
+      "sha256": "e55e317159409e60d4885ea0faabe1329d5092106fb79f9fd3f3e3340941e91f",
+      "bytes": 24189,
+      "mtime_ns": 1794853515908271642,
+      "mode": 432
+    },
+    "txt文件/全局执行法典.md": {
+      "sha256": "f3422c04383f32611d70ea0c1fc6b356956723f19350bef85ecdb86db5b5a6aa",
+      "bytes": 13713,
+      "mtime_ns": 1794902190862437597,
+      "mode": 432
+    },
+    "txt文件/故事检索索引.md": {
+      "sha256": "414e69b71e537d873ad9ee2a00718b5e791b5cd71bbe642b63a1ca86d84bb961",
+      "bytes": 3867,
+      "mtime_ns": 1786001188000000000,
+      "mode": 432
+    },
+    "txt文件/知识库/世界观类.json": {
+      "sha256": "f223990abc623062681166d6cb7dc39ddc6a545ff6cdb39a7f78e36821939284",
+      "bytes": 7559,
+      "mtime_ns": 1794310247407000000,
+      "mode": 432
+    },
+    "txt文件/知识库/叙事判断.json": {
+      "sha256": "141337dfd6de6fceb043e68591fc8f157e99b71afa12eafbe4a342a3bc09b514",
+      "bytes": 16986,
+      "mtime_ns": 1786036360000000000,
+      "mode": 432
+    },
+    "txt文件/知识库/系统标签类.json": {
+      "sha256": "b6c7c12f36419a3e541e0eaba10b25a84bd2ded92ad56ed84e7bcb76afb7e24c",
+      "bytes": 29342,
+      "mtime_ns": 1786036360000000000,
+      "mode": 432
+    },
+    "txt文件/知识库/角色类.json": {
+      "sha256": "3232eb14c36c154762893a901b709fb90eaf683a81d91d2ed911e02171093649",
+      "bytes": 25762,
+      "mtime_ns": 1789229650000000000,
+      "mode": 432
+    },
+    "voice_client.js": {
+      "sha256": "8247309ca6fcf1d864ddd5b181e86265d5ed1aeec73cdcfa3a0fd4ab7101985d",
+      "bytes": 5698,
+      "mtime_ns": 1794394473464827642,
+      "mode": 432
+    },
+    "voice_config.json": {
+      "sha256": "6bbd1ad3f537b8a52ad3a1aec684d52358f9c0b3aaf9cbbeace994715573cec0",
+      "bytes": 2618,
+      "mtime_ns": 1794292912340000000,
+      "mode": 432
+    },
+    "voice_manager.html": {
+      "sha256": "58aa936025c0a6428c9b70239a0ab52f892e7bb0c2b2dd51c94eb3487ced0748",
+      "bytes": 69381,
+      "mtime_ns": 1794394473476827642,
+      "mode": 432
+    },
+    "存档/全局记忆库.txt": {
+      "sha256": "3895c68c55ebea8c265cffd0bae564487205eedc767f78b950937320d744112f",
+      "bytes": 5046,
+      "mtime_ns": 1794859504232269358,
+      "mode": 432
+    },
+    "存档/徐志北道具图鉴.txt": {
+      "sha256": "5ec84007c18ad3f9937717453e37238869ff610af5bc23ae33af2da1fc51224c",
+      "bytes": 2437,
+      "mtime_ns": 1794859504232269358,
+      "mode": 432
+    },
+    "存档/次要NPC名册.txt": {
+      "sha256": "7c6c74b8790273b8d71294c1e9ebe700cf97ff5dfb14b10ac213c9d83c836f0f",
+      "bytes": 1124,
+      "mtime_ns": 1794859504236269358,
+      "mode": 432
+    },
+    "开发者功能/Operit故事桥接/main.js": {
+      "sha256": "f9629a177afd680227634e934aa3a43d8d86d3b38a23f46a436932a23f2982e9",
+      "bytes": 26106,
+      "mtime_ns": 1794853515968271642,
+      "mode": 432
+    },
+    "开发者功能/Operit故事桥接/manifest.json": {
+      "sha256": "11d6a3107897da70c78ba06e0e61033dd922e7e37e0970bfdd11347445e7b176",
+      "bytes": 686,
+      "mtime_ns": 1794853515980271642,
+      "mode": 432
+    },
+    "开发者功能/Operit故事桥接/tools.js": {
+      "sha256": "d5aa8ed7db8ede487b2cfaca91fe327cf918809ff7b3ab5beff749eeb86c3df7",
+      "bytes": 2067,
+      "mtime_ns": 1794849661344273113,
+      "mode": 432
+    },
+    "开发者功能/Operit故事桥接/故事桥接.toolpkg": {
+      "sha256": "8068c0afd6112e1764c3f3ab5f863e35f95c09dd00320eaebcc46a49b4b66b27",
+      "bytes": 9871,
+      "mtime_ns": 1794853515988271642,
+      "mode": 432
+    },
+    "开发者功能/开发者说明书/世界书关键字配置.txt": {
+      "sha256": "9783e76b483cf444e284f66c65c732a6a866e36bf94a821938a3cc932ce774b9",
+      "bytes": 8499,
+      "mtime_ns": 1786036402000000000,
+      "mode": 432
+    },
+    "语音运行.py": {
+      "sha256": "f846a8ee8c00c0e66b4cd087dcfcfcdc77e3365c376430f87f3c77c5bffa781a",
+      "bytes": 39890,
+      "mtime_ns": 1794311352508000000,
+      "mode": 432
+    }
+  },
+  "root_names": [
+    ".backup",
+    ".operit",
+    ".round-runtime",
+    "AGENTS.md",
+    "AGENTS.md.into-backup-20261117_022223",
+    "AGENTS.md.into-backup-20261117_073521",
+    "AGENTS.md.into-backup-20261117_075417",
+    "Operit世界书导出",
+    "__pycache__",
+    "data.json",
+    "injection_core.py",
+    "injection_core.py.into-backup-20261116_163312",
+    "main_template.html",
+    "main_template.html.into-backup-20261116_172101",
+    "main_template.html.into-backup-20261116_181313",
+    "main_template.html.into-backup-20261116_185621",
+    "main_template.html.into-backup-20261117_022223",
+    "round_runtime.py",
+    "story_client.css",
+    "story_client.css.into-backup-20261116_181313",
+    "story_client.css.into-backup-20261116_185621",
+    "story_client.js",
+    "story_client.js.into-backup-20261116_181313",
+    "story_client.js.into-backup-20261116_185621",
+    "story_service.py",
+    "story_service.py.into-backup-20261116_181313",
+    "story_service.py.into-backup-20261116_185621",
+    "story_service.py.into-backup-20261116_212924",
+    "txt文件",
+    "voice_client.js",
+    "voice_config.json",
+    "voice_manager.html",
+    "vosi",
+    "存档",
+    "存档开局随机盲盒.py",
+    "存档清理器.py",
+    "开发者功能",
+    "日志",
+    "语音仓库",
+    "语音运行.py",
+    "语音运行.py.into-backup-20261116_172101"
+  ],
+  "file_edits": {
+    "txt文件/提示词.md": [
+      {
+        "old": "5. SYSTEM_LOG：使用下方唯一模板；桥接填写system_log，手动将SYSTEM_LOG传入system_log参数。",
+        "new": "5. 审计：output_contract.result_format=story_semantics_v1的桥接填写model_audit，程序组装SYSTEM_LOG；完整兼容/手动入口使用下方唯一模板。"
+      },
+      {
+        "old": "正文放story_nodes，审计放system_log，选项放options_text。",
+        "new": "正文放story_nodes，选项放options_text；story_semantics_v1只交model_audit语义依据，不手填system_log或程序事实。完整兼容格式须自带正确身份与完整system_log，两种格式不能混用。"
+      },
+      {
+        "old": "身份原样保留，按reading_policy重读工作区",
+        "new": "身份由程序取本次任务上下文组装；若显式携带须逐值一致，按reading_policy重读工作区"
+      },
+      {
+        "old": "以下为成功回合的唯一模板，按顺序填写本轮真实依据；",
+        "new": "【桥接语义结果】当output_contract.result_format=story_semantics_v1时，必需story_nodes、memory_deltas、options_text和model_audit。model_audit必需intent、scene、required_keys、evidence、v1、task、breakout；notes可选、最多三行。required_keys为本轮额外必需key数组，最小三键由程序加入；evidence为最终必需key对应的具体单行依据。v1含V1-A至D，每项均为{\"status\":\"通过\",\"reason\":\"本轮具体依据\"}；未通过则阻断，程序不代填通过。\n\n程序从已核验的正式会话记录生成query_keys、读取次数、覆盖与源指纹；从prepare快照生成记忆层数量/范围及人物所在；从合法结构化事件生成清单。完整读取一个KB文件可覆盖其中多个key，部分读取不冒充完整条目。模型仍负责判断本轮必需key、意图/人物/因果、证据含义、事件是否成立及摘要内容。缺少依据、未读必需key、失败V1或混入system_log均拒绝；程序事实不证明这些语义正确。\n\n固定身份、panel_changes={}及合法可选空容器由程序提供。实际发生的事件、状态或任务仍须显式提交；缺少语义不得用默认空值掩盖。固定执行器的完整回合契约和手动入口不变。以下唯一人工模板只用于完整兼容/手动入口，简化桥接不重复填写。\n\n以下为成功回合的唯一模板，按顺序填写本轮真实依据；"
+      },
+      {
+        "old": "system_log是回合JSON中的字符串，不混入story_nodes；手动脚本用SYSTEM_LOG变量传入；",
+        "new": "简化桥接的model_audit与正文分开，程序生成system_log；完整JSON的system_log为字符串，手动脚本用SYSTEM_LOG变量传入；"
+      },
+      {
+        "old": "必须存在七个标题：",
+        "new": "程序组装后的日志及完整兼容/手动日志必须存在七个标题："
+      },
+      {
+        "old": "- SYSTEM_LOG缺少七个标题；",
+        "new": "- 简化桥接缺少model_audit必需语义，或完整兼容/手动SYSTEM_LOG缺少七个标题；"
+      },
+      {
+        "old": "- V1-A至D缺少记录；",
+        "new": "- V1-A至D缺少明确结论或具体依据；"
+      }
+    ],
+    "txt文件/一键注入指南.txt": [
+      {
+        "old": "【回合JSON】顶层必填：",
+        "new": "【网页简化语义结果】output_contract.result_format=story_semantics_v1时，仅必填story_nodes、memory_deltas、options_text、model_audit；既有事件/状态/NPC/道具/任务字段可按需提交。model_audit字段和语义依据唯一见《提示词.md》；程序从任务上下文补schema_version/request_id/base_revision/current_round、panel_changes={}和合法可选空容器，从真实审计生成完整system_log。显式固定字段必须类型和值一致，非空面板、混用system_log、缺少语义或未读取必需key仍拒绝。模型不抄来源指纹、调用次数和记忆层数。\n服务端保存原始结果、已核验读取记录和确定性组装结果，交完整请求给固定执行器；重启恢复复用已保存组装结果，显式重试重新核验。简化语义格式仅属于正式会话桥接，不可直接传CLI或RoundStore。完整旧JSON和Python调用保持兼容。\n\n【完整回合JSON · 固定执行器/CLI及旧桥接兼容】顶层必填："
+      }
+    ],
+    "开发者功能/开发者说明书/开发者说明书.md": [
+      {
+        "old": "| 2026-11-17 | P4 全局规则协同 |",
+        "new": "| 2026-11-17 | P8 桥接封装与事实审计自动组装 | 模型提交语义依据，程序派生任务身份、读取事实、记忆层及事件清单；保留完整旧格式和语义拒绝，确定组装结果用于幂等恢复。见回合执行基础/logs/step_14.md。 |\n| 2026-11-17 | P4 全局规则协同 |"
+      }
+    ],
+    "round_runtime.py": [
+      {
+        "old": "    registry = _event_registry(root, engine)\n    for field, allowed in registry.items():\n        events = body[field]\n        targets = set(engine.VIGILANCE_TARGETS) if field == 'vigilance_events' else set(engine.DEFAULT_PRESENCE) - {'徐志北'}\n        if field == 'host_events':\n            tagged = [('系统宿主', events)]\n        else:\n            _keys(events, targets, field)\n            tagged = events.items()\n        for name, tags in tagged:\n            if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):\n                raise RoundError(field + '的标签必须是文本数组')\n            if len(tags) != len(set(tags)):\n                raise RoundError(field + '含重复标签')\n            for tag in tags:\n                if tag not in allowed and not (field == 'host_events' and re.fullmatch(r'兑换道具_[1-9]\\d{0,8}', tag)):\n                    raise RoundError(field + '含未知标签: ' + tag)\n                if tag == '兑换道具_X':\n                    raise RoundError('兑换道具_X中的X须为实际正整数')\n",
+        "new": "    _validate_event_fields(root, engine, body)\n"
+      },
+      {
+        "old": "\ndef _validate(root, request, files, allow_panel_override):",
+        "new": "\ndef _validate_event_fields(root, engine, body):\n    registry = _event_registry(root, engine)\n    for field, allowed in registry.items():\n        events = body[field]\n        targets = set(engine.VIGILANCE_TARGETS) if field == 'vigilance_events' else set(engine.DEFAULT_PRESENCE) - {'徐志北'}\n        if field == 'host_events':\n            tagged = [('系统宿主', events)]\n        else:\n            _keys(events, targets, field)\n            tagged = events.items()\n        for name, tags in tagged:\n            if not isinstance(tags, list) or not all(isinstance(t, str) for t in tags):\n                raise RoundError(field + '的标签必须是文本数组')\n            if len(tags) != len(set(tags)):\n                raise RoundError(field + '含重复标签')\n            for tag in tags:\n                if tag not in allowed and not (field == 'host_events' and re.fullmatch(r'兑换道具_[1-9]\\d{0,8}', tag)):\n                    raise RoundError(field + '含未知标签: ' + tag)\n                if tag == '兑换道具_X':\n                    raise RoundError('兑换道具_X中的X须为实际正整数')\n\n\ndef _audit_line(value, label, *, reason=False):\n    _text(value, label, 2000)\n    if '\\n' in value or '\\r' in value or (reason and value.strip() in {'同上', '见前文', '已读取', '通过', '无'}):\n        raise RoundError(label + '须为单行具体依据')\n    return value\n\n\ndef _assemble_bridge_result(root, result, identity, facts):\n    \"\"\"Internal bridge adapter. Public submit still requires a complete round request.\"\"\"\n    semantic_required = {'story_nodes', 'memory_deltas', 'options_text', 'model_audit'}\n    allowed = (REQUIRED | OPTIONAL.keys() | {'model_audit'}) - {'system_log'}\n    _keys(result, allowed, '桥接语义结果', semantic_required)\n    for key, value in identity.items():\n        if key in result and _json(result[key]) != _json(value):\n            raise RoundError('模型结果的' + key + '与任务不符')\n    if 'panel_changes' in result and result['panel_changes'] != {}:\n        raise RoundError('普通回合panel_changes必须为空对象')\n    audit = result['model_audit']\n    audit_required = {'intent', 'scene', 'required_keys', 'evidence', 'v1', 'task', 'breakout'}\n    _keys(audit, audit_required | {'notes'}, 'model_audit', audit_required)\n    for field in ('intent', 'scene', 'task', 'breakout'):\n        _audit_line(audit[field], 'model_audit.' + field, reason=True)\n    requested = audit['required_keys']\n    if (not isinstance(requested, list) or len(requested) > 64\n            or not all(isinstance(key, str) for key in requested) or len(set(requested)) != len(requested)):\n        raise RoundError('required_keys须为不重复的key数组')\n    if (not isinstance(facts, dict) or facts.get('required_reads_verified') is not True\n            or not isinstance(facts.get('available_keys'), dict)\n            or type(facts.get('read_call_count')) is not int or facts['read_call_count'] < 3):\n        raise RoundError('缺少程序核验的读取事实，不能组装桥接结果')\n    available = facts['available_keys']\n    minimum = {'state.memory', 'contract.inject', 'gate.V1'}\n    must = minimum | set(requested)\n    if not must <= available.keys():\n        raise RoundError('必需key未完整读取: ' + ', '.join(sorted(must - available.keys())))\n    evidence = audit['evidence']\n    _keys(evidence, available.keys(), 'model_audit.evidence', must)\n    for key, value in evidence.items():\n        _audit_line(value, 'evidence.' + key, reason=True)\n    v1 = audit['v1']\n    labels = ('V1-A', 'V1-B', 'V1-C', 'V1-D')\n    _keys(v1, labels, 'model_audit.v1', labels)\n    for label in labels:\n        _keys(v1[label], {'status', 'reason'}, label, {'status', 'reason'})\n        if v1[label]['status'] != '通过':\n            raise RoundError(label + '未明确通过，程序不代填语义结论')\n        _audit_line(v1[label]['reason'], label + '.reason', reason=True)\n    notes = audit.get('notes', [])\n    if not isinstance(notes, list) or len(notes) > 3:\n        raise RoundError('model_audit.notes须为最多三行的数组')\n    for note in notes:\n        _audit_line(note, 'notes')\n    body = {key: copy.deepcopy(result.get(key, value)) for key, value in OPTIONAL.items()\n            if key not in {'system_log', 'options_text'}}\n    body.update({key: copy.deepcopy(result[key]) for key in ('story_nodes', 'memory_deltas', 'options_text')})\n    body.update(copy.deepcopy(identity), panel_changes={})\n    _keys(body['memory_deltas'], {'l1_new_round', 'new_round_detail', 'l1_to_l2_condensed',\n          'l2_to_l3_summary', 'l3_to_l4_summary', 'new_buffs', 'presence', 'presence_changes'}, 'memory_deltas')\n    l1 = body['memory_deltas'].get('l1_new_round') or body['memory_deltas'].get('new_round_detail')\n    _text(l1, 'l1_new_round', 280)\n    _validate_event_fields(root, _engine(root, root), body)\n    compact = lambda value: json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))\n    lines = ['【SYSTEM_LOG】', 'ROUND: ' + str(identity['current_round']),\n             'INTENT: ' + audit['intent'], 'SCENE: ' + audit['scene'], '',\n             '【应查】', 'must_keys: ' + ', '.join(sorted(must)), '',\n             '【实查】', 'query_keys: ' + ', '.join(sorted(available)), '',\n             '【读取审计】', 'entry_mode: story_bridge', '来源：Operit本轮文件工具（程序核验）',\n             '本回内容读取工具调用次数：' + str(facts['read_call_count']),\n             'source_sha256: ' + compact(facts['source_fingerprints']),\n             '读取覆盖: ' + compact(available), '', '【阅据】',\n             '程序记忆事实: ' + compact(facts['memory']),\n             *[key + '（模型依据）: ' + evidence[key] for key in sorted(evidence)], '',\n             '【豁免】', 'skip: 无', '', '【V1验收】',\n             *[label + ': ' + v1[label]['status'] + ' — ' + v1[label]['reason'] for label in labels], '',\n             '【事件打标】']\n    for label, field in (('SHAME', 'shame_events'), ('DEPRAVITY', 'depravity_events'), ('DS', 'ds_events'),\n                         ('AFFECTION', 'affection_events'), ('HOST', 'host_events'), ('VIGILANCE', 'vigilance_events')):\n        lines.append(label + ': ' + (compact(body[field]) if body[field] else '无'))\n    lines.extend(['TASK（模型提议）: ' + audit['task'], '破局（模型判断）: ' + audit['breakout'], '',\n                  '【记忆/所在】', 'L1（拟提交）: ' + compact(l1),\n                  'presence（拟提交）: ' + compact(body['memory_deltas'].get('presence') or\n                      body['memory_deltas'].get('presence_changes') or body['presence_changes']),\n                  'layer_note: ' + compact(facts['memory']), '', '【备注】',\n                  '读取/身份/事件清单为程序事实；V1及人物因果依据为模型判断，不构成程序语义证明。', *notes])\n    body['system_log'] = '\\n'.join(lines)\n    return body\n\n\n\ndef _validate(root, request, files, allow_panel_override):"
+      },
+      {
+        "old": "def submit(self, request, *, dry_run=False, allow_panel_override=False, _legacy=False):",
+        "new": "def submit(self, request, *, dry_run=False, allow_panel_override=False, _legacy=False, _source_baseline=None):"
+      },
+      {
+        "old": "            body = _validate(self.root, request, files, allow_panel_override)",
+        "new": "            if _source_baseline is not None:\n                for relative, expected in _source_baseline.items():\n                    source = self._path(relative)\n                    if not source.is_file() or _digest(source.read_bytes()) != expected:\n                        raise ConflictError('提交前来源已改变，请显式重试: ' + relative)\n            body = _validate(self.root, request, files, allow_panel_override)"
+      },
+      {
+        "old": "            if _source_baseline is not None:\n                for relative, expected in _source_baseline.items():\n                    source = self._path(relative)\n                    if not source.is_file() or _digest(source.read_bytes()) != expected:\n                        raise ConflictError('提交前来源已改变，请显式重试: ' + relative)\n",
+        "new": "            self._check_source_baseline(_source_baseline)\n"
+      },
+      {
+        "old": "    def submit(self, request, *, dry_run=False, allow_panel_override=False, _legacy=False, _source_baseline=None):",
+        "new": "    def _check_source_baseline(self, baseline):\n        if baseline is None:\n            return\n        for relative, expected in baseline.items():\n            source = self._path(relative)\n            if not source.is_file() or _digest(source.read_bytes()) != expected:\n                raise ConflictError('提交来源已改变，请显式重试: ' + relative)\n\n    def submit(self, request, *, dry_run=False, allow_panel_override=False, _legacy=False, _source_baseline=None):"
+      },
+      {
+        "old": "            after = self._settle(body, files, sequence, request_id)",
+        "new": "            after = self._settle(body, files, sequence, request_id)\n            self._check_source_baseline(_source_baseline)"
+      }
+    ],
+    "story_service.py": [
+      {
+        "old": "        known = set(rr._engine(self.root, self.root).DEFAULT_PRESENCE) | {'徐承邺'}",
+        "new": "        engine = rr._engine(self.root, self.root)\n        known = set(engine.DEFAULT_PRESENCE) | {'徐承邺'}"
+      },
+      {
+        "old": "        policy = {'required_reads': required, 'required_browse': list(REQUIRED_BROWSE),",
+        "new": "        _, layers, _ = rr._memory_state(engine, {name: (value.encode('utf-8') if value is not None else None)\n                                                     for name, value in prepared['snapshot'].items()})\n        memory = prepared['snapshot'][rr.FILES[0]] or ''\n        current_panel = memory.split('▶ 上回合历史快照', 1)[0]\n        presence = re.search(r'【人物所在】\\s*\\n(.*?)(?=\\n\\s*【|\\Z)', current_panel, re.S)\n        assembly_memory = {'layers': {label: {'count': len(items),\n                           'ranges': [list(engine._memory_item_range(item)) for item in items]}\n                           for label, items in layers.items()},\n                           'presence': presence.group(1).strip() if presence else ''}\n        audit_contract = {\n            'required': ['intent', 'scene', 'required_keys', 'evidence', 'v1', 'task', 'breakout'],\n            'optional': {'notes': '最多三行的字符串数组'},\n            'required_keys': '数组：本轮额外必需key；最小三键由程序加入。按实际意图与人物判断，不漏必需资料。',\n            'evidence': '对象：最终必需key到本轮实际具体依据的单行字符串；不写已读取或同上。',\n            'v1': {label: {'status': '通过', 'reason': '本轮具体语义依据；程序不代填'}\n                   for label in ('V1-A', 'V1-B', 'V1-C', 'V1-D')},\n            'task': '已读任务状态及本轮提议，未结算不能宣称完成',\n            'breakout': '实际评估依据；无触发也须说明本轮为何不触发',\n        }\n        output_contract.update(\n            result_format='story_semantics_v1',\n            required_top_keys=['story_nodes', 'memory_deltas', 'options_text', 'model_audit'],\n            optional_defaults={key: value for key, value in rr.OPTIONAL.items()\n                               if key not in {'system_log', 'options_text'}},\n            server_fields=['schema_version', 'request_id', 'base_revision', 'current_round',\n                           'panel_changes', 'system_log'],\n            model_audit=audit_contract,\n            audit_rule='程序从本次正式会话审计组装读取事实、记忆层数、身份及事件清单；模型只交语义依据，不输出system_log。'\n                       '可省略固定身份和空容器；若携带固定字段必须与round_identity完全一致。完整旧JSON仍兼容，但须正确身份及完整system_log，不能与model_audit混用。')\n        policy = {'required_reads': required, 'required_browse': list(REQUIRED_BROWSE),"
+      },
+      {
+        "old": "'SYSTEM_LOG如实记录本轮工具读取与阅据，不写服务端提供、工具调用0或虚构世界书命中。'",
+        "new": "                   '按story_semantics_v1交正文、记忆、选项及model_audit语义判断；读取事实、身份和事件清单由服务端核验组装。'\n                   '不能输出system_log、调用次数或自报读取覆盖，不能漏掉必需依据。'"
+      },
+      {
+        "old": "        return {'protocol': STORY_PROTOCOL, 'turns': turns, 'audit': audit, 'reading_policy': policy}",
+        "new": "        return {'protocol': STORY_PROTOCOL, 'turns': turns, 'audit': audit, 'reading_policy': policy,\n                'assembly_memory': assembly_memory}"
+      },
+      {
+        "old": "                    reads.setdefault(relative, []).append((1, 10 ** 9))",
+        "new": "                    reads.setdefault(relative, []).append((1, 10 ** 9))\n                    record['complete_read'] = True"
+      },
+      {
+        "old": "        for relative, expected in context['audit'].items():\n            source = self.store._path(relative)\n            if not source.is_file() or hashlib.sha256(source.read_bytes()).hexdigest() != expected:\n                raise rr.ConflictError('生成期间规则或存档已改变，请显式重试: ' + relative)\n",
+        "new": "        self._source_check(context)\n"
+      },
+      {
+        "old": "    @staticmethod\n    def _model(value):",
+        "new": "    def _source_check(self, context):\n        for relative, expected in context['audit'].items():\n            source = self.store._path(relative)\n            if not source.is_file() or hashlib.sha256(source.read_bytes()).hexdigest() != expected:\n                raise rr.ConflictError('生成期间规则或存档已改变，请显式重试: ' + relative)\n\n    @staticmethod\n    def _read_coverage(records):\n        ranges = {}\n        for record in records:\n            if record['status'] == 'success' and record['name'] in READ_TOOLS:\n                if record.get('complete_read'):\n                    ranges.setdefault(record['path'], []).append((1, 10 ** 9))\n                elif 'start_line' in record:\n                    ranges.setdefault(record['path'], []).append((record['start_line'], record['end_line']))\n        result = {}\n        for path, spans in ranges.items():\n            reached = 0\n            for begin, end in sorted(spans):\n                if begin > reached + 1:\n                    break\n                reached = max(reached, end)\n            result[path] = reached\n        return result\n\n    def _bridge_facts(self, context, audit):\n        if audit.get('required_reads_verified') is not True:\n            raise rr.RoundError('缺少已核验的正式会话审计')\n        self._source_check(context)\n        records = audit['verified_tools']\n        coverage = self._read_coverage(records)\n        available, fingerprints = {}, {}\n        mapped = {rr.FILES[0]: 'state.memory', RULES[0]: 'contract.inject',\n                  RULES[1]: 'gate.V1', rr.FILES[1]: 'item.catalog', rr.FILES[2]: 'npc.minor'}\n        for relative, reached in coverage.items():\n            path = self.store._path(relative)\n            raw = path.read_bytes()\n            text = raw.decode('utf-8')\n            through = len(text.splitlines())\n            if relative == RULES[0]:\n                through = len(text.split('【手动Python入口开始】', 1)[0].splitlines())\n            if reached < through:\n                continue\n            digest = hashlib.sha256(raw).hexdigest()\n            fingerprints[relative] = digest\n            keys = []\n            if relative in mapped:\n                keys.append(mapped[relative])\n            elif relative.startswith('txt文件/知识库/') and path.suffix == '.json':\n                obj = rr.load_request(text)\n                items = obj.get('data', {}).get('entries', []) or obj.get('entries', [])\n                for entry in items:\n                    match = re.search(r'※索引key※\\s*([\\w.]+)', entry.get('content', ''))\n                    name = entry.get('name', '').split('（', 1)[0]\n                    key = match.group(1) if match else name\n                    if re.fullmatch(r'(char|lore|narrative|sys)\\.[\\w]+', key):\n                        keys.append(key)\n            for key in keys:\n                if key in available:\n                    raise rr.RoundError('读取来源包含重复key: ' + key)\n                available[key] = {'path': relative, 'sha256': digest, 'through_line': through}\n        return {'required_reads_verified': True, 'available_keys': available,\n                'source_fingerprints': fingerprints, 'memory': context['assembly_memory'],\n                'read_call_count': sum(record['name'] in READ_TOOLS for record in records)}\n\n    def _assemble_result(self, key, job):\n        text = self._blob(key, '.result.txt').read_text(encoding='utf-8')\n        result = rr.load_request(text)\n        if not isinstance(result, dict):\n            raise rr.RoundError('模型结果必须为JSON对象')\n        context_path = self._blob(key, '.context.json')\n        context = json.loads(context_path.read_bytes())\n        assembly = self._blob(key, '.assembled.json')\n        digest = hashlib.sha256(text.encode('utf-8')).hexdigest()\n        context_digest = hashlib.sha256(context_path.read_bytes()).hexdigest()\n        if assembly.is_file():\n            saved = rr.load_request(assembly.read_text(encoding='utf-8'))\n            if saved.get('result_sha256') != digest or saved.get('context_sha256') != context_digest:\n                raise rr.ConflictError('保存的组装结果与本次任务不符')\n            payload = saved['payload']\n        else:\n            if 'model_audit' in result:\n                audit = rr.load_request(self._blob(key, '.read-audit.json').read_text(encoding='utf-8'))\n                identity = {'schema_version': 1, **{field: job[field] for field in\n                            ('request_id', 'base_revision', 'current_round')}}\n                payload = rr._assemble_bridge_result(self.root, result, identity, self._bridge_facts(context, audit))\n            else:\n                payload = result\n            for field, value in {'schema_version': 1, **{field: job[field] for field in\n                                 ('request_id', 'base_revision', 'current_round')}}.items():\n                if field not in payload or rr._json(payload[field]) != rr._json(value):\n                    raise rr.RoundError('模型结果的' + field + '与任务不符')\n            rr._atomic(assembly, rr._json({'result_sha256': digest, 'context_sha256': context_digest,\n                                        'payload': payload}))\n        with self.store._locked():\n            if key not in self.store._ledger()['receipts']:\n                self._source_check(context)\n        return payload\n\n    @staticmethod\n    def _model(value):"
+      },
+      {
+        "old": "            rr._atomic(self._blob(key, '.context.json'), rr._json(context))\n            job.pop('generation_model', None)",
+        "new": "            rr._atomic(self._blob(key, '.context.json'), rr._json(context))\n            self._blob(key, '.assembled.json').unlink(missing_ok=True)\n            job.pop('generation_model', None)"
+      },
+      {
+        "old": "            payload = rr.load_request(self._blob(key, '.result.txt').read_text(encoding='utf-8'))\n            if not isinstance(payload, dict):\n                raise rr.RoundError('模型结果必须为JSON对象')\n            for field in ('request_id', 'base_revision', 'current_round'):\n                if payload.get(field) != job[field]:\n                    raise rr.RoundError('模型结果的' + field + '与任务不符')\n            receipt = self.store.submit(payload)",
+        "new": "            payload = self._assemble_result(key, job)\n            context = json.loads(self._blob(key, '.context.json').read_bytes())\n            read_audit = json.loads(self._blob(key, '.read-audit.json').read_bytes())\n            baseline = dict(context['audit'])\n            baseline.update({record['path']: record['source_sha256_at_result']\n                             for record in read_audit['verified_tools'] if 'source_sha256_at_result' in record})\n            receipt = self.store.submit(payload, _source_baseline=baseline)"
+      }
+    ]
+  },
+  "upstream_sha256": "bb2e33247f20640afb96698af948552e6c369bd9db077f1d4a8d9966bad56de2",
+  "plan_sha256": "70735a290865db9e6086870e0c58f91b1dfec282edfaec7fd342fe8d639e6fb9",
+  "rollback_command": "python3 -c 'from pathlib import Path\nimport hashlib,json,os,tempfile\nroot=Path.cwd().resolve()\nm=json.loads(Path(\"开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_14.json\").read_bytes())\nassert root==Path(m[\"root\"])\nh=lambda b:hashlib.sha256(b).hexdigest()\nfor c in m[\"changes\"]:\n p=Path(c[\"path\"]); b=Path(c[\"backup\"])\n assert p.resolve().is_relative_to(root) and b.resolve().is_relative_to(root)\n assert h(b.read_bytes())==c[\"before\"][\"sha256\"]\n assert h(p.read_bytes()) in (c[\"before\"][\"sha256\"],c[\"after\"][\"sha256\"])\nfor c in m[\"changes\"]:\n p=Path(c[\"path\"]); fd,name=tempfile.mkstemp(prefix=p.name+\".round-tmp-\",dir=p.parent)\n try:\n  with os.fdopen(fd,\"wb\") as f: f.write(Path(c[\"backup\"]).read_bytes()); f.flush(); os.fsync(f.fileno())\n  os.chmod(name,c[\"before\"][\"mode\"])\n  os.utime(name,ns=(c[\"before\"][\"mtime_ns\"],c[\"before\"][\"mtime_ns\"]))\n  os.replace(name,p)\n finally:\n  if os.path.exists(name): os.unlink(name)\n assert h(p.read_bytes())==c[\"before\"][\"sha256\"]\nprint(\"ROLLED_BACK\",len(m[\"changes\"]))'",
+  "candidate_refinement": "Source fingerprints checked under commit lock before validation and after isolated settlement.",
+  "installed_at": "2026-11-17T09:19:31.590765"
+}

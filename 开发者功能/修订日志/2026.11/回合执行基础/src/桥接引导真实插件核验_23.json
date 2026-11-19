@@ -1,0 +1,80 @@
+{
+  "observed_at": "2026-11-17T14:28:46.123925+00:00",
+  "import": {
+    "packageName": "local.story.operit_bridge",
+    "format": "toolpkg",
+    "storedPath": "/operitapp/data/extensions/device/packages/故事桥接.toolpkg",
+    "source_vfs": "/virtual/android/documents/230ffdc0fe524442bfde22083d61c969/开发者功能/Operit故事桥接/故事桥接.toolpkg",
+    "method": "same_id_in_place",
+    "sha256": "1854ce3d0bb91c7f9d797e1da57a9273554636892a6fcfae3aecb50856cb3f14",
+    "installed_copy_byte_match": true
+  },
+  "plugin_show": {
+    "version": "1.2.0",
+    "enabled": true,
+    "sourceType": "EXTERNAL",
+    "chatInputHooks": 1,
+    "appLifecycleHooks": 3
+  },
+  "extension_show": {
+    "scope": "device",
+    "sourceName": "故事桥接.toolpkg",
+    "enabledNames": [
+      "local.story.operit_bridge"
+    ],
+    "subpackageStates": {
+      "story_bridge": true
+    }
+  },
+  "commands": {
+    "discovered": "/storybridge start | stop | status",
+    "executed": [
+      "plugin exec storybridge status",
+      "plugin exec storybridge stop"
+    ],
+    "stdout": "故事桥接已暂停，已领取的行动会完成一次。\n生成模型：gpt-6.1-sol · 665535GPT"
+  },
+  "status": {
+    "version": "1.2.0",
+    "running": false,
+    "enabled": false,
+    "busy": false,
+    "pendingResult": false,
+    "inFlight": null,
+    "lastError": "",
+    "controlSupported": null,
+    "sessionReady": false,
+    "functionType": "CHAT",
+    "endpoint": "http://127.0.0.1:5000",
+    "workspacePath": "/virtual/android/documents/230ffdc0fe524442bfde22083d61c969",
+    "chatId": "7d932e09-d1c3-4086-a3e5-50b4fdd197e0",
+    "participantId": "f3c542bc-5c3c-413f-a4c9-375c526f0e76",
+    "model_id": "gpt-6.1-sol",
+    "provider_name": "665535GPT"
+  },
+  "configuration_preserved": [
+    "workspacePath",
+    "endpoint",
+    "functionType",
+    "chatId",
+    "participantId",
+    "enabled=false",
+    "subpackage enabled=true"
+  ],
+  "not_tested_live": [
+    "start_with_queued_action",
+    "deleted_chat_recreation",
+    "chat_input_submit_hook",
+    "new_server_control_http",
+    "rendered_browser_layout",
+    "model_generation",
+    "tts"
+  ],
+  "notes": [
+    "An idle terminal was confirmed and closed to release android-pty-reader capacity.",
+    "First import using Android physical path failed during VFS resolution; old installation was unchanged. Import succeeded using verified workspace VFS path.",
+    "Existing HTTP process returns story_protocol=3 but no bridge control summary. Restart is needed; GET on worker/control without token returned 403 and cannot distinguish route availability.",
+    "Owned deleted chat ID is retained while paused; safe recreation runs on start.",
+    "Queued task confirms DeepSeek/deepseek-v4-flash; current functional model is 665535GPT/gpt-6.1-sol. Model settings and pending task were preserved."
+  ]
+}

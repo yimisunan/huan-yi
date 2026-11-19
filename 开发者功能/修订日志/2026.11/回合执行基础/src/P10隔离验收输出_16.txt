@@ -1,0 +1,100 @@
+test_01_enter_and_omitted_expiry (__main__.Cases.test_01_enter_and_omitted_expiry) ... ok
+test_02_repeated_true_does_not_extend (__main__.Cases.test_02_repeated_true_does_not_extend) ... ok
+test_03_confusion_two_snapshots (__main__.Cases.test_03_confusion_two_snapshots) ... ok
+test_04_confusion_c_transfer (__main__.Cases.test_04_confusion_c_transfer) ... ok
+test_05_explicit_exit (__main__.Cases.test_05_explicit_exit) ... ok
+test_06_character_blocks_do_not_leak (__main__.Cases.test_06_character_blocks_do_not_leak) ... ok
+test_07_legacy_true_observation (__main__.Cases.test_07_legacy_true_observation) ... ok
+test_08_missing_micro_block (__main__.Cases.test_08_missing_micro_block) ... ok
+test_09_daily_scope_counter (__main__.Cases.test_09_daily_scope_counter) ... ok
+test_10_progress_resets (__main__.Cases.test_10_progress_resets) ... ok
+test_11_scene_scope_switch (__main__.Cases.test_11_scene_scope_switch) ... ok
+test_12_npc_scope_switch (__main__.Cases.test_12_npc_scope_switch) ... ok
+test_13_intensity_and_action_switch (__main__.Cases.test_13_intensity_and_action_switch) ... ok
+test_14_shame_boundary (__main__.Cases.test_14_shame_boundary) ... ok
+test_15_tension_streak (__main__.Cases.test_15_tension_streak) ... ok
+test_16_actual_breakout_resets_only_named (__main__.Cases.test_16_actual_breakout_resets_only_named) ... ok
+test_17_guard_five_and_idempotence (__main__.Cases.test_17_guard_five_and_idempotence) ... ok
+test_18_guard_c_interrupts (__main__.Cases.test_18_guard_c_interrupts) ... ok
+test_19_guard_tracks_still_compete (__main__.Cases.test_19_guard_tracks_still_compete) ... ok
+test_20_guard_early_rejected (__main__.Cases.test_20_guard_early_rejected) ... ok
+test_21_exhaust_second_and_duplicate (__main__.Cases.test_21_exhaust_second_and_duplicate) ... ok
+test_22_exhaust_independent_npcs (__main__.Cases.test_22_exhaust_independent_npcs) ... ok
+test_23_exhaust_end_condition (__main__.Cases.test_23_exhaust_end_condition) ... ok
+test_24_exhaust_clearance (__main__.Cases.test_24_exhaust_clearance) ... ok
+test_25_exhaust_threshold_and_early (__main__.Cases.test_25_exhaust_threshold_and_early) ... ok
+test_26_legacy_global_not_assigned (__main__.Cases.test_26_legacy_global_not_assigned) ... ok
+test_27_counter_assertions_custom (__main__.Cases.test_27_counter_assertions_custom) ... ok
+test_28_old_scope_explicit_observation (__main__.Cases.test_28_old_scope_explicit_observation) ... ok
+test_29_legacy_full_json_compatibility (__main__.Cases.test_29_legacy_full_json_compatibility) ... ok
+test_30_legacy_python_entry (__main__.Cases.test_30_legacy_python_entry) ... ok
+test_31_dry_run_not_counted (__main__.Cases.test_31_dry_run_not_counted) ... ok
+test_32_invalid_failed_submit_not_counted (__main__.Cases.test_32_invalid_failed_submit_not_counted) ... ok
+test_33_publish_failure_and_retry (__main__.Cases.test_33_publish_failure_and_retry) ... ok
+test_34_process_death_recovery (__main__.Cases.test_34_process_death_recovery) ... ok
+test_35_stale_revision_and_source_rejected (__main__.Cases.test_35_stale_revision_and_source_rejected) ... ok
+test_36_corrupt_metadata_rejected (__main__.Cases.test_36_corrupt_metadata_rejected) ... ok
+test_37_condition_validation (__main__.Cases.test_37_condition_validation) ... ok
+test_38_bridge_adapter_and_context (__main__.Cases.test_38_bridge_adapter_and_context) ... ok
+test_39_event_registry_and_export_unchanged_shape (__main__.Cases.test_39_event_registry_and_export_unchanged_shape) ... ok
+test_40_empty_ds_passive_projection (__main__.Cases.test_40_empty_ds_passive_projection) ... ok
+test_41_breakout_threshold_is_audited (__main__.Cases.test_41_breakout_threshold_is_audited) ... ok
+test_50_sets (__main__.P10Cases.test_50_sets) ... ok
+test_51_ast_equivalence (__main__.P10Cases.test_51_ast_equivalence) ... ok
+test_52_shame_events (__main__.P10Cases.test_52_shame_events) ... ok
+test_53_depravity_events (__main__.P10Cases.test_53_depravity_events) ... ok
+test_54_ds_events (__main__.P10Cases.test_54_ds_events) ... ok
+test_55_affection_events (__main__.P10Cases.test_55_affection_events) ... ok
+test_56_host_events (__main__.P10Cases.test_56_host_events) ... ok
+test_57_vigilance_numeric (__main__.P10Cases.test_57_vigilance_numeric) ... ok
+test_58_bad_registry (__main__.P10Cases.test_58_bad_registry) ... ok
+test_59_invalid_events (__main__.P10Cases.test_59_invalid_events) ... ok
+test_60_generated_views (__main__.P10Cases.test_60_generated_views) ... ok
+test_61_single_source (__main__.P10Cases.test_61_single_source) ... ok
+test_62_definition_conflict (__main__.P10Cases.test_62_definition_conflict) ... ok
+test_63_item_ids (__main__.P10Cases.test_63_item_ids) ... ERROR
+test_64_task_ids (__main__.P10Cases.test_64_task_ids) ... ok
+test_65_events_cli (__main__.P10Cases.test_65_events_cli) ... ok
+
+======================================================================
+ERROR: test_63_item_ids (__main__.P10Cases.test_63_item_ids)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/P10隔离验收_16.py", line 198, in test_item_ids_batch_and_history
+    self.commit(item_entries=[{'name':'核验笔A','action':'archive'}]);self.commit(item_entries=[{'name':'核验笔C','type':'永久性','desc':'中性验收物品'}])
+    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "<P9 cases with registry fixture>", line 111, in commit
+  File "/sdcard/互动对话项目/Gemini网页版/round_runtime.py", line 951, in submit
+    'optimistic_lock': not _legacy}
+  File "/sdcard/互动对话项目/Gemini网页版/round_runtime.py", line 890, in _settle
+    _atomic(memory_path, _write_lifecycle(memory, lifecycle).encode('utf-8'))
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/sdcard/互动对话项目/Gemini网页版/round_runtime.py", line 139, in _engine_call
+    raise RoundError('记忆层回合范围重复或逆序: ' + label)
+    ^^^^^^^^^^^^^^^^^^^^^^
+  File "/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_p10_tests16_my0vx6wf/55/injection_core.py", line 2672, in _execute_injection_internal
+    update_item_catalog(current_round, item_entries)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_p10_tests16_my0vx6wf/55/injection_core.py", line 2050, in update_item_catalog
+    content = _archive_item(content, target, {**_item_from_parsed(old, item_name), "id": old_id},
+              ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                            "已归档", f"回合{current_round} - 手动归档", current_round)
+                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_p10_tests16_my0vx6wf/55/injection_core.py", line 1945, in _archive_item
+    raise RuntimeError("道具引擎：找不到历史区内容锚点！归档失败（已中止注入）。")
+RuntimeError: 道具引擎：找不到历史区内容锚点！归档失败（已中止注入）。
+
+----------------------------------------------------------------------
+Ran 57 tests in 104.999s
+
+FAILED (errors=1)
+
+TARGETED_RETRY fixture_history_separator_fixed=true
+test_63_item_ids (__main__.P10Cases.test_63_item_ids) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 3.373s
+
+OK
+
+P10_ISOLATION_PASS cases=57 numeric_comparisons=2100 main_tags=65 vigilance_tags=10 live_facts_unchanged=true

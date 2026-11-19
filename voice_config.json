@@ -1,0 +1,92 @@
+{
+    "__settings__": {
+        "fish_tts_model": "s2.1-pro"
+    },
+    "default": {
+        "voice": "fish:fc46c64b5e274c97b7d207724f2020cf",
+        "voice_ids": [
+            "fc46c64b5e274c97b7d207724f2020cf"
+        ],
+        "tts_model": "s2.1-pro-free",
+        "speed": 1.0,
+        "volume": 20,
+        "temperature": 0.6,
+        "top_p": 1,
+        "latency": "balanced",
+        "chunk_length": 280,
+        "min_chunk_length": 40,
+        "repetition_penalty": 1.25,
+        "condition_on_previous_chunks": true,
+        "emotion": ""
+    },
+    "徐念薇": {
+        "voice": "fish:d85cc5525b464d18984afde086cb988f",
+        "voice_ids": [
+            "42d8ffb0f1034a5c93ae6369d6af238c",
+            "54e0e58a1bc94b36beb8bbcbf8cda603",
+            "d85cc5525b464d18984afde086cb988f"
+        ],
+        "tts_model": "s2.1-pro-free",
+        "speed": 1.0,
+        "volume": 20,
+        "temperature": 0.72,
+        "top_p": 1,
+        "latency": "normal",
+        "chunk_length": 220,
+        "min_chunk_length": 40,
+        "repetition_penalty": 1.31,
+        "condition_on_previous_chunks": true,
+        "emotion": ""
+    },
+    "旁白": {
+        "voice": "fish:ce2ea055eb1f4c1cb8bce347193d12c3",
+        "voice_ids": [
+            "ce2ea055eb1f4c1cb8bce347193d12c3"
+        ],
+        "tts_model": "s2.1-pro-free",
+        "speed": 1.0,
+        "volume": 20,
+        "temperature": 0.58,
+        "top_p": 1,
+        "latency": "balanced",
+        "chunk_length": 260,
+        "min_chunk_length": 55,
+        "repetition_penalty": 1.25,
+        "condition_on_previous_chunks": true,
+        "emotion": ""
+    },
+    "沈知韫": {
+        "voice": "fish:0fbeafe1b0ed42d1877a27374aa469d9",
+        "voice_ids": [
+            "0fbeafe1b0ed42d1877a27374aa469d9"
+        ],
+        "tts_model": "s2.1-pro-free",
+        "speed": 1.0,
+        "volume": 20,
+        "temperature": 0.72,
+        "top_p": 1,
+        "latency": "balanced",
+        "chunk_length": 220,
+        "min_chunk_length": 40,
+        "repetition_penalty": 1.35,
+        "condition_on_previous_chunks": true,
+        "emotion": ""
+    },
+    "苏婉青": {
+        "voice": "fish:fc46c64b5e274c97b7d207724f2020cf",
+        "voice_ids": [
+            "fc46c64b5e274c97b7d207724f2020cf"
+        ],
+        "tts_model": "s2.1-pro-free",
+        "speed": 1.0,
+        "volume": 20,
+        "temperature": 0.5,
+        "top_p": 0.06,
+        "latency": "balanced",
+        "chunk_length": 220,
+        "min_chunk_length": 40,
+        "repetition_penalty": 1.44,
+        "condition_on_previous_chunks": true,
+        "emotion": ""
+    }
+}

@@ -1,0 +1,1084 @@
+{
+  "version": 1,
+  "groups": {
+    "shame_events": [
+      {
+        "id": "SHAME_01",
+        "tag": "C烈度_轻度",
+        "parameters": {
+          "base_delta_01": 2,
+          "cur_aff_02": 60,
+          "cur_shame_03": 70,
+          "violation_drop_04": 0,
+          "violation_drop_05": 1,
+          "cur_aff_06": 30,
+          "violation_drop_07": 2,
+          "violation_drop_08": 4
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 扣减",
+          "cur_aff_02": "cur_aff 比较阈值",
+          "cur_shame_03": "cur_shame 比较阈值",
+          "violation_drop_04": "violation_drop 扣减",
+          "violation_drop_05": "violation_drop 扣减",
+          "cur_aff_06": "cur_aff 比较阈值",
+          "violation_drop_07": "violation_drop 扣减",
+          "violation_drop_08": "violation_drop 扣减"
+        },
+        "description": "C烈度_轻度；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_02",
+        "tag": "C烈度_中度",
+        "parameters": {
+          "base_delta_01": 3,
+          "base_delta_02": 2,
+          "cur_aff_03": 60,
+          "cur_shame_04": 50,
+          "violation_drop_05": 0,
+          "violation_drop_06": 4,
+          "cur_aff_07": 30,
+          "violation_drop_08": 4,
+          "violation_drop_09": 12
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 扣减",
+          "base_delta_02": "base_delta 扣减",
+          "cur_aff_03": "cur_aff 比较阈值",
+          "cur_shame_04": "cur_shame 比较阈值",
+          "violation_drop_05": "violation_drop 扣减",
+          "violation_drop_06": "violation_drop 扣减",
+          "cur_aff_07": "cur_aff 比较阈值",
+          "violation_drop_08": "violation_drop 扣减",
+          "violation_drop_09": "violation_drop 扣减"
+        },
+        "description": "C烈度_中度；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_03",
+        "tag": "C烈度_深度",
+        "parameters": {
+          "base_delta_01": 4,
+          "base_delta_02": 3
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 扣减",
+          "base_delta_02": "base_delta 扣减"
+        },
+        "description": "C烈度_深度；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_04",
+        "tag": "C烈度_重度",
+        "parameters": {
+          "base_delta_01": 6,
+          "base_delta_02": 4,
+          "cur_aff_03": 60,
+          "cur_shame_04": 30,
+          "violation_drop_05": 0,
+          "violation_drop_06": 10,
+          "cur_aff_07": 30,
+          "violation_drop_08": 15,
+          "violation_drop_09": 20,
+          "violation_drop_10": 0
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 扣减",
+          "base_delta_02": "base_delta 扣减",
+          "cur_aff_03": "cur_aff 比较阈值",
+          "cur_shame_04": "cur_shame 比较阈值",
+          "violation_drop_05": "violation_drop 扣减",
+          "violation_drop_06": "violation_drop 扣减",
+          "cur_aff_07": "cur_aff 比较阈值",
+          "violation_drop_08": "violation_drop 扣减",
+          "violation_drop_09": "violation_drop 扣减",
+          "violation_drop_10": "violation_drop 比较阈值"
+        },
+        "description": "C烈度_重度；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_05",
+        "tag": "外射_体表面部",
+        "parameters": {
+          "base_delta_01": 3
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 扣减"
+        },
+        "description": "外射_体表面部；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_06",
+        "tag": "内射_常规",
+        "parameters": {
+          "base_delta_01": 4
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 扣减"
+        },
+        "description": "内射_常规；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_07",
+        "tag": "内射_首次核爆",
+        "parameters": {
+          "base_delta_01": 10
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 扣减"
+        },
+        "description": "内射_首次核爆；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_08",
+        "tag": "死亡查岗_抗拒期",
+        "parameters": {
+          "base_delta_01": 10,
+          "vig_target_02": 3,
+          "vig_target_03": 0,
+          "vig_target_04": 10
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 扣减",
+          "vig_target_02": "vig['目标'][target]['发现'] 比较阈值",
+          "vig_target_03": "vig['目标'][target]['警惕'] 赋值/条件值",
+          "vig_target_04": "vig['目标'][target]['警惕'] 赋值/条件值"
+        },
+        "description": "死亡查岗_抗拒期；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_09",
+        "tag": "无意识被侵_苏醒发现",
+        "parameters": {
+          "base_delta_01": 8
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 扣减"
+        },
+        "description": "无意识被侵_苏醒发现；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_10",
+        "tag": "确诊怀孕",
+        "parameters": {
+          "computed_shame_changes_char_name_01": 0
+        },
+        "parameter_usage": {
+          "computed_shame_changes_char_name_01": "computed_shame_changes[char_name] 赋值/条件值"
+        },
+        "description": "确诊怀孕；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_11",
+        "tag": "无意识锁定",
+        "parameters": {},
+        "parameter_usage": {},
+        "description": "无意识锁定；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_12",
+        "tag": "事件死寂锁定",
+        "parameters": {},
+        "parameter_usage": {},
+        "description": "事件死寂锁定；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_13",
+        "tag": "解离保护",
+        "parameters": {},
+        "parameter_usage": {},
+        "description": "解离保护；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_14",
+        "tag": "耻感反弹_苏醒",
+        "parameters": {
+          "rebound_val_01": 15,
+          "rebound_val_02": 100,
+          "rebound_val_03": 0
+        },
+        "parameter_usage": {
+          "rebound_val_01": "rebound_val 赋值/条件值",
+          "rebound_val_02": "rebound_val 赋值/条件值",
+          "rebound_val_03": "rebound_val 赋值/条件值"
+        },
+        "description": "耻感反弹_苏醒；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_15",
+        "tag": "同质化免疫_回合2",
+        "parameters": {
+          "base_delta_01": 0.5
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 赋值/条件值"
+        },
+        "description": "同质化免疫_回合2；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_16",
+        "tag": "同质化免疫_回合3",
+        "parameters": {
+          "base_delta_01": 0
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 赋值/条件值"
+        },
+        "description": "同质化免疫_回合3；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_17",
+        "tag": "首次",
+        "parameters": {},
+        "parameter_usage": {},
+        "description": "首次；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_18",
+        "tag": "生理_危险期",
+        "parameters": {
+          "prob_01": 2
+        },
+        "parameter_usage": {
+          "prob_01": "prob 赋值/条件值"
+        },
+        "description": "生理_危险期；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      }
+    ],
+    "depravity_events": [
+      {
+        "id": "DEPRAVITY_01",
+        "tag": "被迫吞咽精液",
+        "parameters": {
+          "base_delta_01": 5
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 增加"
+        },
+        "description": "被迫吞咽精液；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DEPRAVITY_02",
+        "tag": "死亡查岗_沉沦期",
+        "parameters": {
+          "base_delta_01": 10
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 增加"
+        },
+        "description": "死亡查岗_沉沦期；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DEPRAVITY_03",
+        "tag": "内射_首次核爆",
+        "parameters": {
+          "base_delta_01": 15
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 增加"
+        },
+        "description": "内射_首次核爆；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DEPRAVITY_04",
+        "tag": "主动破锁_30阶梯",
+        "parameters": {
+          "base_delta_01": 5,
+          "unlocked_threshold_02": 30
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 增加",
+          "unlocked_threshold_02": "unlocked_threshold 赋值/条件值"
+        },
+        "description": "主动破锁_30阶梯；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DEPRAVITY_05",
+        "tag": "主动破锁_60阶梯",
+        "parameters": {
+          "base_delta_01": 5,
+          "unlocked_threshold_02": 60
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 增加",
+          "unlocked_threshold_02": "unlocked_threshold 赋值/条件值"
+        },
+        "description": "主动破锁_60阶梯；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DEPRAVITY_06",
+        "tag": "主动破锁_90阶梯",
+        "parameters": {
+          "base_delta_01": 5,
+          "unlocked_threshold_02": 90
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 增加",
+          "unlocked_threshold_02": "unlocked_threshold 赋值/条件值"
+        },
+        "description": "主动破锁_90阶梯；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      }
+    ],
+    "ds_events": [
+      {
+        "id": "DS_01",
+        "tag": "刺激_视觉",
+        "parameters": {
+          "sensory_visual_01": 3
+        },
+        "parameter_usage": {
+          "sensory_visual_01": "sensory_visual 赋值/条件值"
+        },
+        "description": "刺激_视觉；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DS_02",
+        "tag": "刺激_嗅觉",
+        "parameters": {
+          "sensory_smell_01": 2
+        },
+        "parameter_usage": {
+          "sensory_smell_01": "sensory_smell 赋值/条件值"
+        },
+        "description": "刺激_嗅觉；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DS_03",
+        "tag": "刺激_听觉",
+        "parameters": {
+          "sensory_audio_01": 1
+        },
+        "parameter_usage": {
+          "sensory_audio_01": "sensory_audio 赋值/条件值"
+        },
+        "description": "刺激_听觉；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DS_04",
+        "tag": "刺激_物理",
+        "parameters": {
+          "new_des_01": 10
+        },
+        "parameter_usage": {
+          "new_des_01": "new_des 增加"
+        },
+        "description": "刺激_物理；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DS_05",
+        "tag": "场景切换_欲望回落",
+        "parameters": {
+          "new_des_01": 15
+        },
+        "parameter_usage": {
+          "new_des_01": "new_des 扣减"
+        },
+        "description": "场景切换_欲望回落；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DS_06",
+        "tag": "临界突破_魅力压迫",
+        "parameters": {
+          "new_des_01": 100
+        },
+        "parameter_usage": {
+          "new_des_01": "new_des 赋值/条件值"
+        },
+        "description": "临界突破_魅力压迫；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DS_07",
+        "tag": "临界突破_心理羞辱",
+        "parameters": {},
+        "parameter_usage": {},
+        "description": "临界突破_心理羞辱；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": [
+          "DS_06"
+        ]
+      },
+      {
+        "id": "DS_08",
+        "tag": "消耗_轻微焦虑",
+        "parameters": {
+          "new_sta_01": 2
+        },
+        "parameter_usage": {
+          "new_sta_01": "new_sta 扣减"
+        },
+        "description": "消耗_轻微焦虑；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DS_09",
+        "tag": "消耗_日常劳作",
+        "parameters": {
+          "new_sta_01": 5
+        },
+        "parameter_usage": {
+          "new_sta_01": "new_sta 扣减"
+        },
+        "description": "消耗_日常劳作；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DS_10",
+        "tag": "消耗_剧烈抗拒",
+        "parameters": {
+          "new_sta_01": 15
+        },
+        "parameter_usage": {
+          "new_sta_01": "new_sta 扣减"
+        },
+        "description": "消耗_剧烈抗拒；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DS_11",
+        "tag": "状态_空耗惩罚",
+        "parameters": {
+          "new_sta_01": 5
+        },
+        "parameter_usage": {
+          "new_sta_01": "new_sta 扣减"
+        },
+        "description": "状态_空耗惩罚；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DS_12",
+        "tag": "恢复_小憩",
+        "parameters": {
+          "new_sta_01": 10
+        },
+        "parameter_usage": {
+          "new_sta_01": "new_sta 增加"
+        },
+        "description": "恢复_小憩；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DS_13",
+        "tag": "恢复_安稳睡眠",
+        "parameters": {
+          "new_sta_01": 40
+        },
+        "parameter_usage": {
+          "new_sta_01": "new_sta 增加"
+        },
+        "description": "恢复_安稳睡眠；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DS_14",
+        "tag": "高潮_轻度累积",
+        "parameters": {
+          "new_org_01": 15
+        },
+        "parameter_usage": {
+          "new_org_01": "new_org 增加"
+        },
+        "description": "高潮_轻度累积；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DS_15",
+        "tag": "高潮_中度累积",
+        "parameters": {
+          "new_org_01": 30
+        },
+        "parameter_usage": {
+          "new_org_01": "new_org 增加"
+        },
+        "description": "高潮_中度累积；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DS_16",
+        "tag": "高潮_重度累积",
+        "parameters": {
+          "new_org_01": 50
+        },
+        "parameter_usage": {
+          "new_org_01": "new_org 增加"
+        },
+        "description": "高潮_重度累积；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DS_17",
+        "tag": "触发高潮_绝顶清算",
+        "parameters": {
+          "new_org_01": 100,
+          "new_org_02": 0,
+          "new_des_03": 35,
+          "new_sta_04": 15
+        },
+        "parameter_usage": {
+          "new_org_01": "new_org 比较阈值",
+          "new_org_02": "new_org 赋值/条件值",
+          "new_des_03": "new_des 赋值/条件值",
+          "new_sta_04": "new_sta 增加"
+        },
+        "description": "触发高潮_绝顶清算；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      }
+    ],
+    "affection_events": [
+      {
+        "id": "AFFECTION_01",
+        "tag": "阻止侵犯_成功",
+        "parameters": {
+          "new_aff_01": 5
+        },
+        "parameter_usage": {
+          "new_aff_01": "new_aff 扣减"
+        },
+        "description": "阻止侵犯_成功；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "AFFECTION_02",
+        "tag": "暴力下流_雪崩",
+        "parameters": {
+          "new_aff_01": 20
+        },
+        "parameter_usage": {
+          "new_aff_01": "new_aff 扣减"
+        },
+        "description": "暴力下流_雪崩；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "AFFECTION_03",
+        "tag": "基础安抚",
+        "parameters": {
+          "cur_aff_01": 50,
+          "new_aff_02": 1,
+          "new_aff_03": 0
+        },
+        "parameter_usage": {
+          "cur_aff_01": "cur_aff 比较阈值",
+          "new_aff_02": "new_aff 增加",
+          "new_aff_03": "new_aff 增加"
+        },
+        "description": "基础安抚；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "AFFECTION_04",
+        "tag": "深度操控_首次",
+        "parameters": {
+          "cur_shame_01": 60,
+          "new_aff_02": 5,
+          "new_aff_03": 3
+        },
+        "parameter_usage": {
+          "cur_shame_01": "cur_shame 比较阈值",
+          "new_aff_02": "new_aff 增加",
+          "new_aff_03": "new_aff 增加"
+        },
+        "description": "深度操控_首次；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "AFFECTION_05",
+        "tag": "深度操控_重复",
+        "parameters": {
+          "new_aff_01": 2
+        },
+        "parameter_usage": {
+          "new_aff_01": "new_aff 增加"
+        },
+        "description": "深度操控_重复；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "AFFECTION_06",
+        "tag": "社交微幅回馈",
+        "parameters": {
+          "cur_aff_01": 60,
+          "new_aff_02": 1,
+          "new_aff_03": 0
+        },
+        "parameter_usage": {
+          "cur_aff_01": "cur_aff 比较阈值",
+          "new_aff_02": "new_aff 增加",
+          "new_aff_03": "new_aff 增加"
+        },
+        "description": "社交微幅回馈；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "AFFECTION_07",
+        "tag": "暴跌回升_恢复中",
+        "parameters": {
+          "new_aff_01": 2
+        },
+        "parameter_usage": {
+          "new_aff_01": "new_aff 增加"
+        },
+        "description": "暴跌回升_恢复中；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "AFFECTION_08",
+        "tag": "苏婉青_真相揭露",
+        "parameters": {
+          "cur_aff_01": 85,
+          "cap_02": 95
+        },
+        "parameter_usage": {
+          "cur_aff_01": "cur_aff 比较阈值",
+          "cap_02": "cap 赋值/条件值"
+        },
+        "description": "苏婉青_真相揭露；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "AFFECTION_09",
+        "tag": "苏婉青_温柔侵蚀",
+        "parameters": {},
+        "parameter_usage": {},
+        "description": "苏婉青_温柔侵蚀；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": [
+          "AFFECTION_08"
+        ]
+      }
+    ],
+    "host_events": [
+      {
+        "id": "HOST_01",
+        "tag": "侵蚀_认知撕裂",
+        "parameters": {
+          "track1_pts_01": 2,
+          "track1_exp_02": 1
+        },
+        "parameter_usage": {
+          "track1_pts_01": "track1['pts'] 增加",
+          "track1_exp_02": "track1['exp'] 增加"
+        },
+        "description": "侵蚀_认知撕裂；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "HOST_02",
+        "tag": "侵蚀_生理战栗",
+        "parameters": {
+          "track1_pts_01": 8,
+          "track1_exp_02": 5
+        },
+        "parameter_usage": {
+          "track1_pts_01": "track1['pts'] 增加",
+          "track1_exp_02": "track1['exp'] 增加"
+        },
+        "description": "侵蚀_生理战栗；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "HOST_03",
+        "tag": "侵蚀_防线坍塌",
+        "parameters": {
+          "track1_pts_01": 30,
+          "track1_exp_02": 20
+        },
+        "parameter_usage": {
+          "track1_pts_01": "track1['pts'] 增加",
+          "track1_exp_02": "track1['exp'] 增加"
+        },
+        "description": "侵蚀_防线坍塌；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "HOST_04",
+        "tag": "侵蚀_首次核爆",
+        "parameters": {
+          "track1_pts_01": 50,
+          "track1_exp_02": 50
+        },
+        "parameter_usage": {
+          "track1_pts_01": "track1['pts'] 增加",
+          "track1_exp_02": "track1['exp'] 增加"
+        },
+        "description": "侵蚀_首次核爆；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "HOST_05",
+        "tag": "日常_信任建立",
+        "parameters": {
+          "track2_pts_01": 2,
+          "track2_exp_02": 1
+        },
+        "parameter_usage": {
+          "track2_pts_01": "track2['pts'] 增加",
+          "track2_exp_02": "track2['exp'] 增加"
+        },
+        "description": "日常_信任建立；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "HOST_06",
+        "tag": "日常_情感共振",
+        "parameters": {
+          "track2_pts_01": 4,
+          "track2_exp_02": 3
+        },
+        "parameter_usage": {
+          "track2_pts_01": "track2['pts'] 增加",
+          "track2_exp_02": "track2['exp'] 增加"
+        },
+        "description": "日常_情感共振；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "HOST_07",
+        "tag": "日常_连续守护5回合",
+        "parameters": {
+          "track2_pts_01": 5,
+          "track2_exp_02": 3
+        },
+        "parameter_usage": {
+          "track2_pts_01": "track2['pts'] 增加",
+          "track2_exp_02": "track2['exp'] 增加"
+        },
+        "description": "日常_连续守护5回合；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "HOST_08",
+        "tag": "日常_温和累进",
+        "parameters": {
+          "track2_pts_01": 1
+        },
+        "parameter_usage": {
+          "track2_pts_01": "track2['pts'] 增加"
+        },
+        "description": "日常_温和累进；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "HOST_09",
+        "tag": "商业_信息获取",
+        "parameters": {
+          "track3_pts_01": 4,
+          "track3_exp_02": 4,
+          "track3_biz_03": 4
+        },
+        "parameter_usage": {
+          "track3_pts_01": "track3['pts'] 增加",
+          "track3_exp_02": "track3['exp'] 增加",
+          "track3_biz_03": "track3['biz'] 增加"
+        },
+        "description": "商业_信息获取；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "HOST_10",
+        "tag": "商业_权力博弈",
+        "parameters": {
+          "track3_pts_01": 8,
+          "track3_exp_02": 8,
+          "track3_biz_03": 8
+        },
+        "parameter_usage": {
+          "track3_pts_01": "track3['pts'] 增加",
+          "track3_exp_02": "track3['exp'] 增加",
+          "track3_biz_03": "track3['biz'] 增加"
+        },
+        "description": "商业_权力博弈；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "HOST_11",
+        "tag": "商业_战略突破",
+        "parameters": {
+          "track3_pts_01": 20,
+          "track3_exp_02": 20,
+          "track3_biz_03": 20
+        },
+        "parameter_usage": {
+          "track3_pts_01": "track3['pts'] 增加",
+          "track3_exp_02": "track3['exp'] 增加",
+          "track3_biz_03": "track3['biz'] 增加"
+        },
+        "description": "商业_战略突破；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "HOST_12",
+        "tag": "兑换道具_X",
+        "parameters": {},
+        "parameter_usage": {},
+        "description": "兑换道具_X；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": "兑换道具_[1-9]\\d{0,8}",
+        "shared_parameters": []
+      },
+      {
+        "id": "HOST_13",
+        "tag": "体力_日常消耗",
+        "parameters": {
+          "cur_sta_01": 5
+        },
+        "parameter_usage": {
+          "cur_sta_01": "cur_sta 扣减"
+        },
+        "description": "体力_日常消耗；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "HOST_14",
+        "tag": "体力_激烈交欢",
+        "parameters": {
+          "cur_sta_01": 15
+        },
+        "parameter_usage": {
+          "cur_sta_01": "cur_sta 扣减"
+        },
+        "description": "体力_激烈交欢；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "HOST_15",
+        "tag": "体力_次日休息",
+        "parameters": {
+          "cur_sta_01": 100
+        },
+        "parameter_usage": {
+          "cur_sta_01": "cur_sta 恢复至上限（实际安稳整夜完成）"
+        },
+        "description": "实际安稳整夜完成后恢复至宿主体力上限，不叠加100；短休、零点与回合关闭不触发。",
+        "pattern": null,
+        "shared_parameters": []
+      }
+    ],
+    "vigilance_events": [
+      {
+        "id": "VIGILANCE_01",
+        "tag": "目击确认",
+        "parameters": {
+          "t_01": 15,
+          "t_02": 3
+        },
+        "parameter_usage": {
+          "t_01": "t['警惕'] 增加",
+          "t_02": "t['发现'] 赋值/条件值"
+        },
+        "description": "目击确认；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "VIGILANCE_02",
+        "tag": "证据实锤",
+        "parameters": {
+          "t_01": 4
+        },
+        "parameter_usage": {
+          "t_01": "t['发现'] 赋值/条件值"
+        },
+        "description": "证据实锤；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "VIGILANCE_03",
+        "tag": "异常行迹",
+        "parameters": {
+          "t_01": 10,
+          "t_02": 1,
+          "t_03": 2
+        },
+        "parameter_usage": {
+          "t_01": "t['警惕'] 增加",
+          "t_02": "t['发现'] 赋值/条件值",
+          "t_03": "t['发现'] 赋值/条件值"
+        },
+        "description": "异常行迹；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "VIGILANCE_04",
+        "tag": "眼线汇报",
+        "parameters": {
+          "t_01": 5,
+          "t_02": 1,
+          "t_03": 2
+        },
+        "parameter_usage": {
+          "t_01": "t['警惕'] 增加",
+          "t_02": "t['发现'] 赋值/条件值",
+          "t_03": "t['发现'] 赋值/条件值"
+        },
+        "description": "眼线汇报；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "VIGILANCE_05",
+        "tag": "降警惕_轻度",
+        "parameters": {
+          "t_01": 5
+        },
+        "parameter_usage": {
+          "t_01": "t['警惕'] 扣减"
+        },
+        "description": "降警惕_轻度；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "VIGILANCE_06",
+        "tag": "降警惕_中度",
+        "parameters": {
+          "t_01": 10
+        },
+        "parameter_usage": {
+          "t_01": "t['警惕'] 扣减"
+        },
+        "description": "降警惕_中度；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "VIGILANCE_07",
+        "tag": "降警惕_深度",
+        "parameters": {
+          "t_01": 15
+        },
+        "parameter_usage": {
+          "t_01": "t['警惕'] 扣减"
+        },
+        "description": "降警惕_深度；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "VIGILANCE_08",
+        "tag": "合理解释",
+        "parameters": {
+          "t_01": 5
+        },
+        "parameter_usage": {
+          "t_01": "t['警惕'] 扣减"
+        },
+        "description": "合理解释；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "VIGILANCE_09",
+        "tag": "转移注意",
+        "parameters": {},
+        "parameter_usage": {},
+        "description": "转移注意；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": [
+          "VIGILANCE_08"
+        ]
+      },
+      {
+        "id": "VIGILANCE_10",
+        "tag": "无异常回合",
+        "parameters": {},
+        "parameter_usage": {},
+        "description": "无异常回合；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      }
+    ]
+  }
+}

@@ -1,0 +1,282 @@
+{
+  "stage": "new_save_reset_21",
+  "cases": [
+    {
+      "name": "syntax_import_and_templates",
+      "status": "PASS"
+    },
+    {
+      "name": "complete_reset_preserves_settings_and_lock",
+      "status": "PASS"
+    },
+    {
+      "name": "missing_snapshot_and_repeat",
+      "status": "PASS"
+    },
+    {
+      "name": "optional_backup_verified",
+      "status": "PASS"
+    },
+    {
+      "name": "preview_and_cancel_are_readonly",
+      "status": "PASS"
+    },
+    {
+      "name": "running_service_refused",
+      "status": "PASS"
+    },
+    {
+      "name": "other_process_lock_refused",
+      "status": "PASS"
+    },
+    {
+      "name": "symlinks_refused",
+      "status": "PASS"
+    },
+    {
+      "name": "write_failure_restores_old_save",
+      "status": "PASS"
+    },
+    {
+      "name": "hard_exit_then_recover",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid_recovery_record_refused",
+      "status": "PASS"
+    },
+    {
+      "name": "real_roundstore_round1_and_context",
+      "status": "PASS"
+    },
+    {
+      "name": "service_guard_and_legacy_epoch",
+      "status": "PASS"
+    },
+    {
+      "name": "epoch.new_epoch_clears_legacy_pending_and_progress",
+      "status": "PASS"
+    },
+    {
+      "name": "epoch.legacy_server_keeps_existing_pending",
+      "status": "PASS"
+    },
+    {
+      "name": "epoch.same_epoch_preserves_draft_and_pending",
+      "status": "PASS"
+    },
+    {
+      "name": "epoch.epoch_change_during_send_never_posts_old_action",
+      "status": "PASS"
+    },
+    {
+      "name": "epoch.epoch_change_in_poll_reloads_snapshot",
+      "status": "PASS"
+    },
+    {
+      "name": "response20.html404_poll_continues_and_original_request_retries",
+      "status": "PASS"
+    },
+    {
+      "name": "response20.json404_poll_compatibility",
+      "status": "PASS"
+    },
+    {
+      "name": "response20.html403_keeps_status_and_pending",
+      "status": "PASS"
+    },
+    {
+      "name": "response20.html500_keeps_status_and_pending",
+      "status": "PASS"
+    },
+    {
+      "name": "response20.invalid_success_<!doctyp",
+      "status": "PASS"
+    },
+    {
+      "name": "response20.invalid_success_null",
+      "status": "PASS"
+    },
+    {
+      "name": "response20.invalid_success_[]",
+      "status": "PASS"
+    },
+    {
+      "name": "response20.json409_error_message_preserved",
+      "status": "PASS"
+    },
+    {
+      "name": "response20.response_body_abort_uses_timeout_message",
+      "status": "PASS"
+    },
+    {
+      "name": "response20.accepted_submission_preserves_payload_shape",
+      "status": "PASS"
+    },
+    {
+      "name": "response20.post409_keeps_action_for_manual_retry",
+      "status": "PASS"
+    }
+  ],
+  "passed": 29,
+  "failed": 0,
+  "installed": false,
+  "real_roundstore": true,
+  "real_story_service_class": true,
+  "flask_routes_executed": false,
+  "actual_isolated_reset_and_recovery": true,
+  "real_frontend_script": true,
+  "real_browser": false,
+  "production_reset_executed": false,
+  "model_called": false,
+  "tts_called": false,
+  "symlink_observation": {
+    "native_symlink_supported": false,
+    "guard_adapter_tested": true,
+    "path_escape_tested": true
+  },
+  "initial_acceptance": {
+    "stage": "new_save_reset_21",
+    "cases": [
+      {
+        "name": "syntax_import_and_templates",
+        "status": "PASS"
+      },
+      {
+        "name": "complete_reset_preserves_settings_and_lock",
+        "status": "PASS"
+      },
+      {
+        "name": "missing_snapshot_and_repeat",
+        "status": "PASS"
+      },
+      {
+        "name": "optional_backup_verified",
+        "status": "PASS"
+      },
+      {
+        "name": "preview_and_cancel_are_readonly",
+        "status": "PASS"
+      },
+      {
+        "name": "running_service_refused",
+        "status": "PASS"
+      },
+      {
+        "name": "other_process_lock_refused",
+        "status": "PASS"
+      },
+      {
+        "name": "symlinks_refused",
+        "status": "FAIL",
+        "error": "Traceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/新档清理隔离验收_21.py\", line 45, in test\n    function()\n    ~~~~~~~~^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/新档清理隔离验收_21.py\", line 214, in test_symlink\n    target.symlink_to(outside)\n    ~~~~~~~~~~~~~~~~~^^^^^^^^^\n  File \"/usr/lib/python3.14/pathlib/__init__.py\", line 1213, in symlink_to\n    os.symlink(target, self, target_is_directory)\n    ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nPermissionError: [Errno 13] Permission denied: '/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_reset21_test_4ebkn6pn/outside' -> '/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_reset21_test_4ebkn6pn/case_7/data.json'\n"
+      },
+      {
+        "name": "write_failure_restores_old_save",
+        "status": "PASS"
+      },
+      {
+        "name": "hard_exit_then_recover",
+        "status": "PASS"
+      },
+      {
+        "name": "invalid_recovery_record_refused",
+        "status": "PASS"
+      },
+      {
+        "name": "real_roundstore_round1_and_context",
+        "status": "PASS"
+      },
+      {
+        "name": "service_guard_and_legacy_epoch",
+        "status": "PASS"
+      },
+      {
+        "name": "epoch.new_epoch_clears_legacy_pending_and_progress",
+        "status": "PASS"
+      },
+      {
+        "name": "epoch.legacy_server_keeps_existing_pending",
+        "status": "PASS"
+      },
+      {
+        "name": "epoch.same_epoch_preserves_draft_and_pending",
+        "status": "PASS"
+      },
+      {
+        "name": "epoch.epoch_change_during_send_never_posts_old_action",
+        "status": "PASS"
+      },
+      {
+        "name": "epoch.epoch_change_in_poll_reloads_snapshot",
+        "status": "PASS"
+      },
+      {
+        "name": "response20.html404_poll_continues_and_original_request_retries",
+        "status": "PASS"
+      },
+      {
+        "name": "response20.json404_poll_compatibility",
+        "status": "PASS"
+      },
+      {
+        "name": "response20.html403_keeps_status_and_pending",
+        "status": "PASS"
+      },
+      {
+        "name": "response20.html500_keeps_status_and_pending",
+        "status": "PASS"
+      },
+      {
+        "name": "response20.invalid_success_<!doctyp",
+        "status": "PASS"
+      },
+      {
+        "name": "response20.invalid_success_null",
+        "status": "PASS"
+      },
+      {
+        "name": "response20.invalid_success_[]",
+        "status": "PASS"
+      },
+      {
+        "name": "response20.json409_error_message_preserved",
+        "status": "PASS"
+      },
+      {
+        "name": "response20.response_body_abort_uses_timeout_message",
+        "status": "PASS"
+      },
+      {
+        "name": "response20.accepted_submission_preserves_payload_shape",
+        "status": "PASS"
+      },
+      {
+        "name": "response20.post409_keeps_action_for_manual_retry",
+        "status": "PASS"
+      }
+    ],
+    "passed": 28,
+    "failed": 1,
+    "installed": false,
+    "real_roundstore": true,
+    "real_story_service_class": true,
+    "flask_routes_executed": false,
+    "actual_isolated_reset_and_recovery": true,
+    "real_frontend_script": true,
+    "real_browser": false,
+    "production_reset_executed": false,
+    "model_called": false,
+    "tts_called": false
+  },
+  "targeted_retry": {
+    "cases": [
+      {
+        "name": "symlinks_refused",
+        "status": "PASS"
+      }
+    ],
+    "scope": "symlinks_refused_only",
+    "live_code_changed": false
+  }
+}

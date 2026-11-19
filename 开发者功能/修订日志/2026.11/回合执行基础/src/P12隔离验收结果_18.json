@@ -1,0 +1,340 @@
+{
+  "stage": "P12",
+  "cases": 35,
+  "passed": 35,
+  "failed": 0,
+  "tests": [
+    {
+      "name": "python_json_and_22_exact_entries",
+      "status": "PASS"
+    },
+    {
+      "name": "bridge_guide_prompt_exact_selected_ranges",
+      "status": "PASS"
+    },
+    {
+      "name": "event_tables_six_exact_source_views",
+      "status": "PASS"
+    },
+    {
+      "name": "bundle_nonce_and_source_verified",
+      "status": "PASS"
+    },
+    {
+      "name": "all_seven_always_required_kept",
+      "status": "PASS"
+    },
+    {
+      "name": "metadata_only_is_not_complete",
+      "status": "PASS"
+    },
+    {
+      "name": "missing_library_entries_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "duplicate_key_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "empty_content_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "stale_source_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "cache_tamper_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "missing_bundle_key_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "bad_cache_path_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "actual_numbered_receipts_and_truncation",
+      "status": "PASS"
+    },
+    {
+      "name": "raw_adapter_receipt_exact",
+      "status": "PASS"
+    },
+    {
+      "name": "actual_service_projection_audit_and_coverage",
+      "status": "PASS"
+    },
+    {
+      "name": "raw_source_complete_compatibility",
+      "status": "PASS"
+    },
+    {
+      "name": "claimed_full_range_but_missing_body_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "modified_body_receipt_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "first_three_order_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "incomplete_memory_before_guide_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "required_directory_browse_still_enforced",
+      "status": "PASS"
+    },
+    {
+      "name": "execute_write_tools_still_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "foreign_task_projection_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "missing_always_key_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "speaker_without_character_read_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "context_duplicate_facts_removed_no_permission_expansion",
+      "status": "PASS"
+    },
+    {
+      "name": "body_without_source_header_not_counted",
+      "status": "PASS"
+    },
+    {
+      "name": "same_semantic_task_real_round_commit_and_idempotency",
+      "status": "PASS"
+    },
+    {
+      "name": "same_case_chars_calls_fields_and_retry_measurement",
+      "status": "PASS"
+    },
+    {
+      "name": "protected_sources_and_live_facts_unchanged",
+      "status": "PASS"
+    },
+    {
+      "name": "cache_root_search_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "current_task_directory_listing_allowed",
+      "status": "PASS"
+    },
+    {
+      "name": "old_context_result_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "old_queued_context_rejected_before_generation",
+      "status": "PASS"
+    }
+  ],
+  "measurements": {
+    "kb_entries_exact": 22,
+    "new_available_keys": [
+      "char.徐志北",
+      "char.沈知韫",
+      "contract.inject",
+      "gate.V1",
+      "lore.命名锁",
+      "lore.驻地",
+      "narrative.dialogue_tts",
+      "narrative.pace",
+      "rule.prompt",
+      "state.memory",
+      "sys.breakout",
+      "sys.task"
+    ],
+    "isolated_round": {
+      "status": "committed",
+      "round": 1,
+      "replay": true
+    },
+    "comparison": {
+      "unit": "Unicode characters, not tokens",
+      "same_case": "ordinary two-person material handoff",
+      "before": {
+        "read_body_chars": 84634,
+        "envelope_chars": 6516,
+        "total_chars": 91150,
+        "content_read_calls": 10
+      },
+      "after": {
+        "read_body_chars": 45020,
+        "envelope_chars": 8805,
+        "total_chars": 53825,
+        "content_read_calls": 14
+      },
+      "model_required_top_fields_before": 4,
+      "model_required_top_fields_after": 4,
+      "synthetic_contract_validation_retries": 0,
+      "real_model_retry_rate": null,
+      "creative_quality": null,
+      "counting": "one complete-content call per file; directory listing calls=3 in both; tool display wrappers excluded; baseline reads four raw libraries to obtain the same required keys"
+    }
+  },
+  "model_called": false,
+  "flask_http_executed": false,
+  "actual_service_class_executed": true,
+  "live_game_facts_unchanged": true,
+  "initial_acceptance": {
+    "stage": "P12",
+    "cases": 31,
+    "passed": 31,
+    "failed": 0,
+    "measurements": {
+      "kb_entries_exact": 22,
+      "new_available_keys": [
+        "char.徐志北",
+        "char.沈知韫",
+        "contract.inject",
+        "gate.V1",
+        "lore.命名锁",
+        "lore.驻地",
+        "narrative.dialogue_tts",
+        "narrative.pace",
+        "rule.prompt",
+        "state.memory",
+        "sys.breakout",
+        "sys.task"
+      ],
+      "isolated_round": {
+        "status": "committed",
+        "round": 1,
+        "replay": true
+      },
+      "comparison": {
+        "unit": "Unicode characters, not tokens",
+        "same_case": "ordinary two-person material handoff",
+        "before": {
+          "read_body_chars": 84634,
+          "envelope_chars": 6516,
+          "total_chars": 91150,
+          "content_read_calls": 10
+        },
+        "after": {
+          "read_body_chars": 45020,
+          "envelope_chars": 8805,
+          "total_chars": 53825,
+          "content_read_calls": 14
+        },
+        "model_required_top_fields_before": 4,
+        "model_required_top_fields_after": 4,
+        "synthetic_contract_validation_retries": 0,
+        "real_model_retry_rate": null,
+        "creative_quality": null,
+        "counting": "one complete-content call per file; directory listing calls=3 in both; tool display wrappers excluded; baseline reads four raw libraries to obtain the same required keys"
+      }
+    },
+    "model_called": false,
+    "flask_http_executed": false,
+    "actual_service_class_executed": true,
+    "live_game_facts_unchanged": true
+  },
+  "targeted_revision": {
+    "stage": "P12",
+    "cases": 10,
+    "passed": 10,
+    "failed": 0,
+    "tests": [
+      {
+        "name": "actual_service_projection_audit_and_coverage",
+        "status": "PASS"
+      },
+      {
+        "name": "raw_source_complete_compatibility",
+        "status": "PASS"
+      },
+      {
+        "name": "execute_write_tools_still_rejected",
+        "status": "PASS"
+      },
+      {
+        "name": "foreign_task_projection_rejected",
+        "status": "PASS"
+      },
+      {
+        "name": "cache_root_search_rejected",
+        "status": "PASS"
+      },
+      {
+        "name": "current_task_directory_listing_allowed",
+        "status": "PASS"
+      },
+      {
+        "name": "old_context_result_rejected",
+        "status": "PASS"
+      },
+      {
+        "name": "old_queued_context_rejected_before_generation",
+        "status": "PASS"
+      },
+      {
+        "name": "same_case_chars_calls_fields_and_retry_measurement",
+        "status": "PASS"
+      },
+      {
+        "name": "protected_sources_and_live_facts_unchanged",
+        "status": "PASS"
+      }
+    ],
+    "measurements": {
+      "new_available_keys": [
+        "char.徐志北",
+        "char.沈知韫",
+        "contract.inject",
+        "gate.V1",
+        "lore.命名锁",
+        "lore.驻地",
+        "narrative.dialogue_tts",
+        "narrative.pace",
+        "rule.prompt",
+        "state.memory",
+        "sys.breakout",
+        "sys.task"
+      ],
+      "comparison": {
+        "unit": "Unicode characters, not tokens",
+        "same_case": "ordinary two-person material handoff",
+        "before": {
+          "read_body_chars": 84634,
+          "envelope_chars": 6516,
+          "total_chars": 91150,
+          "content_read_calls": 10
+        },
+        "after": {
+          "read_body_chars": 45020,
+          "envelope_chars": 8805,
+          "total_chars": 53825,
+          "content_read_calls": 14
+        },
+        "model_required_top_fields_before": 4,
+        "model_required_top_fields_after": 4,
+        "synthetic_contract_validation_retries": 0,
+        "real_model_retry_rate": null,
+        "creative_quality": null,
+        "counting": "one complete-content call per file; directory listing calls=3 in both; tool display wrappers excluded; baseline reads four raw libraries to obtain the same required keys"
+      }
+    },
+    "model_called": false,
+    "flask_http_executed": false,
+    "actual_service_class_executed": true,
+    "live_game_facts_unchanged": true
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "schema_version": 1,
+  "toolpkg_id": "local.story.operit_bridge",
+  "version": "1.8.0",
+  "api_version": "2.0.0",
+  "main": "main.js",
+  "display_name": {
+    "zh": "故事桥接",
+    "en": "Story bridge"
+  },
+  "description": {
+    "zh": "网页启动/暂停与连接诊断，固定指令管理故事桥接，正式会话按需读取并提交回合。",
+    "en": "Generate structured rounds for the local story page."
+  },
+  "enabled_by_default": true,
+  "installation_scope": "device",
+  "subpackages": [
+    {
+      "id": "story_bridge",
+      "entry": "tools.js"
+    }
+  ],
+  "resources": [],
+  "requires": [
+    {
+      "id": "com.operit.character_cards",
+      "min_version": "0.2.0"
+    }
+  ]
+}

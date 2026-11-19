@@ -1,0 +1,11 @@
+- 【步骤编号】step_19
+- 【上游依赖】用户“好的开始”承接P12交接的阶段复盘建议；logs/step_18.md，SHA-256=dc3fc72a82362726367b78d9765f47388dd6e929d92d2e0e1c74bbf6c00cb017；plan/step_19.md，SHA-256=0f205c2b98cefb95b56c8a5238044b1f3bfc7664da0de2cbb1b7e022c21f9615。使用into、任务五步走·落盘规范。
+- 【做了什么】复核九项实施与历史验收证据，汇总结果和P5—P7及独立运行/缓存待办；只新增文档，没有改动现役、重启服务或调用模型/TTS。
+- 【产物】src/阶段复盘与后续安排_19.md为唯一复盘正文；src/阶段复盘证据_19.json含逐文件指纹、历史验收来源、本轮验证与精确R0命令；本契约及本交接保留，tmp本轮脚本删除。
+- 【验收证据】
+  - V1 改前基线：Host pwd=/storage/emulated/0/互动对话项目/Gemini网页版，resolve=/sdcard/互动对话项目/Gemini网页版；9份安装清单契约/上游指纹和跨阶段衔接均匹配；37个当前文件、60份父版符合历史最终基线；step_19四目标不存在、tmp为空，正式round=4。逐文件输入/现役/父版基线见证据JSON。
+  - V2 改后结果：REVIEW19_PASS stages=9 pending=3 current_files=37 historical_backups=60 input_fingerprints_unchanged=true source_links=true metrics=true root_unchanged=true historical_tests_rerun=false。以上为本步实际定向核对，历史功能测试未重跑。最终结果及本交接字节指纹记录于证据JSON；收尾命令退出码见工具回执。
+  - V3 反向可行：ROLLBACK19_PASS syntax=true exact_new_targets=4 actual_rollback=false；一条命令仅涉及本步四新增路径，shell参数及Python静态解析通过，未实际删除。
+  - 成本与异常：1个L1/R0事务，29次子工具调用（预检24、写入执行3、验证收尾2），验证执行2次，预算内；没有失败写入、失败验收或重试。只读字段探索首次查询current_round得到null，随后按实际round字段确认4，未据null作结论。
+- 【回滚方式】R0免回滚（纯新增，删新增物）。在项目根执行：`python3 -c 'from pathlib import Path; targets=['"'"'开发者功能/修订日志/2026.11/回合执行基础/plan/step_19.md'"'"', '"'"'开发者功能/修订日志/2026.11/回合执行基础/src/阶段复盘与后续安排_19.md'"'"', '"'"'开发者功能/修订日志/2026.11/回合执行基础/src/阶段复盘证据_19.json'"'"', '"'"'开发者功能/修订日志/2026.11/回合执行基础/logs/step_19.md'"'"']; [Path(p).unlink(missing_ok=True) for p in targets]'`
+- 【下一步】建议P5：先锁定三位成年角色共6条普通日常对白小样的角色/听话者/情境分配，交合法隔离节点与人工评分表，供宿主阅读；不写正式剧情，不请求真实TTS，需调整规则时列明唯一权威目标。服务加载与真实模型/网页链路另列任务，在正式使用新合同前完成；P6语气适配、P7参数试听和缓存维护均未执行。当前运行进程加载版本未探测，不能把文件已安装称为生产已生效。正式代码、规则、存档及语音配置保持不变。

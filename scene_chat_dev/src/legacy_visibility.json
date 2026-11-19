@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "entries": {
+    "f18b11ef0e8b5c83ed298cd78aae70b9f2c5a679d0c2b3d1fe95289f7f3c2b2a": {
+      "known_by": [
+        "徐志北",
+        "沈知韫"
+      ],
+      "basis": {
+        "path": "存档/全局记忆库.txt",
+        "start_line": 82,
+        "reason": "逐段核查：唯一L1回合为徐志北和沈知韫共同在场的餐厅交谈及可观察动作，无第三人私有知情；只匹配此原文指纹，不泛化到后续记忆。"
+      }
+    }
+  }
+}

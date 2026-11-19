@@ -1,0 +1,57 @@
+{
+  "cases": [
+    {
+      "name": "single_pass_preflight_adds_no_model_call",
+      "status": "PASS"
+    },
+    {
+      "name": "missing_key_exactly_one_real_tool_repair_merges_both_receipts",
+      "status": "PASS"
+    },
+    {
+      "name": "still_missing_after_one_repair_stops_without_third_call",
+      "status": "PASS"
+    },
+    {
+      "name": "model_change_during_generation_blocks_repair_and_delivery",
+      "status": "PASS"
+    },
+    {
+      "name": "cancelled_missing_receipt_and_no_read_body_are_not_accepted",
+      "status": "PASS"
+    },
+    {
+      "name": "total_timeout_covers_first_and_repair_stage",
+      "status": "PASS"
+    },
+    {
+      "name": "source_conflict_and_malformed_preflight_do_not_trigger_extra_model",
+      "status": "PASS"
+    },
+    {
+      "name": "foreign_chat_and_write_tool_streams_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "tool_limit_is_total_across_both_real_completions",
+      "status": "PASS"
+    },
+    {
+      "name": "restart_during_repair_never_automatically_repeats_generation",
+      "status": "PASS"
+    },
+    {
+      "name": "old_task_capability_blocks_before_first_model",
+      "status": "PASS"
+    },
+    {
+      "name": "old_server_start_blocked_before_session_or_claim",
+      "status": "PASS"
+    }
+  ],
+  "passed": 12,
+  "failed": 0,
+  "real_plugin_source": true,
+  "synthetic_host_streams": true,
+  "real_model_called": false
+}

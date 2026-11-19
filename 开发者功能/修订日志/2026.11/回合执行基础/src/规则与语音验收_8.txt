@@ -1,0 +1,11 @@
+PASS 4 candidate JSON files parse; source entry IDs/names/keywords/flags unchanged
+PASS export matches existing converter: 22 entries, 7 always active; no platform import
+PASS entry branch, dialogue exceptions, default residence and guide hard contract agree
+PASS HTML inline JavaScript syntax: 1 script blocks
+PASS original quotation-loss reproduced at POST payload boundary
+PASS 8 direct dialogue-to-POST regression cases: full text, tags, speaker config and punctuation
+PASS candidate rules reduced by 1653 Unicode characters; voice_config.json untouched
+PASS final rule review: extended narration limit and scene sensory requirement retained; rules reduced by 1625 Unicode characters
+PASS installed 9 files; 9 parent backups verified; 23 protected file hashes unchanged
+PASS rollback command parsed and compiled; rollback not executed
+FINAL_PASS files=9 backups=9 protected=23 plan_log_pairs=8 tmp_empty=true unexpected_root_files=0

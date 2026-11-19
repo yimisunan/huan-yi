@@ -1,0 +1,10 @@
+PASS bridge: single consumer, durable output, delivery retry, stop
+PASS page: model confirmation, silent choices, exact retry, one error popup, duplicate guard
+PASS reward: SVG +/-, delayed reveal, timed dismissal, one animation per revision, replay, cancellation
+PASS reading restore: late previous snapshot cannot resume or clear newer state
+PASS L1: Python-compatible count, exact single-field replacement, one persisted repair
+PASS L1: bad compression rejected, restart bounded, duplicate keys untouched
+PASS L1: retry carries original action and validation feedback
+PASS L1: generate + one repair, transport retry adds no model calls
+PASS model metadata: host query, safe allowlist, pre-call mismatch blocks generation
+PASS native session: exact receipt, strict final parts, tool allowlist, original JSON, restart bounded

@@ -1,0 +1,20 @@
+{
+  "repository": "yimisunan/geni-eni-cra",
+  "private": true,
+  "account": "yimisunan",
+  "remote_initially_empty": true,
+  "candidate_files": 425,
+  "candidate_bytes": 117957023,
+  "maximum_blob_bytes": 11977432,
+  "credential_scan_passed": true,
+  "live_voice_source_unchanged": true,
+  "voice_source_sha256": "831ba774e99418e45fcc86c4dc1a95f9027582bb0150fa5ef853b03cb58998d2",
+  "sanitized_blob": "549a467d11d42460556583c1f014fae7a484d172",
+  "excluded": [
+    "credentials",
+    "runtime caches/audio",
+    "old backups",
+    "historical portrait archive"
+  ],
+  "root": "/sdcard/互动对话项目/Gemini网页版"
+}

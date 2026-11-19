@@ -1,0 +1,285 @@
+{
+  "stage": "P11",
+  "cases": 47,
+  "passed": 47,
+  "failed": 0,
+  "counts": {
+    "direction_queries": 60,
+    "group_queries": 30,
+    "source_pointers": 821
+  },
+  "tests": [
+    {
+      "name": "syntax_json_and_fact_layers",
+      "status": "PASS"
+    },
+    {
+      "name": "metadata_and_generated_export_22_7",
+      "status": "PASS"
+    },
+    {
+      "name": "source_authority_and_narrative_discipline",
+      "status": "PASS"
+    },
+    {
+      "name": "daughter_in_law_to_mother_in_law",
+      "status": "PASS"
+    },
+    {
+      "name": "daughter_in_law_relaxed_choice",
+      "status": "PASS"
+    },
+    {
+      "name": "sister_in_law_to_younger_brother",
+      "status": "PASS"
+    },
+    {
+      "name": "sister_in_law_to_younger_sister",
+      "status": "PASS"
+    },
+    {
+      "name": "wife_to_husband_neutral",
+      "status": "PASS"
+    },
+    {
+      "name": "title_to_minor_npc",
+      "status": "PASS"
+    },
+    {
+      "name": "mother_caring_self_reference",
+      "status": "PASS"
+    },
+    {
+      "name": "business_self_reference",
+      "status": "PASS"
+    },
+    {
+      "name": "mother_address_from_child",
+      "status": "PASS"
+    },
+    {
+      "name": "group_mixed_generations_intersection",
+      "status": "PASS"
+    },
+    {
+      "name": "group_same_role_intersection",
+      "status": "PASS"
+    },
+    {
+      "name": "unknown_listener_neutral",
+      "status": "PASS"
+    },
+    {
+      "name": "all_60_directions_and_30_group_intersections",
+      "status": "PASS"
+    },
+    {
+      "name": "sole_heir_knowledge_authorized",
+      "status": "PASS"
+    },
+    {
+      "name": "heir_secret_absent_from_other_perspectives",
+      "status": "PASS"
+    },
+    {
+      "name": "belief_is_not_legal_fact",
+      "status": "PASS"
+    },
+    {
+      "name": "unknown_speaker_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "unknown_listener_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "unknown_perspective_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "duplicate_listener_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid_occasion_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "deceased_speaker_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "self_listener_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "caller_cannot_grant_unlocks",
+      "status": "PASS"
+    },
+    {
+      "name": "all_query_provenance_json_pointers",
+      "status": "PASS"
+    },
+    {
+      "name": "duplicate_reverse_fact_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid_known_by_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "invalid_schema_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "stale_source_view_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "tampered_view_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "bridge_directional_row_coverage",
+      "status": "PASS"
+    },
+    {
+      "name": "bridge_missing_header_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "grep_does_not_count_as_read",
+      "status": "PASS"
+    },
+    {
+      "name": "failed_read_does_not_count",
+      "status": "PASS"
+    },
+    {
+      "name": "header_only_not_a_fact",
+      "status": "PASS"
+    },
+    {
+      "name": "context_contract_fingerprints_without_table",
+      "status": "PASS"
+    },
+    {
+      "name": "real_service_audit_and_partial_fact_assembly",
+      "status": "PASS"
+    },
+    {
+      "name": "audit_write_execute_tools_still_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "truncated_query_read_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "original_required_full_coverage_unchanged",
+      "status": "PASS"
+    },
+    {
+      "name": "query_source_change_conflicts_with_task",
+      "status": "PASS"
+    },
+    {
+      "name": "cli_real_query_and_knowledge",
+      "status": "PASS"
+    },
+    {
+      "name": "all_live_sources_and_game_facts_untouched",
+      "status": "PASS"
+    },
+    {
+      "name": "public_parent_identity_without_listener",
+      "status": "PASS"
+    }
+  ],
+  "flask_routes_executed": false,
+  "actual_service_class_executed": true,
+  "model_called": false,
+  "live_game_facts_unchanged": true,
+  "initial_acceptance": {
+    "stage": "P11",
+    "cases": 46,
+    "passed": 46,
+    "failed": 0,
+    "counts": {
+      "direction_queries": 60,
+      "group_queries": 30,
+      "source_pointers": 821
+    },
+    "flask_routes_executed": false,
+    "actual_service_class_executed": true,
+    "model_called": false,
+    "live_game_facts_unchanged": true
+  },
+  "targeted_revision": {
+    "stage": "P11",
+    "cases": 12,
+    "passed": 12,
+    "failed": 0,
+    "counts": {
+      "direction_queries": 0,
+      "group_queries": 0,
+      "source_pointers": 887
+    },
+    "tests": [
+      {
+        "name": "syntax_json_and_fact_layers",
+        "status": "PASS"
+      },
+      {
+        "name": "source_authority_and_narrative_discipline",
+        "status": "PASS"
+      },
+      {
+        "name": "unknown_listener_neutral",
+        "status": "PASS"
+      },
+      {
+        "name": "public_parent_identity_without_listener",
+        "status": "PASS"
+      },
+      {
+        "name": "sole_heir_knowledge_authorized",
+        "status": "PASS"
+      },
+      {
+        "name": "heir_secret_absent_from_other_perspectives",
+        "status": "PASS"
+      },
+      {
+        "name": "all_query_provenance_json_pointers",
+        "status": "PASS"
+      },
+      {
+        "name": "stale_source_view_rejected",
+        "status": "PASS"
+      },
+      {
+        "name": "context_contract_fingerprints_without_table",
+        "status": "PASS"
+      },
+      {
+        "name": "real_service_audit_and_partial_fact_assembly",
+        "status": "PASS"
+      },
+      {
+        "name": "query_source_change_conflicts_with_task",
+        "status": "PASS"
+      },
+      {
+        "name": "all_live_sources_and_game_facts_untouched",
+        "status": "PASS"
+      }
+    ],
+    "flask_routes_executed": false,
+    "actual_service_class_executed": true,
+    "model_called": false,
+    "live_game_facts_unchanged": true
+  }
+}

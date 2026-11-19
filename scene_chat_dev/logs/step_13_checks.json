@@ -1,0 +1,114 @@
+{
+  "request_id": "scene-daa30c42-77d8-47bf-8a54-534145646259",
+  "packet_bytes": 35674,
+  "packet_lines": 28,
+  "packet_sha256": "6d44f7304cc4f8960e497a17dd21bba83631c292b80a615aacef3eb594424a3f",
+  "attempts": [
+    {
+      "timestamp": 1795062702538,
+      "tools": [
+        {
+          "name": "read_file",
+          "requested_begin": 1,
+          "requested_end": 22,
+          "result_chars": 12559,
+          "before": "PASS",
+          "after_verified": [
+            1,
+            22
+          ]
+        }
+      ],
+      "all_lines_verified": 22,
+      "final_json_valid": true
+    },
+    {
+      "timestamp": 1795062765314,
+      "tools": [
+        {
+          "name": "read_file",
+          "requested_begin": 1,
+          "requested_end": 28,
+          "result_chars": 19217,
+          "before": "读取回执正文或行号与当前文件不符",
+          "after_verified": [
+            1,
+            19
+          ]
+        },
+        {
+          "name": "read_file_part",
+          "requested_begin": 20,
+          "requested_end": 28,
+          "result_chars": 4055,
+          "before": "PASS",
+          "after_verified": [
+            20,
+            28
+          ]
+        }
+      ],
+      "all_lines_verified": 28,
+      "final_json_valid": true
+    },
+    {
+      "timestamp": 1795062822407,
+      "tools": [
+        {
+          "name": "read_file_part",
+          "requested_begin": 1,
+          "requested_end": 10,
+          "result_chars": 7182,
+          "before": "PASS",
+          "after_verified": [
+            1,
+            10
+          ]
+        },
+        {
+          "name": "read_file_part",
+          "requested_begin": 11,
+          "requested_end": 19,
+          "result_chars": 10773,
+          "before": "PASS",
+          "after_verified": [
+            11,
+            19
+          ]
+        },
+        {
+          "name": "read_file_part",
+          "requested_begin": 20,
+          "requested_end": 28,
+          "result_chars": 4055,
+          "before": "PASS",
+          "after_verified": [
+            20,
+            28
+          ]
+        }
+      ],
+      "all_lines_verified": 28,
+      "final_json_valid": true
+    }
+  ],
+  "failed_partial_line": {
+    "number": 20,
+    "received_chars": 1156,
+    "expected_chars": 3192,
+    "exact_prefix": true,
+    "terminal_truncation_marker": true
+  },
+  "world_record": {
+    "scene_id": "96216918e8e96cb5e0f633ad",
+    "revision": 2,
+    "status": "committed",
+    "second_request_accepted_count": 1
+  },
+  "regression_suite": {
+    "tests": 9,
+    "result": "PASS",
+    "model_calls": 0,
+    "tts_calls": 0
+  }
+}

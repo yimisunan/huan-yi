@@ -1,0 +1,330 @@
+{
+  "version": "1.1.0",
+  "story_protocol": 3,
+  "files": [
+    {
+      "path": "story_service.py",
+      "before": {
+        "sha256": "1f19e1ed69ef5748de60c7314b058dabb03e885e42024f04d732a58044040359",
+        "bytes": 24028,
+        "mtime_ns": 1794853515956271642
+      },
+      "after": {
+        "sha256": "d6beccbffa4b4c1e9a2fe8e8a09162b351a33688e4d5e0aeb672d8251a75dd7d",
+        "bytes": 32254
+      },
+      "backup": "story_service.py.into-backup-20261116_212924"
+    },
+    {
+      "path": "开发者功能/Operit故事桥接/main.js",
+      "before": {
+        "sha256": "ef7db0df4662bb6ea621ae9e0edaabb234c055ba09bc31a81b88065f92dfcc51",
+        "bytes": 15129,
+        "mtime_ns": 1794853515968271642
+      },
+      "after": {
+        "sha256": "f9629a177afd680227634e934aa3a43d8d86d3b38a23f46a436932a23f2982e9",
+        "bytes": 26106
+      },
+      "backup": "开发者功能/Operit故事桥接/main.js.into-backup-20261116_212924"
+    },
+    {
+      "path": "开发者功能/Operit故事桥接/tools.js",
+      "before": {
+        "sha256": "5ceb2351de47044a255f1f299120667bfffd9287d6ff4dd1ac08c2ae98216e0e",
+        "bytes": 1640,
+        "mtime_ns": 1794849661344273113
+      },
+      "after": {
+        "sha256": "d5aa8ed7db8ede487b2cfaca91fe327cf918809ff7b3ab5beff749eeb86c3df7",
+        "bytes": 2067
+      },
+      "backup": "开发者功能/Operit故事桥接/tools.js.into-backup-20261116_212924"
+    },
+    {
+      "path": "开发者功能/Operit故事桥接/manifest.json",
+      "before": {
+        "sha256": "1aa16270e3a41e5091129e785df59657e31f3ad723c0099f78780be15fe7548d",
+        "bytes": 552,
+        "mtime_ns": 1794853515980271642
+      },
+      "after": {
+        "sha256": "11d6a3107897da70c78ba06e0e61033dd922e7e37e0970bfdd11347445e7b176",
+        "bytes": 686
+      },
+      "backup": "开发者功能/Operit故事桥接/manifest.json.into-backup-20261116_212924"
+    },
+    {
+      "path": "开发者功能/Operit故事桥接/故事桥接.toolpkg",
+      "before": {
+        "sha256": "6403781ebc9bdc962114a8d26e8d3c874131a177fdb1583129ad81770a262ad8",
+        "bytes": 6394,
+        "mtime_ns": 1794853515988271642
+      },
+      "after": {
+        "sha256": "8068c0afd6112e1764c3f3ab5f863e35f95c09dd00320eaebcc46a49b4b66b27",
+        "bytes": 9871
+      },
+      "backup": "开发者功能/Operit故事桥接/故事桥接.toolpkg.into-backup-20261116_212924"
+    },
+    {
+      "path": "txt文件/提示词.md",
+      "before": {
+        "sha256": "2004061f1e7d0d93f1f834662bb9b9da57e2e731855155154a68ba44c8c3f8f7",
+        "bytes": 11168,
+        "mtime_ns": 1786001188000000000
+      },
+      "after": {
+        "sha256": "07d4e68b7873ff71d4938a107495878404b87a1e31fd57d1b3d5635356e9442a",
+        "bytes": 11748
+      },
+      "backup": "txt文件/提示词.md.into-backup-20261116_212924"
+    },
+    {
+      "path": "txt文件/故事检索索引.md",
+      "before": {
+        "sha256": "00881a193d67d433e3b65a803595144fb3fd5d60bd3b84afa216387481b19f7e",
+        "bytes": 3724,
+        "mtime_ns": 1786001188000000000
+      },
+      "after": {
+        "sha256": "472be11ad1b97f55d992283fe48cfedda0f739dbb5a9b623c1440e654b783fed",
+        "bytes": 3861
+      },
+      "backup": "txt文件/故事检索索引.md.into-backup-20261116_212924"
+    },
+    {
+      "path": "txt文件/一键注入指南.txt",
+      "before": {
+        "sha256": "ba61d0678ef7582491166d699920c763abe57841776ef6bb4a95b4f5bbfd6627",
+        "bytes": 50929,
+        "mtime_ns": 1794846792420274207
+      },
+      "after": {
+        "sha256": "64d5fe36082dc536bcf1bfb939ca8d1275b8770e734c22a5f6b672fadeca4c67",
+        "bytes": 51039
+      },
+      "backup": "txt文件/一键注入指南.txt.into-backup-20261116_212924"
+    },
+    {
+      "path": "开发者功能/开发者工具/故事页面验收.py",
+      "before": {
+        "sha256": "c8449bce1ffd1f1cf5a54c1fb8a3bb0a50a5e38e2dbd6c4f6e151defbf49b8eb",
+        "bytes": 15808,
+        "mtime_ns": 1794853516004271642
+      },
+      "after": {
+        "sha256": "29a51c011048c9ff354ce77c9aef29269d9c991c563d77dc19a4ad1dd0e44210",
+        "bytes": 20086
+      },
+      "backup": "开发者功能/开发者工具/故事页面验收.py.into-backup-20261116_212924"
+    },
+    {
+      "path": "开发者功能/开发者工具/故事桥接验收.mjs",
+      "before": {
+        "sha256": "39fbdfecd22d9a4fa5b7e4a176a08d1cd6f7fa8fc680508b6e97b2fdf69ab22f",
+        "bytes": 20029,
+        "mtime_ns": 1794853515996271642
+      },
+      "after": {
+        "sha256": "4151ae79aca511d637a4d71505cf5415de214a6c347ab3c01dabe3897ba610b9",
+        "bytes": 24250
+      },
+      "backup": "开发者功能/开发者工具/故事桥接验收.mjs.into-backup-20261116_212924"
+    },
+    {
+      "path": "开发者功能/开发者说明书/开发者说明书.md",
+      "before": {
+        "sha256": "bee28eecec0fc68ada7d5a090ddcfeebdf1af3d6b150cafaa35046671311da3c",
+        "bytes": 12139,
+        "mtime_ns": 1794853516012271642
+      },
+      "after": {
+        "sha256": "ba2aee8fbd9edf0697289aebd71ae9b1548bac51fe03c5b848ca4d8a9e4b843a",
+        "bytes": 12432
+      },
+      "backup": "开发者功能/开发者说明书/开发者说明书.md.into-backup-20261116_212924"
+    }
+  ],
+  "protected": {
+    ".operit/sync.json": {
+      "sha256": "50c49bae70db0e2db14017498a6802035819e45927ead4a1454e5495636461dd",
+      "bytes": 403,
+      "mtime_ns": 1794845848988274567
+    },
+    "AGENTS.md": {
+      "sha256": "064381e5f43c698e063d1e04310a9a616092dbcaf6631b90b32525a2575b8bc3",
+      "bytes": 10757,
+      "mtime_ns": 1794310247394000000
+    },
+    "round_runtime.py": {
+      "sha256": "1747af3593f006e7fe878984ebfecd7a5fd3d15683f484b4f69e1a6055dda80a",
+      "bytes": 31591,
+      "mtime_ns": 1794846792400274207
+    },
+    "injection_core.py": {
+      "sha256": "b665b9ccf7fc1205a5baf726fc248556e20eeb9650b0fc4754695d0258af8752",
+      "bytes": 111118,
+      "mtime_ns": 1794311346881000000
+    },
+    "语音运行.py": {
+      "sha256": "f846a8ee8c00c0e66b4cd087dcfcfcdc77e3365c376430f87f3c77c5bffa781a",
+      "bytes": 39890,
+      "mtime_ns": 1794311352508000000
+    },
+    "main_template.html": {
+      "sha256": "33b7030bc873cc73a29a597749a032cc6410d3a1bad0e5a5db7d49a03d80f927",
+      "bytes": 274542,
+      "mtime_ns": 1794853515940271642
+    },
+    "story_client.js": {
+      "sha256": "e55e317159409e60d4885ea0faabe1329d5092106fb79f9fd3f3e3340941e91f",
+      "bytes": 24189,
+      "mtime_ns": 1794853515908271642
+    },
+    "story_client.css": {
+      "sha256": "c7d929cfa6a986ae2391e45af0947084e49dc0816d26968df0ccc7d76df22ebc",
+      "bytes": 9109,
+      "mtime_ns": 1794853767752271546
+    },
+    "voice_manager.html": {
+      "sha256": "58aa936025c0a6428c9b70239a0ab52f892e7bb0c2b2dd51c94eb3487ced0748",
+      "bytes": 69381,
+      "mtime_ns": 1794394473476827642
+    },
+    "voice_client.js": {
+      "sha256": "8247309ca6fcf1d864ddd5b181e86265d5ed1aeec73cdcfa3a0fd4ab7101985d",
+      "bytes": 5698,
+      "mtime_ns": 1794394473464827642
+    },
+    "voice_config.json": {
+      "sha256": "6bbd1ad3f537b8a52ad3a1aec684d52358f9c0b3aaf9cbbeace994715573cec0",
+      "bytes": 2618,
+      "mtime_ns": 1794292912340000000
+    },
+    "data.json": {
+      "sha256": "c538e2d3a36320fe674b57a915f11980c17cf177abd5396ec28eda5072810eb1",
+      "bytes": 2537,
+      "mtime_ns": 1794859504240269358
+    },
+    "存档/全局记忆库.txt": {
+      "sha256": "3895c68c55ebea8c265cffd0bae564487205eedc767f78b950937320d744112f",
+      "bytes": 5046,
+      "mtime_ns": 1794859504232269358
+    },
+    "存档/徐志北道具图鉴.txt": {
+      "sha256": "5ec84007c18ad3f9937717453e37238869ff610af5bc23ae33af2da1fc51224c",
+      "bytes": 2437,
+      "mtime_ns": 1794859504232269358
+    },
+    "存档/次要NPC名册.txt": {
+      "sha256": "7c6c74b8790273b8d71294c1e9ebe700cf97ff5dfb14b10ac213c9d83c836f0f",
+      "bytes": 1124,
+      "mtime_ns": 1794859504236269358
+    },
+    "txt文件/全局执行法典.md": {
+      "sha256": "b2c3cbd62d4774353774a0f25222caae103fe5b10bdf349f1cfbfedea967a701",
+      "bytes": 13130,
+      "mtime_ns": 1785954530000000000
+    },
+    "txt文件/知识库/世界观类.json": {
+      "sha256": "098131549db932bc2bd84a2d4d8c8b2ee369c3674cd8cfefea7ca511b17fc9e2",
+      "bytes": 7587,
+      "mtime_ns": 1794310247407000000
+    },
+    "txt文件/知识库/角色类.json": {
+      "sha256": "1112a766a2b019daeb1e3ad63b7925dcc2ff3ed1c45e0be1dc87d2f135430e58",
+      "bytes": 22702,
+      "mtime_ns": 1789229650000000000
+    },
+    "txt文件/知识库/叙事判断.json": {
+      "sha256": "2d28d2b7a267c936c5ff8304258665250c6a13614952891453c2faad5779e6b1",
+      "bytes": 16739,
+      "mtime_ns": 1786036360000000000
+    },
+    "txt文件/知识库/系统标签类.json": {
+      "sha256": "a86a36ab2afbc221a3257e6154dab22c2191bfcc8c27a4b8b964e0f0486802cc",
+      "bytes": 28161,
+      "mtime_ns": 1786036360000000000
+    }
+  },
+  "root_entries_before": [
+    ".backup",
+    ".operit",
+    ".round-runtime",
+    "AGENTS.md",
+    "Operit世界书导出",
+    "__pycache__",
+    "data.json",
+    "injection_core.py",
+    "injection_core.py.into-backup-20261116_163312",
+    "main_template.html",
+    "main_template.html.into-backup-20261116_172101",
+    "main_template.html.into-backup-20261116_181313",
+    "main_template.html.into-backup-20261116_185621",
+    "round_runtime.py",
+    "story_client.css",
+    "story_client.css.into-backup-20261116_181313",
+    "story_client.css.into-backup-20261116_185621",
+    "story_client.js",
+    "story_client.js.into-backup-20261116_181313",
+    "story_client.js.into-backup-20261116_185621",
+    "story_service.py",
+    "story_service.py.into-backup-20261116_181313",
+    "story_service.py.into-backup-20261116_185621",
+    "txt文件",
+    "voice_client.js",
+    "voice_config.json",
+    "voice_manager.html",
+    "vosi",
+    "存档",
+    "存档开局随机盲盒.py",
+    "存档清理器.py",
+    "开发者功能",
+    "日志",
+    "语音仓库",
+    "语音运行.py",
+    "语音运行.py.into-backup-20261116_172101"
+  ],
+  "rollback_command": "python3 -B -c 'import json,pathlib,hashlib,shutil;p=pathlib.Path('\"'\"'开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_7.json'\"'\"');m=json.loads(p.read_bytes());[(lambda b:(_ for _ in ()).throw(ValueError(str(b))) if hashlib.sha256(b.read_bytes()).hexdigest()!=r['\"'\"'before'\"'\"']['\"'\"'sha256'\"'\"'] else shutil.copyfile(b,pathlib.Path(r['\"'\"'path'\"'\"'])))(pathlib.Path(r['\"'\"'backup'\"'\"'])) for r in m['\"'\"'files'\"'\"']]'",
+  "original_platform": {
+    "enabled": true,
+    "endpoint": "http://127.0.0.1:5000",
+    "functionType": "CHAT",
+    "workspacePath": "/virtual/android/documents/230ffdc0fe524442bfde22083d61c969"
+  },
+  "installation_state": "installed_1.1.0_enabled; real_isolated_round_committed; production_waiting_Pydroid3_restart_protocol_3",
+  "runtime": {
+    "version": "1.1.0",
+    "installed_package_sha256": "8068c0afd6112e1764c3f3ab5f863e35f95c09dd00320eaebcc46a49b4b66b27",
+    "enabled": true,
+    "running": true,
+    "pendingResult": false,
+    "inFlight": null,
+    "mode": "operit_session",
+    "endpoint": "http://127.0.0.1:5000",
+    "workspacePath": "/virtual/android/documents/230ffdc0fe524442bfde22083d61c969",
+    "participantId": "f3c542bc-5c3c-413f-a4c9-375c526f0e76",
+    "chatId": "",
+    "chat_creation": "first_queued_action_after_protocol_3",
+    "current_chat": "8455b45a-26a3-4c59-b836-cbf0f18b5f06",
+    "production_running_protocol": 2,
+    "lastError": "请在 Pydroid3 停止旧服务并重新运行语音运行.py，以加载正式会话读取接口（协议3）。"
+  },
+  "verification": {
+    "http_tests": 19,
+    "node_groups": 10,
+    "real_story_attempts": 1,
+    "real_story_seconds": 509.564,
+    "real_tool_calls": 23,
+    "all_tools_success": true,
+    "protected_unchanged": 20,
+    "files_and_backups_verified": 11,
+    "runtime_package_matches_source": true,
+    "rollback_command_parse_compile_passed": true,
+    "isolated_server_stopped": true,
+    "test_chat_deleted": true,
+    "inspector_plugin_deleted": true,
+    "production_story_round": 4
+  }
+}

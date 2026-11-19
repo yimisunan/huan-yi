@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "request_id": "session-integration-7",
+  "base_revision": "fce1ba7b78b44513d9fd39601997cf2b8f4938044b6af5cda5137c91fab958e2",
+  "current_round": 1,
+  "story_nodes": [
+    {
+      "type": "header",
+      "text": "[居家] 7月22日, 周三, 徐家主宅客厅, 07:20"
+    },
+    {
+      "type": "narration",
+      "text": "你从桌上取过材料清单，纸边擦着指腹，有一点干燥的涩感。你把印字的一面转向母亲沈知韫，递到她手边，随后收回手，仍站在客厅桌旁。她接住纸页，顺手将资料夹移到面前，给清单留出一块平整的位置。"
+    },
+    {
+      "type": "dialogue",
+      "speaker": "徐志北",
+      "text": "妈，上午需要先确认哪一项？我把核对的顺序记在旁边。"
+    },
+    {
+      "type": "narration",
+      "text": "沈知韫将清单与资料夹首页并排，先按平卷起的页角，目光停在上端。她穿着黑色居家裙，头发松松盘起，说话仍是家里惯常的语气，手上却已经留出核对两页的位置，指尖点在清单旁的空白处。"
+    },
+    {
+      "type": "dialogue",
+      "speaker": "沈知韫",
+      "text": "先确认这张清单对应的材料版本。妈妈要先把这一项对准，后面的附件和份数才好核。"
+    },
+    {
+      "type": "narration",
+      "text": "你低头看着她指出的位置，原先一路往下看的视线停了下来。上午先把材料对应清楚，其他核对才有依据。你顺着这个念头拿起桌上的笔，在清单空白边写下「先核版本」，又在后面留出两行，准备分别记附件和份数。"
+    },
+    {
+      "type": "dialogue",
+      "speaker": "徐志北",
+      "text": "这一项有疑问就先标出来，等你确认，再继续核后面的，对吗？"
+    },
+    {
+      "type": "narration",
+      "text": "沈知韫的指尖在那行标注旁停了一下，随后按住资料夹，抬眼看向你。"
+    },
+    {
+      "type": "dialogue",
+      "speaker": "沈知韫",
+      "text": "对，待确认的就照实写着，先别勾成完成。妈妈核定以后，再往下走。"
+    },
+    {
+      "type": "narration",
+      "text": "你把「附件」与「份数」补到后面两行，将笔横放在清单边，核对顺序便留在了纸上。沈知韫仍按着资料夹首页，手指停在上端。客厅的钟走到七点二十三分，材料保持摊开，你和她的谈话停在这项工作安排上。"
+    }
+  ],
+  "memory_deltas": {
+    "l1_new_round": "7月22日周三07:20至07:23，徐家主宅客厅，在场徐志北与沈知韫。志北将材料清单递给母亲，询问上午先核哪项，指腹擦过纸边。沈知韫穿黑色居家裙，将清单与资料夹首页并排，指定先核对应材料的版本，再查附件与份数；有疑问先标注，待她核定后继续。志北在空白边记下三项顺序，未将待核内容勾为完成。交谈限于上午工作，两人始终在客厅桌旁。清单与首页仍摊开，笔横放页边，沈知韫手压首页边缘，材料版本仍待核实。",
+    "l1_to_l2_condensed": "",
+    "l2_to_l3_summary": "",
+    "l3_to_l4_summary": "",
+    "presence": {}
+  },
+  "panel_changes": {},
+  "npc_entries": [],
+  "item_entries": [],
+  "micro_state_changes": {},
+  "shame_events": {},
+  "depravity_events": {},
+  "ds_events": {},
+  "affection_events": {},
+  "host_events": [],
+  "counter_updates": {},
+  "vigilance_events": {},
+  "task_issue": null,
+  "options_text": "系统推演：当前可选行动\n[A. 日常互动]：留在客厅，请沈知韫说明应以哪一份材料作为核对依据。\n[B. 社交接触]：在客厅桌旁接稳她递来的资料夹，配合她核对封面的名称和日期。\n[C. 主动行为]：在客厅把待核附件按清单顺序展开，逐项报给她确认。",
+  "system_log": "【SYSTEM_LOG】\nROUND: 1\nINTENT: 在客厅递交材料清单并询问上午应先确认哪一项，只处理工作核对，不推进私人关系。\nSCENE: 徐家主宅客厅|徐志北,沈知韫\n\n【应查】\nmust_keys: state.memory, contract.inject, gate.V1, char.徐志北, char.沈知韫, lore.驻地, lore.信息差, lore.命名锁, narrative.pace, narrative.dialogue_tts, sys.breakout, sys.task\n\n【实查】\nquery_keys: state.memory, contract.inject, gate.V1, char.徐志北, char.沈知韫, lore.驻地, lore.信息差, lore.命名锁, narrative.pace, narrative.dialogue_tts, narrative.vigilance, sys.breakout, sys.shame, sys.depravity, sys.ds, sys.affection, sys.vigilance, sys.host_points, sys.host_body, sys.runtime_data, sys.task, item.catalog, npc.minor\n\n【读取审计】\n来源：Operit本轮文件工具。\n本回workspace_read_file物理调用次数：18（文件读取统计口径；实际接口为read_file 4次、read_file_part 14次）。另有list_files目录浏览3次、grep_code检索2次。\n⓪ 全局记忆库：已调用，存档/全局记忆库.txt第1—63行，为本轮首个文件读取。\n① 一键注入指南：已调用，依次读取第1—180行及181—348行。\n② 卷零：已调用，txt文件/全局执行法典.md第1—190行；前三份完成后才读取其他文件。\n随后依次读取txt文件/提示词.md第1—220行、txt文件/故事检索索引.md第1—40行、data.json第1行。\n目录重新浏览：txt文件、txt文件/知识库、存档；并检索角色类.json中的在场人物与跨文件指针、系统标签类.json中的条目路由。\n③ 世界书角色：沈知韫=未注入(物理补偿)，角色类.json第1—34行；徐志北=未注入(物理补偿)，第103—124行。\n④ 世界书sys/lore/narrative：未作为验证来源，均由本轮本地JSON物理补偿。世界观类.json与叙事判断.json全文读取且无截断；系统标签类.json读取第1—68行、69—96行、97—159行、190—217行、218—329行。沿驻地、信息差、破局、宿主、记忆与任务指针补查；另全文读取存档/徐志北道具图鉴.txt及存档/次要NPC名册.txt，均只有第1行。\n\n【阅据】\n⓪ 全局记忆库：L1=0（回合号[]），L2=0（完整回合号[]），L3=0（包号[]），L4=0；人物所在为沈知韫=徐家主宅|常住、徐志北=徐家主宅|常住、徐念薇=工作室|工作、苏婉青=市中心顶层公寓|常住。当前任务无，最近完成空，待发道具无；三名角色微状态均为false。徐承邺在外地，四目标警惕与发现均为0。\n① 注入指南：桥接只交小写字段JSON；首节点为四段header；narration仅type/text且每条不超过120字符；dialogue仅type/speaker/text。L1为单段198个去空白字符；summary_sources三个数组均空，三项压缩字段留空字符串；panel_changes与presence均为{}。\n② 卷零：正文只完成递清单、询问优先项、记录工作顺序；括号中的上午工作范围与客厅位置在正文保持。具体宿主感官为纸边擦过指腹的干涩感，另有视线随指示移动及同意图记录动作。\n③ 世界书角色：本轮依据为角色类.json物理补偿。沈知韫是志北生母，对家人温柔而办事利落，必须以「妈妈」自称，日常事务零声学标签；徐志北20岁，语言直率，行动以玩家本轮指令为准。正文保留母子身份，未赋予未解锁技能。\n④ 世界书系统：本轮依据均来自本地知识库。lore.驻地规定沈知韫工作日08:00前在主宅；data.json当前展示回合为0，场景为7月22日周三07:20徐家主宅客厅。lore.信息差规定继承真相不由NPC主动坦白，本轮未涉及该秘密。lore.命名锁规定A/B/C名称，三项后续选择均限制为客厅工作。\nnarrative.pace允许意图完成后自然短收束，不能填充字数；narrative.dialogue_tts规定事务对话可无潜台词，日常零声学标签，动作与台词分节点。\nsys.shame将递物交谈归入无越界日常；sys.depravity仅允许清醒主动越界证据触发破锁，本轮无此行为。sys.ds未出现劳作消耗、刺激或恢复事实；sys.affection未发生安抚或关系变化，不打好感标签。\nsys.breakout阈值为连续5回合日常、3回合模式重复、3回合社交淤积或2回合身体应激，本轮为空记忆后的首个正式回合，均不满足。sys.vigilance低于30不关注，现场无异常、目击或汇报。\nsys.host_points商业信息获取要求未知秘密，本轮只明确常规核对顺序；没有据此发奖。sys.host_body以当前Lv.0事实约束能力，短时事务核对未另设体力事件。sys.runtime_data规定记忆仅交增量、道具计时由引擎处理；图鉴无在用条目，名册无已登记配角。sys.task规定任务只读不驱动，当前无完成任务或待发奖励，task_issue为。\n\n【豁免】\nskip: 无\n\n【V1验收】\nV1-A: 通过 — 递交清单并问清上午优先核材料版本，仅补全记录顺序的同意图动作，没有代作关键决定或推动私人关系。\nV1-B: 通过 — 括号范围落实为只讨论上午材料、记录核对先后；从递交到终点始终在客厅桌旁，后续选项也限定客厅工作。\nV1-C: 通过 — 明确写出你指腹接触纸边的干涩触感，并有你随指示观察页上位置及拿笔记录的动作，宿主侧至少两类可感。\nV1-D: 通过 — 问题得到明确回答，核对顺序及疑项处理原则落笔后收束；header首项，动作与对白分节点，旁白均不超过120字符，选项独立置于options_text。优先项已确定，没有新增因果压力，采用自然收束的短回合。\n\n【事件打标】\nSHAME: 无\nDEPRAVITY: 无\nDS: 无\nAFFECTION: 无\nHOST: 无\nTASK: 无\n破局: 无，首个正式回合未满足连续阈值。\n\n【记忆/所在】\nL1: 已写\npresence: {}\nlayer_note: L2完整回合号清单=[]；L3包号清单=[]；三个summary_sources数组均为空，本轮不压缩。\n\n【备注】\n三处目录均已本轮复浏览，所需资料以当前文件读取结果为依据。\n材料版本仍待核实；本轮完成的是优先项与核对顺序的确认，未将待核内容记为完成。"
+}

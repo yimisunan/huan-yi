@@ -1,0 +1,11 @@
+- 【步骤编号】step_13
+- 【上游依赖】用户「开始，下一轮」；logs/step_12.md，SHA-256=2a81ea076048688e70ecf6e09b1bf78cdb252b9ef61762634810bc2abec25437；plan/step_13.md，SHA-256=8991bc90c283f6498eaa6e2698502d38b31b127dec60f988c739efa54f3e8d7c；plan/step_9.md的P4。沿用into、iter-revise及任务五步走·落盘规范，无需重复激活。
+- 【做了什么】完成P4六文件规则协同：中性意图与真实情绪分清，日常破局改为实际停滞评估，净化保留关系/情绪作用，低体力必需标签作为日常频率例外，目击情绪判断收敛到唯一来源；修补叙事条目遗留单线优先级，补齐计数语义供P9复用。
+- 【产物】src/P4修补与验收_13.md；src/安装清单_13.json（SHA-256=c1f15b7937da1a0026bdff33a9606dac4c889b406f478b7ff65bfffdccffaf34）；六个现役目标及各自同目录父版，路径、before/after指纹与mtime/权限/格式见清单；plan/log同名配对。最终调用精确清理六个候选、事务脚本与收尾脚本，父版及清单保留。
+- 【验收证据】
+  - V1 改前基线：终端pwd与绑定项目一致，真实路径/sdcard/互动对话项目/Gemini网页版；BASELINE_CHECK {"checked": 32, "changed": []}，tmp为空。清单记录六目标改前指纹、字节、mtime、权限与规范路径，26项非目标保护基线，根目录快照。现有sync规则覆盖候选/备份，无需更改。候选输出PREPARED targets=6 protected=26 changed_entries=5 enc=UTF-8 newline=LF；全部替换锚点唯一，候选JSON解析通过，源格式与最终换行保留，写前复核基线，六父版逐一校验。
+  - V2 改后结果：系统python3退出0，真实输出INSTALLED 6 BACKUPS_VERIFIED 6 PROTECTED_UNCHANGED 26；P4_PASS files=6 backups=6 protected=26 changed_entries=5 allowed_differences_only=true metadata_unchanged=true；CONTRACT_PASS v1_definitions_unchanged=true node_event_contracts_unchanged=true numeric_mechanisms_unchanged=true voice_label_set_unchanged=true keyword_routes_unchanged=true；EXPORT_PASS source_jsons=4 entries=22 always_active=7 changed_contents=5 source_matches=true。按file_edits与content_edits重建批准范围，六目标与现役一致；四库、元数据、其他条目、保护文件、标签集合和关键词路由核对通过。日常/分歧/停滞及两类声学条件仅作假设情境文档审阅，详见src记录，无实际模型或TTS验证。最终配对/清理的真实输出另追加到同一src记录。
+  - V3 反向可行：ROLLBACK_PASS syntax=true backup_fingerprints=true actual_rollback=false unexpected_root_entries=0。六父版内容与before一致，rollback_command通过shlex参数及Python静态解析；未实际回滚。恢复前会校验全部父版与现役属于本轮前后版本，再逐文件原子恢复。
+  - 成本与异常：一个L1/R1事务；实际子工具调用预检19、写入执行7、验证与收尾2，共28次（并行包装不重复计数，最终调用含记录写入、清理与配对验证）。计数包含一次只读脚本KeyError及一次edit_file空替换参数拒绝；前者按data.entries结构修正，后者换成有效断言替换，两次失败均未写现役。候选prepare、安装与定向验收一次成功；无失败安装或实际回滚。
+- 【回滚方式】R1：在工作区根执行src/安装清单_13.json的rollback_command。调取并执行的一条命令：python3 -c 'import json,subprocess; from pathlib import Path; p=Path("开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_13.json"); subprocess.run(json.loads(p.read_text(encoding="utf-8"))["rollback_command"],shell=True,check=True)'。此处仅记录，未执行；新增过程文档为R0。
+- 【下一步】按分轮要求在P4交付后停下，等待用户点选后续项目；P1至P4规则阶段已完成。后续项仍按plan/step_9.md选择，不提前实施情绪小样、供应商映射或自动计数。data.json、存档、引擎、前端与语音配置保持原指纹，正式剧情仍为第4回合；真实生成质量与听感尚待后续验证。

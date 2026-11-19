@@ -1,0 +1,1841 @@
+{
+  "root": "/sdcard/互动对话项目/Gemini网页版",
+  "stage": "P10",
+  "risk": "L2/R1+R0",
+  "status": "INSTALLED",
+  "changes": [
+    {
+      "path": "injection_core.py",
+      "realpath": "/sdcard/互动对话项目/Gemini网页版/injection_core.py",
+      "before": {
+        "sha256": "b665b9ccf7fc1205a5baf726fc248556e20eeb9650b0fc4754695d0258af8752",
+        "bytes": 111118,
+        "mtime_ns": 1794311346881000000,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "a0f8f08eac00041ff5e85e337fdd210c17d83155125bcef839136db2be984968",
+        "bytes": 122195
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate16_0.txt",
+      "backup": "injection_core.py.into-backup-20261117_100813",
+      "character_delta": 11677
+    },
+    {
+      "path": "txt文件/事件注册表.json",
+      "realpath": "/sdcard/互动对话项目/Gemini网页版/txt文件/事件注册表.json",
+      "before": null,
+      "after": {
+        "sha256": "9ba945df6564524f4666b3d2d26b9f0565bfe09f33134dd9c8c5639a05c8b922",
+        "bytes": 34206
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate16_1.txt",
+      "backup": null,
+      "character_delta": 28720
+    },
+    {
+      "path": "round_runtime.py",
+      "realpath": "/sdcard/互动对话项目/Gemini网页版/round_runtime.py",
+      "before": {
+        "sha256": "4000c6eeccfe4083ac41bf3d25c4dad9274a30c00cf06c4fc25387b63b565c9e",
+        "bytes": 54149,
+        "mtime_ns": 1794846792400274207,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "f5fb2216494b5b4d9b10cb00bc6dce0eb3aafd93299ee564471b2c6243d77525",
+        "bytes": 55189
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate16_2.txt",
+      "backup": "round_runtime.py.into-backup-20261117_100813",
+      "character_delta": 876
+    },
+    {
+      "path": "story_service.py",
+      "realpath": "/sdcard/互动对话项目/Gemini网页版/story_service.py",
+      "before": {
+        "sha256": "5f83e66879e9e6d7bc0dd81dd46839b76833c650146cbae957edf0fda36dfa4a",
+        "bytes": 40778,
+        "mtime_ns": 1794853515956271642,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "e8d7909682ce9db5e3fa4dbc73435880d71d3b2b3398632c918474bda82696fc",
+        "bytes": 41189
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate16_3.txt",
+      "backup": "story_service.py.into-backup-20261117_100813",
+      "character_delta": 295
+    },
+    {
+      "path": "txt文件/一键注入指南.txt",
+      "realpath": "/sdcard/互动对话项目/Gemini网页版/txt文件/一键注入指南.txt",
+      "before": {
+        "sha256": "faa3ba0b41d8f6e38f45a7d756b35a5b5a39ae1b613b6c7b94f72440b4617d18",
+        "bytes": 49460,
+        "mtime_ns": 1794846792420274207,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "7d0a6c4e970a5cf54986e8e68eb068bf4fc31f2005243042996be2bf141b2398",
+        "bytes": 57856
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate16_4.txt",
+      "backup": "txt文件/一键注入指南.txt.into-backup-20261117_100813",
+      "character_delta": 5252
+    },
+    {
+      "path": "txt文件/知识库/系统标签类.json",
+      "realpath": "/sdcard/互动对话项目/Gemini网页版/txt文件/知识库/系统标签类.json",
+      "before": {
+        "sha256": "cca27c9986d0cfddfb458089434243350f52c0430d05e41b0f6b958e5d64a33e",
+        "bytes": 29674,
+        "mtime_ns": 1786036360000000000,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "f13f71fb0c575ff8bfebcdc9e295c4e20795db99428bc508ca8c7c545eab1561",
+        "bytes": 39720
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate16_5.txt",
+      "backup": "txt文件/知识库/系统标签类.json.into-backup-20261117_100813",
+      "character_delta": 5930
+    },
+    {
+      "path": "开发者功能/开发者说明书/世界书关键字配置.txt",
+      "realpath": "/sdcard/互动对话项目/Gemini网页版/开发者功能/开发者说明书/世界书关键字配置.txt",
+      "before": {
+        "sha256": "33e418f1d4eb41d6a25942b89e09dc874b5587aabf72f5a45b32c8b3499eba7d",
+        "bytes": 8588,
+        "mtime_ns": 1786036402000000000,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "8c0af86b6cdf884563d874a121fb222c911933064e6f7e3e1a62ebf1fd3acc99",
+        "bytes": 8678
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate16_6.txt",
+      "backup": "开发者功能/开发者说明书/世界书关键字配置.txt.into-backup-20261117_100813",
+      "character_delta": 36
+    },
+    {
+      "path": "txt文件/故事检索索引.md",
+      "realpath": "/sdcard/互动对话项目/Gemini网页版/txt文件/故事检索索引.md",
+      "before": {
+        "sha256": "414e69b71e537d873ad9ee2a00718b5e791b5cd71bbe642b63a1ca86d84bb961",
+        "bytes": 3867,
+        "mtime_ns": 1786001188000000000,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "d9ba8de934379169bf2765878784a610d4f060b62647bcc8fde1c03446fec3e0",
+        "bytes": 4010
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate16_7.txt",
+      "backup": "txt文件/故事检索索引.md.into-backup-20261117_100813",
+      "character_delta": 83
+    },
+    {
+      "path": "开发者功能/开发者说明书/开发者说明书.md",
+      "realpath": "/sdcard/互动对话项目/Gemini网页版/开发者功能/开发者说明书/开发者说明书.md",
+      "before": {
+        "sha256": "462710655681b3cc14543863aa99c2749484f78121ff8ef8ebe6206937561d30",
+        "bytes": 14211,
+        "mtime_ns": 1794903828874436972,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "f0a7c8c34a836c9496ea9bce12ecf6611d1eedd0dbe51c2765bf883880f322f1",
+        "bytes": 14637
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate16_8.txt",
+      "backup": "开发者功能/开发者说明书/开发者说明书.md.into-backup-20261117_100813",
+      "character_delta": 190
+    },
+    {
+      "path": "Operit世界书导出/operit_worldbook_深渊天平.json",
+      "realpath": "/sdcard/互动对话项目/Gemini网页版/Operit世界书导出/operit_worldbook_深渊天平.json",
+      "before": {
+        "sha256": "3f6263129553f3208ae9e02f4f7c6e2cd4fa705720a2146822a9bb1af2c6344e",
+        "bytes": 75899,
+        "mtime_ns": 1794903828858436972,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "156f0df3e94a37a445af41c3c84eb044a6ecbff43be372db3e55fabb76e88ec5",
+        "bytes": 85945
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate16_9.txt",
+      "backup": "Operit世界书导出/operit_worldbook_深渊天平.json.into-backup-20261117_100813",
+      "character_delta": 5930
+    }
+  ],
+  "protected": {
+    ".operit/sync.json": {
+      "sha256": "50c49bae70db0e2db14017498a6802035819e45927ead4a1454e5495636461dd",
+      "bytes": 403,
+      "mtime_ns": 1794845848988274567,
+      "mode": 432
+    },
+    "AGENTS.md": {
+      "sha256": "0e325b92fd04f69096546f2d3b7fb1e710d351d035d3ce49139a06ad3f8c8dc6",
+      "bytes": 10877,
+      "mtime_ns": 1794310247394000000,
+      "mode": 432
+    },
+    "Operit世界书导出/convert_to_operit.py": {
+      "sha256": "db092c67a64ab0c92507eb1423ee0183d9f1d46702655b53d4c6d083df414157",
+      "bytes": 6470,
+      "mtime_ns": 1785992744000000000,
+      "mode": 432
+    },
+    "data.json": {
+      "sha256": "c538e2d3a36320fe674b57a915f11980c17cf177abd5396ec28eda5072810eb1",
+      "bytes": 2537,
+      "mtime_ns": 1794859504240269358,
+      "mode": 432
+    },
+    "main_template.html": {
+      "sha256": "d7d5b001f7cca00b09ec3c9de55957ff510eefaceadca45919d0131aa633b794",
+      "bytes": 274301,
+      "mtime_ns": 1794853515940271642,
+      "mode": 432
+    },
+    "story_client.css": {
+      "sha256": "c7d929cfa6a986ae2391e45af0947084e49dc0816d26968df0ccc7d76df22ebc",
+      "bytes": 9109,
+      "mtime_ns": 1794853767752271546,
+      "mode": 432
+    },
+    "story_client.js": {
+      "sha256": "e55e317159409e60d4885ea0faabe1329d5092106fb79f9fd3f3e3340941e91f",
+      "bytes": 24189,
+      "mtime_ns": 1794853515908271642,
+      "mode": 432
+    },
+    "txt文件/全局执行法典.md": {
+      "sha256": "f3422c04383f32611d70ea0c1fc6b356956723f19350bef85ecdb86db5b5a6aa",
+      "bytes": 13713,
+      "mtime_ns": 1794902190862437597,
+      "mode": 432
+    },
+    "txt文件/知识库/世界观类.json": {
+      "sha256": "f223990abc623062681166d6cb7dc39ddc6a545ff6cdb39a7f78e36821939284",
+      "bytes": 7559,
+      "mtime_ns": 1794310247407000000,
+      "mode": 432
+    },
+    "txt文件/知识库/叙事判断.json": {
+      "sha256": "141337dfd6de6fceb043e68591fc8f157e99b71afa12eafbe4a342a3bc09b514",
+      "bytes": 16986,
+      "mtime_ns": 1786036360000000000,
+      "mode": 432
+    },
+    "txt文件/知识库/角色类.json": {
+      "sha256": "3232eb14c36c154762893a901b709fb90eaf683a81d91d2ed911e02171093649",
+      "bytes": 25762,
+      "mtime_ns": 1789229650000000000,
+      "mode": 432
+    },
+    "voice_client.js": {
+      "sha256": "8247309ca6fcf1d864ddd5b181e86265d5ed1aeec73cdcfa3a0fd4ab7101985d",
+      "bytes": 5698,
+      "mtime_ns": 1794394473464827642,
+      "mode": 432
+    },
+    "voice_config.json": {
+      "sha256": "6bbd1ad3f537b8a52ad3a1aec684d52358f9c0b3aaf9cbbeace994715573cec0",
+      "bytes": 2618,
+      "mtime_ns": 1794292912340000000,
+      "mode": 432
+    },
+    "voice_manager.html": {
+      "sha256": "58aa936025c0a6428c9b70239a0ab52f892e7bb0c2b2dd51c94eb3487ced0748",
+      "bytes": 69381,
+      "mtime_ns": 1794394473476827642,
+      "mode": 432
+    },
+    "存档/全局记忆库.txt": {
+      "sha256": "3895c68c55ebea8c265cffd0bae564487205eedc767f78b950937320d744112f",
+      "bytes": 5046,
+      "mtime_ns": 1794859504232269358,
+      "mode": 432
+    },
+    "存档/徐志北道具图鉴.txt": {
+      "sha256": "5ec84007c18ad3f9937717453e37238869ff610af5bc23ae33af2da1fc51224c",
+      "bytes": 2437,
+      "mtime_ns": 1794859504232269358,
+      "mode": 432
+    },
+    "存档/次要NPC名册.txt": {
+      "sha256": "7c6c74b8790273b8d71294c1e9ebe700cf97ff5dfb14b10ac213c9d83c836f0f",
+      "bytes": 1124,
+      "mtime_ns": 1794859504236269358,
+      "mode": 432
+    },
+    "开发者功能/Operit故事桥接/main.js": {
+      "sha256": "f9629a177afd680227634e934aa3a43d8d86d3b38a23f46a436932a23f2982e9",
+      "bytes": 26106,
+      "mtime_ns": 1794853515968271642,
+      "mode": 432
+    },
+    "开发者功能/Operit故事桥接/manifest.json": {
+      "sha256": "11d6a3107897da70c78ba06e0e61033dd922e7e37e0970bfdd11347445e7b176",
+      "bytes": 686,
+      "mtime_ns": 1794853515980271642,
+      "mode": 432
+    },
+    "开发者功能/Operit故事桥接/tools.js": {
+      "sha256": "d5aa8ed7db8ede487b2cfaca91fe327cf918809ff7b3ab5beff749eeb86c3df7",
+      "bytes": 2067,
+      "mtime_ns": 1794849661344273113,
+      "mode": 432
+    },
+    "开发者功能/Operit故事桥接/故事桥接.toolpkg": {
+      "sha256": "8068c0afd6112e1764c3f3ab5f863e35f95c09dd00320eaebcc46a49b4b66b27",
+      "bytes": 9871,
+      "mtime_ns": 1794853515988271642,
+      "mode": 432
+    },
+    "语音运行.py": {
+      "sha256": "f846a8ee8c00c0e66b4cd087dcfcfcdc77e3365c376430f87f3c77c5bffa781a",
+      "bytes": 39890,
+      "mtime_ns": 1794311352508000000,
+      "mode": 432
+    },
+    "txt文件/提示词.md": {
+      "sha256": "c3ade24b3d6d7434469b354e349b58fe4588f8b624246bdf135f57b68f22c169",
+      "bytes": 15798
+    }
+  },
+  "root_names": [
+    ".backup",
+    ".operit",
+    ".round-runtime",
+    "AGENTS.md",
+    "AGENTS.md.into-backup-20261117_022223",
+    "AGENTS.md.into-backup-20261117_073521",
+    "AGENTS.md.into-backup-20261117_075417",
+    "Operit世界书导出",
+    "__pycache__",
+    "data.json",
+    "injection_core.py",
+    "injection_core.py.into-backup-20261116_163312",
+    "main_template.html",
+    "main_template.html.into-backup-20261116_172101",
+    "main_template.html.into-backup-20261116_181313",
+    "main_template.html.into-backup-20261116_185621",
+    "main_template.html.into-backup-20261117_022223",
+    "round_runtime.py",
+    "round_runtime.py.into-backup-20261117_091120",
+    "round_runtime.py.into-backup-20261117_094229",
+    "story_client.css",
+    "story_client.css.into-backup-20261116_181313",
+    "story_client.css.into-backup-20261116_185621",
+    "story_client.js",
+    "story_client.js.into-backup-20261116_181313",
+    "story_client.js.into-backup-20261116_185621",
+    "story_service.py",
+    "story_service.py.into-backup-20261116_181313",
+    "story_service.py.into-backup-20261116_185621",
+    "story_service.py.into-backup-20261116_212924",
+    "story_service.py.into-backup-20261117_091120",
+    "story_service.py.into-backup-20261117_094229",
+    "txt文件",
+    "voice_client.js",
+    "voice_config.json",
+    "voice_manager.html",
+    "vosi",
+    "存档",
+    "存档开局随机盲盒.py",
+    "存档清理器.py",
+    "开发者功能",
+    "日志",
+    "语音仓库",
+    "语音运行.py",
+    "语音运行.py.into-backup-20261116_172101"
+  ],
+  "file_edits": {
+    "injection_core.py": {
+      "token_edits": [
+        {
+          "old": "10",
+          "new": "_event_param('SHAME_08', 'vig_target_04')",
+          "byte_start": 35777,
+          "byte_end": 35779
+        },
+        {
+          "old": "0",
+          "new": "_event_param('SHAME_08', 'vig_target_03')",
+          "byte_start": 35740,
+          "byte_end": 35741
+        },
+        {
+          "old": "3",
+          "new": "_event_param('SHAME_08', 'vig_target_02')",
+          "byte_start": 35683,
+          "byte_end": 35684
+        },
+        {
+          "old": "\"死亡查岗_抗拒期\"",
+          "new": "_event_tag('SHAME_08')",
+          "byte_start": 35600,
+          "byte_end": 35624
+        },
+        {
+          "old": "\"无异常回合\"",
+          "new": "_event_tag('VIGILANCE_10')",
+          "byte_start": 33556,
+          "byte_end": 33573
+        },
+        {
+          "old": "5",
+          "new": "_event_param('VIGILANCE_08', 't_01')",
+          "byte_start": 33530,
+          "byte_end": 33531
+        },
+        {
+          "old": "\"转移注意\"",
+          "new": "_event_tag('VIGILANCE_09')",
+          "byte_start": 33447,
+          "byte_end": 33461
+        },
+        {
+          "old": "\"合理解释\"",
+          "new": "_event_tag('VIGILANCE_08')",
+          "byte_start": 33431,
+          "byte_end": 33445
+        },
+        {
+          "old": "15",
+          "new": "_event_param('VIGILANCE_07', 't_01')",
+          "byte_start": 33403,
+          "byte_end": 33405
+        },
+        {
+          "old": "\"降警惕_深度\"",
+          "new": "_event_tag('VIGILANCE_07')",
+          "byte_start": 33317,
+          "byte_end": 33335
+        },
+        {
+          "old": "10",
+          "new": "_event_param('VIGILANCE_06', 't_01')",
+          "byte_start": 33290,
+          "byte_end": 33292
+        },
+        {
+          "old": "\"降警惕_中度\"",
+          "new": "_event_tag('VIGILANCE_06')",
+          "byte_start": 33204,
+          "byte_end": 33222
+        },
+        {
+          "old": "5",
+          "new": "_event_param('VIGILANCE_05', 't_01')",
+          "byte_start": 33178,
+          "byte_end": 33179
+        },
+        {
+          "old": "\"降警惕_轻度\"",
+          "new": "_event_tag('VIGILANCE_05')",
+          "byte_start": 33092,
+          "byte_end": 33110
+        },
+        {
+          "old": "2",
+          "new": "_event_param('VIGILANCE_04', 't_03')",
+          "byte_start": 33065,
+          "byte_end": 33066
+        },
+        {
+          "old": "1",
+          "new": "_event_param('VIGILANCE_04', 't_02')",
+          "byte_start": 33062,
+          "byte_end": 33063
+        },
+        {
+          "old": "5",
+          "new": "_event_param('VIGILANCE_04', 't_01')",
+          "byte_start": 33012,
+          "byte_end": 33013
+        },
+        {
+          "old": "\"眼线汇报\"",
+          "new": "_event_tag('VIGILANCE_04')",
+          "byte_start": 32965,
+          "byte_end": 32979
+        },
+        {
+          "old": "2",
+          "new": "_event_param('VIGILANCE_03', 't_03')",
+          "byte_start": 32938,
+          "byte_end": 32939
+        },
+        {
+          "old": "1",
+          "new": "_event_param('VIGILANCE_03', 't_02')",
+          "byte_start": 32935,
+          "byte_end": 32936
+        },
+        {
+          "old": "10",
+          "new": "_event_param('VIGILANCE_03', 't_01')",
+          "byte_start": 32884,
+          "byte_end": 32886
+        },
+        {
+          "old": "\"异常行迹\"",
+          "new": "_event_tag('VIGILANCE_03')",
+          "byte_start": 32837,
+          "byte_end": 32851
+        },
+        {
+          "old": "4",
+          "new": "_event_param('VIGILANCE_02', 't_01')",
+          "byte_start": 32810,
+          "byte_end": 32811
+        },
+        {
+          "old": "\"证据实锤\"",
+          "new": "_event_tag('VIGILANCE_02')",
+          "byte_start": 32747,
+          "byte_end": 32761
+        },
+        {
+          "old": "3",
+          "new": "_event_param('VIGILANCE_01', 't_02')",
+          "byte_start": 32720,
+          "byte_end": 32721
+        },
+        {
+          "old": "15",
+          "new": "_event_param('VIGILANCE_01', 't_01')",
+          "byte_start": 32670,
+          "byte_end": 32672
+        },
+        {
+          "old": "\"目击确认\"",
+          "new": "_event_tag('VIGILANCE_01')",
+          "byte_start": 32623,
+          "byte_end": 32637
+        },
+        {
+          "old": "\"内射_首次核爆\"",
+          "new": "_event_tag('SHAME_07')",
+          "byte_start": 23851,
+          "byte_end": 23872
+        },
+        {
+          "old": "\"内射_常规\"",
+          "new": "_event_tag('SHAME_06')",
+          "byte_start": 23824,
+          "byte_end": 23839
+        },
+        {
+          "old": "2",
+          "new": "_event_param('SHAME_18', 'prob_01')",
+          "byte_start": 21452,
+          "byte_end": 21453
+        },
+        {
+          "old": "\"生理_危险期\"",
+          "new": "_event_tag('SHAME_18')",
+          "byte_start": 21404,
+          "byte_end": 21422
+        },
+        {
+          "old": "\"内射_首次核爆\"",
+          "new": "_event_tag('SHAME_07')",
+          "byte_start": 20664,
+          "byte_end": 20685
+        },
+        {
+          "old": "\"内射_常规\"",
+          "new": "_event_tag('SHAME_06')",
+          "byte_start": 20632,
+          "byte_end": 20647
+        },
+        {
+          "old": "\"苏婉青_温柔侵蚀\"",
+          "new": "_event_tag('AFFECTION_09')",
+          "byte_start": 19460,
+          "byte_end": 19484
+        },
+        {
+          "old": "\"苏婉青_真相揭露\"",
+          "new": "_event_tag('AFFECTION_08')",
+          "byte_start": 19422,
+          "byte_end": 19446
+        },
+        {
+          "old": "95",
+          "new": "_event_param('AFFECTION_08', 'cap_02')",
+          "byte_start": 19400,
+          "byte_end": 19402
+        },
+        {
+          "old": "85",
+          "new": "_event_param('AFFECTION_08', 'cur_aff_01')",
+          "byte_start": 19374,
+          "byte_end": 19376
+        },
+        {
+          "old": "\"苏婉青_温柔侵蚀\"",
+          "new": "_event_tag('AFFECTION_09')",
+          "byte_start": 19326,
+          "byte_end": 19350
+        },
+        {
+          "old": "\"苏婉青_真相揭露\"",
+          "new": "_event_tag('AFFECTION_08')",
+          "byte_start": 19288,
+          "byte_end": 19312
+        },
+        {
+          "old": "2",
+          "new": "_event_param('AFFECTION_07', 'new_aff_01')",
+          "byte_start": 19123,
+          "byte_end": 19124
+        },
+        {
+          "old": "\"暴跌回升_恢复中\"",
+          "new": "_event_tag('AFFECTION_07')",
+          "byte_start": 19086,
+          "byte_end": 19110
+        },
+        {
+          "old": "0",
+          "new": "_event_param('AFFECTION_06', 'new_aff_03')",
+          "byte_start": 19059,
+          "byte_end": 19060
+        },
+        {
+          "old": "60",
+          "new": "_event_param('AFFECTION_06', 'cur_aff_01')",
+          "byte_start": 19051,
+          "byte_end": 19053
+        },
+        {
+          "old": "1",
+          "new": "_event_param('AFFECTION_06', 'new_aff_02')",
+          "byte_start": 19036,
+          "byte_end": 19037
+        },
+        {
+          "old": "\"社交微幅回馈\"",
+          "new": "_event_tag('AFFECTION_06')",
+          "byte_start": 19002,
+          "byte_end": 19022
+        },
+        {
+          "old": "2",
+          "new": "_event_param('AFFECTION_05', 'new_aff_01')",
+          "byte_start": 18976,
+          "byte_end": 18977
+        },
+        {
+          "old": "\"深度操控_重复\"",
+          "new": "_event_tag('AFFECTION_05')",
+          "byte_start": 18942,
+          "byte_end": 18963
+        },
+        {
+          "old": "3",
+          "new": "_event_param('AFFECTION_04', 'new_aff_03')",
+          "byte_start": 18915,
+          "byte_end": 18916
+        },
+        {
+          "old": "60",
+          "new": "_event_param('AFFECTION_04', 'cur_shame_01')",
+          "byte_start": 18907,
+          "byte_end": 18909
+        },
+        {
+          "old": "5",
+          "new": "_event_param('AFFECTION_04', 'new_aff_02')",
+          "byte_start": 18889,
+          "byte_end": 18890
+        },
+        {
+          "old": "\"深度操控_首次\"",
+          "new": "_event_tag('AFFECTION_04')",
+          "byte_start": 18854,
+          "byte_end": 18875
+        },
+        {
+          "old": "0",
+          "new": "_event_param('AFFECTION_03', 'new_aff_03')",
+          "byte_start": 18827,
+          "byte_end": 18828
+        },
+        {
+          "old": "50",
+          "new": "_event_param('AFFECTION_03', 'cur_aff_01')",
+          "byte_start": 18819,
+          "byte_end": 18821
+        },
+        {
+          "old": "1",
+          "new": "_event_param('AFFECTION_03', 'new_aff_02')",
+          "byte_start": 18804,
+          "byte_end": 18805
+        },
+        {
+          "old": "\"基础安抚\"",
+          "new": "_event_tag('AFFECTION_03')",
+          "byte_start": 18776,
+          "byte_end": 18790
+        },
+        {
+          "old": "20",
+          "new": "_event_param('AFFECTION_02', 'new_aff_01')",
+          "byte_start": 18749,
+          "byte_end": 18751
+        },
+        {
+          "old": "\"暴力下流_雪崩\"",
+          "new": "_event_tag('AFFECTION_02')",
+          "byte_start": 18715,
+          "byte_end": 18736
+        },
+        {
+          "old": "5",
+          "new": "_event_param('AFFECTION_01', 'new_aff_01')",
+          "byte_start": 18689,
+          "byte_end": 18690
+        },
+        {
+          "old": "\"阻止侵犯_成功\"",
+          "new": "_event_tag('AFFECTION_01')",
+          "byte_start": 18655,
+          "byte_end": 18676
+        },
+        {
+          "old": "\"C烈度_轻度\"",
+          "new": "_event_tag('SHAME_01')",
+          "byte_start": 18325,
+          "byte_end": 18341
+        },
+        {
+          "old": "\"C烈度_中度\"",
+          "new": "_event_tag('SHAME_02')",
+          "byte_start": 18295,
+          "byte_end": 18311
+        },
+        {
+          "old": "\"C烈度_重度\"",
+          "new": "_event_tag('SHAME_04')",
+          "byte_start": 18265,
+          "byte_end": 18281
+        },
+        {
+          "old": "0",
+          "new": "_event_param('SHAME_04', 'violation_drop_10')",
+          "byte_start": 18258,
+          "byte_end": 18259
+        },
+        {
+          "old": "4",
+          "new": "_event_param('SHAME_01', 'violation_drop_08')",
+          "byte_start": 18214,
+          "byte_end": 18215
+        },
+        {
+          "old": "2",
+          "new": "_event_param('SHAME_01', 'violation_drop_07')",
+          "byte_start": 18176,
+          "byte_end": 18177
+        },
+        {
+          "old": "30",
+          "new": "_event_param('SHAME_01', 'cur_aff_06')",
+          "byte_start": 18154,
+          "byte_end": 18156
+        },
+        {
+          "old": "1",
+          "new": "_event_param('SHAME_01', 'violation_drop_05')",
+          "byte_start": 18124,
+          "byte_end": 18125
+        },
+        {
+          "old": "70",
+          "new": "_event_param('SHAME_01', 'cur_shame_03')",
+          "byte_start": 18116,
+          "byte_end": 18118
+        },
+        {
+          "old": "0",
+          "new": "_event_param('SHAME_01', 'violation_drop_04')",
+          "byte_start": 18099,
+          "byte_end": 18100
+        },
+        {
+          "old": "60",
+          "new": "_event_param('SHAME_01', 'cur_aff_02')",
+          "byte_start": 18077,
+          "byte_end": 18079
+        },
+        {
+          "old": "\"C烈度_轻度\"",
+          "new": "_event_tag('SHAME_01')",
+          "byte_start": 18024,
+          "byte_end": 18040
+        },
+        {
+          "old": "12",
+          "new": "_event_param('SHAME_02', 'violation_drop_09')",
+          "byte_start": 18008,
+          "byte_end": 18010
+        },
+        {
+          "old": "4",
+          "new": "_event_param('SHAME_02', 'violation_drop_08')",
+          "byte_start": 17970,
+          "byte_end": 17971
+        },
+        {
+          "old": "30",
+          "new": "_event_param('SHAME_02', 'cur_aff_07')",
+          "byte_start": 17948,
+          "byte_end": 17950
+        },
+        {
+          "old": "4",
+          "new": "_event_param('SHAME_02', 'violation_drop_06')",
+          "byte_start": 17918,
+          "byte_end": 17919
+        },
+        {
+          "old": "50",
+          "new": "_event_param('SHAME_02', 'cur_shame_04')",
+          "byte_start": 17910,
+          "byte_end": 17912
+        },
+        {
+          "old": "0",
+          "new": "_event_param('SHAME_02', 'violation_drop_05')",
+          "byte_start": 17893,
+          "byte_end": 17894
+        },
+        {
+          "old": "60",
+          "new": "_event_param('SHAME_02', 'cur_aff_03')",
+          "byte_start": 17871,
+          "byte_end": 17873
+        },
+        {
+          "old": "\"C烈度_中度\"",
+          "new": "_event_tag('SHAME_02')",
+          "byte_start": 17818,
+          "byte_end": 17834
+        },
+        {
+          "old": "20",
+          "new": "_event_param('SHAME_04', 'violation_drop_09')",
+          "byte_start": 17802,
+          "byte_end": 17804
+        },
+        {
+          "old": "15",
+          "new": "_event_param('SHAME_04', 'violation_drop_08')",
+          "byte_start": 17763,
+          "byte_end": 17765
+        },
+        {
+          "old": "30",
+          "new": "_event_param('SHAME_04', 'cur_aff_07')",
+          "byte_start": 17741,
+          "byte_end": 17743
+        },
+        {
+          "old": "10",
+          "new": "_event_param('SHAME_04', 'violation_drop_06')",
+          "byte_start": 17710,
+          "byte_end": 17712
+        },
+        {
+          "old": "30",
+          "new": "_event_param('SHAME_04', 'cur_shame_04')",
+          "byte_start": 17702,
+          "byte_end": 17704
+        },
+        {
+          "old": "0",
+          "new": "_event_param('SHAME_04', 'violation_drop_05')",
+          "byte_start": 17685,
+          "byte_end": 17686
+        },
+        {
+          "old": "60",
+          "new": "_event_param('SHAME_04', 'cur_aff_03')",
+          "byte_start": 17663,
+          "byte_end": 17665
+        },
+        {
+          "old": "\"C烈度_重度\"",
+          "new": "_event_tag('SHAME_04')",
+          "byte_start": 17610,
+          "byte_end": 17626
+        },
+        {
+          "old": "15",
+          "new": "_event_param('DS_17', 'new_sta_04')",
+          "byte_start": 15210,
+          "byte_end": 15212
+        },
+        {
+          "old": "35",
+          "new": "_event_param('DS_17', 'new_des_03')",
+          "byte_start": 15184,
+          "byte_end": 15186
+        },
+        {
+          "old": "0",
+          "new": "_event_param('DS_17', 'new_org_02')",
+          "byte_start": 15160,
+          "byte_end": 15161
+        },
+        {
+          "old": "100",
+          "new": "_event_param('DS_17', 'new_org_01')",
+          "byte_start": 15133,
+          "byte_end": 15136
+        },
+        {
+          "old": "\"触发高潮_绝顶清算\"",
+          "new": "_event_tag('DS_17')",
+          "byte_start": 15083,
+          "byte_end": 15110
+        },
+        {
+          "old": "100",
+          "new": "_event_param('DS_06', 'new_des_01')",
+          "byte_start": 14257,
+          "byte_end": 14260
+        },
+        {
+          "old": "\"临界突破_心理羞辱\"",
+          "new": "_event_tag('DS_07')",
+          "byte_start": 14194,
+          "byte_end": 14221
+        },
+        {
+          "old": "\"临界突破_魅力压迫\"",
+          "new": "_event_tag('DS_06')",
+          "byte_start": 14155,
+          "byte_end": 14182
+        },
+        {
+          "old": "50",
+          "new": "_event_param('DS_16', 'new_org_01')",
+          "byte_start": 13768,
+          "byte_end": 13770
+        },
+        {
+          "old": "\"高潮_重度累积\"",
+          "new": "_event_tag('DS_16')",
+          "byte_start": 13734,
+          "byte_end": 13755
+        },
+        {
+          "old": "30",
+          "new": "_event_param('DS_15', 'new_org_01')",
+          "byte_start": 13707,
+          "byte_end": 13709
+        },
+        {
+          "old": "\"高潮_中度累积\"",
+          "new": "_event_tag('DS_15')",
+          "byte_start": 13673,
+          "byte_end": 13694
+        },
+        {
+          "old": "15",
+          "new": "_event_param('DS_14', 'new_org_01')",
+          "byte_start": 13646,
+          "byte_end": 13648
+        },
+        {
+          "old": "\"高潮_轻度累积\"",
+          "new": "_event_tag('DS_14')",
+          "byte_start": 13612,
+          "byte_end": 13633
+        },
+        {
+          "old": "40",
+          "new": "_event_param('DS_13', 'new_sta_01')",
+          "byte_start": 13564,
+          "byte_end": 13566
+        },
+        {
+          "old": "\"恢复_安稳睡眠\"",
+          "new": "_event_tag('DS_13')",
+          "byte_start": 13530,
+          "byte_end": 13551
+        },
+        {
+          "old": "10",
+          "new": "_event_param('DS_12', 'new_sta_01')",
+          "byte_start": 13503,
+          "byte_end": 13505
+        },
+        {
+          "old": "\"恢复_小憩\"",
+          "new": "_event_tag('DS_12')",
+          "byte_start": 13475,
+          "byte_end": 13490
+        },
+        {
+          "old": "5",
+          "new": "_event_param('DS_11', 'new_sta_01')",
+          "byte_start": 13449,
+          "byte_end": 13450
+        },
+        {
+          "old": "\"状态_空耗惩罚\"",
+          "new": "_event_tag('DS_11')",
+          "byte_start": 13415,
+          "byte_end": 13436
+        },
+        {
+          "old": "15",
+          "new": "_event_param('DS_10', 'new_sta_01')",
+          "byte_start": 13388,
+          "byte_end": 13390
+        },
+        {
+          "old": "\"消耗_剧烈抗拒\"",
+          "new": "_event_tag('DS_10')",
+          "byte_start": 13354,
+          "byte_end": 13375
+        },
+        {
+          "old": "5",
+          "new": "_event_param('DS_09', 'new_sta_01')",
+          "byte_start": 13328,
+          "byte_end": 13329
+        },
+        {
+          "old": "\"消耗_日常劳作\"",
+          "new": "_event_tag('DS_09')",
+          "byte_start": 13294,
+          "byte_end": 13315
+        },
+        {
+          "old": "2",
+          "new": "_event_param('DS_08', 'new_sta_01')",
+          "byte_start": 13268,
+          "byte_end": 13269
+        },
+        {
+          "old": "\"消耗_轻微焦虑\"",
+          "new": "_event_tag('DS_08')",
+          "byte_start": 13234,
+          "byte_end": 13255
+        },
+        {
+          "old": "15",
+          "new": "_event_param('DS_05', 'new_des_01')",
+          "byte_start": 13186,
+          "byte_end": 13188
+        },
+        {
+          "old": "\"场景切换_欲望回落\"",
+          "new": "_event_tag('DS_05')",
+          "byte_start": 13146,
+          "byte_end": 13173
+        },
+        {
+          "old": "10",
+          "new": "_event_param('DS_04', 'new_des_01')",
+          "byte_start": 13119,
+          "byte_end": 13121
+        },
+        {
+          "old": "\"刺激_物理\"",
+          "new": "_event_tag('DS_04')",
+          "byte_start": 13091,
+          "byte_end": 13106
+        },
+        {
+          "old": "1",
+          "new": "_event_param('DS_03', 'sensory_audio_01')",
+          "byte_start": 13065,
+          "byte_end": 13066
+        },
+        {
+          "old": "\"刺激_听觉\"",
+          "new": "_event_tag('DS_03')",
+          "byte_start": 13032,
+          "byte_end": 13047
+        },
+        {
+          "old": "2",
+          "new": "_event_param('DS_02', 'sensory_smell_01')",
+          "byte_start": 13006,
+          "byte_end": 13007
+        },
+        {
+          "old": "\"刺激_嗅觉\"",
+          "new": "_event_tag('DS_02')",
+          "byte_start": 12973,
+          "byte_end": 12988
+        },
+        {
+          "old": "3",
+          "new": "_event_param('DS_01', 'sensory_visual_01')",
+          "byte_start": 12947,
+          "byte_end": 12948
+        },
+        {
+          "old": "\"刺激_视觉\"",
+          "new": "_event_tag('DS_01')",
+          "byte_start": 12913,
+          "byte_end": 12928
+        },
+        {
+          "old": "90",
+          "new": "_event_param('DEPRAVITY_06', 'unlocked_threshold_02')",
+          "byte_start": 9898,
+          "byte_end": 9900
+        },
+        {
+          "old": "5",
+          "new": "_event_param('DEPRAVITY_06', 'base_delta_01')",
+          "byte_start": 9859,
+          "byte_end": 9860
+        },
+        {
+          "old": "\"主动破锁_90阶梯\"",
+          "new": "_event_tag('DEPRAVITY_06')",
+          "byte_start": 9804,
+          "byte_end": 9827
+        },
+        {
+          "old": "60",
+          "new": "_event_param('DEPRAVITY_05', 'unlocked_threshold_02')",
+          "byte_start": 9777,
+          "byte_end": 9779
+        },
+        {
+          "old": "5",
+          "new": "_event_param('DEPRAVITY_05', 'base_delta_01')",
+          "byte_start": 9738,
+          "byte_end": 9739
+        },
+        {
+          "old": "\"主动破锁_60阶梯\"",
+          "new": "_event_tag('DEPRAVITY_05')",
+          "byte_start": 9683,
+          "byte_end": 9706
+        },
+        {
+          "old": "30",
+          "new": "_event_param('DEPRAVITY_04', 'unlocked_threshold_02')",
+          "byte_start": 9656,
+          "byte_end": 9658
+        },
+        {
+          "old": "5",
+          "new": "_event_param('DEPRAVITY_04', 'base_delta_01')",
+          "byte_start": 9617,
+          "byte_end": 9618
+        },
+        {
+          "old": "\"主动破锁_30阶梯\"",
+          "new": "_event_tag('DEPRAVITY_04')",
+          "byte_start": 9562,
+          "byte_end": 9585
+        },
+        {
+          "old": "15",
+          "new": "_event_param('DEPRAVITY_03', 'base_delta_01')",
+          "byte_start": 9535,
+          "byte_end": 9537
+        },
+        {
+          "old": "\"内射_首次核爆\"",
+          "new": "_event_tag('DEPRAVITY_03')",
+          "byte_start": 9498,
+          "byte_end": 9519
+        },
+        {
+          "old": "10",
+          "new": "_event_param('DEPRAVITY_02', 'base_delta_01')",
+          "byte_start": 9471,
+          "byte_end": 9473
+        },
+        {
+          "old": "\"死亡查岗_沉沦期\"",
+          "new": "_event_tag('DEPRAVITY_02')",
+          "byte_start": 9431,
+          "byte_end": 9455
+        },
+        {
+          "old": "5",
+          "new": "_event_param('DEPRAVITY_01', 'base_delta_01')",
+          "byte_start": 9405,
+          "byte_end": 9406
+        },
+        {
+          "old": "\"被迫吞咽精液\"",
+          "new": "_event_tag('DEPRAVITY_01')",
+          "byte_start": 9369,
+          "byte_end": 9389
+        },
+        {
+          "old": "0",
+          "new": "_event_param('SHAME_16', 'base_delta_01')",
+          "byte_start": 7967,
+          "byte_end": 7968
+        },
+        {
+          "old": "\"同质化免疫_回合3\"",
+          "new": "_event_tag('SHAME_16')",
+          "byte_start": 7907,
+          "byte_end": 7932
+        },
+        {
+          "old": "0.5",
+          "new": "_event_param('SHAME_15', 'base_delta_01')",
+          "byte_start": 7888,
+          "byte_end": 7891
+        },
+        {
+          "old": "\"同质化免疫_回合2\"",
+          "new": "_event_tag('SHAME_15')",
+          "byte_start": 7805,
+          "byte_end": 7830
+        },
+        {
+          "old": "8",
+          "new": "_event_param('SHAME_09', 'base_delta_01')",
+          "byte_start": 7504,
+          "byte_end": 7505
+        },
+        {
+          "old": "\"无意识被侵_苏醒发现\"",
+          "new": "_event_tag('SHAME_09')",
+          "byte_start": 7458,
+          "byte_end": 7488
+        },
+        {
+          "old": "10",
+          "new": "_event_param('SHAME_08', 'base_delta_01')",
+          "byte_start": 7431,
+          "byte_end": 7433
+        },
+        {
+          "old": "\"死亡查岗_抗拒期\"",
+          "new": "_event_tag('SHAME_08')",
+          "byte_start": 7391,
+          "byte_end": 7415
+        },
+        {
+          "old": "10",
+          "new": "_event_param('SHAME_07', 'base_delta_01')",
+          "byte_start": 7364,
+          "byte_end": 7366
+        },
+        {
+          "old": "\"内射_首次核爆\"",
+          "new": "_event_tag('SHAME_07')",
+          "byte_start": 7327,
+          "byte_end": 7348
+        },
+        {
+          "old": "4",
+          "new": "_event_param('SHAME_06', 'base_delta_01')",
+          "byte_start": 7301,
+          "byte_end": 7302
+        },
+        {
+          "old": "\"内射_常规\"",
+          "new": "_event_tag('SHAME_06')",
+          "byte_start": 7270,
+          "byte_end": 7285
+        },
+        {
+          "old": "3",
+          "new": "_event_param('SHAME_05', 'base_delta_01')",
+          "byte_start": 7244,
+          "byte_end": 7245
+        },
+        {
+          "old": "\"外射_体表面部\"",
+          "new": "_event_tag('SHAME_05')",
+          "byte_start": 7207,
+          "byte_end": 7228
+        },
+        {
+          "old": "4",
+          "new": "_event_param('SHAME_04', 'base_delta_02')",
+          "byte_start": 7180,
+          "byte_end": 7181
+        },
+        {
+          "old": "6",
+          "new": "_event_param('SHAME_04', 'base_delta_01')",
+          "byte_start": 7161,
+          "byte_end": 7162
+        },
+        {
+          "old": "\"C烈度_重度\"",
+          "new": "_event_tag('SHAME_04')",
+          "byte_start": 7128,
+          "byte_end": 7144
+        },
+        {
+          "old": "3",
+          "new": "_event_param('SHAME_03', 'base_delta_02')",
+          "byte_start": 7101,
+          "byte_end": 7102
+        },
+        {
+          "old": "4",
+          "new": "_event_param('SHAME_03', 'base_delta_01')",
+          "byte_start": 7082,
+          "byte_end": 7083
+        },
+        {
+          "old": "\"C烈度_深度\"",
+          "new": "_event_tag('SHAME_03')",
+          "byte_start": 7049,
+          "byte_end": 7065
+        },
+        {
+          "old": "2",
+          "new": "_event_param('SHAME_02', 'base_delta_02')",
+          "byte_start": 7022,
+          "byte_end": 7023
+        },
+        {
+          "old": "3",
+          "new": "_event_param('SHAME_02', 'base_delta_01')",
+          "byte_start": 7003,
+          "byte_end": 7004
+        },
+        {
+          "old": "\"C烈度_中度\"",
+          "new": "_event_tag('SHAME_02')",
+          "byte_start": 6970,
+          "byte_end": 6986
+        },
+        {
+          "old": "2",
+          "new": "_event_param('SHAME_01', 'base_delta_01')",
+          "byte_start": 6944,
+          "byte_end": 6945
+        },
+        {
+          "old": "\"C烈度_轻度\"",
+          "new": "_event_tag('SHAME_01')",
+          "byte_start": 6912,
+          "byte_end": 6928
+        },
+        {
+          "old": "\"首次\"",
+          "new": "_event_tag('SHAME_17')",
+          "byte_start": 6589,
+          "byte_end": 6597
+        },
+        {
+          "old": "0",
+          "new": "_event_param('SHAME_14', 'rebound_val_03')",
+          "byte_start": 6278,
+          "byte_end": 6279
+        },
+        {
+          "old": "100",
+          "new": "_event_param('SHAME_14', 'rebound_val_02')",
+          "byte_start": 6269,
+          "byte_end": 6272
+        },
+        {
+          "old": "15",
+          "new": "_event_param('SHAME_14', 'rebound_val_01')",
+          "byte_start": 6236,
+          "byte_end": 6238
+        },
+        {
+          "old": "\"耻感反弹_苏醒\"",
+          "new": "_event_tag('SHAME_14')",
+          "byte_start": 6163,
+          "byte_end": 6184
+        },
+        {
+          "old": "\"解离保护\"",
+          "new": "_event_tag('SHAME_13')",
+          "byte_start": 5975,
+          "byte_end": 5989
+        },
+        {
+          "old": "\"事件死寂锁定\"",
+          "new": "_event_tag('SHAME_12')",
+          "byte_start": 5943,
+          "byte_end": 5963
+        },
+        {
+          "old": "\"无意识锁定\"",
+          "new": "_event_tag('SHAME_11')",
+          "byte_start": 5914,
+          "byte_end": 5931
+        },
+        {
+          "old": "0",
+          "new": "_event_param('SHAME_10', 'computed_shame_changes_char_name_01')",
+          "byte_start": 5765,
+          "byte_end": 5766
+        },
+        {
+          "old": "\"确诊怀孕\"",
+          "new": "_event_tag('SHAME_10')",
+          "byte_start": 5693,
+          "byte_end": 5707
+        },
+        {
+          "old": "\"内射_首次核爆\"",
+          "new": "_event_tag('SHAME_07')",
+          "byte_start": 4004,
+          "byte_end": 4025
+        },
+        {
+          "old": "\"侵蚀_首次核爆\"",
+          "new": "_event_tag('HOST_04')",
+          "byte_start": 3860,
+          "byte_end": 3881
+        },
+        {
+          "old": "\"侵蚀_防线坍塌\"",
+          "new": "_event_tag('HOST_03')",
+          "byte_start": 3820,
+          "byte_end": 3841
+        },
+        {
+          "old": "50",
+          "new": "_event_param('HOST_15', 'cur_sta_01')",
+          "byte_start": 3720,
+          "byte_end": 3722
+        },
+        {
+          "old": "\"体力_次日休息\"",
+          "new": "_event_tag('HOST_15')",
+          "byte_start": 3686,
+          "byte_end": 3707
+        },
+        {
+          "old": "15",
+          "new": "_event_param('HOST_14', 'cur_sta_01')",
+          "byte_start": 3659,
+          "byte_end": 3661
+        },
+        {
+          "old": "\"体力_激烈交欢\"",
+          "new": "_event_tag('HOST_14')",
+          "byte_start": 3625,
+          "byte_end": 3646
+        },
+        {
+          "old": "5",
+          "new": "_event_param('HOST_13', 'cur_sta_01')",
+          "byte_start": 3599,
+          "byte_end": 3600
+        },
+        {
+          "old": "\"体力_日常消耗\"",
+          "new": "_event_tag('HOST_13')",
+          "byte_start": 3565,
+          "byte_end": 3586
+        },
+        {
+          "old": "\"兑换道具_\"",
+          "new": "_event_tag('HOST_12')[:-1]",
+          "byte_start": 3277,
+          "byte_end": 3292
+        },
+        {
+          "old": "20",
+          "new": "_event_param('HOST_11', 'track3_biz_03')",
+          "byte_start": 2632,
+          "byte_end": 2634
+        },
+        {
+          "old": "20",
+          "new": "_event_param('HOST_11', 'track3_exp_02')",
+          "byte_start": 2611,
+          "byte_end": 2613
+        },
+        {
+          "old": "20",
+          "new": "_event_param('HOST_11', 'track3_pts_01')",
+          "byte_start": 2590,
+          "byte_end": 2592
+        },
+        {
+          "old": "\"商业_战略突破\"",
+          "new": "_event_tag('HOST_11')",
+          "byte_start": 2550,
+          "byte_end": 2571
+        },
+        {
+          "old": "8",
+          "new": "_event_param('HOST_10', 'track3_biz_03')",
+          "byte_start": 2524,
+          "byte_end": 2525
+        },
+        {
+          "old": "8",
+          "new": "_event_param('HOST_10', 'track3_exp_02')",
+          "byte_start": 2504,
+          "byte_end": 2505
+        },
+        {
+          "old": "8",
+          "new": "_event_param('HOST_10', 'track3_pts_01')",
+          "byte_start": 2484,
+          "byte_end": 2485
+        },
+        {
+          "old": "\"商业_权力博弈\"",
+          "new": "_event_tag('HOST_10')",
+          "byte_start": 2444,
+          "byte_end": 2465
+        },
+        {
+          "old": "4",
+          "new": "_event_param('HOST_09', 'track3_biz_03')",
+          "byte_start": 2418,
+          "byte_end": 2419
+        },
+        {
+          "old": "4",
+          "new": "_event_param('HOST_09', 'track3_exp_02')",
+          "byte_start": 2398,
+          "byte_end": 2399
+        },
+        {
+          "old": "4",
+          "new": "_event_param('HOST_09', 'track3_pts_01')",
+          "byte_start": 2378,
+          "byte_end": 2379
+        },
+        {
+          "old": "\"商业_信息获取\"",
+          "new": "_event_tag('HOST_09')",
+          "byte_start": 2338,
+          "byte_end": 2359
+        },
+        {
+          "old": "1",
+          "new": "_event_param('HOST_08', 'track2_pts_01')",
+          "byte_start": 2312,
+          "byte_end": 2313
+        },
+        {
+          "old": "\"日常_温和累进\"",
+          "new": "_event_tag('HOST_08')",
+          "byte_start": 2272,
+          "byte_end": 2293
+        },
+        {
+          "old": "3",
+          "new": "_event_param('HOST_07', 'track2_exp_02')",
+          "byte_start": 2246,
+          "byte_end": 2247
+        },
+        {
+          "old": "5",
+          "new": "_event_param('HOST_07', 'track2_pts_01')",
+          "byte_start": 2226,
+          "byte_end": 2227
+        },
+        {
+          "old": "\"日常_连续守护5回合\"",
+          "new": "_event_tag('HOST_07')",
+          "byte_start": 2179,
+          "byte_end": 2207
+        },
+        {
+          "old": "3",
+          "new": "_event_param('HOST_06', 'track2_exp_02')",
+          "byte_start": 2153,
+          "byte_end": 2154
+        },
+        {
+          "old": "4",
+          "new": "_event_param('HOST_06', 'track2_pts_01')",
+          "byte_start": 2133,
+          "byte_end": 2134
+        },
+        {
+          "old": "\"日常_情感共振\"",
+          "new": "_event_tag('HOST_06')",
+          "byte_start": 2093,
+          "byte_end": 2114
+        },
+        {
+          "old": "1",
+          "new": "_event_param('HOST_05', 'track2_exp_02')",
+          "byte_start": 2067,
+          "byte_end": 2068
+        },
+        {
+          "old": "2",
+          "new": "_event_param('HOST_05', 'track2_pts_01')",
+          "byte_start": 2047,
+          "byte_end": 2048
+        },
+        {
+          "old": "\"日常_信任建立\"",
+          "new": "_event_tag('HOST_05')",
+          "byte_start": 2007,
+          "byte_end": 2028
+        },
+        {
+          "old": "50",
+          "new": "_event_param('HOST_04', 'track1_exp_02')",
+          "byte_start": 1980,
+          "byte_end": 1982
+        },
+        {
+          "old": "50",
+          "new": "_event_param('HOST_04', 'track1_pts_01')",
+          "byte_start": 1959,
+          "byte_end": 1961
+        },
+        {
+          "old": "\"侵蚀_首次核爆\"",
+          "new": "_event_tag('HOST_04')",
+          "byte_start": 1919,
+          "byte_end": 1940
+        },
+        {
+          "old": "20",
+          "new": "_event_param('HOST_03', 'track1_exp_02')",
+          "byte_start": 1892,
+          "byte_end": 1894
+        },
+        {
+          "old": "30",
+          "new": "_event_param('HOST_03', 'track1_pts_01')",
+          "byte_start": 1871,
+          "byte_end": 1873
+        },
+        {
+          "old": "\"侵蚀_防线坍塌\"",
+          "new": "_event_tag('HOST_03')",
+          "byte_start": 1831,
+          "byte_end": 1852
+        },
+        {
+          "old": "5",
+          "new": "_event_param('HOST_02', 'track1_exp_02')",
+          "byte_start": 1805,
+          "byte_end": 1806
+        },
+        {
+          "old": "8",
+          "new": "_event_param('HOST_02', 'track1_pts_01')",
+          "byte_start": 1785,
+          "byte_end": 1786
+        },
+        {
+          "old": "\"侵蚀_生理战栗\"",
+          "new": "_event_tag('HOST_02')",
+          "byte_start": 1745,
+          "byte_end": 1766
+        },
+        {
+          "old": "1",
+          "new": "_event_param('HOST_01', 'track1_exp_02')",
+          "byte_start": 1719,
+          "byte_end": 1720
+        },
+        {
+          "old": "2",
+          "new": "_event_param('HOST_01', 'track1_pts_01')",
+          "byte_start": 1699,
+          "byte_end": 1700
+        },
+        {
+          "old": "\"侵蚀_认知撕裂\"",
+          "new": "_event_tag('HOST_01')",
+          "byte_start": 1659,
+          "byte_end": 1680
+        }
+      ],
+      "inserted_loader": "\nEVENT_REGISTRY_PATH = globals().get('_EVENT_REGISTRY_SOURCE', os.path.join(BASE_DIR, 'txt文件', '事件注册表.json'))\n_EVENT_REGISTRY_DATA = None\n_EVENT_INDEX = None\n\n\ndef _event_pairs(pairs):\n    result = {}\n    for key, value in pairs:\n        if key in result:\n            raise ValueError('事件注册表含重复键: ' + key)\n        result[key] = value\n    return result\n\n\ndef _load_event_registry():\n    \"\"\"Read one immutable registry snapshot per isolated engine instance.\"\"\"\n    global _EVENT_REGISTRY_DATA, _EVENT_INDEX\n    if _EVENT_REGISTRY_DATA is not None:\n        return _EVENT_REGISTRY_DATA\n    with open(EVENT_REGISTRY_PATH, 'r', encoding='utf-8') as handle:\n        raw = handle.read()\n    def bad_number(value):\n        raise ValueError('事件注册表不接受非有限数字: ' + value)\n    data = json.loads(raw, object_pairs_hook=_event_pairs, parse_constant=bad_number)\n    groups = ('shame_events', 'depravity_events', 'ds_events', 'affection_events', 'host_events', 'vigilance_events')\n    if (not isinstance(data, dict) or set(data) != {'version', 'groups'}\n            or type(data['version']) is not int or data['version'] != 1\n            or not isinstance(data['groups'], dict) or set(data['groups']) != set(groups)):\n        raise ValueError('事件注册表结构或版本非法')\n    index = {}\n    for group in groups:\n        entries = data['groups'][group]\n        if not isinstance(entries, list) or not entries:\n            raise ValueError('事件组须为非空数组: ' + group)\n        tags = set()\n        for entry in entries:\n            fields = {'id', 'tag', 'parameters', 'parameter_usage', 'description', 'pattern'}\n            if not isinstance(entry, dict) or set(entry) != fields:\n                raise ValueError('事件定义字段非法: ' + group)\n            ident, tag = entry['id'], entry['tag']\n            if not isinstance(ident, str) or not re.fullmatch(r'[A-Z]+_[0-9]{2}', ident) or ident in index:\n                raise ValueError('事件内部ID重复或非法')\n            if not isinstance(tag, str) or not tag.strip() or any(c in tag for c in '\\r\\n') or tag in tags:\n                raise ValueError('事件标签重复或非法: ' + group)\n            params, usage = entry['parameters'], entry['parameter_usage']\n            if not isinstance(params, dict) or not isinstance(usage, dict) or set(params) != set(usage):\n                raise ValueError('事件参数与用途不对应: ' + ident)\n            for key, value in params.items():\n                if not re.fullmatch(r'[a-z][a-z0-9_]*', key) or type(value) not in (int, float):\n                    raise ValueError('事件参数须为具名数值: ' + ident)\n                if isinstance(value, float) and (value != value or abs(value) == float('inf')):\n                    raise ValueError('事件参数不可为非有限数字')\n                if not isinstance(usage[key], str) or not usage[key].strip():\n                    raise ValueError('事件参数缺少用途')\n            if not isinstance(entry['description'], str) or not entry['description'].strip():\n                raise ValueError('事件缺少说明: ' + ident)\n            pattern = entry['pattern']\n            if pattern is not None:\n                if (group != 'host_events' or not tag.endswith('_X')\n                        or pattern != re.escape(tag[:-1]) + r'[1-9]\\d{0,8}'):\n                    raise ValueError('事件模板模式非法: ' + ident)\n                re.compile(pattern)\n            tags.add(tag)\n            index[ident] = entry\n    _EVENT_REGISTRY_DATA, _EVENT_INDEX = data, index\n    return data\n\n\ndef _event_tag(ident):\n    _load_event_registry()\n    return _EVENT_INDEX[ident]['tag']\n\n\ndef _event_param(ident, key):\n    _load_event_registry()\n    return _EVENT_INDEX[ident]['parameters'][key]\n\n\ndef _event_accepts(group, tag):\n    for entry in _load_event_registry()['groups'][group]:\n        if entry['pattern'] is not None:\n            if re.fullmatch(entry['pattern'], tag):\n                return True\n        elif tag == entry['tag']:\n            return True\n    return False\n\n\ndef _event_is_template(group, tag):\n    return any(e['pattern'] is not None and tag == e['tag'] for e in _load_event_registry()['groups'][group])\n\n\ndef _render_event_table(group, include_parameters=True):\n    \"\"\"Generate model-visible spelling and numeric display from the loaded registry.\"\"\"\n    entries = _load_event_registry()['groups'][group]\n    lines = ['【' + group.upper() + '】' + ' / '.join(e['tag'] for e in entries)]\n    if include_parameters:\n        for entry in entries:\n            items = [key + '=' + str(value) + '（' + entry['parameter_usage'][key] + '）'\n                     for key, value in entry['parameters'].items()]\n            details = '；'.join(items) if items else '条件/修饰标签；按既有通用规则处理'\n            if entry['pattern']:\n                details += '；实际提交模式=' + entry['pattern']\n            lines.append('- ' + entry['tag'] + '：' + details)\n    return '\\n'.join(lines)\n",
+      "refinements": [
+        {
+          "old": "fields = {'id', 'tag', 'parameters', 'parameter_usage', 'description', 'pattern'}",
+          "new": "fields = {'id', 'tag', 'parameters', 'parameter_usage', 'description', 'pattern', 'shared_parameters'}"
+        },
+        {
+          "old": "    _EVENT_REGISTRY_DATA, _EVENT_INDEX = data, index",
+          "new": "    for entry in index.values():\n        shared = entry['shared_parameters']\n        if (not isinstance(shared, list) or not all(isinstance(key, str) and key in index and key != entry['id'] for key in shared)\n                or len(shared) != len(set(shared))):\n            raise ValueError('共享参数引用非法')\n        if any(index[key]['shared_parameters'] for key in shared):\n            raise ValueError('共享参数不得循环或多级转引')\n    _EVENT_REGISTRY_DATA, _EVENT_INDEX = data, index"
+        },
+        {
+          "old": "            pattern = entry['pattern']\n            if pattern is not None:",
+          "new": "            pattern = entry['pattern']\n            if tag.endswith('_X') and pattern is None:\n                raise ValueError('模板事件缺少实际提交模式')\n            if pattern is not None:"
+        },
+        {
+          "old": "            details = '；'.join(items) if items else '条件/修饰标签；按既有通用规则处理'",
+          "new": "            for ident in entry['shared_parameters']:\n                shared = _EVENT_INDEX[ident]\n                items.append('共享' + shared['tag'] + '的参数（同源引用）')\n            details = '；'.join(items) if items else '条件/修饰标签；按既有通用规则处理'"
+        }
+      ]
+    },
+    "round_runtime.py": {
+      "replacements": [
+        {
+          "old": "    module.__dict__['print'] = lambda *args, **kwargs: None",
+          "new": "    module.__dict__['print'] = lambda *args, **kwargs: None\n    module.__dict__['_EVENT_REGISTRY_SOURCE'] = str(root / 'txt文件/事件注册表.json')"
+        },
+        {
+          "old": "    exec(compile(source, str(root / 'injection_core.py'), 'exec'), module.__dict__)\n    return module",
+          "new": "    exec(compile(source, str(root / 'injection_core.py'), 'exec'), module.__dict__)\n    try:\n        module._load_event_registry()\n    except (ValueError, OSError) as exc:\n        raise RoundError('事件注册表不可用: ' + str(exc)) from exc\n    return module"
+        },
+        {
+          "old": "def _event_registry(root, engine):\n    \"\"\"The injection guide is the existing authority for the five event tag lists.\"\"\"\n    guide = (root / 'txt文件/一键注入指南.txt').read_text(encoding='utf-8')\n    result = {}\n    for field in ('shame_events', 'depravity_events', 'ds_events', 'affection_events', 'host_events'):\n        matches = re.findall(r'^【' + field.upper() + r'】(.+)$', guide, re.M)\n        if len(matches) != 1:\n            raise RoundError('事件标签权威表缺失或重复: ' + field)\n        result[field] = {s.strip() for s in matches[0].split('/')}\n    tree = ast.parse((root / 'injection_core.py').read_bytes())\n    function = next(n for n in tree.body\n                    if isinstance(n, ast.FunctionDef) and n.name == '_apply_vigilance_tags')\n    vigilance = set()\n    for node in ast.walk(function):\n        if isinstance(node, ast.Compare) and isinstance(node.left, ast.Name) and node.left.id == 'tag':\n            for operand in node.comparators:\n                if isinstance(operand, ast.Constant) and isinstance(operand.value, str):\n                    vigilance.add(operand.value)\n                elif isinstance(operand, (ast.Tuple, ast.List)):\n                    vigilance.update(v.value for v in operand.elts if isinstance(v, ast.Constant))\n    result['vigilance_events'] = vigilance\n    return result",
+          "new": "def _event_registry(root, engine):\n    return {field: {e['tag'] for e in entries}\n            for field, entries in engine._load_event_registry()['groups'].items()}"
+        },
+        {
+          "old": "if tag not in allowed and not (field == 'host_events' and re.fullmatch(r'兑换道具_[1-9]\\d{0,8}', tag)):",
+          "new": "if not engine._event_accepts(field, tag):"
+        },
+        {
+          "old": "                if tag == '兑换道具_X':\n                    raise RoundError('兑换道具_X中的X须为实际正整数')",
+          "new": "                if engine._event_is_template(field, tag):\n                    raise RoundError('事件模板中的X须为实际正整数')"
+        },
+        {
+          "old": "                if not engine._event_accepts(field, tag):\n                    raise RoundError(field + '含未知标签: ' + tag)\n                if engine._event_is_template(field, tag):\n                    raise RoundError('事件模板中的X须为实际正整数')",
+          "new": "                if engine._event_is_template(field, tag):\n                    raise RoundError('事件模板中的X须为实际正整数')\n                if not engine._event_accepts(field, tag):\n                    raise RoundError(field + '含未知标签: ' + tag)"
+        },
+        {
+          "old": "GUARD_TAG = '日常_连续守护5回合'\nEXHAUST_TAG = '状态_空耗惩罚'",
+          "new": "GUARD_EVENT_ID = 'HOST_07'\nEXHAUST_EVENT_ID = 'DS_11'"
+        },
+        {
+          "old": "def _derive_lifecycle(engine, body, content):\n    \"\"\"Derive once in the disposable settlement, before any journal publication.\"\"\"\n    result = copy.deepcopy(body)\n    current = body['current_round']\n    meta = _lifecycle_meta(content, current - 1)\n    conditions = body['memory_deltas'].get('round_conditions')\n    counts = _counters(content)\n    updates = {}\n    notes = []\n    events = {'host': [], 'ds': {}}\n    compact = lambda v: json.dumps(v, ensure_ascii=False, sort_keys=True, separators=(',', ':'))\n    if conditions:\n        meta['ab_streak'] = meta['ab_streak'] + 1 if conditions['intensity'] in ('A', 'B') else 0\n    else:\n        meta['ab_streak'] = 0\n        meta['scopes'] = {}\n        notes.append('旧格式未提供round_conditions；未推断烈度或停滞，语义连续观测中断，旧绝对计数入口兼容。')\n    states = _current_micro(content)\n    transitions = {}\n    for name in ROUND_NPCS:\n        old_entries = meta['micro'].get(name, {})\n        new_entries = {}\n        requested = body['micro_state_changes'].get(name, {})\n        old_states = dict(states[name])\n        for key in MICRO_STATES:\n            active = old_states[key]\n            entry = old_entries.get(key)\n            if active and entry is None:\n                entry = {'observed_round': current, 'origin': 'legacy_observed'}\n                notes.append('旧true首次观测保留: ' + name + '.' + key + '，从回合' + str(current) + '向后计时。')\n            expires = bool(active and entry and current - entry['observed_round'] >= (2 if key == 'confusion_debt' else 1))\n            if requested.get(key) is False or expires:\n                active = False\n            elif requested.get(key) is True and not active:\n                active = True\n                entry = {'observed_round': current, 'origin': 'activated'}\n            if key == 'confusion_debt' and conditions:\n                if conditions['intensity'] == 'C':\n                    active = False\n                elif active and min(meta['ab_streak'], current - entry['observed_round']) >= 2:\n                    active = False\n            states[name][key] = active\n            if active:\n                new_entries[key] = entry\n        if conditions and conditions['intensity'] == 'C' and (old_states['confusion_debt'] or requested.get('confusion_debt') is True):\n            states[name]['confusion_debt'] = False\n            new_entries.pop('confusion_debt', None)\n            states[name]['residual_tension'] = True\n            new_entries['residual_tension'] = {'observed_round': current, 'origin': 'activated'}\n        meta['micro'][name] = new_entries\n        changed = {key: states[name][key] for key in MICRO_STATES if states[name][key] != old_states[key]}\n        if changed:\n            transitions[name] = changed\n    guard_due = False\n    breakout_evaluation = {}\n    if conditions:\n        c = conditions\n        focused = c['npc'] is not None\n        panel_line = re.search(r'^\\[' + re.escape(c['npc'] or '') + r'\\]([^\\n]*)', content, re.M)\n        shame = re.search(r'羞耻\\s*(\\d+)', panel_line[1]) if panel_line else None\n        base = not c['effective_progress']\n        rules = {\n            '破局_日常冗余': (base and c['intensity'] == 'A', 'global'),\n            '破局_模式重复': (base and focused and not c['action_changed'], compact([c['scene'], c['npc'], c['intensity']])),\n            '破局_社交淤积': (base and focused and c['intensity'] in ('A', 'B') and shame is not None and int(shame[1]) > 80, compact(c['npc'])),\n            '破局_张力淤积': (base and focused and c['intensity'] == 'B' and c['stress_signals'] > 0, compact(c['npc'])),\n        }\n        for key, (holds, scope) in rules.items():\n            old = counts.get(key, 0)\n            old_scope = meta['scopes'].get(key)\n            if old and old_scope is None and key != '破局_日常冗余':\n                meta['legacy_counters'].setdefault(key, {'value': old, 'observed_round': current})\n                notes.append('旧计数缺scope，保留观测值并以本回条件重新起计: ' + key)\n                old = 0\n            if old_scope is not None and old_scope != scope:\n                old = 0\n            updates[key] = old + 1 if holds else 0\n            breakout_evaluation[key] = {'candidate': updates[key], 'threshold': BREAKOUT_LIMITS[key],\n                                        'threshold_reached': updates[key] >= BREAKOUT_LIMITS[key]}\n            if key in c['breakout_triggered']:\n                # Trigger decisions and cooldown evidence remain model judgments.\n                updates[key] = 0\n            meta['scopes'][key] = scope\n        guard = counts.get('连续守护回合', 0) + 1 if c['intensity'] in ('A', 'B') else 0\n        guard_due = guard >= 5\n        updates['连续守护回合'] = 0 if guard_due else guard\n    if GUARD_TAG in result['host_events'] and conditions and not guard_due:\n        raise RoundError('连续守护奖励提前，尚未满5个成功回合')\n    if guard_due and GUARD_TAG not in result['host_events']:\n        result['host_events'].append(GUARD_TAG)\n    if guard_due:\n        events['host'].append(GUARD_TAG)\n    if not conditions and GUARD_TAG in result['host_events']:\n        notes.append('旧格式守护标签沿用模型判断；未提供可核验的烈度连续观测。')\n    if counts.get('空耗_连续未纾解', 0):\n        meta['legacy_counters'].setdefault('空耗_连续未纾解', {'value': counts['空耗_连续未纾解'], 'observed_round': current})\n        notes.append('旧空耗全局计数无角色归属，保留原值；不用于任何NPC扣分。')\n    for name in ROUND_NPCS:\n        key = '空耗_连续未纾解_' + name\n        line = re.search(r'^\\[' + re.escape(name) + r'\\]([^\\n]*)', content, re.M)\n        desire = re.search(r'欲望\\s*(\\d+)', line[1]) if line else None\n        if desire is None:\n            continue\n        original_tags = list(result['ds_events'].get(name, []))\n        preview_tags = [tag for tag in original_tags if tag != EXHAUST_TAG]\n        projected = None\n        if name in result['ds_events']:\n            projected = _engine_call(engine.process_desire_stamina_system, {name: preview_tags}, engine.MEMORY_FILE).get(name)\n        projected_desire = projected['欲望'] if projected else int(desire[1])\n        # The existing engine's clearance produces 35 desire; explicit clearance also ends a streak.\n        relieved = '触发高潮_绝顶清算' in preview_tags or bool(projected and projected_desire <= 70)\n        value = counts.get(key, 0) + 1 if projected_desire > 70 and not relieved else 0\n        due = value >= 2\n        updates[key] = 0 if due else value\n        if EXHAUST_TAG in original_tags and not due:\n            raise RoundError(name + '的空耗惩罚提前，尚未满两个成功回合')\n        if due:\n            if EXHAUST_TAG not in original_tags:\n                result['ds_events'].setdefault(name, []).append(EXHAUST_TAG)\n            events['ds'][name] = [EXHAUST_TAG]\n    for key, value in body['counter_updates'].items():\n        if key in updates and value != updates[key]:\n            raise RoundError('counter_updates与程序推导值不符: ' + key)\n        if key == '空耗_连续未纾解' and value != counts.get(key, 0):\n            raise RoundError('旧无归属空耗计数只读；使用程序分角色计数')\n        updates.setdefault(key, value)\n    meta['round'] = current\n    result['memory_deltas'].pop('round_conditions', None)\n    # Avoid the legacy unbounded role regex; write only the current block after engine settlement.\n    result['micro_state_changes'] = {}\n    result['counter_updates'] = {}\n    counts.update(updates)\n    audit = {'round_conditions': conditions, 'micro_transitions': transitions, 'counter_values': updates,\n             'derived_events': events, 'breakout_evaluation': breakout_evaluation, 'compatibility_notes': notes}\n    result['system_log'] += '\\n\\n【程序生命周期结算】\\n' + compact(audit)\n    return result, meta, states, counts",
+          "new": "def _derive_lifecycle(engine, body, content):\n    \"\"\"Derive once in the disposable settlement, before any journal publication.\"\"\"\n    guard_tag = engine._event_tag(GUARD_EVENT_ID)\n    exhaust_tag = engine._event_tag(EXHAUST_EVENT_ID)\n    result = copy.deepcopy(body)\n    current = body['current_round']\n    meta = _lifecycle_meta(content, current - 1)\n    conditions = body['memory_deltas'].get('round_conditions')\n    counts = _counters(content)\n    updates = {}\n    notes = []\n    events = {'host': [], 'ds': {}}\n    compact = lambda v: json.dumps(v, ensure_ascii=False, sort_keys=True, separators=(',', ':'))\n    if conditions:\n        meta['ab_streak'] = meta['ab_streak'] + 1 if conditions['intensity'] in ('A', 'B') else 0\n    else:\n        meta['ab_streak'] = 0\n        meta['scopes'] = {}\n        notes.append('旧格式未提供round_conditions；未推断烈度或停滞，语义连续观测中断，旧绝对计数入口兼容。')\n    states = _current_micro(content)\n    transitions = {}\n    for name in ROUND_NPCS:\n        old_entries = meta['micro'].get(name, {})\n        new_entries = {}\n        requested = body['micro_state_changes'].get(name, {})\n        old_states = dict(states[name])\n        for key in MICRO_STATES:\n            active = old_states[key]\n            entry = old_entries.get(key)\n            if active and entry is None:\n                entry = {'observed_round': current, 'origin': 'legacy_observed'}\n                notes.append('旧true首次观测保留: ' + name + '.' + key + '，从回合' + str(current) + '向后计时。')\n            expires = bool(active and entry and current - entry['observed_round'] >= (2 if key == 'confusion_debt' else 1))\n            if requested.get(key) is False or expires:\n                active = False\n            elif requested.get(key) is True and not active:\n                active = True\n                entry = {'observed_round': current, 'origin': 'activated'}\n            if key == 'confusion_debt' and conditions:\n                if conditions['intensity'] == 'C':\n                    active = False\n                elif active and min(meta['ab_streak'], current - entry['observed_round']) >= 2:\n                    active = False\n            states[name][key] = active\n            if active:\n                new_entries[key] = entry\n        if conditions and conditions['intensity'] == 'C' and (old_states['confusion_debt'] or requested.get('confusion_debt') is True):\n            states[name]['confusion_debt'] = False\n            new_entries.pop('confusion_debt', None)\n            states[name]['residual_tension'] = True\n            new_entries['residual_tension'] = {'observed_round': current, 'origin': 'activated'}\n        meta['micro'][name] = new_entries\n        changed = {key: states[name][key] for key in MICRO_STATES if states[name][key] != old_states[key]}\n        if changed:\n            transitions[name] = changed\n    guard_due = False\n    breakout_evaluation = {}\n    if conditions:\n        c = conditions\n        focused = c['npc'] is not None\n        panel_line = re.search(r'^\\[' + re.escape(c['npc'] or '') + r'\\]([^\\n]*)', content, re.M)\n        shame = re.search(r'羞耻\\s*(\\d+)', panel_line[1]) if panel_line else None\n        base = not c['effective_progress']\n        rules = {\n            '破局_日常冗余': (base and c['intensity'] == 'A', 'global'),\n            '破局_模式重复': (base and focused and not c['action_changed'], compact([c['scene'], c['npc'], c['intensity']])),\n            '破局_社交淤积': (base and focused and c['intensity'] in ('A', 'B') and shame is not None and int(shame[1]) > 80, compact(c['npc'])),\n            '破局_张力淤积': (base and focused and c['intensity'] == 'B' and c['stress_signals'] > 0, compact(c['npc'])),\n        }\n        for key, (holds, scope) in rules.items():\n            old = counts.get(key, 0)\n            old_scope = meta['scopes'].get(key)\n            if old and old_scope is None and key != '破局_日常冗余':\n                meta['legacy_counters'].setdefault(key, {'value': old, 'observed_round': current})\n                notes.append('旧计数缺scope，保留观测值并以本回条件重新起计: ' + key)\n                old = 0\n            if old_scope is not None and old_scope != scope:\n                old = 0\n            updates[key] = old + 1 if holds else 0\n            breakout_evaluation[key] = {'candidate': updates[key], 'threshold': BREAKOUT_LIMITS[key],\n                                        'threshold_reached': updates[key] >= BREAKOUT_LIMITS[key]}\n            if key in c['breakout_triggered']:\n                # Trigger decisions and cooldown evidence remain model judgments.\n                updates[key] = 0\n            meta['scopes'][key] = scope\n        guard = counts.get('连续守护回合', 0) + 1 if c['intensity'] in ('A', 'B') else 0\n        guard_due = guard >= 5\n        updates['连续守护回合'] = 0 if guard_due else guard\n    if guard_tag in result['host_events'] and conditions and not guard_due:\n        raise RoundError('连续守护奖励提前，尚未满5个成功回合')\n    if guard_due and guard_tag not in result['host_events']:\n        result['host_events'].append(guard_tag)\n    if guard_due:\n        events['host'].append(guard_tag)\n    if not conditions and guard_tag in result['host_events']:\n        notes.append('旧格式守护标签沿用模型判断；未提供可核验的烈度连续观测。')\n    if counts.get('空耗_连续未纾解', 0):\n        meta['legacy_counters'].setdefault('空耗_连续未纾解', {'value': counts['空耗_连续未纾解'], 'observed_round': current})\n        notes.append('旧空耗全局计数无角色归属，保留原值；不用于任何NPC扣分。')\n    for name in ROUND_NPCS:\n        key = '空耗_连续未纾解_' + name\n        line = re.search(r'^\\[' + re.escape(name) + r'\\]([^\\n]*)', content, re.M)\n        desire = re.search(r'欲望\\s*(\\d+)', line[1]) if line else None\n        if desire is None:\n            continue\n        original_tags = list(result['ds_events'].get(name, []))\n        preview_tags = [tag for tag in original_tags if tag != exhaust_tag]\n        projected = None\n        if name in result['ds_events']:\n            projected = _engine_call(engine.process_desire_stamina_system, {name: preview_tags}, engine.MEMORY_FILE).get(name)\n        projected_desire = projected['欲望'] if projected else int(desire[1])\n        # The existing engine's clearance produces 35 desire; explicit clearance also ends a streak.\n        relieved = engine._event_tag('DS_17') in preview_tags or bool(projected and projected_desire <= 70)\n        value = counts.get(key, 0) + 1 if projected_desire > 70 and not relieved else 0\n        due = value >= 2\n        updates[key] = 0 if due else value\n        if exhaust_tag in original_tags and not due:\n            raise RoundError(name + '的空耗惩罚提前，尚未满两个成功回合')\n        if due:\n            if exhaust_tag not in original_tags:\n                result['ds_events'].setdefault(name, []).append(exhaust_tag)\n            events['ds'][name] = [exhaust_tag]\n    for key, value in body['counter_updates'].items():\n        if key in updates and value != updates[key]:\n            raise RoundError('counter_updates与程序推导值不符: ' + key)\n        if key == '空耗_连续未纾解' and value != counts.get(key, 0):\n            raise RoundError('旧无归属空耗计数只读；使用程序分角色计数')\n        updates.setdefault(key, value)\n    meta['round'] = current\n    result['memory_deltas'].pop('round_conditions', None)\n    # Avoid the legacy unbounded role regex; write only the current block after engine settlement.\n    result['micro_state_changes'] = {}\n    result['counter_updates'] = {}\n    counts.update(updates)\n    audit = {'round_conditions': conditions, 'micro_transitions': transitions, 'counter_values': updates,\n             'derived_events': events, 'breakout_evaluation': breakout_evaluation, 'compatibility_notes': notes}\n    result['system_log'] += '\\n\\n【程序生命周期结算】\\n' + compact(audit)\n    return result, meta, states, counts"
+        },
+        {
+          "old": "            self._check_source_baseline(_source_baseline)\n            body = _validate",
+          "new": "            definition_baseline = {rel: _digest(self._path(rel).read_bytes()) for rel in\n                                   ('injection_core.py', 'txt文件/事件注册表.json')}\n            self._check_source_baseline(_source_baseline)\n            body = _validate"
+        },
+        {
+          "old": "            after = self._settle(body, files, sequence, request_id)\n            self._check_source_baseline(_source_baseline)",
+          "new": "            after = self._settle(body, files, sequence, request_id)\n            self._check_source_baseline(definition_baseline)\n            self._check_source_baseline(_source_baseline)"
+        }
+      ],
+      "refinements": [
+        {
+          "old": "        module._load_event_registry()\n",
+          "new": "        registry = module._load_event_registry()\n        index = {entry['id']: entry for entries in registry['groups'].values() for entry in entries}\n        for node in ast.walk(ast.parse(source)):\n            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in {'_event_tag', '_event_param'}:\n                if not node.args or not isinstance(node.args[0], ast.Constant):\n                    raise ValueError('事件引用必须使用稳定内部ID')\n                entry = index.get(node.args[0].value)\n                if entry is None:\n                    raise ValueError('事件注册表缺少引擎引用: ' + str(node.args[0].value))\n                if node.func.id == '_event_param' and (len(node.args) != 2 or node.args[1].value not in entry['parameters']):\n                    raise ValueError('事件注册表缺少结算参数')\n"
+        },
+        {
+          "old": "def _event_registry(root, engine):\n    return {field: {e['tag'] for e in entries}\n            for field, entries in engine._load_event_registry()['groups'].items()}",
+          "new": "def _event_registry(root, engine):\n    guide = (root / 'txt文件/一键注入指南.txt').read_text(encoding='utf-8')\n    result = {}\n    for field, entries in engine._load_event_registry()['groups'].items():\n        view = '【注册表生成表开始】\\n' + engine._render_event_table(field) + '\\n【注册表生成表结束】'\n        if guide.count(view) != 1:\n            raise RoundError('事件注册表生成视图未同步: ' + field)\n        result[field] = {entry['tag'] for entry in entries}\n    return result"
+        },
+        {
+          "old": "    commands.add_parser('recover', help='恢复未完成事务，然后返回状态版本')",
+          "new": "    commands.add_parser('recover', help='恢复未完成事务，然后返回状态版本')\n    commands.add_parser('events', help='只读输出注册表生成视图，供维护时同步指南与知识库')"
+        },
+        {
+          "old": "        if args.command == 'prepare':\n",
+          "new": "        if args.command == 'events':\n            engine = _engine(store.root, store.root)\n            result = {'path': 'txt文件/事件注册表.json',\n                      'sha256': _digest(store._path('txt文件/事件注册表.json').read_bytes()),\n                      'views': {field: engine._render_event_table(field) for field in engine._load_event_registry()['groups']}}\n        elif args.command == 'prepare':\n"
+        }
+      ]
+    },
+    "story_service.py": {
+      "replacements": [
+        {
+          "old": "'txt文件/知识库/叙事判断.json', 'txt文件/知识库/系统标签类.json')",
+          "new": "'txt文件/知识库/叙事判断.json', 'txt文件/知识库/系统标签类.json', 'txt文件/事件注册表.json')"
+        },
+        {
+          "old": "            'node_keys': node_keys, 'registered_speakers': sorted(known),",
+          "new": "            'node_keys': node_keys, 'registered_speakers': sorted(known),\n            'event_registry': {'path': 'txt文件/事件注册表.json', 'version': 1,\n                               'sha256': audit['txt文件/事件注册表.json'],\n                               'rule': '指南与sys条目的事件参数表由此源生成；仅按本回已发生事实选标签。'},"
+        },
+        {
+          "old": "RULES[1]: 'gate.V1', rr.FILES[1]: 'item.catalog', rr.FILES[2]: 'npc.minor'}",
+          "new": "RULES[1]: 'gate.V1', rr.FILES[1]: 'item.catalog', rr.FILES[2]: 'npc.minor',\n                  'txt文件/事件注册表.json': 'contract.events'}"
+        }
+      ]
+    },
+    "txt文件/一键注入指南.txt": {
+      "replacements": [
+        {
+          "old": "🛑 【标签名总表——单一事实源·缺一字后端不识别】\n==================================================\n固定执行器按字符串精确匹配；未知、重复或错拼标签会拒绝本回合，不会静默忽略。本表为唯一合法拼写（与各 sys.* 知识库一致）。\n※A/B烈度标签已废除（A烈度_累计3次 / B烈度_礼仪防备后端零结算，禁止再打；A/B=零羞耻契约）。\n\n【SHAME_EVENTS】C烈度_轻度 / C烈度_中度 / C烈度_深度 / C烈度_重度 / 外射_体表面部 / 内射_常规 / 内射_首次核爆 / 死亡查岗_抗拒期 / 无意识被侵_苏醒发现 / 确诊怀孕 / 无意识锁定 / 事件死寂锁定 / 解离保护 / 耻感反弹_苏醒 / 同质化免疫_回合2 / 同质化免疫_回合3 / 首次 / 生理_危险期\n\n【DEPRAVITY_EVENTS】被迫吞咽精液 / 死亡查岗_沉沦期 / 内射_首次核爆 / 主动破锁_30阶梯 / 主动破锁_60阶梯 / 主动破锁_90阶梯\n\n【DS_EVENTS】刺激_视觉 / 刺激_嗅觉 / 刺激_听觉 / 刺激_物理 / 场景切换_欲望回落 / 临界突破_魅力压迫 / 临界突破_心理羞辱 / 消耗_轻微焦虑 / 消耗_日常劳作 / 消耗_剧烈抗拒 / 状态_空耗惩罚 / 恢复_小憩 / 恢复_安稳睡眠 / 高潮_轻度累积 / 高潮_中度累积 / 高潮_重度累积 / 触发高潮_绝顶清算\n\n【AFFECTION_EVENTS】阻止侵犯_成功 / 暴力下流_雪崩 / 基础安抚 / 深度操控_首次 / 深度操控_重复 / 社交微幅回馈 / 暴跌回升_恢复中 / 苏婉青_真相揭露 / 苏婉青_温柔侵蚀\n\n【HOST_EVENTS】侵蚀_认知撕裂 / 侵蚀_生理战栗 / 侵蚀_防线坍塌 / 侵蚀_首次核爆 / 日常_信任建立 / 日常_情感共振 / 日常_连续守护5回合 / 日常_温和累进 / 商业_信息获取 / 商业_权力博弈 / 商业_战略突破 / 兑换道具_X / 体力_日常消耗 / 体力_激烈交欢 / 体力_次日休息\n",
+          "new": "🛑 【事件标签与参数 · 注册表生成视图】\n==================================================\n唯一维护源为txt文件/事件注册表.json；本表与对应sys.*参数表由程序生成。未知、重复、错拼、错误容器或模板未实填均拒绝。通用乘数/边界/跨模块顺序仍由引擎执行；参数名及用途仅供核对，模型不手算。A/B不提交羞耻事件；事件须来自本回已发生事实。\n\n【注册表生成表开始】\n【SHAME_EVENTS】C烈度_轻度 / C烈度_中度 / C烈度_深度 / C烈度_重度 / 外射_体表面部 / 内射_常规 / 内射_首次核爆 / 死亡查岗_抗拒期 / 无意识被侵_苏醒发现 / 确诊怀孕 / 无意识锁定 / 事件死寂锁定 / 解离保护 / 耻感反弹_苏醒 / 同质化免疫_回合2 / 同质化免疫_回合3 / 首次 / 生理_危险期\n- C烈度_轻度：base_delta_01=2（base_delta 扣减）；cur_aff_02=60（cur_aff 比较阈值）；cur_shame_03=70（cur_shame 比较阈值）；violation_drop_04=0（violation_drop 扣减）；violation_drop_05=1（violation_drop 扣减）；cur_aff_06=30（cur_aff 比较阈值）；violation_drop_07=2（violation_drop 扣减）；violation_drop_08=4（violation_drop 扣减）\n- C烈度_中度：base_delta_01=3（base_delta 扣减）；base_delta_02=2（base_delta 扣减）；cur_aff_03=60（cur_aff 比较阈值）；cur_shame_04=50（cur_shame 比较阈值）；violation_drop_05=0（violation_drop 扣减）；violation_drop_06=4（violation_drop 扣减）；cur_aff_07=30（cur_aff 比较阈值）；violation_drop_08=4（violation_drop 扣减）；violation_drop_09=12（violation_drop 扣减）\n- C烈度_深度：base_delta_01=4（base_delta 扣减）；base_delta_02=3（base_delta 扣减）\n- C烈度_重度：base_delta_01=6（base_delta 扣减）；base_delta_02=4（base_delta 扣减）；cur_aff_03=60（cur_aff 比较阈值）；cur_shame_04=30（cur_shame 比较阈值）；violation_drop_05=0（violation_drop 扣减）；violation_drop_06=10（violation_drop 扣减）；cur_aff_07=30（cur_aff 比较阈值）；violation_drop_08=15（violation_drop 扣减）；violation_drop_09=20（violation_drop 扣减）；violation_drop_10=0（violation_drop 比较阈值）\n- 外射_体表面部：base_delta_01=3（base_delta 扣减）\n- 内射_常规：base_delta_01=4（base_delta 扣减）\n- 内射_首次核爆：base_delta_01=10（base_delta 扣减）\n- 死亡查岗_抗拒期：base_delta_01=10（base_delta 扣减）；vig_target_02=3（vig['目标'][target]['发现'] 比较阈值）；vig_target_03=0（vig['目标'][target]['警惕'] 赋值/条件值）；vig_target_04=10（vig['目标'][target]['警惕'] 赋值/条件值）\n- 无意识被侵_苏醒发现：base_delta_01=8（base_delta 扣减）\n- 确诊怀孕：computed_shame_changes_char_name_01=0（computed_shame_changes[char_name] 赋值/条件值）\n- 无意识锁定：条件/修饰标签；按既有通用规则处理\n- 事件死寂锁定：条件/修饰标签；按既有通用规则处理\n- 解离保护：条件/修饰标签；按既有通用规则处理\n- 耻感反弹_苏醒：rebound_val_01=15（rebound_val 赋值/条件值）；rebound_val_02=100（rebound_val 赋值/条件值）；rebound_val_03=0（rebound_val 赋值/条件值）\n- 同质化免疫_回合2：base_delta_01=0.5（base_delta 赋值/条件值）\n- 同质化免疫_回合3：base_delta_01=0（base_delta 赋值/条件值）\n- 首次：条件/修饰标签；按既有通用规则处理\n- 生理_危险期：prob_01=2（prob 赋值/条件值）\n【注册表生成表结束】\n\n【注册表生成表开始】\n【DEPRAVITY_EVENTS】被迫吞咽精液 / 死亡查岗_沉沦期 / 内射_首次核爆 / 主动破锁_30阶梯 / 主动破锁_60阶梯 / 主动破锁_90阶梯\n- 被迫吞咽精液：base_delta_01=5（base_delta 增加）\n- 死亡查岗_沉沦期：base_delta_01=10（base_delta 增加）\n- 内射_首次核爆：base_delta_01=15（base_delta 增加）\n- 主动破锁_30阶梯：base_delta_01=5（base_delta 增加）；unlocked_threshold_02=30（unlocked_threshold 赋值/条件值）\n- 主动破锁_60阶梯：base_delta_01=5（base_delta 增加）；unlocked_threshold_02=60（unlocked_threshold 赋值/条件值）\n- 主动破锁_90阶梯：base_delta_01=5（base_delta 增加）；unlocked_threshold_02=90（unlocked_threshold 赋值/条件值）\n【注册表生成表结束】\n\n【注册表生成表开始】\n【DS_EVENTS】刺激_视觉 / 刺激_嗅觉 / 刺激_听觉 / 刺激_物理 / 场景切换_欲望回落 / 临界突破_魅力压迫 / 临界突破_心理羞辱 / 消耗_轻微焦虑 / 消耗_日常劳作 / 消耗_剧烈抗拒 / 状态_空耗惩罚 / 恢复_小憩 / 恢复_安稳睡眠 / 高潮_轻度累积 / 高潮_中度累积 / 高潮_重度累积 / 触发高潮_绝顶清算\n- 刺激_视觉：sensory_visual_01=3（sensory_visual 赋值/条件值）\n- 刺激_嗅觉：sensory_smell_01=2（sensory_smell 赋值/条件值）\n- 刺激_听觉：sensory_audio_01=1（sensory_audio 赋值/条件值）\n- 刺激_物理：new_des_01=10（new_des 增加）\n- 场景切换_欲望回落：new_des_01=15（new_des 扣减）\n- 临界突破_魅力压迫：new_des_01=100（new_des 赋值/条件值）\n- 临界突破_心理羞辱：条件/修饰标签；按既有通用规则处理\n- 消耗_轻微焦虑：new_sta_01=2（new_sta 扣减）\n- 消耗_日常劳作：new_sta_01=5（new_sta 扣减）\n- 消耗_剧烈抗拒：new_sta_01=15（new_sta 扣减）\n- 状态_空耗惩罚：new_sta_01=5（new_sta 扣减）\n- 恢复_小憩：new_sta_01=10（new_sta 增加）\n- 恢复_安稳睡眠：new_sta_01=40（new_sta 增加）\n- 高潮_轻度累积：new_org_01=15（new_org 增加）\n- 高潮_中度累积：new_org_01=30（new_org 增加）\n- 高潮_重度累积：new_org_01=50（new_org 增加）\n- 触发高潮_绝顶清算：new_org_01=100（new_org 比较阈值）；new_org_02=0（new_org 赋值/条件值）；new_des_03=35（new_des 赋值/条件值）；new_sta_04=15（new_sta 增加）\n【注册表生成表结束】\n\n【注册表生成表开始】\n【AFFECTION_EVENTS】阻止侵犯_成功 / 暴力下流_雪崩 / 基础安抚 / 深度操控_首次 / 深度操控_重复 / 社交微幅回馈 / 暴跌回升_恢复中 / 苏婉青_真相揭露 / 苏婉青_温柔侵蚀\n- 阻止侵犯_成功：new_aff_01=5（new_aff 扣减）\n- 暴力下流_雪崩：new_aff_01=20（new_aff 扣减）\n- 基础安抚：cur_aff_01=50（cur_aff 比较阈值）；new_aff_02=1（new_aff 增加）；new_aff_03=0（new_aff 增加）\n- 深度操控_首次：cur_shame_01=60（cur_shame 比较阈值）；new_aff_02=5（new_aff 增加）；new_aff_03=3（new_aff 增加）\n- 深度操控_重复：new_aff_01=2（new_aff 增加）\n- 社交微幅回馈：cur_aff_01=60（cur_aff 比较阈值）；new_aff_02=1（new_aff 增加）；new_aff_03=0（new_aff 增加）\n- 暴跌回升_恢复中：new_aff_01=2（new_aff 增加）\n- 苏婉青_真相揭露：cur_aff_01=85（cur_aff 比较阈值）；cap_02=95（cap 赋值/条件值）\n- 苏婉青_温柔侵蚀：条件/修饰标签；按既有通用规则处理\n【注册表生成表结束】\n\n【注册表生成表开始】\n【HOST_EVENTS】侵蚀_认知撕裂 / 侵蚀_生理战栗 / 侵蚀_防线坍塌 / 侵蚀_首次核爆 / 日常_信任建立 / 日常_情感共振 / 日常_连续守护5回合 / 日常_温和累进 / 商业_信息获取 / 商业_权力博弈 / 商业_战略突破 / 兑换道具_X / 体力_日常消耗 / 体力_激烈交欢 / 体力_次日休息\n- 侵蚀_认知撕裂：track1_pts_01=2（track1['pts'] 增加）；track1_exp_02=1（track1['exp'] 增加）\n- 侵蚀_生理战栗：track1_pts_01=8（track1['pts'] 增加）；track1_exp_02=5（track1['exp'] 增加）\n- 侵蚀_防线坍塌：track1_pts_01=30（track1['pts'] 增加）；track1_exp_02=20（track1['exp'] 增加）\n- 侵蚀_首次核爆：track1_pts_01=50（track1['pts'] 增加）；track1_exp_02=50（track1['exp'] 增加）\n- 日常_信任建立：track2_pts_01=2（track2['pts'] 增加）；track2_exp_02=1（track2['exp'] 增加）\n- 日常_情感共振：track2_pts_01=4（track2['pts'] 增加）；track2_exp_02=3（track2['exp'] 增加）\n- 日常_连续守护5回合：track2_pts_01=5（track2['pts'] 增加）；track2_exp_02=3（track2['exp'] 增加）\n- 日常_温和累进：track2_pts_01=1（track2['pts'] 增加）\n- 商业_信息获取：track3_pts_01=4（track3['pts'] 增加）；track3_exp_02=4（track3['exp'] 增加）；track3_biz_03=4（track3['biz'] 增加）\n- 商业_权力博弈：track3_pts_01=8（track3['pts'] 增加）；track3_exp_02=8（track3['exp'] 增加）；track3_biz_03=8（track3['biz'] 增加）\n- 商业_战略突破：track3_pts_01=20（track3['pts'] 增加）；track3_exp_02=20（track3['exp'] 增加）；track3_biz_03=20（track3['biz'] 增加）\n- 兑换道具_X：条件/修饰标签；按既有通用规则处理；实际提交模式=兑换道具_[1-9]\\d{0,8}\n- 体力_日常消耗：cur_sta_01=5（cur_sta 扣减）\n- 体力_激烈交欢：cur_sta_01=15（cur_sta 扣减）\n- 体力_次日休息：cur_sta_01=50（cur_sta 增加）\n【注册表生成表结束】\n\n【注册表生成表开始】\n【VIGILANCE_EVENTS】目击确认 / 证据实锤 / 异常行迹 / 眼线汇报 / 降警惕_轻度 / 降警惕_中度 / 降警惕_深度 / 合理解释 / 转移注意 / 无异常回合\n- 目击确认：t_01=15（t['警惕'] 增加）；t_02=3（t['发现'] 赋值/条件值）\n- 证据实锤：t_01=4（t['发现'] 赋值/条件值）\n- 异常行迹：t_01=10（t['警惕'] 增加）；t_02=1（t['发现'] 赋值/条件值）；t_03=2（t['发现'] 赋值/条件值）\n- 眼线汇报：t_01=5（t['警惕'] 增加）；t_02=1（t['发现'] 赋值/条件值）；t_03=2（t['发现'] 赋值/条件值）\n- 降警惕_轻度：t_01=5（t['警惕'] 扣减）\n- 降警惕_中度：t_01=10（t['警惕'] 扣减）\n- 降警惕_深度：t_01=15（t['警惕'] 扣减）\n- 合理解释：t_01=5（t['警惕'] 扣减）\n- 转移注意：条件/修饰标签；按既有通用规则处理\n- 无异常回合：条件/修饰标签；按既有通用规则处理\n【注册表生成表结束】\n"
+        },
+        {
+          "old": "新增id可省，后端分配",
+          "new": "新道具默认省略id，由已有_next_item_id分配；更新/消耗复用已有id或name"
+        },
+        {
+          "old": "同时最多一个进行中任务。奖励固定",
+          "new": "任务id由已有_next_task_id分配，模型不提交id或猜序号。同时最多一个进行中任务。奖励固定"
+        }
+      ],
+      "refinements": [
+        {
+          "old": "【注册表生成表开始】\n【DS_EVENTS】刺激_视觉 / 刺激_嗅觉 / 刺激_听觉 / 刺激_物理 / 场景切换_欲望回落 / 临界突破_魅力压迫 / 临界突破_心理羞辱 / 消耗_轻微焦虑 / 消耗_日常劳作 / 消耗_剧烈抗拒 / 状态_空耗惩罚 / 恢复_小憩 / 恢复_安稳睡眠 / 高潮_轻度累积 / 高潮_中度累积 / 高潮_重度累积 / 触发高潮_绝顶清算\n- 刺激_视觉：sensory_visual_01=3（sensory_visual 赋值/条件值）\n- 刺激_嗅觉：sensory_smell_01=2（sensory_smell 赋值/条件值）\n- 刺激_听觉：sensory_audio_01=1（sensory_audio 赋值/条件值）\n- 刺激_物理：new_des_01=10（new_des 增加）\n- 场景切换_欲望回落：new_des_01=15（new_des 扣减）\n- 临界突破_魅力压迫：new_des_01=100（new_des 赋值/条件值）\n- 临界突破_心理羞辱：条件/修饰标签；按既有通用规则处理\n- 消耗_轻微焦虑：new_sta_01=2（new_sta 扣减）\n- 消耗_日常劳作：new_sta_01=5（new_sta 扣减）\n- 消耗_剧烈抗拒：new_sta_01=15（new_sta 扣减）\n- 状态_空耗惩罚：new_sta_01=5（new_sta 扣减）\n- 恢复_小憩：new_sta_01=10（new_sta 增加）\n- 恢复_安稳睡眠：new_sta_01=40（new_sta 增加）\n- 高潮_轻度累积：new_org_01=15（new_org 增加）\n- 高潮_中度累积：new_org_01=30（new_org 增加）\n- 高潮_重度累积：new_org_01=50（new_org 增加）\n- 触发高潮_绝顶清算：new_org_01=100（new_org 比较阈值）；new_org_02=0（new_org 赋值/条件值）；new_des_03=35（new_des 赋值/条件值）；new_sta_04=15（new_sta 增加）\n【注册表生成表结束】",
+          "new": "【注册表生成表开始】\n【DS_EVENTS】刺激_视觉 / 刺激_嗅觉 / 刺激_听觉 / 刺激_物理 / 场景切换_欲望回落 / 临界突破_魅力压迫 / 临界突破_心理羞辱 / 消耗_轻微焦虑 / 消耗_日常劳作 / 消耗_剧烈抗拒 / 状态_空耗惩罚 / 恢复_小憩 / 恢复_安稳睡眠 / 高潮_轻度累积 / 高潮_中度累积 / 高潮_重度累积 / 触发高潮_绝顶清算\n- 刺激_视觉：sensory_visual_01=3（sensory_visual 赋值/条件值）\n- 刺激_嗅觉：sensory_smell_01=2（sensory_smell 赋值/条件值）\n- 刺激_听觉：sensory_audio_01=1（sensory_audio 赋值/条件值）\n- 刺激_物理：new_des_01=10（new_des 增加）\n- 场景切换_欲望回落：new_des_01=15（new_des 扣减）\n- 临界突破_魅力压迫：new_des_01=100（new_des 赋值/条件值）\n- 临界突破_心理羞辱：共享临界突破_魅力压迫的参数（同源引用）\n- 消耗_轻微焦虑：new_sta_01=2（new_sta 扣减）\n- 消耗_日常劳作：new_sta_01=5（new_sta 扣减）\n- 消耗_剧烈抗拒：new_sta_01=15（new_sta 扣减）\n- 状态_空耗惩罚：new_sta_01=5（new_sta 扣减）\n- 恢复_小憩：new_sta_01=10（new_sta 增加）\n- 恢复_安稳睡眠：new_sta_01=40（new_sta 增加）\n- 高潮_轻度累积：new_org_01=15（new_org 增加）\n- 高潮_中度累积：new_org_01=30（new_org 增加）\n- 高潮_重度累积：new_org_01=50（new_org 增加）\n- 触发高潮_绝顶清算：new_org_01=100（new_org 比较阈值）；new_org_02=0（new_org 赋值/条件值）；new_des_03=35（new_des 赋值/条件值）；new_sta_04=15（new_sta 增加）\n【注册表生成表结束】"
+        },
+        {
+          "old": "【注册表生成表开始】\n【AFFECTION_EVENTS】阻止侵犯_成功 / 暴力下流_雪崩 / 基础安抚 / 深度操控_首次 / 深度操控_重复 / 社交微幅回馈 / 暴跌回升_恢复中 / 苏婉青_真相揭露 / 苏婉青_温柔侵蚀\n- 阻止侵犯_成功：new_aff_01=5（new_aff 扣减）\n- 暴力下流_雪崩：new_aff_01=20（new_aff 扣减）\n- 基础安抚：cur_aff_01=50（cur_aff 比较阈值）；new_aff_02=1（new_aff 增加）；new_aff_03=0（new_aff 增加）\n- 深度操控_首次：cur_shame_01=60（cur_shame 比较阈值）；new_aff_02=5（new_aff 增加）；new_aff_03=3（new_aff 增加）\n- 深度操控_重复：new_aff_01=2（new_aff 增加）\n- 社交微幅回馈：cur_aff_01=60（cur_aff 比较阈值）；new_aff_02=1（new_aff 增加）；new_aff_03=0（new_aff 增加）\n- 暴跌回升_恢复中：new_aff_01=2（new_aff 增加）\n- 苏婉青_真相揭露：cur_aff_01=85（cur_aff 比较阈值）；cap_02=95（cap 赋值/条件值）\n- 苏婉青_温柔侵蚀：条件/修饰标签；按既有通用规则处理\n【注册表生成表结束】",
+          "new": "【注册表生成表开始】\n【AFFECTION_EVENTS】阻止侵犯_成功 / 暴力下流_雪崩 / 基础安抚 / 深度操控_首次 / 深度操控_重复 / 社交微幅回馈 / 暴跌回升_恢复中 / 苏婉青_真相揭露 / 苏婉青_温柔侵蚀\n- 阻止侵犯_成功：new_aff_01=5（new_aff 扣减）\n- 暴力下流_雪崩：new_aff_01=20（new_aff 扣减）\n- 基础安抚：cur_aff_01=50（cur_aff 比较阈值）；new_aff_02=1（new_aff 增加）；new_aff_03=0（new_aff 增加）\n- 深度操控_首次：cur_shame_01=60（cur_shame 比较阈值）；new_aff_02=5（new_aff 增加）；new_aff_03=3（new_aff 增加）\n- 深度操控_重复：new_aff_01=2（new_aff 增加）\n- 社交微幅回馈：cur_aff_01=60（cur_aff 比较阈值）；new_aff_02=1（new_aff 增加）；new_aff_03=0（new_aff 增加）\n- 暴跌回升_恢复中：new_aff_01=2（new_aff 增加）\n- 苏婉青_真相揭露：cur_aff_01=85（cur_aff 比较阈值）；cap_02=95（cap 赋值/条件值）\n- 苏婉青_温柔侵蚀：共享苏婉青_真相揭露的参数（同源引用）\n【注册表生成表结束】"
+        },
+        {
+          "old": "【注册表生成表开始】\n【VIGILANCE_EVENTS】目击确认 / 证据实锤 / 异常行迹 / 眼线汇报 / 降警惕_轻度 / 降警惕_中度 / 降警惕_深度 / 合理解释 / 转移注意 / 无异常回合\n- 目击确认：t_01=15（t['警惕'] 增加）；t_02=3（t['发现'] 赋值/条件值）\n- 证据实锤：t_01=4（t['发现'] 赋值/条件值）\n- 异常行迹：t_01=10（t['警惕'] 增加）；t_02=1（t['发现'] 赋值/条件值）；t_03=2（t['发现'] 赋值/条件值）\n- 眼线汇报：t_01=5（t['警惕'] 增加）；t_02=1（t['发现'] 赋值/条件值）；t_03=2（t['发现'] 赋值/条件值）\n- 降警惕_轻度：t_01=5（t['警惕'] 扣减）\n- 降警惕_中度：t_01=10（t['警惕'] 扣减）\n- 降警惕_深度：t_01=15（t['警惕'] 扣减）\n- 合理解释：t_01=5（t['警惕'] 扣减）\n- 转移注意：条件/修饰标签；按既有通用规则处理\n- 无异常回合：条件/修饰标签；按既有通用规则处理\n【注册表生成表结束】",
+          "new": "【注册表生成表开始】\n【VIGILANCE_EVENTS】目击确认 / 证据实锤 / 异常行迹 / 眼线汇报 / 降警惕_轻度 / 降警惕_中度 / 降警惕_深度 / 合理解释 / 转移注意 / 无异常回合\n- 目击确认：t_01=15（t['警惕'] 增加）；t_02=3（t['发现'] 赋值/条件值）\n- 证据实锤：t_01=4（t['发现'] 赋值/条件值）\n- 异常行迹：t_01=10（t['警惕'] 增加）；t_02=1（t['发现'] 赋值/条件值）；t_03=2（t['发现'] 赋值/条件值）\n- 眼线汇报：t_01=5（t['警惕'] 增加）；t_02=1（t['发现'] 赋值/条件值）；t_03=2（t['发现'] 赋值/条件值）\n- 降警惕_轻度：t_01=5（t['警惕'] 扣减）\n- 降警惕_中度：t_01=10（t['警惕'] 扣减）\n- 降警惕_深度：t_01=15（t['警惕'] 扣减）\n- 合理解释：t_01=5（t['警惕'] 扣减）\n- 转移注意：共享合理解释的参数（同源引用）\n- 无异常回合：条件/修饰标签；按既有通用规则处理\n【注册表生成表结束】"
+        }
+      ]
+    },
+    "开发者功能/开发者说明书/世界书关键字配置.txt": {
+      "replacements": [
+        {
+          "old": "内容源：txt文件/知识库/世界观类.json、叙事判断.json、系统标签类.json、角色类.json。",
+          "new": "内容源：txt文件/知识库/世界观类.json、叙事判断.json、系统标签类.json、角色类.json；系统事件参数展示由txt文件/事件注册表.json生成，关键词路由不变。"
+        }
+      ]
+    },
+    "txt文件/故事检索索引.md": {
+      "replacements": [
+        {
+          "old": "| contract.inject | workspace → txt文件/一键注入指南.txt | 每回合 | 物理读取 |",
+          "new": "| contract.inject | workspace → txt文件/一键注入指南.txt | 每回合 | 物理读取 |\n| contract.events | workspace → txt文件/事件注册表.json | 核对事件定义原件；指南/sys含生成视图 | 按需物理读取 |"
+        }
+      ]
+    },
+    "开发者功能/开发者说明书/开发者说明书.md": {
+      "replacements": [
+        {
+          "old": "| `txt文件/一键注入指南.txt` | 可执行脚本契约、节点字段、MEMORY、EVENTS、OPTIONS、标签名总表、计数器契约和调用格式 |",
+          "new": "| `txt文件/事件注册表.json` | 事件标签、模板模式及事件分支参数的唯一维护源；生成指南/sys参数展示 | 剧情触发判断、可执行代码、存档事实 |\n| `txt文件/一键注入指南.txt` | 可执行脚本契约、节点字段、MEMORY、EVENTS、OPTIONS、生成事件视图、计数器契约和调用格式 |"
+        },
+        {
+          "old": "| 2026-11-17 | P9 微状态期限与连续回合计数 |",
+          "new": "| 2026-11-17 | P10 事件注册表与编号复用 | 校验、结算分支参数与展示引用同源注册表；五表65标签及警惕10标签保持，任务/道具沿用既有编号器。见回合执行基础/logs/step_16.md。 |\n| 2026-11-17 | P9 微状态期限与连续回合计数 |"
+        }
+      ]
+    }
+  },
+  "upstream_sha256": "2b3107fb2f12340396ce8983885343ca2fe9e3f6a51ada57df0162c453e8d51d",
+  "plan_sha256": "9a401628abfbdeae0456d5a98e1dc8a62e821c2ebe8da48adc725ab9349c785a",
+  "rollback_command": "python3 -c 'from pathlib import Path\nimport hashlib,json,os\nr=Path.cwd().resolve();m=json.loads((r/\"开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_16.json\").read_bytes())\nsha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()\nfor c in m[\"changes\"]:\n p=r/c[\"path\"]\n if c[\"before\"]:\n  assert sha(r/c[\"backup\"])==c[\"before\"][\"sha256\"]\n  assert sha(p) in (c[\"before\"][\"sha256\"],c[\"after\"][\"sha256\"])\n else:assert not p.exists() or sha(p)==c[\"after\"][\"sha256\"]\nfor c in m[\"changes\"]:\n p=r/c[\"path\"]\n if c[\"before\"]:\n  t=p.with_name(\".\"+p.name+\".round-tmp-rollback16\")\n  with t.open(\"xb\") as f:f.write((r/c[\"backup\"]).read_bytes());f.flush();os.fsync(f.fileno())\n  os.chmod(t,c[\"before\"][\"mode\"]);os.replace(t,p)\n elif p.exists():p.unlink()\nprint(\"ROLLBACK_PASS restored=9 removed_new=1\")\n'",
+  "engine_reference_count": 218,
+  "event_counts": {
+    "shame_events": 18,
+    "depravity_events": 6,
+    "ds_events": 17,
+    "affection_events": 9,
+    "host_events": 15,
+    "vigilance_events": 10
+  },
+  "candidate_refinement": "Validated registry references and generated-view coherence; added read-only events rendering and shared parameter references.",
+  "installed_at": "2026-11-17T10:20:10.206262"
+}

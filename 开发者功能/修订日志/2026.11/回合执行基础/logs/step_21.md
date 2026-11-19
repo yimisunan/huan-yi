@@ -1,0 +1,10 @@
+- 【步骤编号】step_21
+- 【上游依赖】用户“我删除data.json是因为想开新存档，帮我优化一下存档清理器.py”，后续询问进度不取消任务；logs/step_20.md，SHA-256=e7e2cba9fce55b73690c63b2687f13c569af685ef07e7ff8255e9fc0c93ee14a；plan/step_21.md，SHA-256=173d6618b2984d0a4d275c7828bfa7726b0faf5ea8526d90cf1daaf845f863d7。使用into、iter-revise、任务五步走·落盘规范。
+- 【做了什么】安装新档清理、互斥/中断恢复与浏览器跨档恢复适配，原三模板逐字不变；旧快照清除后初始化空round0以满足桥接必读，不写正式故事。
+- 【产物】src/新档清理与验收_21.md、src/新档清理隔离验收_21.py、src/新档清理前端验收_21.js、src/新档清理验收结果_21.json；src/安装清单_21.json，SHA-256=511b7d2ed67cc1dbddd5d3466c076533a179abebf220cac95b26ad27b443298b。四现役：存档清理器.py、story_service.py、story_client.js、开发者说明书；父版路径及指纹在清单。
+- 【验收证据】
+  - V1 改前基线：Host pwd=/storage/emulated/0/互动对话项目/Gemini网页版，resolve=/sdcard/互动对话项目/Gemini网页版；step_20现役/静态保护无漂移，tmp为空、step_21不存在；四before指纹/格式与动态资料状态见清单。用户明确说明快照缺失为主动新档操作。
+  - V2 改后结果：RESET21_ISOLATION_PASS cases=29 passed=29 failed=0 live_reset=false；RESET21_INSTALLED files=4 backups=4 protected=30 candidate_byte_match=true live_reset=false；RESET21_SOURCE_PASS files=4 backups=4 protected=30 candidate_byte_match=true rollback_syntax=true live_reset=false。真实隔离失败回滚与硬退出恢复通过、RoundStore.prepare为第1回合，真实服务类上下文可构建；未加载HTTP路由/真实浏览器/模型/TTS。原生软链接夹具受Android权限限制，唯一相关项改用路径检查适配并单独重验，首轮失败保留，其余28项复用。
+  - V3 反向可行：四父版匹配before；恢复命令shell参数/Python静态检查通过，actual_code_rollback=false。隔离数据恢复实际运行，正式reset/recover未执行。39次子工具调用（预检20、写入12、验证等待管理收尾7），1个L2/R1事务；有效验证3次，另一次Host容量拒绝后关闭已结束会话才继续。
+- 【回滚方式】R1四现役；项目根执行：`python3 -c 'import json,subprocess; from pathlib import Path; p=Path("开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_21.json"); subprocess.run(json.loads(p.read_text())["rollback_command"],shell=True,check=True)'`。先校验归属与父版，再逐文件原子恢复；代码回滚不恢复未来实际清理的数据，加载恢复代码需重启。开发资产R0保留。
+- 【下一步】用户停止本地Python服务和Operit故事桥接，运行存档清理器.py并输入y；完成后重启服务/桥接、刷新网页，从新档序章开始。可先--preview，想保留旧档加--backup，未完成清理用--recover。本轮没有执行正式清理、没有重启服务；P5—P7与真实网页新档第一回合仍未验收。

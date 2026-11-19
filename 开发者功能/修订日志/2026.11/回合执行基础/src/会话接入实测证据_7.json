@@ -1,0 +1,285 @@
+{
+  "test": "正式会话→工具读取→JSON→原执行器→隔离副本提交",
+  "isolated": true,
+  "core_version": "2.0.0-preview.38",
+  "bridge_version": "1.1.0",
+  "story_protocol": 3,
+  "attempt": 1,
+  "job": {
+    "action": "（日常验收：只核对上午工作，不推进私人关系，不离开客厅）我把桌上的材料清单递给沈知韫，问她上午需要先确认哪一项。",
+    "attempt": 1,
+    "base_revision": "fce1ba7b78b44513d9fd39601997cf2b8f4938044b6af5cda5137c91fab958e2",
+    "created_at": 1794863964.2901003,
+    "current_round": 1,
+    "error": "",
+    "generation_model": {
+      "function_type": "CHAT",
+      "key": "[\"CHAT\",\"cfe69e08-34b9-4afe-921e-645ea38f0094\",\"gpt-6.1-sol\"]",
+      "model_id": "gpt-6.1-sol",
+      "pricing_configured": false,
+      "provider_id": "cfe69e08-34b9-4afe-921e-645ea38f0094",
+      "provider_name": "665535GPT"
+    },
+    "model_key": null,
+    "receipt": {
+      "optimistic_lock": true,
+      "replayed": false,
+      "request_id": "session-integration-7",
+      "revision": "066d0219de65ad24ff499e43c6ef292eb760a63699271c9798e449efce5c6353",
+      "round": 1,
+      "state_version": 1,
+      "status": "committed"
+    },
+    "request_id": "session-integration-7",
+    "status": "committed"
+  },
+  "conversation_audit": {
+    "api": "Tools.Chat.sendMessageStreaming",
+    "chat_id": "839b32dc-7754-4272-b7ee-ff1c155e86a2",
+    "completed_at": 1794864480599,
+    "outcome": {
+      "assistant": {
+        "messageTimestamp": 1794863971125,
+        "variantIndex": 0
+      },
+      "status": "completed",
+      "type": "committed",
+      "userMessageTimestamp": 1794863971117
+    },
+    "participant_id": "f3c542bc-5c3c-413f-a4c9-375c526f0e76",
+    "required_reads_verified": true,
+    "snapshot_message_timestamp": 1794863971125,
+    "started_at": 1794863971035,
+    "tool_count": 23,
+    "verified_tools": [
+      {
+        "end_line": 63,
+        "name": "read_file_part",
+        "part_id": "part-3",
+        "path": "存档/全局记忆库.txt",
+        "result_sha256": "f3ed5e56cdd77a47a58299f857305fc971e454edbca0bcf9d49a0f09d522ea9a",
+        "source_sha256_at_result": "40c65665b811befbcbc45728a158a2f01fe7baaa57c8e35648c4723e9413fcce",
+        "start_line": 1,
+        "status": "success"
+      },
+      {
+        "end_line": 180,
+        "name": "read_file_part",
+        "part_id": "part-9",
+        "path": "txt文件/一键注入指南.txt",
+        "result_sha256": "6403f788aae69ba30febd90a2f2beeba0566d5ac647e3ea2abb96f3e82ffbc84",
+        "source_sha256_at_result": "64d5fe36082dc536bcf1bfb939ca8d1275b8770e734c22a5f6b672fadeca4c67",
+        "start_line": 1,
+        "status": "success"
+      },
+      {
+        "end_line": 348,
+        "name": "read_file_part",
+        "part_id": "part-13",
+        "path": "txt文件/一键注入指南.txt",
+        "result_sha256": "7a0d2611debbdd493147c4c9313bd120df850b7b37de4b248c98c4a64479a1be",
+        "source_sha256_at_result": "64d5fe36082dc536bcf1bfb939ca8d1275b8770e734c22a5f6b672fadeca4c67",
+        "start_line": 181,
+        "status": "success"
+      },
+      {
+        "end_line": 190,
+        "name": "read_file_part",
+        "part_id": "part-17",
+        "path": "txt文件/全局执行法典.md",
+        "result_sha256": "a647470da2453b2f1ebbc627e8c1392b1ada38a4f2f959022c649c1ae9554897",
+        "source_sha256_at_result": "b2c3cbd62d4774353774a0f25222caae103fe5b10bdf349f1cfbfedea967a701",
+        "start_line": 1,
+        "status": "success"
+      },
+      {
+        "end_line": 220,
+        "name": "read_file_part",
+        "part_id": "part-23",
+        "path": "txt文件/提示词.md",
+        "result_sha256": "30bfdd2af229823b1be89168f61333fe667d5cda2fd2f95dbd020643a18dc0f6",
+        "source_sha256_at_result": "07d4e68b7873ff71d4938a107495878404b87a1e31fd57d1b3d5635356e9442a",
+        "start_line": 1,
+        "status": "success"
+      },
+      {
+        "end_line": 40,
+        "name": "read_file_part",
+        "part_id": "part-27",
+        "path": "txt文件/故事检索索引.md",
+        "result_sha256": "5faec4ea3752f3972bd30372c74c87094ca6114db316bebcca0c36d5bc0c43e0",
+        "source_sha256_at_result": "472be11ad1b97f55d992283fe48cfedda0f739dbb5a9b623c1440e654b783fed",
+        "start_line": 1,
+        "status": "success"
+      },
+      {
+        "end_line": 1,
+        "name": "read_file_part",
+        "part_id": "part-31",
+        "path": "data.json",
+        "result_sha256": "0d756b47636de7e5507e42f92d0f32f504b4af8aa3ab6a5ce10162debec579c7",
+        "source_sha256_at_result": "cc57e8a68ec6bd17f2c6493039c211b945de660ae2503af3b11c85f54c5d7cc8",
+        "start_line": 1,
+        "status": "success"
+      },
+      {
+        "name": "list_files",
+        "part_id": "part-39",
+        "path": "txt文件",
+        "result_sha256": "11e89cece75ad85c8252ce3130de47a9fca94d4a955202829d9e8318f00434eb",
+        "status": "success"
+      },
+      {
+        "name": "list_files",
+        "part_id": "part-41",
+        "path": "txt文件/知识库",
+        "result_sha256": "f93605ef7634b002628da6da8f732391c512d855b16f466bb71517f25190185d",
+        "status": "success"
+      },
+      {
+        "name": "list_files",
+        "part_id": "part-43",
+        "path": "存档",
+        "result_sha256": "261098740d680b6420161c74070f437b97adfd8ed36f6f12eca06b9bd1a65d0e",
+        "status": "success"
+      },
+      {
+        "name": "read_file",
+        "part_id": "part-55",
+        "path": "txt文件/知识库/世界观类.json",
+        "result_sha256": "b11c514e21c97651d1d9ea06385257b6a5161db6991c2d4b8c7ee364776fe042",
+        "source_sha256_at_result": "098131549db932bc2bd84a2d4d8c8b2ee369c3674cd8cfefea7ca511b17fc9e2",
+        "status": "success"
+      },
+      {
+        "name": "read_file",
+        "part_id": "part-57",
+        "path": "txt文件/知识库/叙事判断.json",
+        "result_sha256": "1cf5c838791a72022f421a7d9338252b3d7bb765f941aca14516353a4aa9b5f0",
+        "source_sha256_at_result": "2d28d2b7a267c936c5ff8304258665250c6a13614952891453c2faad5779e6b1",
+        "status": "success"
+      },
+      {
+        "name": "grep_code",
+        "part_id": "part-59",
+        "path": "txt文件/知识库",
+        "result_sha256": "da1fce7c463fd66637cfcb50facc9c101aa25d4d8192eddbff298f0461a3895d",
+        "status": "success"
+      },
+      {
+        "name": "grep_code",
+        "part_id": "part-61",
+        "path": "txt文件/知识库",
+        "result_sha256": "0f76a1013aa9dde29a4ac19c671f65471c91715a661262845b8c84ddd52c33d3",
+        "status": "success"
+      },
+      {
+        "end_line": 34,
+        "name": "read_file_part",
+        "part_id": "part-75",
+        "path": "txt文件/知识库/角色类.json",
+        "result_sha256": "feb84f936582112de1c0270d5e88d4f2184a4a16cf64e30dd34b35a5bc8ad491",
+        "source_sha256_at_result": "1112a766a2b019daeb1e3ad63b7925dcc2ff3ed1c45e0be1dc87d2f135430e58",
+        "start_line": 1,
+        "status": "success"
+      },
+      {
+        "end_line": 127,
+        "name": "read_file_part",
+        "part_id": "part-77",
+        "path": "txt文件/知识库/角色类.json",
+        "result_sha256": "3991d066ee17051eeffbac8031f01061ea24fb12b66b77cf7d6eb21e2d6d9c2e",
+        "source_sha256_at_result": "1112a766a2b019daeb1e3ad63b7925dcc2ff3ed1c45e0be1dc87d2f135430e58",
+        "start_line": 103,
+        "status": "success"
+      },
+      {
+        "end_line": 68,
+        "name": "read_file_part",
+        "part_id": "part-79",
+        "path": "txt文件/知识库/系统标签类.json",
+        "result_sha256": "3aa3c7c34b21cc9c1661f879450193ca2aefd4c49662ca5172189b444a3a8fa2",
+        "source_sha256_at_result": "a86a36ab2afbc221a3257e6154dab22c2191bfcc8c27a4b8b964e0f0486802cc",
+        "start_line": 1,
+        "status": "success"
+      },
+      {
+        "end_line": 159,
+        "name": "read_file_part",
+        "part_id": "part-81",
+        "path": "txt文件/知识库/系统标签类.json",
+        "result_sha256": "353f23e878cc4c945f8f09cc480d70a31f591b7b78692136328260942ee5fc46",
+        "source_sha256_at_result": "a86a36ab2afbc221a3257e6154dab22c2191bfcc8c27a4b8b964e0f0486802cc",
+        "start_line": 97,
+        "status": "success"
+      },
+      {
+        "end_line": 337,
+        "name": "read_file_part",
+        "part_id": "part-83",
+        "path": "txt文件/知识库/系统标签类.json",
+        "result_sha256": "3f4d9c5777e325a0af3b64369e941eeec05657c13ad4dbd5558e0756df66d408",
+        "source_sha256_at_result": "a86a36ab2afbc221a3257e6154dab22c2191bfcc8c27a4b8b964e0f0486802cc",
+        "start_line": 218,
+        "status": "success"
+      },
+      {
+        "end_line": 96,
+        "name": "read_file_part",
+        "part_id": "part-95",
+        "path": "txt文件/知识库/系统标签类.json",
+        "result_sha256": "ce0903494656088760523621a5f397aca3598d7434acb99ea639c2c0be6752bd",
+        "source_sha256_at_result": "a86a36ab2afbc221a3257e6154dab22c2191bfcc8c27a4b8b964e0f0486802cc",
+        "start_line": 69,
+        "status": "success"
+      },
+      {
+        "end_line": 217,
+        "name": "read_file_part",
+        "part_id": "part-97",
+        "path": "txt文件/知识库/系统标签类.json",
+        "result_sha256": "8daa6642036e03d09510d06e42d44614e8051ed8482bafc72508b959ceeceb7e",
+        "source_sha256_at_result": "a86a36ab2afbc221a3257e6154dab22c2191bfcc8c27a4b8b964e0f0486802cc",
+        "start_line": 190,
+        "status": "success"
+      },
+      {
+        "name": "read_file",
+        "part_id": "part-99",
+        "path": "存档/徐志北道具图鉴.txt",
+        "result_sha256": "067691e7ec917d45aeac812f9fe784d91b7fd9435f1c397011c2173c6ec54049",
+        "source_sha256_at_result": "d98dcd49746b6a41b50aeae75b3502a53eeaf2769f931097da2c76ba38186a50",
+        "status": "success"
+      },
+      {
+        "name": "read_file",
+        "part_id": "part-101",
+        "path": "存档/次要NPC名册.txt",
+        "result_sha256": "8c85eae9fd7b288ba7f8587dae39319b3344ac728e91f70424be1e2f8d203886",
+        "source_sha256_at_result": "34396124519722c7a692d806810c1e47281ca2512ae61f822169bc0b13e8f9f6",
+        "status": "success"
+      }
+    ],
+    "workspace": "/virtual/android/documents/230ffdc0fe524442bfde22083d61c969/开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_live7"
+  },
+  "final_json_sha256": "f5e892a8aac2cb04178b6c62437ac82c692f4976051b82ca6ca616dd1e123980",
+  "duration_seconds": 509.564,
+  "tool_calls": 23,
+  "all_tool_results_success": true,
+  "protected_files_unchanged": 20,
+  "original_round": 4,
+  "final_message_metadata": {
+    "timestamp": 1794863971125,
+    "modelName": "gpt-6.1-sol",
+    "inputTokens": 396511,
+    "cachedInputTokens": 332416,
+    "outputTokens": 16769,
+    "completedAt": 1794864480549
+  },
+  "known_limits": [
+    "生产Pydroid3仍为协议2，须重启加载新服务",
+    "只测试一次日常回合，长期表现、TTS及世界书/Skill不在验收范围",
+    "会话执行会切换当前聊天，结束后条件恢复",
+    "审计验证工具调用/文件覆盖，不证明语义零遗漏"
+  ]
+}

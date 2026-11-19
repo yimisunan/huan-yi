@@ -1,0 +1,10 @@
+- 【步骤编号】step_20
+- 【上游依赖】宿主上传行动错误截图和工作区，当前修复优先于step_19所建议的P5；logs/step_19.md，SHA-256=89b95948e690e29fb383733b4fc0b8022a182e5b9bf9ffc8db140e861e0c9a54；plan/step_20.md，SHA-256=a1286f54f449c3c9a3e3fede282ed31517b23ccb1f777126f5789bfad20976ea。使用into、任务五步走·落盘规范。
+- 【做了什么】修复前端解析HTML错误丢失HTTP状态导致缺失任务轮询中断；故事HTTP错误统一JSON，保留原行动、原请求号与既有鉴权/提交合同。
+- 【产物】src/任务响应修复与验收_20.md；src/任务响应隔离验收_20.py、任务响应前端验收_20.js、任务响应验收结果_20.json；src/安装清单_20.json，SHA-256=638f99b71f785b7912e31aefe3df1bbbe33dc869c5b7b59e945f4e99615b1641，含3父版与恢复命令；三现役为story_client.js、story_service.py、开发者说明书。tmp候选/脚本/依赖收尾删除。
+- 【验收证据】
+  - V1 改前基线：当前37项相对step_19仅data.json/记忆库变化，后续data.json缺失；现场缺失任务404为text/html且以<!doctype开始。三目标UTF-8/LF、格式及before指纹入清单；动态资料单列且不恢复。
+  - V2 改后结果：RESPONSE20_ISOLATION_PASS cases=29 passed=29 failed=0 real_flask=true real_frontend=true live_submissions=false；RESPONSE20_INSTALLED existing=3 backups=3 protected=30 candidate_byte_match=true actual_rollback=false；RESPONSE20_SOURCE_PASS existing=3 backups=3 protected=30 candidate_byte_match=true rollback_syntax=true actual_rollback=false；均退出0。现场GET /story_client.js已返回本轮新脚本。真实浏览器/模型/正式生成未验证，服务未重启。
+  - V3 反向可行：三父版before指纹相符，恢复命令shell参数/Python静态解析通过；actual_rollback=false，未执行恢复。预算有效验证2次；35次子工具调用（预检25、写入7、验证等待收尾3），1个L1/R1事务。只读data.json遇缺失已登记，未写动态资料。
+- 【回滚方式】R1三目标恢复；项目根命令：`python3 -c 'import json,subprocess; from pathlib import Path; p=Path("开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_20.json"); subprocess.run(json.loads(p.read_text())["rollback_command"],shell=True,check=True)'`。先校验归属和父版，逐文件原子恢复；开发资产R0保留。代码恢复不影响后续正式回合或任务记录，加载恢复代码需要重启服务。
+- 【下一步】刷新故事页→检查连接与最新场景→按需显式重试原行动；后端JSON错误需重启本地服务才加载。收尾时data.json仍缺失，若场景仍缺失另列快照来源排查，不回填旧data或存档。P5、真实模型/网页端到端与TTS仍待验收，本轮未生成或提交正式故事。

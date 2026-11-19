@@ -1,0 +1,76 @@
+{
+  "step": "step_18",
+  "root": "/sdcard/互动对话项目/Gemini网页版",
+  "upstream": "39724a666de8da287d32dfd91fdd2b39be05f138cc24b5a503d197f01ce76299",
+  "contract": "6895b1772ee2156f3fa4abfd0a41f2cedf0d7bd0782200be5bfb1189d879a06f",
+  "files": {
+    "scene_chat_dev/主窗口接入调整计划.md": {
+      "sha256": "904ef3a642d848f3fa57e734e0fe215b0ee02f403b7a6aea58af87cee47cef10",
+      "bytes": 9401,
+      "mtime_ns": 1795066136127265154,
+      "backup": "开发者功能/归档/项目清理/历史修改备份/scene_chat_dev/主窗口接入调整计划.md.into-backup-step18-20261119-075816-885215"
+    },
+    "开发者功能/开发者说明书/开发者说明书.md": {
+      "sha256": "413e4383491ce5419f44ee47b948f6226bd9ea2b5a67cf07b04bda12f4d4e01a",
+      "bytes": 30421,
+      "mtime_ns": 1795070290343263570,
+      "backup": "开发者功能/归档/项目清理/历史修改备份/开发者功能/开发者说明书/开发者说明书.md.into-backup-step18-20261119-075816-885215"
+    }
+  },
+  "created": [
+    "开发者功能/修订日志/2026.11/剧情演播与三档结算规划.md"
+  ],
+  "protected": {
+    "AGENTS.md": "da5b5ff33ccbd5c3cd61db8f553376a3c6af533093e052d7134dc61b981bb877",
+    "main_template.html": "9655202d1e509e10d29633322bd42dca7cddb68ccf38b7ce26ceff100d4107b2",
+    "story_client.js": "8adb559dec1a39639ae0a7f0d0be2750cf35436727b9e1c247ac4634c27603d7",
+    "story_client.css": "c196424c5b3e4d7314a85f05393769fb8683505b6fe9eec2c4cd28a2b2b6e12a",
+    "interaction_runtime.py": "c3866575a3ddb7942931c2b909f2ccf173543a5a2dcaded7805560e1ab4044a3",
+    "story_service.py": "4d1c061c2ecce0d5364446fbb036363eab00858a7708a0672a26a4b64514f638",
+    "round_runtime.py": "036a1333a77ebfd6ecef02b3e6ef31ea314421b7d81cc11792084f6a590ac5e0",
+    "injection_core.py": "d8410d75c31854e2ae2c5dff1859377213531a056b7ef3513ed74c93d3adf952",
+    "story_reading.py": "f0001a8a641170af4bba8e7889af44c81be33e6e56154fe48dff4e0db2689b13",
+    "voice_client.js": "79ce9d1fba27bffcbfad2b3b255f6b5ad54d014a2c8c737a7c8c9801eda67f6c",
+    "语音运行.py": "831ba774e99418e45fcc86c4dc1a95f9027582bb0150fa5ef853b03cb58998d2",
+    "voice_config.json": "6bbd1ad3f537b8a52ad3a1aec684d52358f9c0b3aaf9cbbeace994715573cec0",
+    "存档开局随机盲盒.py": "64e1744448787e5ffaa9996dbd114a6f60658445007d41c845ee79028d617219",
+    "存档清理器.py": "4c94708e2fd20f8cf55816cd8a14e4e83dff9736760c0908422575e9e4e71213",
+    "存档/全局记忆库.txt": "55dd58d5d16ce13050885ffed51f9b93b69ccd00e7fa1d06e3d6cf3176d7fa98",
+    "存档/徐志北道具图鉴.txt": "d031d1fce29ab2464f89e990e4e1cfd19a0fac4cbf2615d3f2f45bb596ca126e",
+    "存档/次要NPC名册.txt": "7c6c74b8790273b8d71294c1e9ebe700cf97ff5dfb14b10ac213c9d83c836f0f",
+    "data.json": "bea48fcd6c167b9b0a63ad04d38fb2cc66fe1774fe22e9397eaa551af45fd55a",
+    "txt文件/场景交流规范.md": "781b579d4b828dc7110855c83d948d7b3af8581b1b1b8bfef2b5ca539dbe8a86",
+    "txt文件/互动运行配置.json": "1a0081f4859fb742906e0091954a985fe16bd8eba00fc84b82821f44cdb5e503",
+    "txt文件/提示词.md": "263ab9bbe96f09c1d911394a80c0d5f5c328d2b9b2ce1d71ec8b1e98c1892458",
+    "txt文件/一键注入指南.txt": "e06f41671a16b506d2b42a6dbfef9fb8474d0842ab6c8ebc8cda12e2fa2d3840",
+    "txt文件/全局执行法典.md": "78517f41dcc3bc4f670f1d48d469d8c9e081bbb254b3e88ca8dc928259ac0652",
+    "txt文件/故事检索索引.md": "d6c489b1c05533a7cdaa3813d5985b960cf262c662540ebd4b8c3470243306bc",
+    "txt文件/关系称谓库.json": "b256e42669e1a1939d037579d90ded67e3ac04235c77626644ebd0d02479461a",
+    "txt文件/事件注册表.json": "9ba945df6564524f4666b3d2d26b9f0565bfe09f33134dd9c8c5639a05c8b922",
+    "txt文件/知识库/叙事判断.json": "5dc9a65eb87cf23fdf7e7a365a21298271620391e58834b716c990e59f80f7f5",
+    "txt文件/知识库/世界观类.json": "4858c2c17efb838688e787f5eb5027634e66fd60e8a1fd8a3b2b224816df4b38",
+    "txt文件/知识库/系统标签类.json": "d7db1ae0f4f75abaa3b5c7c925f9122e1a0f67332a775dd0334b0380813f0444",
+    "txt文件/知识库/角色类.json": "489b4bcd6248ccf07649c2d831367fe779aaa10a0fbe3f4cc5929dbb37e8c8d5",
+    "scene_chat_dev/local.story.operit_bridge/main.js": "eb5eccfe4b524f749ca4161be4485f1493334efecb2cbe199e4aed7b141dedfb",
+    "scene_chat_dev/local.story.operit_bridge/manifest.json": "b9d06daef38ba6681df511d6b5fae9ad46b33bf0a8674f31088c398ce7079129",
+    ".operit/sync.json": "21ea83e301e0af067fa9c0dcc9b185450b17c5c833a9015d19e1e0ad87c35761"
+  },
+  "written": {
+    "scene_chat_dev/主窗口接入调整计划.md": "37651a8d52b20d954a48c1c2d64261c6339ab22bd4b03863012334e348a7db76",
+    "开发者功能/开发者说明书/开发者说明书.md": "d1abd8c99ef8c434358b2cefefc4424bee38b9ddd3a9b17ba0cecdf7c542c4f5",
+    "开发者功能/修订日志/2026.11/剧情演播与三档结算规划.md": "2aec456bd4fb10a4142ec5b2425e42a6e49a3f5e76c3c1d37219b1369051e85f"
+  },
+  "scope": "documentation only; no runtime or platform writes",
+  "checks": {
+    "candidate_reread": true,
+    "requirements_checked": true,
+    "protected_unchanged": 33,
+    "contract_unchanged": true,
+    "backups_byte_verified": 2,
+    "software_tests": "not run; documentation only",
+    "step18_pair_verified": true,
+    "historical_pair_gap": [
+      "step_4.md"
+    ]
+  }
+}

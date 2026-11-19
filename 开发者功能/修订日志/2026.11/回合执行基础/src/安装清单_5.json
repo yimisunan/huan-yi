@@ -1,0 +1,295 @@
+{
+  "version": 1,
+  "timestamp": "20261116_185621",
+  "bridge_version": "1.0.3",
+  "files": [
+    {
+      "target": "txt文件/提示词.md",
+      "backup": "txt文件/提示词.md.into-backup-20261116_185621",
+      "before_sha256": "c25556e23d9439202ed14cd32bddcc23a8cf4e390b1af5819764fc7de432c01c",
+      "after_sha256": "2004061f1e7d0d93f1f834662bb9b9da57e2e731855155154a68ba44c8c3f8f7",
+      "before_bytes": 8882,
+      "bytes": 11168
+    },
+    {
+      "target": "txt文件/一键注入指南.txt",
+      "backup": "txt文件/一键注入指南.txt.into-backup-20261116_185621",
+      "before_sha256": "8cd17a982a862b70b6a96d28c7e65499dbfab7da80f916adc23967bd788081e5",
+      "after_sha256": "ba61d0678ef7582491166d699920c763abe57841776ef6bb4a95b4f5bbfd6627",
+      "before_bytes": 45590,
+      "bytes": 50929
+    },
+    {
+      "target": "txt文件/全局执行法典.md",
+      "backup": "txt文件/全局执行法典.md.into-backup-20261116_185621",
+      "before_sha256": "54148a1655af9a4816b88be8a0f3b520ff7ecb290c323221b3673092c73d2765",
+      "after_sha256": "b2c3cbd62d4774353774a0f25222caae103fe5b10bdf349f1cfbfedea967a701",
+      "before_bytes": 13107,
+      "bytes": 13130
+    },
+    {
+      "target": "txt文件/故事检索索引.md",
+      "backup": "txt文件/故事检索索引.md.into-backup-20261116_185621",
+      "before_sha256": "51befcdace592aa1a7bf237504125cd3bfd63b2b52134c0acc9a48282531f6bf",
+      "after_sha256": "00881a193d67d433e3b65a803595144fb3fd5d60bd3b84afa216387481b19f7e",
+      "before_bytes": 3356,
+      "bytes": 3724
+    },
+    {
+      "target": "story_service.py",
+      "backup": "story_service.py.into-backup-20261116_185621",
+      "before_sha256": "7662f37cc45d78377075fc39f560bc46a29cf6fc4063fc28672a66dd7a1116c6",
+      "after_sha256": "1f19e1ed69ef5748de60c7314b058dabb03e885e42024f04d732a58044040359",
+      "before_bytes": 21220,
+      "bytes": 24028
+    },
+    {
+      "target": "开发者功能/Operit故事桥接/main.js",
+      "backup": "开发者功能/Operit故事桥接/main.js.into-backup-20261116_185621",
+      "before_sha256": "8697c0cbef7874a087fd31c814887ea7e73104c2386cd5c4b481d3e5512c8bfd",
+      "after_sha256": "ef7db0df4662bb6ea621ae9e0edaabb234c055ba09bc31a81b88065f92dfcc51",
+      "before_bytes": 14904,
+      "bytes": 15129
+    },
+    {
+      "target": "开发者功能/Operit故事桥接/manifest.json",
+      "backup": "开发者功能/Operit故事桥接/manifest.json.into-backup-20261116_185621",
+      "before_sha256": "cbc489c3cc95e3f9d54300ac8cb80a68919394d46862dddc4e5038bc77c2a6fe",
+      "after_sha256": "1aa16270e3a41e5091129e785df59657e31f3ad723c0099f78780be15fe7548d",
+      "before_bytes": 552,
+      "bytes": 552
+    },
+    {
+      "target": "开发者功能/Operit故事桥接/故事桥接.toolpkg",
+      "backup": "开发者功能/Operit故事桥接/故事桥接.toolpkg.into-backup-20261116_185621",
+      "before_sha256": "49a2e2b51a749114f236494d0595605482ee98fe839debba17dbeb98e3b60346",
+      "after_sha256": "6403781ebc9bdc962114a8d26e8d3c874131a177fdb1583129ad81770a262ad8",
+      "before_bytes": 6237,
+      "bytes": 6394
+    },
+    {
+      "target": "开发者功能/开发者工具/故事页面验收.py",
+      "backup": "开发者功能/开发者工具/故事页面验收.py.into-backup-20261116_185621",
+      "before_sha256": "5ba6b780de10ace9d607bd080bb02c717dc798f7408e3ea642cf560513745dc0",
+      "after_sha256": "c8449bce1ffd1f1cf5a54c1fb8a3bb0a50a5e38e2dbd6c4f6e151defbf49b8eb",
+      "before_bytes": 12673,
+      "bytes": 15808
+    },
+    {
+      "target": "开发者功能/开发者工具/故事桥接验收.mjs",
+      "backup": "开发者功能/开发者工具/故事桥接验收.mjs.into-backup-20261116_185621",
+      "before_sha256": "d5962ee4c48fd9b953d5833684b64c02c2bb16e1d1453945e703b5d35380f0c4",
+      "after_sha256": "39fbdfecd22d9a4fa5b7e4a176a08d1cd6f7fa8fc680508b6e97b2fdf69ab22f",
+      "before_bytes": 18289,
+      "bytes": 20029
+    },
+    {
+      "target": "开发者功能/开发者说明书/开发者说明书.md",
+      "backup": "开发者功能/开发者说明书/开发者说明书.md.into-backup-20261116_185621",
+      "before_sha256": "2e2b0f0373614d829c5958d0d6bf4160c248ba168dcf76831ebf23a990683d9a",
+      "after_sha256": "bee28eecec0fc68ada7d5a090ddcfeebdf1af3d6b150cafaa35046671311da3c",
+      "before_bytes": 11918,
+      "bytes": 12139
+    },
+    {
+      "target": "story_client.js",
+      "backup": "story_client.js.into-backup-20261116_185621",
+      "before_sha256": "3b694de6d1cdfbdf1afc47958127386889ce6b6cfcccd38d0548a2574b2a707b",
+      "after_sha256": "e55e317159409e60d4885ea0faabe1329d5092106fb79f9fd3f3e3340941e91f",
+      "before_bytes": 19042,
+      "bytes": 24189
+    },
+    {
+      "target": "story_client.css",
+      "backup": "story_client.css.into-backup-20261116_185621",
+      "before_sha256": "260193a3b7820ca1c4b99939b91736080b1a0326a64aea52d5052576653822fd",
+      "after_sha256": "c7d929cfa6a986ae2391e45af0947084e49dc0816d26968df0ccc7d76df22ebc",
+      "before_bytes": 6273,
+      "bytes": 9109
+    },
+    {
+      "target": "main_template.html",
+      "backup": "main_template.html.into-backup-20261116_185621",
+      "before_sha256": "68191e4decd3ffa02ed3c0bbebe62ee88c480d15fe698843148bc75b2091164a",
+      "after_sha256": "33b7030bc873cc73a29a597749a032cc6410d3a1bad0e5a5db7d49a03d80f927",
+      "before_bytes": 274476,
+      "bytes": 274542
+    }
+  ],
+  "protected": {
+    "data.json": {
+      "sha256": "78754f44198f864b771bd2b74a7687d4bbaff60baa0c9f23b8a3e5abfbb93cbe",
+      "bytes": 2385,
+      "mtime_ns": 1794854205268271379
+    },
+    "存档/全局记忆库.txt": {
+      "sha256": "4c7fffba04ae70bab99f19aa52ac395868bf7191808599936d839001649338e2",
+      "bytes": 5612,
+      "mtime_ns": 1794854205240271379
+    },
+    "存档/徐志北道具图鉴.txt": {
+      "sha256": "5ec84007c18ad3f9937717453e37238869ff610af5bc23ae33af2da1fc51224c",
+      "bytes": 2437,
+      "mtime_ns": 1794854205248271379
+    },
+    "存档/次要NPC名册.txt": {
+      "sha256": "7c6c74b8790273b8d71294c1e9ebe700cf97ff5dfb14b10ac213c9d83c836f0f",
+      "bytes": 1124,
+      "mtime_ns": 1794854205252271379
+    },
+    "voice_config.json": {
+      "sha256": "6bbd1ad3f537b8a52ad3a1aec684d52358f9c0b3aaf9cbbeace994715573cec0",
+      "bytes": 2618,
+      "mtime_ns": 1794292912340000000
+    },
+    "round_runtime.py": {
+      "sha256": "1747af3593f006e7fe878984ebfecd7a5fd3d15683f484b4f69e1a6055dda80a",
+      "bytes": 31591,
+      "mtime_ns": 1794846792400274207
+    },
+    "injection_core.py": {
+      "sha256": "b665b9ccf7fc1205a5baf726fc248556e20eeb9650b0fc4754695d0258af8752",
+      "bytes": 111118,
+      "mtime_ns": 1794846792408274207
+    },
+    "语音运行.py": {
+      "sha256": "f846a8ee8c00c0e66b4cd087dcfcfcdc77e3365c376430f87f3c77c5bffa781a",
+      "bytes": 39890,
+      "mtime_ns": 1794849661272273113
+    }
+  },
+  "root_entries_before": [
+    ".backup",
+    ".operit",
+    ".round-runtime",
+    "AGENTS.md",
+    "Operit世界书导出",
+    "__pycache__",
+    "data.json",
+    "injection_core.py",
+    "injection_core.py.into-backup-20261116_163312",
+    "main_template.html",
+    "main_template.html.into-backup-20261116_172101",
+    "main_template.html.into-backup-20261116_181313",
+    "round_runtime.py",
+    "story_client.css",
+    "story_client.css.into-backup-20261116_181313",
+    "story_client.js",
+    "story_client.js.into-backup-20261116_181313",
+    "story_service.py",
+    "story_service.py.into-backup-20261116_181313",
+    "txt文件",
+    "voice_client.js",
+    "voice_config.json",
+    "voice_manager.html",
+    "vosi",
+    "存档",
+    "存档开局随机盲盒.py",
+    "存档清理器.py",
+    "开发者功能",
+    "日志",
+    "语音仓库",
+    "语音运行.py",
+    "语音运行.py.into-backup-20261116_172101"
+  ],
+  "verification": [
+    {
+      "command": [
+        "/usr/bin/python3",
+        "-B",
+        "/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_step5_candidate/开发者功能/开发者工具/故事页面验收.py"
+      ],
+      "exitCode": 0,
+      "output": "test_bad_node_and_duplicate_keys_still_rejected_without_file_changes (__main__.StoryChecks.test_bad_node_and_duplicate_keys_still_rejected_without_file_changes) ... ok\ntest_bridge_contract_and_manual_projection (__main__.StoryChecks.test_bridge_contract_and_manual_projection) ... ok\ntest_commit_duplicate_callback_and_consistent_snapshot (__main__.StoryChecks.test_commit_duplicate_callback_and_consistent_snapshot) ... ok\ntest_create_replay_and_context (__main__.StoryChecks.test_create_replay_and_context) ... ok\ntest_explicit_retry_rebuilds_rules_preserving_original_action (__main__.StoryChecks.test_explicit_retry_rebuilds_rules_preserving_original_action) ... ok\ntest_id_reuse_and_competing_task (__main__.StoryChecks.test_id_reuse_and_competing_task) ... ok\ntest_invalid_output_keeps_files_and_action_then_retry (__main__.StoryChecks.test_invalid_output_keeps_files_and_action_then_retry) ... ok\ntest_legacy_failed_task_gets_panel_at_explicit_retry (__main__.StoryChecks.test_legacy_failed_task_gets_panel_at_explicit_retry) ... ok\ntest_model_disclosure_and_change_requires_explicit_retry (__main__.StoryChecks.test_model_disclosure_and_change_requires_explicit_retry) ... ok\ntest_restart_after_engine_commit_reuses_receipt (__main__.StoryChecks.test_restart_after_engine_commit_reuses_receipt) ... ok\ntest_restart_replays_saved_validation_result (__main__.StoryChecks.test_restart_replays_saved_validation_result) ... ok\ntest_saved_result_cannot_be_replaced_by_error (__main__.StoryChecks.test_saved_result_cannot_be_replaced_by_error) ... ok\ntest_settlement_uses_exact_action_baseline_and_survives_restart (__main__.StoryChecks.test_settlement_uses_exact_action_baseline_and_survives_restart) ... ok\ntest_snapshot_and_origin_boundary (__main__.StoryChecks.test_snapshot_and_origin_boundary) ... ok\ntest_stale_base_and_late_result (__main__.StoryChecks.test_stale_base_and_late_result) ... ok\ntest_timeout_does_not_automatically_regenerate (__main__.StoryChecks.test_timeout_does_not_automatically_regenerate) ... ok\n\n----------------------------------------------------------------------\nRan 16 tests in 21.795s\n\nOK\n"
+    },
+    {
+      "command": [
+        "node",
+        "/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_step5_candidate/开发者功能/开发者工具/故事桥接验收.mjs"
+      ],
+      "exitCode": 0,
+      "output": "PASS bridge: single consumer, durable output, delivery retry, stop\nPASS page: model confirmation, silent choices, exact retry, one error popup, duplicate guard\nPASS reward: SVG +/-, delayed reveal, timed dismissal, one animation per revision, replay, cancellation\nPASS reading restore: late previous snapshot cannot resume or clear newer state\nPASS L1: Python-compatible count, exact single-field replacement, one persisted repair\nPASS L1: bad compression rejected, restart bounded, duplicate keys untouched\nPASS L1: retry carries original action and validation feedback\nPASS L1: generate + one repair, transport retry adds no model calls\nPASS model metadata: host query, safe allowlist, pre-call mismatch blocks generation\n"
+    }
+  ],
+  "ui_checks": [
+    {
+      "orientation": "landscape",
+      "width": 812,
+      "height": 375,
+      "horizontal_overflow": false,
+      "open_dialogs": 0,
+      "toggle": {
+        "text": "gpt-6.1-sol",
+        "left": 718.4955444335938,
+        "top": 46.000003814697266,
+        "right": 800.0000152587891,
+        "bottom": 90.00000762939453,
+        "width": 81.50447082519531,
+        "height": 44.000003814697266
+      },
+      "reward": {
+        "left": 37.09375,
+        "top": 76.85714721679688,
+        "right": 281.09376525878906,
+        "bottom": 233.75894165039062,
+        "width": 244.00001525878906,
+        "height": 156.90179443359375,
+        "animation": "story-reward-arrive",
+        "svg_count": 3
+      },
+      "replay_targets": [
+        {
+          "left": 707.5045166015625,
+          "top": 250.2857208251953,
+          "right": 774.9063034057617,
+          "bottom": 294.2857246398926,
+          "width": 67.40178680419922,
+          "height": 44.000003814697266
+        }
+      ]
+    },
+    {
+      "orientation": "portrait",
+      "width": 375,
+      "height": 812,
+      "horizontal_overflow": false,
+      "open_dialogs": 0,
+      "toggle": {
+        "text": "gpt-6.1-sol",
+        "left": 281.6383972167969,
+        "top": 46.000003814697266,
+        "right": 363.1428680419922,
+        "bottom": 90.00000762939453,
+        "width": 81.50447082519531,
+        "height": 44.000003814697266
+      },
+      "reward": {
+        "left": 12.85714340209961,
+        "top": 137.2991180419922,
+        "right": 276.8571434020996,
+        "bottom": 294.20091247558594,
+        "width": 264,
+        "height": 156.90179443359375,
+        "animation": "story-reward-arrive",
+        "svg_count": 3
+      },
+      "replay_targets": [
+        {
+          "left": 290.8839416503906,
+          "top": 695.1428833007812,
+          "right": 358.28572845458984,
+          "bottom": 739.1428871154785,
+          "width": 67.40178680419922,
+          "height": 44.000003814697266
+        }
+      ]
+    }
+  ],
+  "rollback_command": "python3 -B -c \"import json,pathlib; r=pathlib.Path('.'); m=json.loads((r/'开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_5.json').read_text()); [(r/x['target']).write_bytes((r/x['backup']).read_bytes()) for x in m['files']]\"",
+  "limitations": [
+    "No real model generation or paid call performed",
+    "Pydroid3 service restart required",
+    "Android system font scaling and OS reduced-motion toggle not tested on device",
+    "Host model selection preflight cannot lock concurrent changes"
+  ]
+}

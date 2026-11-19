@@ -1,0 +1,9 @@
+阶段5：资料包减重与契约一致性已实施。
+V1：既有文件备份与SHA256见step_5_baseline.json；旧任务包未改写。
+V2：相同实际包29076→19078字节、699→21行；另两包28503→18679、28506→18682，JSON解码完全相等。test_compact.py覆盖、截断拒绝、重复提交、任务契约均PASS；Python编译、页面JavaScript解析与桥接直接测试PASS。未实测新包读取次数或token收益。
+契约：规范明确needs=[]，不再承诺自动补读；模型handoff空串经桥接转换内部null。服务下发output_contract，桥接优先使用。
+页面：折叠连接信息显示页面来源、场景/任务身份、版本与桥接运行状态；服务端仅白名单字段，不返回令牌。新诊断路由未在现役Flask进程验证，终端缺Flask，本轮未安装依赖。
+真实旧记录核实：场景afff84ad598a5f07ecbb9b9e的revision=2，两条任务committed；先前按最新创建场景查到旧失败场景导致判断错误，已纠正。
+插件1.5.0同ID导入成功，start返回running=true/version=1.5.0；未新增模型/TTS请求。
+V3：按baseline清单backup恢复对应源文件，插件导入artifacts/故事桥接-scene_chat-1.4.3.toolpkg；新增测试可删除。
+下一步：Pydroid重启语音运行.py，刷新scene-chat；展开连接信息确认scene_protocol=2、桥接版本1.5.0。可继续现有成功场景，若重试旧失败任务提示源变化则新建场景，不改旧包绕过校验。真实新包生成与诊断路由待验。

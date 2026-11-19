@@ -1,0 +1,162 @@
+{
+  "cases": [
+    {
+      "name": "syntax_bundle_and_worker_boundary_preserved",
+      "status": "PASS"
+    },
+    {
+      "name": "exact_real_failure_and_25_real_verified_records_replayed",
+      "status": "PASS"
+    },
+    {
+      "name": "preflight_returns_exact_missing_key_location_without_writes",
+      "status": "FAIL",
+      "error": "模型结果须为4MiB内的JSON文本",
+      "traceback": "Traceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 61, in case\n    try:fn();results.append({'name':name,'status':'PASS'})\n        ~~^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 130, in no_writes\n    result=svc.preflight(request_id,body());require(result=={'ready':False,'missing_keys':['sys.shame'],'read_targets':[{'key':'sys.shame','reads':[{'path':shame['path'],'start_line':1,'end_line':44}]}]})\n  File \"<real story service>\", line 815, in preflight\nround_runtime.RoundError: 模型结果须为4MiB内的JSON文本\n"
+    },
+    {
+      "name": "metadata_and_truncated_reads_rejected_full_read_passes",
+      "status": "FAIL",
+      "error": "模型结果须为4MiB内的JSON文本",
+      "traceback": "Traceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 61, in case\n    try:fn();results.append({'name':name,'status':'PASS'})\n        ~~^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 137, in partial_and_full\n    require(svc.preflight(request_id,body(partial))['missing_keys']==['sys.shame'])\n            ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<real story service>\", line 815, in preflight\nround_runtime.RoundError: 模型结果须为4MiB内的JSON文本\n"
+    },
+    {
+      "name": "split_supplemental_ranges_combine_to_complete_read",
+      "status": "FAIL",
+      "error": "模型结果须为4MiB内的JSON文本",
+      "traceback": "Traceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 61, in case\n    try:fn();results.append({'name':name,'status':'PASS'})\n        ~~^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 150, in split\n    require(svc.preflight(request_id,body(value))['ready'])\n            ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<real story service>\", line 815, in preflight\nround_runtime.RoundError: 模型结果须为4MiB内的JSON文本\n"
+    },
+    {
+      "name": "repair_keys_cannot_be_removed_to_hide_missing_read",
+      "status": "FAIL",
+      "error": "模型结果须为4MiB内的JSON文本",
+      "traceback": "Traceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 61, in case\n    try:fn();results.append({'name':name,'status':'PASS'})\n        ~~^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 157, in no_hide\n    require('sys.shame' in svc.preflight(request_id,body(missing,sample))['missing_keys'])\n                           ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<real story service>\", line 815, in preflight\nround_runtime.RoundError: 模型结果须为4MiB内的JSON文本\n"
+    },
+    {
+      "name": "missing_relationship_uses_exact_header_and_direction_lines",
+      "status": "FAIL",
+      "error": "模型结果须为4MiB内的JSON文本",
+      "traceback": "Traceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 61, in case\n    try:fn();results.append({'name':name,'status':'PASS'})\n        ~~^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 165, in relations\n    report=svc.preflight(request_id,body(value));target=next(x for x in report['read_targets'] if x['key']=='lore.称谓.徐志北.沈知韫')\n  File \"<real story service>\", line 815, in preflight\nround_runtime.RoundError: 模型结果须为4MiB内的JSON文本\n"
+    },
+    {
+      "name": "unknown_key_and_malformed_required_keys_rejected",
+      "status": "FAIL",
+      "error": "模型结果须为4MiB内的JSON文本",
+      "traceback": "Traceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 55, in rejects\n    try:fn()\n        ~~^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 172, in <lambda>\n    rejects(lambda:svc.preflight(request_id,body(initial,sample)),'未找到必需key的读取位置')\n                   ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<real story service>\", line 815, in preflight\nround_runtime.RoundError: 模型结果须为4MiB内的JSON文本\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 61, in case\n    try:fn();results.append({'name':name,'status':'PASS'})\n        ~~^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 172, in unknown\n    rejects(lambda:svc.preflight(request_id,body(initial,sample)),'未找到必需key的读取位置')\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 57, in rejects\n    require(fragment in str(error),str(error));return str(error)\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 52, in require\n    if not test:raise AssertionError(message)\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 模型结果须为4MiB内的JSON文本\n"
+    },
+    {
+      "name": "invalid_cancelled_and_excess_read_pass_receipts_rejected",
+      "status": "FAIL",
+      "error": "模型结果须为4MiB内的JSON文本",
+      "traceback": "Traceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 55, in rejects\n    try:fn()\n        ~~^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 180, in <lambda>\n    rejects(lambda:svc.preflight(request_id,body(value)),'正式会话补读回执或工具范围不符')\n                   ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<real story service>\", line 815, in preflight\nround_runtime.RoundError: 模型结果须为4MiB内的JSON文本\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 61, in case\n    try:fn();results.append({'name':name,'status':'PASS'})\n        ~~^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 180, in bad_passes\n    rejects(lambda:svc.preflight(request_id,body(value)),'正式会话补读回执或工具范围不符')\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 57, in rejects\n    require(fragment in str(error),str(error));return str(error)\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 52, in require\n    if not test:raise AssertionError(message)\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 模型结果须为4MiB内的JSON文本\n"
+    },
+    {
+      "name": "write_tools_foreign_projection_and_wrong_first_read_order_rejected",
+      "status": "FAIL",
+      "error": "模型结果须为4MiB内的JSON文本",
+      "traceback": "Traceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 55, in rejects\n    try:fn()\n        ~~^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 190, in <lambda>\n    rejects(lambda:svc.preflight(request_id,body(value)),'会话调用了白名单之外的工具')\n                   ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<real story service>\", line 815, in preflight\nround_runtime.RoundError: 模型结果须为4MiB内的JSON文本\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 61, in case\n    try:fn();results.append({'name':name,'status':'PASS'})\n        ~~^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 190, in protected_audit\n    rejects(lambda:svc.preflight(request_id,body(value)),'会话调用了白名单之外的工具')\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 57, in rejects\n    require(fragment in str(error),str(error));return str(error)\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 52, in require\n    if not test:raise AssertionError(message)\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 模型结果须为4MiB内的JSON文本\n"
+    },
+    {
+      "name": "tampered_projection_and_changed_original_source_still_rejected",
+      "status": "FAIL",
+      "error": "模型结果须为4MiB内的JSON文本",
+      "traceback": "Traceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 55, in rejects\n    try:fn()\n        ~~^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 202, in <lambda>\n    rejects(lambda:svc.preflight(request_id,body()),'正文读取校验未通过')\n                   ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^\n  File \"<real story service>\", line 815, in preflight\nround_runtime.RoundError: 模型结果须为4MiB内的JSON文本\n\nDuring handling of the above exception, another exception occurred:\n\nTraceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 61, in case\n    try:fn();results.append({'name':name,'status':'PASS'})\n        ~~^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 202, in stale\n    rejects(lambda:svc.preflight(request_id,body()),'正文读取校验未通过')\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 57, in rejects\n    require(fragment in str(error),str(error));return str(error)\n    ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 52, in require\n    if not test:raise AssertionError(message)\n                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nAssertionError: 模型结果须为4MiB内的JSON文本\n"
+    },
+    {
+      "name": "preflight_lease_body_and_json_strictly_validated",
+      "status": "PASS"
+    },
+    {
+      "name": "direct_result_without_missing_read_still_rejected",
+      "status": "FAIL",
+      "error": "模型结果须为4MiB内的JSON文本",
+      "traceback": "Traceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 61, in case\n    try:fn();results.append({'name':name,'status':'PASS'})\n        ~~^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 221, in missing_final_rejected\n    result=s.result(request_id,body(proof));require(result['task']['status']=='failed' and 'sys.shame' in result['task']['error'])\n  File \"<real story service>\", line 885, in result\nround_runtime.RoundError: 模型结果须为4MiB内的JSON文本\n"
+    },
+    {
+      "name": "real_failed_result_complete_isolated_commit_and_idempotency",
+      "status": "FAIL",
+      "error": "模型结果须为4MiB内的JSON文本",
+      "traceback": "Traceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 61, in case\n    try:fn();results.append({'name':name,'status':'PASS'})\n        ~~^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 228, in submit_once\n    before=s.store._files();require(s.preflight(request_id,body(proof))['ready']);require(s.store._files()==before)\n                                    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"<real story service>\", line 815, in preflight\nround_runtime.RoundError: 模型结果须为4MiB内的JSON文本\n"
+    },
+    {
+      "name": "actual_route_registration_and_same_origin_worker_auth_adapters",
+      "status": "FAIL",
+      "error": "输入必须是有限、可序列化的JSON数据",
+      "traceback": "Traceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/round_runtime.py\", line 80, in _json\n    return (json.dumps(value, ensure_ascii=False, sort_keys=True,\n            ~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n                       allow_nan=False, indent=2) + '\\n').encode('utf-8')\n                       ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.14/json/__init__.py\", line 242, in dumps\n    **kw).encode(obj)\n          ~~~~~~^^^^^\n  File \"/usr/lib/python3.14/json/encoder.py\", line 202, in encode\n    chunks = self.iterencode(o, _one_shot=True)\n  File \"/usr/lib/python3.14/json/encoder.py\", line 263, in iterencode\n    return _iterencode(o, 0)\n  File \"/usr/lib/python3.14/json/encoder.py\", line 182, in default\n    raise TypeError(f'Object of type {o.__class__.__name__} '\n                    f'is not JSON serializable')\nTypeError: Object of type bytes is not JSON serializable\nwhen serializing dict item 'text'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 61, in case\n    try:fn();results.append({'name':name,'status':'PASS'})\n        ~~^^\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 258, in http_route\n    response=app.routes[('POST','/api/story/worker/<key>/preflight')](request_id)\n  File \"<real story service>\", line 1028, in preflight\n  File \"<real story service>\", line 981, in body\n  File \"/sdcard/互动对话项目/Gemini网页版/开发者功能/修订日志/2026.11/回合执行基础/src/缺读补查验收_24.py\", line 257, in <lambda>\n    proof=initial_proof(dest);ENV['request'].get_data=lambda **kwargs:rr._json(body(proof))\n                                                                      ~~~~~~~~^^^^^^^^^^^^^\n  File \"/sdcard/互动对话项目/Gemini网页版/round_runtime.py\", line 83, in _json\n    raise RoundError('输入必须是有限、可序列化的JSON数据') from exc\nround_runtime.RoundError: 输入必须是有限、可序列化的JSON数据\n"
+    },
+    {
+      "name": "status_and_claim_advertise_preflight_before_generation",
+      "status": "PASS"
+    },
+    {
+      "name": "single_pass_preflight_adds_no_model_call",
+      "status": "PASS"
+    },
+    {
+      "name": "missing_key_exactly_one_real_tool_repair_merges_both_receipts",
+      "status": "PASS"
+    },
+    {
+      "name": "still_missing_after_one_repair_stops_without_third_call",
+      "status": "PASS"
+    },
+    {
+      "name": "model_change_during_generation_blocks_repair_and_delivery",
+      "status": "PASS"
+    },
+    {
+      "name": "cancelled_missing_receipt_and_no_read_body_are_not_accepted",
+      "status": "PASS"
+    },
+    {
+      "name": "total_timeout_covers_first_and_repair_stage",
+      "status": "PASS"
+    },
+    {
+      "name": "source_conflict_and_malformed_preflight_do_not_trigger_extra_model",
+      "status": "PASS"
+    },
+    {
+      "name": "foreign_chat_and_write_tool_streams_rejected",
+      "status": "PASS"
+    },
+    {
+      "name": "tool_limit_is_total_across_both_real_completions",
+      "status": "PASS"
+    },
+    {
+      "name": "restart_during_repair_never_automatically_repeats_generation",
+      "status": "PASS"
+    },
+    {
+      "name": "old_task_capability_blocks_before_first_model",
+      "status": "PASS"
+    },
+    {
+      "name": "old_server_start_blocked_before_session_or_claim",
+      "status": "PASS"
+    },
+    {
+      "name": "real_plugin_session_and_repair_workflow_with_host_adapters",
+      "status": "PASS"
+    },
+    {
+      "name": "live_saves_jobs_and_protected_sources_unchanged",
+      "status": "PASS"
+    }
+  ],
+  "passed": 18,
+  "failed": 12,
+  "details": {
+    "real_failure": "必需key未完整读取: sys.shame",
+    "actual_tool_count": 25,
+    "missing_key": "sys.shame",
+    "original_result_sha256": "504c3c0a33b8d0c5c04188f4f55e471e8c1dc94cf31206e0336d34b282568f0d",
+    "proofs_note": "Stored verified audit is real; full tool receipts for new preflight tests are reconstructed and synthetic."
+  },
+  "real_service_class": true,
+  "flask_http_tested": false,
+  "route_request_adapters": true,
+  "real_model_called": false,
+  "live_submissions": false
+}

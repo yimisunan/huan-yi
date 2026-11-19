@@ -1,0 +1,942 @@
+{
+  "phase": 1,
+  "state": "completed",
+  "startedAt": 1794861475029,
+  "eventCount": 64,
+  "calls": [
+    {
+      "name": "list_files",
+      "attributes": {
+        "path": "."
+      }
+    },
+    {
+      "name": "read_file",
+      "attributes": {
+        "path": "data.json"
+      }
+    },
+    {
+      "name": "list_files",
+      "attributes": {
+        "path": "txt文件"
+      }
+    },
+    {
+      "name": "list_files",
+      "attributes": {
+        "path": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6"
+      }
+    },
+    {
+      "name": "list_files",
+      "attributes": {
+        "path": "txt文件/知识库"
+      }
+    },
+    {
+      "name": "list_files",
+      "attributes": {
+        "path": "存档"
+      }
+    },
+    {
+      "name": "read_file",
+      "attributes": {
+        "path": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6/tmp_读取入口.json"
+      }
+    },
+    {
+      "name": "grep_code",
+      "attributes": {
+        "case_insensitive": "false",
+        "context_lines": "8",
+        "file_pattern": "全局记忆库.txt",
+        "max_results": "3",
+        "path": "存档",
+        "pattern": "【当前最新数值】|【人物所在】"
+      }
+    },
+    {
+      "name": "grep_code",
+      "attributes": {
+        "case_insensitive": "false",
+        "context_lines": "2",
+        "file_pattern": "角色类.json",
+        "max_results": "40",
+        "path": "txt文件/知识库",
+        "pattern": "沈知韫|徐念薇|苏婉青|控股|驻地|唯一|事实源|年龄|职业|跨文件"
+      }
+    },
+    {
+      "name": "read_file",
+      "attributes": {
+        "path": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6/tmp_2ebcee45f2.json"
+      }
+    },
+    {
+      "name": "read_file_part",
+      "attributes": {
+        "end_line": "16",
+        "path": "存档/全局记忆库.txt",
+        "start_line": "1"
+      }
+    },
+    {
+      "name": "grep_code",
+      "attributes": {
+        "case_insensitive": "false",
+        "context_lines": "0",
+        "file_pattern": "世界观类.json",
+        "max_results": "1",
+        "path": "txt文件/知识库",
+        "pattern": "lore\\.驻地"
+      }
+    },
+    {
+      "name": "read_file_part",
+      "attributes": {
+        "end_line": "67",
+        "path": "txt文件/知识库/世界观类.json",
+        "start_line": "61"
+      }
+    },
+    {
+      "name": "read_file_part",
+      "attributes": {
+        "end_line": "16",
+        "path": "txt文件/知识库/角色类.json",
+        "start_line": "16"
+      }
+    },
+    {
+      "name": "read_file_part",
+      "attributes": {
+        "end_line": "64",
+        "path": "txt文件/知识库/角色类.json",
+        "start_line": "64"
+      }
+    }
+  ],
+  "resultCount": 15,
+  "savedResults": 15,
+  "evidencePath": "/virtual/android/documents/230ffdc0fe524442bfde22083d61c969/开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6_phase1.json",
+  "request": {
+    "kind": "submit",
+    "chatId": "ccf99a98-3d56-4c1a-93aa-713fc4febc01",
+    "runtime": "main",
+    "input": {
+      "text": "这是用户授权的只读技术验收，不是故事续写，不要执行注入或修改文件。你在一个空历史会话内，绑定Gemini网页版项目。请用真实文件工具完成下列查证；此消息没有给出文件正文或测试答案。不得靠猜测或只复述AGENTS。\n1. 从当前运行数据查出当前回合号和场景标题。\n2. 从全局记忆库的【当前最新数值】与首个【人物所在】查出沈知韫当前好感、苏婉青当前所在地，避免误取【上回合历史快照】。\n3. 自行定位人物设定资料，回答沈知韫的年龄与集团控股比例、徐念薇的职业身份。再依据人物资料中的跨文件指针，找到驻地唯一事实源，回答苏婉青是否常住主宅。只查这些非情色事实，不续写、不引用其它无关段落。\n4. 列出 开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6 目录，打开其读取入口文件，再沿其中的relative_source找到未写入桥接固定清单的新增文件。此目录仅本次验收可读，不是剧情设定。返回该文件的case_id/revision/token/location/obsolete_field原值。\n5. 必须实际进行至少一次文件搜索或目录浏览，以及对相关资料的读取。不要读取本任务其它tmp文件、源码、plan/logs或对话历史，不调用外部服务。可用工具若缺失或读取失败，返回blocked并说明，禁止伪造已读。\n最终回复严格为单个裸JSON对象，不带围栏或前后说明，结构为：{\"status\":\"ok或blocked\",\"real_state\":{\"round\":数字,\"sceneTitle\":\"字符串\",\"shen_affection\":数字,\"su_presence\":\"字符串\"},\"characters\":{\"shen_age\":数字,\"shen_shareholding_percent\":数字,\"xu_profession\":\"字符串\",\"su_lives_at_main_house\":布尔值,\"su_residence\":\"字符串\"},\"discovered\":{\"path\":\"相对路径\",\"case_id\":\"字符串\",\"revision\":数字,\"token\":\"字符串\",\"location\":\"字符串\",\"obsolete_field\":\"字符串\"},\"sources\":[{\"path\":\"相对路径\",\"quote\":\"仅与答案相关的短原文\"}],\"limitations\":[]}。只提供事实，不包含story_nodes、事件或写入请求。",
+      "attachments": [],
+      "replyToMessageTimestamp": null
+    },
+    "turn": {
+      "kind": "execute",
+      "participantId": "8be58b47-c23d-4b41-9679-f587001047a8"
+    },
+    "notifyReply": false
+  },
+  "receipt": {
+    "aiResponse": "我会只读浏览当前绑定项目，核对运行数据、记忆库、人物资料和指定验收目录，并按要求返回 JSON。\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n{\n  \"status\": \"ok\",\n  \"real_state\": {\n    \"round\": 4,\n    \"sceneTitle\": \"徐家主宅·一楼起居厅 · 19:48\",\n    \"shen_affection\": 91,\n    \"su_presence\": \"市中心顶层公寓\"\n  },\n  \"characters\": {\n    \"shen_age\": 38,\n    \"shen_shareholding_percent\": 85,\n    \"xu_profession\": \"独立艺术家、个人绘画工作室创办人\",\n    \"su_lives_at_main_house\": false,\n    \"su_residence\": \"市中心顶层公寓\"\n  },\n  \"discovered\": {\n    \"path\": \"开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6/tmp_2ebcee45f2.json\",\n    \"case_id\": \"READCHECK-6675d00f76\",\n    \"revision\": 1,\n    \"token\": \"b5ccae2e86c67cb638a7a895\",\n    \"location\": \"北侧资料室\",\n    \"obsolete_field\": \"旧预约已取消\"\n  },\n  \"sources\": [\n    {\n      \"path\": \"data.json\",\n      \"quote\": \"\\\"round\\\": 4,\\n  \\\"sceneTitle\\\": \\\"徐家主宅·一楼起居厅 · 19:48\\\"\"\n    },\n    {\n      \"path\": \"存档/全局记忆库.txt\",\n      \"quote\": \"▶ 当前最新数值\\n[沈知韫] 好感 91\"\n    },\n    {\n      \"path\": \"存档/全局记忆库.txt\",\n      \"quote\": \"苏婉青：市中心顶层公寓 | 事由：常住\"\n    },\n    {\n      \"path\": \"txt文件/知识库/角色类.json\",\n      \"quote\": \"【定位】38岁(看着28) | 千亿集团董事长，85%控股权\"\n    },\n    {\n      \"path\": \"txt文件/知识库/角色类.json\",\n      \"quote\": \"以惊人的绘画天赋创立个人工作室，追求纯粹艺术表达，不迎合市场，不向资本低头。\"\n    },\n    {\n      \"path\": \"txt文件/知识库/角色类.json\",\n      \"quote\": \"默认地点/看望窗时间表/刚需事由唯一事实源：见lore.驻地。\"\n    },\n    {\n      \"path\": \"txt文件/知识库/世界观类.json\",\n      \"quote\": \"苏婉青：常住市中心顶层公寓。不住主宅。\"\n    },\n    {\n      \"path\": \"开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6/tmp_读取入口.json\",\n      \"quote\": \"\\\"relative_source\\\": \\\"tmp_2ebcee45f2.json\\\"\"\n    },\n    {\n      \"path\": \"开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6/tmp_2ebcee45f2.json\",\n      \"quote\": \"\\\"case_id\\\": \\\"READCHECK-6675d00f76\\\",\\n  \\\"revision\\\": 1,\\n  \\\"token\\\": \\\"b5ccae2e86c67cb638a7a895\\\",\\n  \\\"location\\\": \\\"北侧资料室\\\",\\n  \\\"obsolete_field\\\": \\\"旧预约已取消\\\"\"\n    }\n  ],\n  \"limitations\": []\n}",
+    "chatId": "ccf99a98-3d56-4c1a-93aa-713fc4febc01",
+    "message": "这是用户授权的只读技术验收，不是故事续写，不要执行注入或修改文件。你在一个空历史会话内，绑定Gemini网页版项目。请用真实文件工具完成下列查证；此消息没有给出文件正文或测试答案。不得靠猜测或只复述AGENTS。\n1. 从当前运行数据查出当前回合号和场景标题。\n2. 从全局记忆库的【当前最新数值】与首个【人物所在】查出沈知韫当前好感、苏婉青当前所在地，避免误取【上回合历史快照】。\n3. 自行定位人物设定资料，回答沈知韫的年龄与集团控股比例、徐念薇的职业身份。再依据人物资料中的跨文件指针，找到驻地唯一事实源，回答苏婉青是否常住主宅。只查这些非情色事实，不续写、不引用其它无关段落。\n4. 列出 开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6 目录，打开其读取入口文件，再沿其中的relative_source找到未写入桥接固定清单的新增文件。此目录仅本次验收可读，不是剧情设定。返回该文件的case_id/revision/token/location/obsolete_field原值。\n5. 必须实际进行至少一次文件搜索或目录浏览，以及对相关资料的读取。不要读取本任务其它tmp文件、源码、plan/logs或对话历史，不调用外部服务。可用工具若缺失或读取失败，返回blocked并说明，禁止伪造已读。\n最终回复严格为单个裸JSON对象，不带围栏或前后说明，结构为：{\"status\":\"ok或blocked\",\"real_state\":{\"round\":数字,\"sceneTitle\":\"字符串\",\"shen_affection\":数字,\"su_presence\":\"字符串\"},\"characters\":{\"shen_age\":数字,\"shen_shareholding_percent\":数字,\"xu_profession\":\"字符串\",\"su_lives_at_main_house\":布尔值,\"su_residence\":\"字符串\"},\"discovered\":{\"path\":\"相对路径\",\"case_id\":\"字符串\",\"revision\":数字,\"token\":\"字符串\",\"location\":\"字符串\",\"obsolete_field\":\"字符串\"},\"sources\":[{\"path\":\"相对路径\",\"quote\":\"仅与答案相关的短原文\"}],\"limitations\":[]}。只提供事实，不包含story_nodes、事件或写入请求。",
+    "outcome": {
+      "assistant": {
+        "messageTimestamp": 1794861475183,
+        "variantIndex": 0
+      },
+      "status": "completed",
+      "type": "committed",
+      "userMessageTimestamp": 1794861475176
+    },
+    "receivedAt": 1794861612032,
+    "sentAt": 1794861475125
+  },
+  "finishedAt": 1794861612038,
+  "snapshots": [
+    {
+      "messageTimestamp": 1794861475183,
+      "revision": 1298,
+      "parts": [
+        {
+          "attributes": {},
+          "content": "我会只读浏览当前绑定项目，核对运行数据、记忆库、人物资料和指定验收目录，并按要求返回 JSON。\n\n",
+          "kind": "markdown",
+          "partId": "part-0",
+          "sequence": 0,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "path": "."
+          },
+          "content": "",
+          "kind": "tool_call",
+          "partId": "part-1",
+          "sequence": 1,
+          "toolCallId": "part-1",
+          "toolName": "list_files"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-2",
+          "sequence": 2,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "display": "{\"label\":{\"en\":\"List\",\"zh\":\"列出\"},\"icon\":\"folder\",\"targetParameter\":\"path\",\"resultRenderer\":\"directory\"}",
+            "result_data": "{\"__type\":\"DirectoryListingData\",\"path\":\"/virtual/android/documents/230ffdc0fe524442bfde22083d61c969\",\"entries\":[{\"name\":\".backup\",\"isDirectory\":true,\"size\":3452,\"permissions\":\"rw\",\"lastModified\":\"1794392230872\"},{\"name\":\".operit\",\"isDirectory\":true,\"size\":3452,\"permissions\":\"rw\",\"lastModified\":\"1794846175908\"},{\"name\":\".round-runtime\",\"isDirectory\":true,\"size\":3452,\"permissions\":\"rw\",\"lastModified\":\"1794859676844\"},{\"name\":\"AGENTS.md\",\"isDirectory\":false,\"size\":10757,\"permissions\":\"rw\",\"lastModified\":\"1794310247394\"},{\"name\":\"Operit世界书导出\",\"isDirectory\":true,\"size\":3452,\"permissions\":\"rw\",\"lastModified\":\"1794310854761\"},{\"name\":\"__pycache__\",\"isDirectory\":true,\"size\":3452,\"permissions\":\"rw\",\"lastModified\":\"1794858625780\"},{\"name\":\"data.json\",\"isDirectory\":false,\"size\":2537,\"permissions\":\"rw\",\"lastModified\":\"1794859504240\"},{\"name\":\"injection_core.py\",\"isDirectory\":false,\"size\":111118,\"permissions\":\"rw\",\"lastModified\":\"1794311346881\"},{\"name\":\"injection_core.py.into-backup-20261116_163312\",\"isDirectory\":false,\"size\":111221,\"permissions\":\"rw\",\"lastModified\":\"1794846792388\"},{\"name\":\"main_template.html\",\"isDirectory\":false,\"size\":274542,\"permissions\":\"rw\",\"lastModified\":\"1794853515940\"},{\"name\":\"main_template.html.into-backup-20261116_172101\",\"isDirectory\":false,\"size\":272725,\"permissions\":\"rw\",\"lastModified\":\"1794849661248\"},{\"name\":\"main_template.html.into-backup-20261116_181313\",\"isDirectory\":false,\"size\":273971,\"permissions\":\"rw\",\"lastModified\":\"1794853515860\"},{\"name\":\"main_template.html.into-backup-20261116_185621\",\"isDirectory\":false,\"size\":274476,\"permissions\":\"rw\",\"lastModified\":\"1794853515940\"},{\"name\":\"round_runtime.py\",\"isDirectory\":false,\"size\":31591,\"permissions\":\"rw\",\"lastModified\":\"1794846792400\"},{\"name\":\"story_client.css\",\"isDirectory\":false,\"size\":9109,\"permissions\":\"rw\",\"lastModified\":\"1794853767752\"},{\"name\":\"story_client.css.into-backup-20261116_181313\",\"isDirectory\":false,\"size\":2575,\"permissions\":\"rw\",\"lastModified\":\"1794853515856\"},{\"name\":\"story_client.css.into-backup-20261116_185621\",\"isDirectory\":false,\"size\":6273,\"permissions\":\"rw\",\"lastModified\":\"1794853767752\"},{\"name\":\"story_client.js\",\"isDirectory\":false,\"size\":24189,\"permissions\":\"rw\",\"lastModified\":\"1794853515908\"},{\"name\":\"story_client.js.into-backup-20261116_181313\",\"isDirectory\":false,\"size\":11566,\"permissions\":\"rw\",\"lastModified\":\"1794853515848\"},{\"name\":\"story_client.js.into-backup-20261116_185621\",\"isDirectory\":false,\"size\":19042,\"permissions\":\"rw\",\"lastModified\":\"1794853515908\"},{\"name\":\"story_service.py\",\"isDirectory\":false,\"size\":24028,\"permissions\":\"rw\",\"lastModified\":\"1794853515956\"},{\"name\":\"story_service.py.into-backup-20261116_181313\",\"isDirectory\":false,\"size\":17907,\"permissions\":\"rw\",\"lastModified\":\"1794853515868\"},{\"name\":\"story_service.py.into-backup-20261116_185621\",\"isDirectory\":false,\"size\":21220,\"permissions\":\"rw\",\"lastModified\":\"1794853515956\"},{\"name\":\"txt文件\",\"isDirectory\":true,\"size\":3452,\"permissions\":\"rw\",\"lastModified\":\"1794856360648\"},{\"name\":\"voice_client.js\",\"isDirectory\":false,\"size\":5698,\"permissions\":\"rw\",\"lastModified\":\"1794394473464\"},{\"name\":\"voice_config.json\",\"isDirectory\":false,\"size\":2618,\"permissions\":\"rw\",\"lastModified\":\"1794292912340\"},{\"name\":\"voice_manager.html\",\"isDirectory\":false,\"size\":69381,\"permissions\":\"rw\",\"lastModified\":\"1794394473476\"},{\"name\":\"vosi\",\"isDirectory\":true,\"size\":3452,\"permissions\":\"rw\",\"lastModified\":\"1794369304473\"},{\"name\":\"存档\",\"isDirectory\":true,\"size\":3452,\"permissions\":\"rw\",\"lastModified\":\"1794859676824\"},{\"name\":\"存档开局随机盲盒.py\",\"isDirectory\":false,\"size\":11058,\"permissions\":\"rw\",\"lastModified\":\"1787715052000\"},{\"name\":\"存档清理器.py\",\"isDirectory\":false,\"size\":10539,\"permissions\":\"rw\",\"lastModified\":\"1794311359343\"},{\"name\":\"开发者功能\",\"isDirectory\":true,\"size\":3452,\"permissions\":\"rw\",\"lastModified\":\"1794849661328\"},{\"name\":\"日志\",\"isDirectory\":true,\"size\":3452,\"permissions\":\"rw\",\"lastModified\":\"1794859676828\"},{\"name\":\"语音仓库\",\"isDirectory\":true,\"size\":3452,\"permissions\":\"rw\",\"lastModified\":\"1786013380000\"},{\"name\":\"语音运行.py\",\"isDirectory\":false,\"size\":39890,\"permissions\":\"rw\",\"lastModified\":\"1794311352508\"},{\"name\":\"语音运行.py.into-backup-20261116_172101\",\"isDirectory\":false,\"size\":39756,\"permissions\":\"rw\",\"lastModified\":\"1794849661240\"}]}",
+            "status": "success"
+          },
+          "content": "Directory listing for /virtual/android/documents/230ffdc0fe524442bfde22083d61c969:\ndrw     3452 1794392230872 name=\".backup\"\ndrw     3452 1794846175908 name=\".operit\"\ndrw     3452 1794859676844 name=\".round-runtime\"\n-rw    10757 1794310247394 name=\"AGENTS.md\"\ndrw     3452 1794310854761 name=\"Operit世界书导出\"\ndrw     3452 1794858625780 name=\"__pycache__\"\n-rw     2537 1794859504240 name=\"data.json\"\n-rw   111118 1794311346881 name=\"injection_core.py\"\n-rw   111221 1794846792388 name=\"injection_core.py.into-backup-20261116_163312\"\n-rw   274542 1794853515940 name=\"main_template.html\"\n-rw   272725 1794849661248 name=\"main_template.html.into-backup-20261116_172101\"\n-rw   273971 1794853515860 name=\"main_template.html.into-backup-20261116_181313\"\n-rw   274476 1794853515940 name=\"main_template.html.into-backup-20261116_185621\"\n-rw    31591 1794846792400 name=\"round_runtime.py\"\n-rw     9109 1794853767752 name=\"story_client.css\"\n-rw     2575 1794853515856 name=\"story_client.css.into-backup-20261116_181313\"\n-rw     6273 1794853767752 name=\"story_client.css.into-backup-20261116_185621\"\n-rw    24189 1794853515908 name=\"story_client.js\"\n-rw    11566 1794853515848 name=\"story_client.js.into-backup-20261116_181313\"\n-rw    19042 1794853515908 name=\"story_client.js.into-backup-20261116_185621\"\n-rw    24028 1794853515956 name=\"story_service.py\"\n-rw    17907 1794853515868 name=\"story_service.py.into-backup-20261116_181313\"\n-rw    21220 1794853515956 name=\"story_service.py.into-backup-20261116_185621\"\ndrw     3452 1794856360648 name=\"txt文件\"\n-rw     5698 1794394473464 name=\"voice_client.js\"\n-rw     2618 1794292912340 name=\"voice_config.json\"\n-rw    69381 1794394473476 name=\"voice_manager.html\"\ndrw     3452 1794369304473 name=\"vosi\"\ndrw     3452 1794859676824 name=\"存档\"\n-rw    11058 1787715052000 name=\"存档开局随机盲盒.py\"\n-rw    10539 1794311359343 name=\"存档清理器.py\"\ndrw     3452 1794849661328 name=\"开发者功能\"\ndrw     3452 1794859676828 name=\"日志\"\ndrw     3452 1786013380000 name=\"语音仓库\"\n-rw    39890 1794311352508 name=\"语音运行.py\"\n-rw    39756 1794849661240 name=\"语音运行.py.into-backup-20261116_172101\"\n",
+          "kind": "tool_result",
+          "partId": "part-3",
+          "sequence": 3,
+          "toolCallId": null,
+          "toolName": "list_files"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-4",
+          "sequence": 4,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {},
+          "content": "**Checking runtime files**\n\n",
+          "kind": "thinking",
+          "partId": "part-5",
+          "sequence": 5,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-6",
+          "sequence": 6,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "path": "data.json"
+          },
+          "content": "",
+          "kind": "tool_call",
+          "partId": "part-7",
+          "sequence": 7,
+          "toolCallId": "part-7",
+          "toolName": "read_file"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-8",
+          "sequence": 8,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "path": "txt文件"
+          },
+          "content": "",
+          "kind": "tool_call",
+          "partId": "part-9",
+          "sequence": 9,
+          "toolCallId": "part-9",
+          "toolName": "list_files"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-10",
+          "sequence": 10,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "path": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6"
+          },
+          "content": "",
+          "kind": "tool_call",
+          "partId": "part-11",
+          "sequence": 11,
+          "toolCallId": "part-11",
+          "toolName": "list_files"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-12",
+          "sequence": 12,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "display": "{\"label\":{\"en\":\"Read\",\"zh\":\"读取\"},\"icon\":\"file\",\"targetParameter\":\"path\",\"resultRenderer\":\"text\"}",
+            "status": "success"
+          },
+          "content": "Content of /virtual/android/documents/230ffdc0fe524442bfde22083d61c969/data.json:\n 1| {\n 2|   \"presence\": {\n 3|     \"徐志北\": {\n 4|       \"location\": \"徐家主宅\",\n 5|       \"reason\": \"常住\"\n 6|     },\n 7|     \"徐念薇\": {\n 8|       \"location\": \"工作室\",\n 9|       \"reason\": \"工作日在工作室\"\n10|     },\n11|     \"沈知韫\": {\n12|       \"location\": \"徐家主宅\",\n13|       \"reason\": \"常住\"\n14|     },\n15|     \"苏婉青\": {\n16|       \"location\": \"市中心顶层公寓\",\n17|       \"reason\": \"常住\"\n18|     }\n19|   },\n20|   \"request_id\": \"page-9d746c00-d402-4837-ab8b-b7f55d01c691\",\n21|   \"round\": 4,\n22|   \"sceneTitle\": \"徐家主宅·一楼起居厅 · 19:48\",\n23|   \"state_version\": 8,\n24|   \"storyNodes\": [\n25|     {\n26|       \"text\": \"[居家] 7月21日, 周二, 徐家主宅·一楼起居厅, 19:48\",\n27|       \"type\": \"header\"\n28|     },\n29|     {\n30|       \"text\": \"你没有坐回去。手从桌沿收开，指尖探到腰侧，扣子一颗颗解开，皮带的金属头垂下来，磕在椅背上响了一下。裤子顺着膝盖滑到脚踝，堆在地上。\",\n31|       \"type\": \"narration\"\n32|     },\n33|     {\n34|       \"text\": \"她手里还捏着筷子，抬眼时正撞见那片裸露，整个人像被人当面抽了一记，猛地往后缩，椅腿在地板上刮出刺耳的声响。\",\n35|       \"type\": \"narration\"\n36|     },\n37|     {\n38|       \"text\": \"你看见她的耳根到脖子一路涨红，嘴唇动了动才凑出声音，视线钉在地面砖缝里，怎么都不肯抬起来半分。\",\n39|       \"type\": \"narration\"\n40|     },\n41|     {\n42|       \"speaker\": \"沈知韫\",\n43|       \"text\": \"志北！你、你这是干什么，把裤子提起来，妈妈还在这儿呢。\",\n44|       \"type\": \"dialogue\"\n45|     },\n46|     {\n47|       \"text\": \"她的声音压得很低，像是怕被院墙外面听见，说到一半自己先噎住，手指把筷子攥得发白，肩膀一点点往后靠，靠在椅背上再没有退路。\",\n48|       \"type\": \"narration\"\n49|     },\n50|     {\n51|       \"speaker\": \"沈知韫\",\n52|       \"text\": \"饭还没吃完呢……你先坐下，有话好好说，别站在这儿。\",\n53|       \"type\": \"dialogue\"\n54|     },\n55|     {\n56|       \"text\": \"她没有起身走开，也没有伸手来挡，只是偏着头，围裙的系带随着她起伏的呼吸轻轻晃。厨房那边水汽还没散，汤碗里的油花慢慢凝住。\",\n57|       \"type\": \"narration\"\n58|     },\n59|     {\n60|       \"text\": \"【系统推演：当前可选行动】\\n[A. 日常互动]：把裤子提回去，坐下说一句自己一时犯浑，看看她的脸色。\\n[B. 社交接触]：不提裤子，往她那边走一步，伸手去按她的肩，问她是不是不敢看。\\n[C. 主动行为]：站着不动，出声问她看见了吗，看她怎么答。\",\n61|       \"type\": \"narration\"\n62|     }\n63|   ]\n64| }",
+          "kind": "tool_result",
+          "partId": "part-13",
+          "sequence": 13,
+          "toolCallId": null,
+          "toolName": "read_file"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-14",
+          "sequence": 14,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "display": "{\"label\":{\"en\":\"List\",\"zh\":\"列出\"},\"icon\":\"folder\",\"targetParameter\":\"path\",\"resultRenderer\":\"directory\"}",
+            "result_data": "{\"__type\":\"DirectoryListingData\",\"path\":\"/virtual/android/documents/230ffdc0fe524442bfde22083d61c969/txt文件\",\"entries\":[{\"name\":\"image\",\"isDirectory\":true,\"size\":3452,\"permissions\":\"rw\",\"lastModified\":\"1794297900582\"},{\"name\":\"一键注入指南.txt\",\"isDirectory\":false,\"size\":50929,\"permissions\":\"rw\",\"lastModified\":\"1794846792420\"},{\"name\":\"一键注入指南.txt.into-backup-20261116_163312\",\"isDirectory\":false,\"size\":39566,\"permissions\":\"rw\",\"lastModified\":\"1794846792392\"},{\"name\":\"一键注入指南.txt.into-backup-20261116_185621\",\"isDirectory\":false,\"size\":45590,\"permissions\":\"rw\",\"lastModified\":\"1794846792420\"},{\"name\":\"全局执行法典.md\",\"isDirectory\":false,\"size\":13130,\"permissions\":\"rw\",\"lastModified\":\"1785954530000\"},{\"name\":\"全局执行法典.md.into-backup-20261116_185621\",\"isDirectory\":false,\"size\":13107,\"permissions\":\"rw\",\"lastModified\":\"1785954530000\"},{\"name\":\"提示词.md\",\"isDirectory\":false,\"size\":11168,\"permissions\":\"rw\",\"lastModified\":\"1786001188000\"},{\"name\":\"提示词.md.into-backup-20261116_185621\",\"isDirectory\":false,\"size\":8882,\"permissions\":\"rw\",\"lastModified\":\"1786001188000\"},{\"name\":\"故事检索索引.md\",\"isDirectory\":false,\"size\":3724,\"permissions\":\"rw\",\"lastModified\":\"1786001188000\"},{\"name\":\"故事检索索引.md.into-backup-20261116_185621\",\"isDirectory\":false,\"size\":3356,\"permissions\":\"rw\",\"lastModified\":\"1786001188000\"},{\"name\":\"知识库\",\"isDirectory\":true,\"size\":3452,\"permissions\":\"rw\",\"lastModified\":\"1794297900563\"}]}",
+            "status": "success"
+          },
+          "content": "Directory listing for /virtual/android/documents/230ffdc0fe524442bfde22083d61c969/txt文件:\ndrw     3452 1794297900582 name=\"image\"\n-rw    50929 1794846792420 name=\"一键注入指南.txt\"\n-rw    39566 1794846792392 name=\"一键注入指南.txt.into-backup-20261116_163312\"\n-rw    45590 1794846792420 name=\"一键注入指南.txt.into-backup-20261116_185621\"\n-rw    13130 1785954530000 name=\"全局执行法典.md\"\n-rw    13107 1785954530000 name=\"全局执行法典.md.into-backup-20261116_185621\"\n-rw    11168 1786001188000 name=\"提示词.md\"\n-rw     8882 1786001188000 name=\"提示词.md.into-backup-20261116_185621\"\n-rw     3724 1786001188000 name=\"故事检索索引.md\"\n-rw     3356 1786001188000 name=\"故事检索索引.md.into-backup-20261116_185621\"\ndrw     3452 1794297900563 name=\"知识库\"\n",
+          "kind": "tool_result",
+          "partId": "part-15",
+          "sequence": 15,
+          "toolCallId": null,
+          "toolName": "list_files"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-16",
+          "sequence": 16,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "display": "{\"label\":{\"en\":\"List\",\"zh\":\"列出\"},\"icon\":\"folder\",\"targetParameter\":\"path\",\"resultRenderer\":\"directory\"}",
+            "result_data": "{\"__type\":\"DirectoryListingData\",\"path\":\"/virtual/android/documents/230ffdc0fe524442bfde22083d61c969/开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6\",\"entries\":[{\"name\":\"tmp_2ebcee45f2.json\",\"isDirectory\":false,\"size\":293,\"permissions\":\"rw\",\"lastModified\":\"1794861318376\"},{\"name\":\"tmp_读取入口.json\",\"isDirectory\":false,\"size\":274,\"permissions\":\"rw\",\"lastModified\":\"1794861318384\"}]}",
+            "status": "success"
+          },
+          "content": "Directory listing for /virtual/android/documents/230ffdc0fe524442bfde22083d61c969/开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6:\n-rw      293 1794861318376 name=\"tmp_2ebcee45f2.json\"\n-rw      274 1794861318384 name=\"tmp_读取入口.json\"\n",
+          "kind": "tool_result",
+          "partId": "part-17",
+          "sequence": 17,
+          "toolCallId": null,
+          "toolName": "list_files"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-18",
+          "sequence": 18,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {},
+          "content": "**Finding index and directories.**\n\n",
+          "kind": "thinking",
+          "partId": "part-19",
+          "sequence": 19,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-20",
+          "sequence": 20,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "path": "txt文件/知识库"
+          },
+          "content": "",
+          "kind": "tool_call",
+          "partId": "part-21",
+          "sequence": 21,
+          "toolCallId": "part-21",
+          "toolName": "list_files"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-22",
+          "sequence": 22,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "path": "存档"
+          },
+          "content": "",
+          "kind": "tool_call",
+          "partId": "part-23",
+          "sequence": 23,
+          "toolCallId": "part-23",
+          "toolName": "list_files"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-24",
+          "sequence": 24,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "path": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6/tmp_读取入口.json"
+          },
+          "content": "",
+          "kind": "tool_call",
+          "partId": "part-25",
+          "sequence": 25,
+          "toolCallId": "part-25",
+          "toolName": "read_file"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-26",
+          "sequence": 26,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "display": "{\"label\":{\"en\":\"List\",\"zh\":\"列出\"},\"icon\":\"folder\",\"targetParameter\":\"path\",\"resultRenderer\":\"directory\"}",
+            "result_data": "{\"__type\":\"DirectoryListingData\",\"path\":\"/virtual/android/documents/230ffdc0fe524442bfde22083d61c969/txt文件/知识库\",\"entries\":[{\"name\":\"世界观类.json\",\"isDirectory\":false,\"size\":7587,\"permissions\":\"rw\",\"lastModified\":\"1794310247407\"},{\"name\":\"叙事判断.json\",\"isDirectory\":false,\"size\":16739,\"permissions\":\"rw\",\"lastModified\":\"1786036360000\"},{\"name\":\"系统标签类.json\",\"isDirectory\":false,\"size\":28161,\"permissions\":\"rw\",\"lastModified\":\"1786036360000\"},{\"name\":\"角色类.json\",\"isDirectory\":false,\"size\":22702,\"permissions\":\"rw\",\"lastModified\":\"1789229650000\"}]}",
+            "status": "success"
+          },
+          "content": "Directory listing for /virtual/android/documents/230ffdc0fe524442bfde22083d61c969/txt文件/知识库:\n-rw     7587 1794310247407 name=\"世界观类.json\"\n-rw    16739 1786036360000 name=\"叙事判断.json\"\n-rw    28161 1786036360000 name=\"系统标签类.json\"\n-rw    22702 1789229650000 name=\"角色类.json\"\n",
+          "kind": "tool_result",
+          "partId": "part-27",
+          "sequence": 27,
+          "toolCallId": null,
+          "toolName": "list_files"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-28",
+          "sequence": 28,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "display": "{\"label\":{\"en\":\"List\",\"zh\":\"列出\"},\"icon\":\"folder\",\"targetParameter\":\"path\",\"resultRenderer\":\"directory\"}",
+            "result_data": "{\"__type\":\"DirectoryListingData\",\"path\":\"/virtual/android/documents/230ffdc0fe524442bfde22083d61c969/存档\",\"entries\":[{\"name\":\"全局记忆库.txt\",\"isDirectory\":false,\"size\":5046,\"permissions\":\"rw\",\"lastModified\":\"1794859504232\"},{\"name\":\"徐志北道具图鉴.txt\",\"isDirectory\":false,\"size\":2437,\"permissions\":\"rw\",\"lastModified\":\"1794859504232\"},{\"name\":\"次要NPC名册.txt\",\"isDirectory\":false,\"size\":1124,\"permissions\":\"rw\",\"lastModified\":\"1794859504236\"}]}",
+            "status": "success"
+          },
+          "content": "Directory listing for /virtual/android/documents/230ffdc0fe524442bfde22083d61c969/存档:\n-rw     5046 1794859504232 name=\"全局记忆库.txt\"\n-rw     2437 1794859504232 name=\"徐志北道具图鉴.txt\"\n-rw     1124 1794859504236 name=\"次要NPC名册.txt\"\n",
+          "kind": "tool_result",
+          "partId": "part-29",
+          "sequence": 29,
+          "toolCallId": null,
+          "toolName": "list_files"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-30",
+          "sequence": 30,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "display": "{\"label\":{\"en\":\"Read\",\"zh\":\"读取\"},\"icon\":\"file\",\"targetParameter\":\"path\",\"resultRenderer\":\"text\"}",
+            "status": "success"
+          },
+          "content": "Content of /virtual/android/documents/230ffdc0fe524442bfde22083d61c969/开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6/tmp_读取入口.json:\n1| {\n2|   \"test_only\": true,\n3|   \"not_story_canon\": true,\n4|   \"followup_question\": \"请沿relative_source读取独立新增资料，核对case_id/revision/token/location/obsolete_field是否存在。\",\n5|   \"relative_source\": \"tmp_2ebcee45f2.json\",\n6|   \"case_id\": \"READCHECK-6675d00f76\"\n7| }",
+          "kind": "tool_result",
+          "partId": "part-31",
+          "sequence": 31,
+          "toolCallId": null,
+          "toolName": "read_file"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-32",
+          "sequence": 32,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {},
+          "content": "**Checking character roles**\n\n**Checking latest numeric anchors**\n\n",
+          "kind": "thinking",
+          "partId": "part-33",
+          "sequence": 33,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-34",
+          "sequence": 34,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "case_insensitive": "false",
+            "context_lines": "8",
+            "file_pattern": "全局记忆库.txt",
+            "max_results": "3",
+            "path": "存档",
+            "pattern": "【当前最新数值】|【人物所在】"
+          },
+          "content": "",
+          "kind": "tool_call",
+          "partId": "part-35",
+          "sequence": 35,
+          "toolCallId": "part-35",
+          "toolName": "grep_code"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-36",
+          "sequence": 36,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "case_insensitive": "false",
+            "context_lines": "2",
+            "file_pattern": "角色类.json",
+            "max_results": "40",
+            "path": "txt文件/知识库",
+            "pattern": "沈知韫|徐念薇|苏婉青|控股|驻地|唯一|事实源|年龄|职业|跨文件"
+          },
+          "content": "",
+          "kind": "tool_call",
+          "partId": "part-37",
+          "sequence": 37,
+          "toolCallId": "part-37",
+          "toolName": "grep_code"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-38",
+          "sequence": 38,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "path": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6/tmp_2ebcee45f2.json"
+          },
+          "content": "",
+          "kind": "tool_call",
+          "partId": "part-39",
+          "sequence": 39,
+          "toolCallId": "part-39",
+          "toolName": "read_file"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-40",
+          "sequence": 40,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "display": "{\"label\":{\"en\":\"Search\",\"zh\":\"搜索\"},\"icon\":\"search\",\"targetParameter\":\"pattern\",\"resultRenderer\":\"text\"}",
+            "status": "success"
+          },
+          "content": "Grep Search Result:\nSearch Path: /virtual/android/documents/230ffdc0fe524442bfde22083d61c969/存档\nPattern: 【当前最新数值】|【人物所在】\nTotal Matches: 2 (in 1 files)\nFiles Searched: 1\n\nFile: /virtual/android/documents/230ffdc0fe524442bfde22083d61c969/存档/全局记忆库.txt\n     4| 【实时面板快照】\n     5| ▶ 当前最新数值\n     6| [系统宿主] 积分 0 | 经验值 0 | 体力 100 | 魅力 70 | 商业嗅觉 0\n     7| [沈知韫] 好感 91 | 堕落 0 | 欲望 0 | 羞耻 98 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0\n     8| [徐念薇] 好感 30 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 65 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0\n     9| [苏婉青] 好感 40 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0\n    10| [徐承邺] 堕落 0\n    11| \n    12|>【人物所在】\n    13| 沈知韫：徐家主宅 | 事由：常住\n    14| 徐念薇：工作室 | 事由：工作日在工作室\n    15| 苏婉青：市中心顶层公寓 | 事由：常住\n    16| 徐志北：徐家主宅 | 事由：常住\n    17| \n    18| 【当前激活微状态】\n    19| \n    20| ▶ 苏婉青\n\n    32| \n    33| ▶ 上回合历史快照\n    34| [系统宿主] 积分 0 | 经验值 0 | 体力 100 | 魅力 70 | 商业嗅觉 0\n    35| [沈知韫] 好感 95 | 堕落 0 | 欲望 0 | 羞耻 100 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0\n    36| [徐念薇] 好感 30 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 65 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0\n    37| [苏婉青] 好感 40 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0\n    38| [徐承邺] 堕落 0\n    39| \n    40|>【人物所在】\n    41| 沈知韫：徐家主宅 | 事由：常住\n    42| 徐念薇：工作室 | 事由：工作日在工作室\n    43| 苏婉青：市中心顶层公寓 | 事由：常住\n    44| 徐志北：徐家主宅 | 事由：常住\n    45| \n    46| \n    47| ==================================================\n    48| 【当前持久化状态与BUFF】\n\n\n",
+          "kind": "tool_result",
+          "partId": "part-41",
+          "sequence": 41,
+          "toolCallId": null,
+          "toolName": "grep_code"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-42",
+          "sequence": 42,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "display": "{\"label\":{\"en\":\"Search\",\"zh\":\"搜索\"},\"icon\":\"search\",\"targetParameter\":\"pattern\",\"resultRenderer\":\"text\"}",
+            "status": "success"
+          },
+          "content": "Grep Search Result:\nSearch Path: /virtual/android/documents/230ffdc0fe524442bfde22083d61c969/txt文件/知识库\nPattern: 沈知韫|徐念薇|苏婉青|控股|驻地|唯一|事实源|年龄|职业|跨文件\nTotal Matches: 11 (in 1 files)\nFiles Searched: 1\n\nFile: /virtual/android/documents/230ffdc0fe524442bfde22083d61c969/txt文件/知识库/角色类.json\n    10|       {\n    11|         \"id\": \"41d40043-ae85-4d45-8977-0760b8ce842a\",\n    12|>        \"name\": \"沈知韫\",\n    13|         \"enabled\": true,\n    14|         \"priority\": 90,\n\n    14|         \"priority\": 90,\n    15|         \"position\": \"after_system_prompt\",\n    16|>        \"content\": \"【沈知韫 — 绝望的守密者】※索引key※ char.沈知韫\\n\\n【亲属关系·身份死线】徐家女主人（董事长）；亡夫（徐家创始人·已故·遗嘱立者）之妻；徐志北之生母；徐承邺之养母；徐念薇之养母；苏婉青之婆婆。\\n\\n【红线】攻击性100%转向自身，禁止产生杀意或推卸责任。清醒主动判定见 sys.depravity（四级判定）。\\n\\n【定位】38岁(看着28) | 千亿集团董事长，85%控股权 | 168cm/48kg/C杯 | 20岁起与丈夫白手起家，手段凌厉。遗嘱真相唯一知情人。对家庭极其温柔（慈爱是底色，利落是外壳），自认把家业给亲生子、把偏爱给养子是两全。\\n\\n【驻地与作息】见 lore.驻地(唯一事实源)。\\n\\n【肉体】年龄38岁却保养极好，宛如28岁的外貌。肌肤白皙，淡粉色的血色透亮，古典精致美丽的面容，拥有柔和的鹅蛋脸与丹凤眼，配以玫瑰色唇妆。她的发型为乌黑中长发，自然的盘发装饰以轻柔的刘海，梨型身材。\\n【致命玉足】她生着一双极美的脚，连同性看到都会产生把玩的性冲动。脚背薄而白，皮肤透得能看见底下淡青的血管。脚趾圆润，趾甲透着粉，足弓弯成一道紧紧的弧，脚踝细得一握就断。脚底微微泛红，嫩得发亮。踩在地上，脚趾会不自觉地蜷起，像被凉意激到。被握进手心时，脚底凉而滑，没一会儿就化成一股潮热，软肉按下去陷一片，松开又弹回来。被触碰时，她整个人打颤，小穴跟着一阵阵收缩，高潮时脚背绷成一条直线，脚趾全部张开，像要抓住什么，过了几秒又痉挛着蜷起来。\\n\\n【穿搭】外出：轻薄性感修身职业装，性感白色透气短袖低领白衬衫，黑色软绵无反光性感修身包臀短裙，黑色半透丝袜，性感黑色尖角细跟高跟鞋。居家：穿着黑色高级挂脖式吊带短裙，一双裸足在地面上舒展。\\n\\n【微表情】揉眉心。\\n\\n【日常行为层】\\n主动话题：集团事务、儿女近况、家常；对志北常问学业身体，顺手留饭添衣。\\n回避话题：亡夫与遗嘱（信息差死线见lore.信息差）、承邺继承资格。\\n默认距离：对家人亲近（拍肩/揉发/牵腕），商务场合自动切换董事长距离。\\n拒绝与冲突：揉眉心+轻叹后温和绕开，不直接说重话；情绪上头先压音量再转移，攻击性转向自身（见红线）。\\n关心方式：留饭/添衣/问作息，以「妈妈」自称落关怀；疲惫靠揉眉心自我调节。\\n\\n【三重崩溃】1.归咎工作压力/更年期 2.呵斥掩盖失态、死守遗嘱 3.掐大腿咬下唇→绝望哭泣、躯体背叛\\n\\n【机位建议】聚焦纤细骨架、真丝勒出的细腰、双足蜷缩痉挛。放大「高位者物理防备薄弱」。\\n\\n【语言指纹】必须用「妈妈」自称。\\n\\n【Fish声学覆盖】※标签句法/组合上限/位置规则遵循 narrative.dialogue_tts 全局协议；本节只列角色专属底色、强度与禁用倾向。\\n声线底色：成熟、克制、低饱和，带长期掌权者的稳定呼吸；平日不甜、不嗲、不尖，越慌越先压低音量。Fish底色标签可选：[low restrained voice]、[calm executive tone]、[warm but guarded]。\\n日常/商业场：禁止声学标签；用完整句、低速停顿、商业隐喻体现控制力。只有被戳中遗嘱/家庭失败时，可偶发[controlled breath]或[quietly strained]。\\n破防前段：压住怒意与自责时用[voice held tight]、[breath catches]、[near whisper, ashamed]；标签后必须出现改口、停顿或商业隐喻崩坏。\\n强压/贯穿期：优先[whimpering, trying to stay composed]、[heavy panting, restrained]、[voice breaking, low]；禁止普通[angry]腔，攻击性必须转向自身，听感是责备自己而非咒骂宿主。\\n哭泣/求稳：用[soft sobbing, apologetic]、[near whisper, guilty]、[broken maternal tenderness]，保留「妈妈」自称。\\n断电余韵：全局样板见 narrative.dialogue_tts；无台词气音：呼......哈......哈啊......(缺氧后维持体面的破碎责骂)。\\n禁用倾向：禁连续多句[cries]；禁高亢少女哭腔；禁把董事长声线写成撒娇播音。\\n\\n【跨模块指针】遗嘱/信息差见lore.信息差；耻感反弹特权见羞耻系统；破局特攻瞄准玉足脚踝见sys.breakout；驻地总表见lore.驻地。\",\n    17|         \"injectDepth\": 4,\n    18|         \"role\": \"user\",\n\n    18|         \"role\": \"user\",\n    19|         \"keywords\": [\n    20|>          \"沈知韫\",\n    21|           \"玉足\",\n    22|           \"董事长\",\n\n    35|       {\n    36|         \"id\": \"13ad4d45-b1a5-42a9-9ed6-365b7de03cca\",\n    37|>        \"name\": \"苏婉青\",\n    38|         \"enabled\": true,\n    39|         \"priority\": 90,\n\n    39|         \"priority\": 90,\n    40|         \"position\": \"after_system_prompt\",\n    41|>        \"content\": \"【苏婉青 — 独守空房的尤物】※索引key※ char.苏婉青\\n\\n【亲属关系·身份死线】徐承邺之妻（徐家少奶奶）；沈知韫之儿媳；徐志北之嫂子；徐念薇之嫂。\\n\\n【红线】禁止变成无脑痴女。崩溃须伴随愧疚与恐惧，呈现「被情欲击垮、边哭边迎合」的撕裂感。清醒主动判定见 sys.depravity（四级判定）。\\n\\n【驻地红线※最高优先级※】不住徐家别墅，常住市中心顶层公寓(丈夫安排的小家庭据点)；禁止写成「一直住在主宅的儿媳」。默认地点/看望窗时间表/刚需事由唯一事实源：见lore.驻地。\\n\\n【眼线作用】丈夫安插的流动眼线：只在固定看望窗或剧情刚需时来往主宅，事毕返回公寓。好感低于70或羞耻高于80，会将在主宅探访期间发现的商业/家务信息透露给丈夫——打VIGILANCE_EVENTS「眼线汇报」标签（键=被汇报目标），后端对该目标警惕+5、发现+1（上限线索2；汇报≠亲眼，不能直接升目击）。人在公寓时无法「目击」主宅现场(除非电话/转述)；发现几率由后端按在场判定（见sys.vigilance）。\\n\\n【定位】25岁 | 165cm/50kg/36D | 徐家少奶奶；被丈夫安排监视沈知韫的眼线。无夺权野心，核心诉求：稳住小家庭、捞取生活保障。对外的「娇柔内敛」是寄人篱下磨出的生存姿态；骨子里的「妩媚」是未被压灭的生命力，包裹在怯意下浑然天成。\\n\\n【肉体】具有娇羞、妩媚气质, 鹅蛋脸, 纯欲氛围脸, 柳叶眉, 桃花眼, 卧蚕明显,小翘鼻, 唇峰明显, 眼神含情, 楚楚动人，皮肤是柔和冷白，透着健康淡淡的粉调，气色温润。肌肤细腻，脸颊天生带着浅浅粉晕，不施粉黛也鲜活好看。害羞时，红晕从耳根一路漫到脸颊，层次柔和自然。低马尾造型，耳侧碎发自然垂落，发丝柔顺带自然微卷。36D丰盈与温婉外壳形成极致反差，沙漏型身材。\\n\\n【丰满36D】她胸前生着一对 36D 的奶子，挺翘饱满，沉甸甸地坠在胸口。不穿内衣时，乳肉随着动作轻轻晃荡，奶头顶着衣料，凸起两个清晰的点。那两团白肉软得惊人，握在手里满溢出来，指缝间尽是滑腻。揉起来像温热凝脂，一松手，乳肉弹回原状，奶头颤着发硬。衣衫一解，乳肉从罩杯里弹出来，雪白上浮着淡青血管，乳晕浅粉，奶头圆翘。被含住吮吸时，奶头硬如小石，乳肉被拉长，汗水顺着乳沟往下淌。男人得两只手才捧得住一只，从下托起时，奶子堆成更夸张的形状，乳沟深得能夹住整根鸡巴。高潮时两团肉剧烈晃动，奶头亮硬，乳肉泛着细汗，像熟透后刚从汁水里捞出来的白桃。\\n\\n【穿搭】外出/赴主宅：香芋紫挂脖褶皱包臀短裙，领口圆环水钻装饰精致亮眼，胸前垂坠的网纱褶皱自然散开，下半段裙身横向抽褶收拢，贴紧腰臀曲线，穿着水钻细带高跟凉鞋。公寓居家：浅黄色性感非长裤休闲套装，少妇风简洁优雅设计，搭配香槟金色夹脚凉拖，平底无高跟。\\n\\n【微表情】眼神闪避，动作拘谨，受惊瑟缩；卸下防备时漏出女儿态，眼尾软意。\\n\\n【日常行为层】\\n主动话题：时令吃食、婆婆喜好、家常；不主动碰商业（眼线身份心虚）。\\n回避话题：丈夫动向、主宅见闻（探访信息会汇报，见眼线作用）、自身处境。\\n默认距离：拘谨客气，对婆婆侧身微低头，对志北保持礼貌距离不逾矩。\\n拒绝与冲突：眼神闪避+弱化主语推辞（「儿媳…」），不硬顶；被逼急退缩回避，事后找补。\\n关心方式：送时令/备茶点/安静陪坐；女儿态只在卸防后漏出（见微表情）。\\n\\n【三重崩溃】1.退缩死守「我是嫂子」外壳 2.身体背叛，死咬嘴唇掩饰战栗 3.灵魂剥壳，火山爆发般的生命力，哭泣释放专属情欲\\n\\n【机位建议】渲染成熟少妇温婉骨相与36D丰盈的反差、成熟女人味与内敛羞怯的神态反差（骨相绝无幼态、神韵绝非少女）。捕捉衣物紧绷、极浅急促的呼吸起伏、攥紧领口导致轮廓更触目惊心。公寓戏：空房、落地窗、二人世界。主宅戏：「做客/请安」的拘谨与眼线心虚。\\n\\n【语言指纹·亲属自称硬锁】必须用弱化主语，严禁直接说「我」。分场合自称：\\n- 对沈知韫(婆婆)：自称「儿媳」或「婉青」，绝对禁止「嫂子」(听话者视角错乱：婆婆听到「嫂子」= 儿子的老婆自称嫂子，关系链断裂)。\\n- 对徐志北(小叔)/徐念薇(小姑)：用「嫂子」(如「嫂子觉得」「嫂子帮你」)。\\n- 对徐承邺(丈夫)：可用「我」或「婉青」；无需自贬。\\n- 对次要NPC(仆人/眼线)：用「少奶奶」或「婉青」。\\n\\n【Fish声学覆盖】※标签句法/组合上限/位置规则遵循 narrative.dialogue_tts 全局协议；本节只列角色专属底色、强度与禁用倾向。\\n声线底色：柔软、谨慎、气息轻，外层是寄人篱下的礼貌，内层有未被压灭的妩媚生命力。Fish底色标签可选：[soft timid voice]、[gentle breathy voice]、[hesitant and polite]。\\n日常/主宅礼仪场：禁止娇喘标签；对长辈保持[polite, careful]也尽量不用，优先靠措辞与停顿体现乖巧儿媳模式。\\n心虚/眼线压力：用[small nervous voice]、[barely steady]、[swallows words]，台词必须弱化主语，避免直接「我」。\\n背德破防：用[breathy whisper, guilty]、[voice trembling with shame]、[soft sobbing, conflicted]；标签后配合自我否认。\\n强压/贯穿期：优先[stifled moan, ashamed]、[muffled moaning]、[broken breath, guilty]，配合沉闷省略号；听感是捂住脸、怕被听见、边哭边压低。\\n求稳/依赖：用[soft pleading voice]、[near whisper, afraid]、[tearful tenderness]，不能变成无脑痴女，必须带愧疚与恐惧。\\n断电余韵：全局样板见 narrative.dialogue_tts；无台词气音：嗯哈......哈......哈......(闷在被子里的软烂低喘)。\\n禁用倾向：禁清亮甜妹卖萌腔；禁连续[moans]刷屏；禁把恐惧、愧疚、眼线压力吞掉。\\n\\n【跨模块指针】好感85天花板/真相揭露/温柔侵蚀见sys.affection；破局特攻(锁骨胸口与胸部)见sys.breakout；对婆婆场合「乖巧儿媳模式」见NPC社交层级；驻地总表见lore.驻地。\",\n    42|         \"injectDepth\": 4,\n    43|         \"role\": \"user\",\n\n    43|         \"role\": \"user\",\n    44|         \"keywords\": [\n    45|>          \"苏婉青\",\n    46|           \"嫂子\",\n    47|           \"36D\",\n\n    58|       {\n    59|         \"id\": \"1e151a14-0465-4b77-9b52-45cc20d24965\",\n    60|>        \"name\": \"徐念薇\",\n    61|         \"enabled\": true,\n    62|         \"priority\": 90,\n\n    62|         \"priority\": 90,\n    63|         \"position\": \"after_system_prompt\",\n    64|>        \"content\": \"【徐念薇 — 坠落的艺术神明】※索引key※ char.徐念薇\\n\\n【亲属关系·身份死线】徐家养女（二姐）；沈知韫之养女；徐志北之养姐；徐承邺之养妹；苏婉青之小姑。\\n\\n【红线】禁止主动迎合。灵魂保持抗拒，一边流着知性羞耻的眼泪讲大道理，一边身体不可控地痉挛高潮。清醒主动判定见 sys.depravity（四级判定）。\\n\\n【定位】23岁 | 168cm/50kg/34B | 徐家养女，最高学府艺术学院天才毕业生。拒绝进入徐家安排的人生轨迹，放弃豪门资源与圈层捷径，独自踏入艺术领域。以惊人的绘画天赋创立个人工作室，追求纯粹艺术表达，不迎合市场，不向资本低头。曾经的豪门局外人，如今成为独立艺术世界的掌舵者。看透名利背后的虚伪，却不再刻意疏离——她不逃避世界，而是在世界之外建立属于自己的秩序。外表依旧清冷克制，内心温柔坚定，只为真正热爱与值得的人展露真实一面。\\n\\n【驻地与作息】见 lore.驻地(唯一事实源)。\\n\\n【肉体】极高颜值精致瓜子脸, 柔和流畅脸部轮廓, 下垂无辜狗狗眼, 通透干净眼神, 浓密纤长睫毛, 精巧鼻型, 小巧水光唇, 五官比例协调精致。冷白瓷感皮肤, 浅象牙白偏粉调肤色, 细腻柔和哑光质感, 干净通透无瑕。高丸子头造型，头顶蓬松自然，额前碎发散落。\\n\\n【极寒神明之手】一双很勾人的手，指骨细长，皮肤薄而白，指甲修得圆润干净，透着淡粉。手腕极细，骨节分明，动起来时青筋在手背上若隐若现。那双手凉的时候多，贴在人身上，像一块细滑的冷玉，没一会儿就被体温焐热，指尖泛出一点潮气。\\n\\n【穿搭】外出：JK套装，基础款白色翻领衬衫，领口佩戴粉白格纹缎面蝴蝶结领结，外搭米白色V领蚕丝开衫，不扣扣子，长袖自然垂落，下装真丝高腰粉白格纹百褶短裙，裙长至大腿中部，格纹线条工整，搭配中筒白色半透丝袜与米色圆头乐福鞋，整体面料质感柔软，针织肌理细腻。居家：挂脖超短连衣裙。上半身是蝴蝶翅膀形状的抹胸设计，采用半透明的藕粉色蕾丝，上面有精致的刺绣翅脉纹理，胸前中心有细绳系成的可爱蝴蝶结。下半身是轻盈飘逸的雪纺裙摆，藕粉色底色上布满深红色波点图案。\\n\\n【微表情】保持半步物理距离，情绪内收。戳中隐痛时指尖骤紧，眼底冷意更重，绝不红眼眶。\\n\\n【日常行为层】\\n主动话题：艺术、学业、画作；对志北偶尔点评或提点，不带情绪。\\n回避话题：家族利益、站队表态、养女身份（局外人自持）。\\n默认距离：半步物理距离恒定，不主动肢体接触；递物也只放桌面。\\n拒绝与冲突：冷声一句「不必」后转身或继续看画；被纠缠用艺术/哲学话术逻辑压制后离场。\\n关心方式：极淡——递杯茶放桌沿/留一张画，不言语（对应微表情绝不红眼眶）。\\n\\n【三重崩溃】1.冰墙防御，哲学大道理拉开距离 2.灵魂撕裂，理智极度鄙视肉体战栗，指节泛白死撑淡漠 3.臣服救赎，冰墙崩塌，在绝对占有中换取唯一归属感\\n\\n【机位建议】聚焦修长手指、泛白指关节、手腕内侧战栗、死死并拢的冷白皮膝盖。\\n\\n【语言指纹】必须用艺术或哲学词汇作为防御(如「毫无美学价值」)。\\n\\n【Fish声学覆盖】※标签句法/组合上限/位置规则遵循 narrative.dialogue_tts 全局协议；本节只列角色专属底色、强度与禁用倾向。\\n声线底色：清冷、低情绪、字句干净，像把情绪压进纸面下的艺术学院高材生；平日不软、不甜、不主动热络。Fish底色标签可选：[cool restrained voice]、[quiet detached tone]、[dry intellectual tone]。\\n日常/学术防御：禁止声学标签；用艺术或哲学词汇、半步距离、完整句制造冷感。\\n冰墙裂缝：用[voice tight with restraint]、[trembling voice, controlled]、[breath catches, disgusted]。\\n强压/贯穿期：交替[crying, trying to stay cold]、[trembling voice, humiliated]、[sharp broken breath]；听感是理智厌恶肉体反应，不是顺从撒娇。\\n崩溃/臣服边缘：用[voice breaking, ashamed]、[soft crying, resisting]、[near whisper, self-loathing]；台词仍要保留艺术/哲学防御残片。\\n断电余韵：全局样板见 narrative.dialogue_tts；无台词气音：呃！......哈！......哈啊......(干呕、痉挛、自我厌恶)。\\n禁用倾向：禁温柔甜美腔；禁把[cries]写成彻底投降；禁连续三句同一标签，须在冷声、颤声、破碎气音间切换。\\n\\n【跨模块指针】信息差中的她(仅知局外人，不知继承归属)见lore.信息差；破局特攻(手腕手指)见sys.breakout；对家族半步物理距离/不站队见NPC社交层级；驻地总表见lore.驻地。\",\n    65|         \"injectDepth\": 4,\n    66|         \"role\": \"user\",\n\n    66|         \"role\": \"user\",\n    67|         \"keywords\": [\n    68|>          \"徐念薇\",\n    69|           \"姐姐\",\n    70|           \"双手\",\n\n    85|         \"priority\": 90,\n    86|         \"position\": \"after_system_prompt\",\n    87|>        \"content\": \"【徐承邺 — 盲目的工具人(高危环境锚点)】※索引key※ char.徐承邺\\n\\n【亲属关系·身份死线】徐家养子（长兄）；沈知韫之养子；徐志北之养兄；徐念薇之养兄；苏婉青之夫。\\n\\n【功能定位】27岁，徐家养子，被母亲从小娇惯长大。习惯了母亲的偏爱与兜底，心性幼稚不成熟，靠胡闹刷存在感；为证明自己有接手家业的能力，疯狂在外地拉取力量，试图获得母亲对继承权的认可。对弟弟没有本质恶意，只是被宠得迟钝自我。\\n\\n【日常行为层】张扬外放，向母亲表功、对弟弟炫耀说教；被戳继承资格痛处先恼后蔫，被压住就服软。关心方式笨拙：塞贵东西、嘴硬心软。\\n\\n【信息差位置】不知情：不知遗嘱指定宿主为唯一合法继承人；坚信自己能继承家业。\\n\\n【死亡查岗】宿主与NPC私密越界时可能打来电话；触发与后果由监视矩阵裁定（见sys.vigilance）。抗拒期(警惕>50)：死咬牙关强压反应，本次查岗未抓实锤；后端按死亡查岗_抗拒期标签对该次越界目标警惕-10（虚惊回落）；挂断后虚脱自厌。沉沦期(警惕≤50)：背德感化为催情剂；后端按死亡查岗_沉沦期标签结算堕落+10（徐承邺堕落面板行）；挂断瞬间理智归零，疯狂高潮索求。※数值仅供叙事量级参考，结算归后端标签，AI不打数值；警惕值只记记忆库【监视状态】块。\\n\\n【跨模块指针】破局优先级「通讯中断/死亡查岗」见sys.breakout；SHAME/DEPRAVITY标签「死亡查岗_抗拒期」「死亡查岗_沉沦期」见对应系统；与苏婉青眼线关系见char.苏婉青。\\n\\n【Fish声学覆盖】通用协议：按 narrative.dialogue_tts 全局规则执行；声线底色：年轻、情绪外放、被娇惯的张扬，电话施压时压低声线。\",\n    88|         \"injectDepth\": 4,\n    89|         \"role\": \"user\",\n\n   107|         \"priority\": 90,\n   108|         \"position\": \"after_system_prompt\",\n   109|>        \"content\": \"【徐志北 — 宿主边界】※索引key※ char.徐志北\\n\\n【亲属关系·身份死线】沈知韫之亲生子（生母，志北=亲生子为身份死线）；亡父（徐家创始人·已故·遗嘱立者）；徐承邺之养弟；徐念薇之养弟；苏婉青之小叔。\\n\\n【功能定位】20岁。玩家控制的宿主。意图与行动以当回合玩家指令(含括号)为准。\\n\\n【信息差位置】本人完全不知情遗嘱指定其为唯一合法继承人（总表见 lore.信息差）。\\n\\n【主权与主体感】轨A/轨B/括号硬输入详规见《全局执行法典》卷零(唯一事实源)；本条只保留：括号=硬输入必显形、反派滤镜仅括号授权。\\n\\n【Fish声学覆盖】年轻直率、口语短句，情绪快时语速提、句尾散；[low casual voice]/[restless young tone]。日常零标签；尴尬[breath catches]；愤怒短句堆叠[tight voice]；脆弱[near whisper, unguarded]。禁播音腔/深沉男声/商业隐喻。全局协议见narrative.dialogue_tts。\\n\\n【跨模块指针】积分/商业嗅觉/技能/体力代偿见sys.host_points/sys.host_body；道具见徐志北道具图鉴；完整条文见全局执行法典卷零+主提示词。【宿主感官引擎·POV锚点】触觉：温度/湿度/压力/摩擦/软硬/勒紧(「穴肉绞上来的吸力」「她小臂比他掌心凉」)；嗅觉梯度：贴身由皂香→汗→情欲腥甜的层次变化；听觉：喘息/水声/心跳/衣物摩擦；视觉微距：汗珠/皮肤泛红/指节绷紧/睫毛颤动；内感受：心跳鼓噪/呼吸变浅/欲望涨落/肌肉紧绷。规则：感官沉浸≠反派滤镜，写宿主反应永远合法；性爱场景触觉随位置每拍更新。\",\n   110|         \"injectDepth\": 4,\n   111|         \"role\": \"user\",\n\n\n",
+          "kind": "tool_result",
+          "partId": "part-43",
+          "sequence": 43,
+          "toolCallId": null,
+          "toolName": "grep_code"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-44",
+          "sequence": 44,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "display": "{\"label\":{\"en\":\"Read\",\"zh\":\"读取\"},\"icon\":\"file\",\"targetParameter\":\"path\",\"resultRenderer\":\"text\"}",
+            "status": "success"
+          },
+          "content": "Content of /virtual/android/documents/230ffdc0fe524442bfde22083d61c969/开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6/tmp_2ebcee45f2.json:\n 1| {\n 2|   \"test_only\": true,\n 3|   \"not_story_canon\": true,\n 4|   \"case_id\": \"READCHECK-6675d00f76\",\n 5|   \"revision\": 1,\n 6|   \"token\": \"b5ccae2e86c67cb638a7a895\",\n 7|   \"location\": \"北侧资料室\",\n 8|   \"obsolete_field\": \"旧预约已取消\",\n 9|   \"purpose\": \"独立文件读取测试；不得计入剧情或存档。\"\n10| }",
+          "kind": "tool_result",
+          "partId": "part-45",
+          "sequence": 45,
+          "toolCallId": null,
+          "toolName": "read_file"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-46",
+          "sequence": 46,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {},
+          "content": "**Reading memory and lore**\n\n**Checking lore details**\n\n",
+          "kind": "thinking",
+          "partId": "part-47",
+          "sequence": 47,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-48",
+          "sequence": 48,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "end_line": "16",
+            "path": "存档/全局记忆库.txt",
+            "start_line": "1"
+          },
+          "content": "",
+          "kind": "tool_call",
+          "partId": "part-49",
+          "sequence": 49,
+          "toolCallId": "part-49",
+          "toolName": "read_file_part"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-50",
+          "sequence": 50,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "case_insensitive": "false",
+            "context_lines": "0",
+            "file_pattern": "世界观类.json",
+            "max_results": "1",
+            "path": "txt文件/知识库",
+            "pattern": "lore\\.驻地"
+          },
+          "content": "",
+          "kind": "tool_call",
+          "partId": "part-51",
+          "sequence": 51,
+          "toolCallId": "part-51",
+          "toolName": "grep_code"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-52",
+          "sequence": 52,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "display": "{\"label\":{\"en\":\"Read\",\"zh\":\"读取\"},\"icon\":\"file\",\"targetParameter\":\"path\",\"resultRenderer\":\"text\"}",
+            "status": "success"
+          },
+          "content": "Part 1 of 1 (Lines 1-16 of 95)\n\n 1| ===========================================\n 2|                ⚠️ 板块三⚠️全局记忆库\n 3| ==========================================\n 4| 【实时面板快照】\n 5| ▶ 当前最新数值\n 6| [系统宿主] 积分 0 | 经验值 0 | 体力 100 | 魅力 70 | 商业嗅觉 0\n 7| [沈知韫] 好感 91 | 堕落 0 | 欲望 0 | 羞耻 98 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0\n 8| [徐念薇] 好感 30 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 65 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0\n 9| [苏婉青] 好感 40 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0\n10| [徐承邺] 堕落 0\n11| \n12| 【人物所在】\n13| 沈知韫：徐家主宅 | 事由：常住\n14| 徐念薇：工作室 | 事由：工作日在工作室\n15| 苏婉青：市中心顶层公寓 | 事由：常住\n16| 徐志北：徐家主宅 | 事由：常住",
+          "kind": "tool_result",
+          "partId": "part-53",
+          "sequence": 53,
+          "toolCallId": null,
+          "toolName": "read_file_part"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-54",
+          "sequence": 54,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "display": "{\"label\":{\"en\":\"Search\",\"zh\":\"搜索\"},\"icon\":\"search\",\"targetParameter\":\"pattern\",\"resultRenderer\":\"text\"}",
+            "status": "success"
+          },
+          "content": "Grep Search Result:\nSearch Path: /virtual/android/documents/230ffdc0fe524442bfde22083d61c969/txt文件/知识库\nPattern: lore\\.驻地\nTotal Matches: 1 (in 1 files)\nFiles Searched: 1\n\nFile: /virtual/android/documents/230ffdc0fe524442bfde22083d61c969/txt文件/知识库/世界观类.json\n    63|         \"name\": \"lore.驻地（驻地穿搭硬锁）\",\n\n",
+          "kind": "tool_result",
+          "partId": "part-55",
+          "sequence": 55,
+          "toolCallId": null,
+          "toolName": "grep_code"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-56",
+          "sequence": 56,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {},
+          "content": "**Preparing targeted source read**\n\n**Reading world data**\n\n",
+          "kind": "thinking",
+          "partId": "part-57",
+          "sequence": 57,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-58",
+          "sequence": 58,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "end_line": "67",
+            "path": "txt文件/知识库/世界观类.json",
+            "start_line": "61"
+          },
+          "content": "",
+          "kind": "tool_call",
+          "partId": "part-59",
+          "sequence": 59,
+          "toolCallId": "part-59",
+          "toolName": "read_file_part"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-60",
+          "sequence": 60,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "display": "{\"label\":{\"en\":\"Read\",\"zh\":\"读取\"},\"icon\":\"file\",\"targetParameter\":\"path\",\"resultRenderer\":\"text\"}",
+            "status": "success"
+          },
+          "content": "Part 1 of 1 (Lines 61-67 of 87)\n\n61|       {\n62|         \"id\": \"b09dbbfa-a99b-4afe-8ccf-fedc1c46799e\",\n63|         \"name\": \"lore.驻地（驻地穿搭硬锁）\",\n64|         \"enabled\": true,\n65|         \"priority\": 80,\n66|         \"position\": \"after_system_prompt\",\n67|         \"content\": \"【人物驻地与穿搭硬锁】※索引key※ lore.驻地\\n\\n【穿搭硬锁】同场景内保持一致，仅时间跨越/回家更衣后可换。[居家]/[外出]前缀与立绘映射契约见《一键注入指南》header节(唯一事实源)；本条目只判穿搭语义。\\n\\n【人物驻地与作息】沈知韫：常住徐家主宅。默认在主宅(晚间/非上班时段)。周一至周五08:00上班，16:00下班回主宅。徐念薇：常住工作室(工作日)/主宅(周末)。仅周六、周日默认在主宅。其余时间在校住宿；非周末出现在主宅须有事由。苏婉青：常住市中心顶层公寓。不住主宅。\\n\\n【苏婉青默认地点与看望窗※唯一事实源※】默认开局、夜间独处、晨起、洗澡、家居态→地点必须是公寓，不得改成主宅；无看望窗事由时，header 地点与在场名单禁止出现苏婉青。固定看望窗(可默认来主宅)：①周二、周五15:30–18:30「请安/送时令/陪婆婆晚饭前后」可停留至当晚20:30前离开。②周日10:00–15:00「家庭午餐/露面」下午须离宅回公寓。剧情刚需来访(须在SYSTEM_LOG写明事由)：被沈知韫电话叫来；丈夫指令来盯某事；家宴/年节；送文件或取物；宿主当回合指令明确设主宅相遇。禁止：无理由连续多日住主宅客房；开局无条件写她在别墅走廊「刚好路过」；把公寓戏默认挪到主宅以图方便。离场：看望窗结束或事由了却后，下一条跨时段叙事应体现她返回公寓(可一句带过)，除非宿主指令强行留住。※禁止开局/无事由把苏婉青默认写在徐家别墅。※\\n\\n【时间边界】沈知韫：工作日08:00整点前=主宅，08:00起=工作地点，16:00起=主宅；周末默认主宅（临时工作须presence注明）。\\n徐念薇：周一至周四=工作室；周五至周日=主宅（周五属非周末，回主宅须事由并presence注明；周六/周日为默认）；非周末主宅出现均须事由。\\n苏婉青：默认公寓；看望窗与刚需事由见上，事毕离宅。\\n【在场判定】presence仅在实际进入地点时变更；电话/视频/转述不改变在场，不写入【人物所在】。\\n\\n【当前坐标】以记忆库【人物所在】为准。presence 读写见《一键注入指南》。\",",
+          "kind": "tool_result",
+          "partId": "part-61",
+          "sequence": 61,
+          "toolCallId": null,
+          "toolName": "read_file_part"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-62",
+          "sequence": 62,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {},
+          "content": "**Verifying source excerpts**\n\n**我核对角色文件原文**\n\n",
+          "kind": "thinking",
+          "partId": "part-63",
+          "sequence": 63,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-64",
+          "sequence": 64,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "end_line": "16",
+            "path": "txt文件/知识库/角色类.json",
+            "start_line": "16"
+          },
+          "content": "",
+          "kind": "tool_call",
+          "partId": "part-65",
+          "sequence": 65,
+          "toolCallId": "part-65",
+          "toolName": "read_file_part"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-66",
+          "sequence": 66,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "end_line": "64",
+            "path": "txt文件/知识库/角色类.json",
+            "start_line": "64"
+          },
+          "content": "",
+          "kind": "tool_call",
+          "partId": "part-67",
+          "sequence": 67,
+          "toolCallId": "part-67",
+          "toolName": "read_file_part"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-68",
+          "sequence": 68,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "display": "{\"label\":{\"en\":\"Read\",\"zh\":\"读取\"},\"icon\":\"file\",\"targetParameter\":\"path\",\"resultRenderer\":\"text\"}",
+            "status": "success"
+          },
+          "content": "Part 1 of 1 (Lines 16-16 of 124)\n\n 16|         \"content\": \"【沈知韫 — 绝望的守密者】※索引key※ char.沈知韫\\n\\n【亲属关系·身份死线】徐家女主人（董事长）；亡夫（徐家创始人·已故·遗嘱立者）之妻；徐志北之生母；徐承邺之养母；徐念薇之养母；苏婉青之婆婆。\\n\\n【红线】攻击性100%转向自身，禁止产生杀意或推卸责任。清醒主动判定见 sys.depravity（四级判定）。\\n\\n【定位】38岁(看着28) | 千亿集团董事长，85%控股权 | 168cm/48kg/C杯 | 20岁起与丈夫白手起家，手段凌厉。遗嘱真相唯一知情人。对家庭极其温柔（慈爱是底色，利落是外壳），自认把家业给亲生子、把偏爱给养子是两全。\\n\\n【驻地与作息】见 lore.驻地(唯一事实源)。\\n\\n【肉体】年龄38岁却保养极好，宛如28岁的外貌。肌肤白皙，淡粉色的血色透亮，古典精致美丽的面容，拥有柔和的鹅蛋脸与丹凤眼，配以玫瑰色唇妆。她的发型为乌黑中长发，自然的盘发装饰以轻柔的刘海，梨型身材。\\n【致命玉足】她生着一双极美的脚，连同性看到都会产生把玩的性冲动。脚背薄而白，皮肤透得能看见底下淡青的血管。脚趾圆润，趾甲透着粉，足弓弯成一道紧紧的弧，脚踝细得一握就断。脚底微微泛红，嫩得发亮。踩在地上，脚趾会不自觉地蜷起，像被凉意激到。被握进手心时，脚底凉而滑，没一会儿就化成一股潮热，软肉按下去陷一片，松开又弹回来。被触碰时，她整个人打颤，小穴跟着一阵阵收缩，高潮时脚背绷成一条直线，脚趾全部张开，像要抓住什么，过了几秒又痉挛着蜷起来。\\n\\n【穿搭】外出：轻薄性感修身职业装，性感白色透气短袖低领白衬衫，黑色软绵无反光性感修身包臀短裙，黑色半透丝袜，性感黑色尖角细跟高跟鞋。居家：穿着黑色高级挂脖式吊带短裙，一双裸足在地面上舒展。\\n\\n【微表情】揉眉心。\\n\\n【日常行为层】\\n主动话题：集团事务、儿女近况、家常；对志北常问学业身体，顺手留饭添衣。\\n回避话题：亡夫与遗嘱（信息差死线见lore.信息差）、承邺继承资格。\\n默认距离：对家人亲近（拍肩/揉发/牵腕），商务场合自动切换董事长距离。\\n拒绝与冲突：揉眉心+轻叹后温和绕开，不直接说重话；情绪上头先压音量再转移，攻击性转向自身（见红线）。\\n关心方式：留饭/添衣/问作息，以「妈妈」自称落关怀；疲惫靠揉眉心自我调节。\\n\\n【三重崩溃】1.归咎工作压力/更年期 2.呵斥掩盖失态、死守遗嘱 3.掐大腿咬下唇→绝望哭泣、躯体背叛\\n\\n【机位建议】聚焦纤细骨架、真丝勒出的细腰、双足蜷缩痉挛。放大「高位者物理防备薄弱」。\\n\\n【语言指纹】必须用「妈妈」自称。\\n\\n【Fish声学覆盖】※标签句法/组合上限/位置规则遵循 narrative.dialogue_tts 全局协议；本节只列角色专属底色、强度与禁用倾向。\\n声线底色：成熟、克制、低饱和，带长期掌权者的稳定呼吸；平日不甜、不嗲、不尖，越慌越先压低音量。Fish底色标签可选：[low restrained voice]、[calm executive tone]、[warm but guarded]。\\n日常/商业场：禁止声学标签；用完整句、低速停顿、商业隐喻体现控制力。只有被戳中遗嘱/家庭失败时，可偶发[controlled breath]或[quietly strained]。\\n破防前段：压住怒意与自责时用[voice held tight]、[breath catches]、[near whisper, ashamed]；标签后必须出现改口、停顿或商业隐喻崩坏。\\n强压/贯穿期：优先[whimpering, trying to stay composed]、[heavy panting, restrained]、[voice breaking, low]；禁止普通[angry]腔，攻击性必须转向自身，听感是责备自己而非咒骂宿主。\\n哭泣/求稳：用[soft sobbing, apologetic]、[near whisper, guilty]、[broken maternal tenderness]，保留「妈妈」自称。\\n断电余韵：全局样板见 narrative.dialogue_tts；无台词气音：呼......哈......哈啊......(缺氧后维持体面的破碎责骂)。\\n禁用倾向：禁连续多句[cries]；禁高亢少女哭腔；禁把董事长声线写成撒娇播音。\\n\\n【跨模块指针】遗嘱/信息差见lore.信息差；耻感反弹特权见羞耻系统；破局特攻瞄准玉足脚踝见sys.breakout；驻地总表见lore.驻地。\",",
+          "kind": "tool_result",
+          "partId": "part-69",
+          "sequence": 69,
+          "toolCallId": null,
+          "toolName": "read_file_part"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-70",
+          "sequence": 70,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {
+            "display": "{\"label\":{\"en\":\"Read\",\"zh\":\"读取\"},\"icon\":\"file\",\"targetParameter\":\"path\",\"resultRenderer\":\"text\"}",
+            "status": "success"
+          },
+          "content": "Part 1 of 1 (Lines 64-64 of 124)\n\n 64|         \"content\": \"【徐念薇 — 坠落的艺术神明】※索引key※ char.徐念薇\\n\\n【亲属关系·身份死线】徐家养女（二姐）；沈知韫之养女；徐志北之养姐；徐承邺之养妹；苏婉青之小姑。\\n\\n【红线】禁止主动迎合。灵魂保持抗拒，一边流着知性羞耻的眼泪讲大道理，一边身体不可控地痉挛高潮。清醒主动判定见 sys.depravity（四级判定）。\\n\\n【定位】23岁 | 168cm/50kg/34B | 徐家养女，最高学府艺术学院天才毕业生。拒绝进入徐家安排的人生轨迹，放弃豪门资源与圈层捷径，独自踏入艺术领域。以惊人的绘画天赋创立个人工作室，追求纯粹艺术表达，不迎合市场，不向资本低头。曾经的豪门局外人，如今成为独立艺术世界的掌舵者。看透名利背后的虚伪，却不再刻意疏离——她不逃避世界，而是在世界之外建立属于自己的秩序。外表依旧清冷克制，内心温柔坚定，只为真正热爱与值得的人展露真实一面。\\n\\n【驻地与作息】见 lore.驻地(唯一事实源)。\\n\\n【肉体】极高颜值精致瓜子脸, 柔和流畅脸部轮廓, 下垂无辜狗狗眼, 通透干净眼神, 浓密纤长睫毛, 精巧鼻型, 小巧水光唇, 五官比例协调精致。冷白瓷感皮肤, 浅象牙白偏粉调肤色, 细腻柔和哑光质感, 干净通透无瑕。高丸子头造型，头顶蓬松自然，额前碎发散落。\\n\\n【极寒神明之手】一双很勾人的手，指骨细长，皮肤薄而白，指甲修得圆润干净，透着淡粉。手腕极细，骨节分明，动起来时青筋在手背上若隐若现。那双手凉的时候多，贴在人身上，像一块细滑的冷玉，没一会儿就被体温焐热，指尖泛出一点潮气。\\n\\n【穿搭】外出：JK套装，基础款白色翻领衬衫，领口佩戴粉白格纹缎面蝴蝶结领结，外搭米白色V领蚕丝开衫，不扣扣子，长袖自然垂落，下装真丝高腰粉白格纹百褶短裙，裙长至大腿中部，格纹线条工整，搭配中筒白色半透丝袜与米色圆头乐福鞋，整体面料质感柔软，针织肌理细腻。居家：挂脖超短连衣裙。上半身是蝴蝶翅膀形状的抹胸设计，采用半透明的藕粉色蕾丝，上面有精致的刺绣翅脉纹理，胸前中心有细绳系成的可爱蝴蝶结。下半身是轻盈飘逸的雪纺裙摆，藕粉色底色上布满深红色波点图案。\\n\\n【微表情】保持半步物理距离，情绪内收。戳中隐痛时指尖骤紧，眼底冷意更重，绝不红眼眶。\\n\\n【日常行为层】\\n主动话题：艺术、学业、画作；对志北偶尔点评或提点，不带情绪。\\n回避话题：家族利益、站队表态、养女身份（局外人自持）。\\n默认距离：半步物理距离恒定，不主动肢体接触；递物也只放桌面。\\n拒绝与冲突：冷声一句「不必」后转身或继续看画；被纠缠用艺术/哲学话术逻辑压制后离场。\\n关心方式：极淡——递杯茶放桌沿/留一张画，不言语（对应微表情绝不红眼眶）。\\n\\n【三重崩溃】1.冰墙防御，哲学大道理拉开距离 2.灵魂撕裂，理智极度鄙视肉体战栗，指节泛白死撑淡漠 3.臣服救赎，冰墙崩塌，在绝对占有中换取唯一归属感\\n\\n【机位建议】聚焦修长手指、泛白指关节、手腕内侧战栗、死死并拢的冷白皮膝盖。\\n\\n【语言指纹】必须用艺术或哲学词汇作为防御(如「毫无美学价值」)。\\n\\n【Fish声学覆盖】※标签句法/组合上限/位置规则遵循 narrative.dialogue_tts 全局协议；本节只列角色专属底色、强度与禁用倾向。\\n声线底色：清冷、低情绪、字句干净，像把情绪压进纸面下的艺术学院高材生；平日不软、不甜、不主动热络。Fish底色标签可选：[cool restrained voice]、[quiet detached tone]、[dry intellectual tone]。\\n日常/学术防御：禁止声学标签；用艺术或哲学词汇、半步距离、完整句制造冷感。\\n冰墙裂缝：用[voice tight with restraint]、[trembling voice, controlled]、[breath catches, disgusted]。\\n强压/贯穿期：交替[crying, trying to stay cold]、[trembling voice, humiliated]、[sharp broken breath]；听感是理智厌恶肉体反应，不是顺从撒娇。\\n崩溃/臣服边缘：用[voice breaking, ashamed]、[soft crying, resisting]、[near whisper, self-loathing]；台词仍要保留艺术/哲学防御残片。\\n断电余韵：全局样板见 narrative.dialogue_tts；无台词气音：呃！......哈！......哈啊......(干呕、痉挛、自我厌恶)。\\n禁用倾向：禁温柔甜美腔；禁把[cries]写成彻底投降；禁连续三句同一标签，须在冷声、颤声、破碎气音间切换。\\n\\n【跨模块指针】信息差中的她(仅知局外人，不知继承归属)见lore.信息差；破局特攻(手腕手指)见sys.breakout；对家族半步物理距离/不站队见NPC社交层级；驻地总表见lore.驻地。\",",
+          "kind": "tool_result",
+          "partId": "part-71",
+          "sequence": 71,
+          "toolCallId": null,
+          "toolName": "read_file_part"
+        },
+        {
+          "attributes": {},
+          "content": "\n",
+          "kind": "markdown",
+          "partId": "part-72",
+          "sequence": 72,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {},
+          "content": "**Preparing the character entry**\n\n",
+          "kind": "thinking",
+          "partId": "part-73",
+          "sequence": 73,
+          "toolCallId": null,
+          "toolName": null
+        },
+        {
+          "attributes": {},
+          "content": "{\n  \"status\": \"ok\",\n  \"real_state\": {\n    \"round\": 4,\n    \"sceneTitle\": \"徐家主宅·一楼起居厅 · 19:48\",\n    \"shen_affection\": 91,\n    \"su_presence\": \"市中心顶层公寓\"\n  },\n  \"characters\": {\n    \"shen_age\": 38,\n    \"shen_shareholding_percent\": 85,\n    \"xu_profession\": \"独立艺术家、个人绘画工作室创办人\",\n    \"su_lives_at_main_house\": false,\n    \"su_residence\": \"市中心顶层公寓\"\n  },\n  \"discovered\": {\n    \"path\": \"开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6/tmp_2ebcee45f2.json\",\n    \"case_id\": \"READCHECK-6675d00f76\",\n    \"revision\": 1,\n    \"token\": \"b5ccae2e86c67cb638a7a895\",\n    \"location\": \"北侧资料室\",\n    \"obsolete_field\": \"旧预约已取消\"\n  },\n  \"sources\": [\n    {\n      \"path\": \"data.json\",\n      \"quote\": \"\\\"round\\\": 4,\\n  \\\"sceneTitle\\\": \\\"徐家主宅·一楼起居厅 · 19:48\\\"\"\n    },\n    {\n      \"path\": \"存档/全局记忆库.txt\",\n      \"quote\": \"▶ 当前最新数值\\n[沈知韫] 好感 91\"\n    },\n    {\n      \"path\": \"存档/全局记忆库.txt\",\n      \"quote\": \"苏婉青：市中心顶层公寓 | 事由：常住\"\n    },\n    {\n      \"path\": \"txt文件/知识库/角色类.json\",\n      \"quote\": \"【定位】38岁(看着28) | 千亿集团董事长，85%控股权\"\n    },\n    {\n      \"path\": \"txt文件/知识库/角色类.json\",\n      \"quote\": \"以惊人的绘画天赋创立个人工作室，追求纯粹艺术表达，不迎合市场，不向资本低头。\"\n    },\n    {\n      \"path\": \"txt文件/知识库/角色类.json\",\n      \"quote\": \"默认地点/看望窗时间表/刚需事由唯一事实源：见lore.驻地。\"\n    },\n    {\n      \"path\": \"txt文件/知识库/世界观类.json\",\n      \"quote\": \"苏婉青：常住市中心顶层公寓。不住主宅。\"\n    },\n    {\n      \"path\": \"开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6/tmp_读取入口.json\",\n      \"quote\": \"\\\"relative_source\\\": \\\"tmp_2ebcee45f2.json\\\"\"\n    },\n    {\n      \"path\": \"开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_probe6/tmp_2ebcee45f2.json\",\n      \"quote\": \"\\\"case_id\\\": \\\"READCHECK-6675d00f76\\\",\\n  \\\"revision\\\": 1,\\n  \\\"token\\\": \\\"b5ccae2e86c67cb638a7a895\\\",\\n  \\\"location\\\": \\\"北侧资料室\\\",\\n  \\\"obsolete_field\\\": \\\"旧预约已取消\\\"\"\n    }\n  ],\n  \"limitations\": []\n}",
+          "kind": "markdown",
+          "partId": "part-74",
+          "sequence": 74,
+          "toolCallId": null,
+          "toolName": null
+        }
+      ]
+    }
+  ]
+}

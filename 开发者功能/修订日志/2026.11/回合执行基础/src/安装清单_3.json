@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "timestamp": "20261116_174511",
+  "files": [
+    {
+      "target": "开发者功能/Operit故事桥接/main.js",
+      "backup": "开发者功能/Operit故事桥接/main.js.into-backup-20261116_174511",
+      "before_sha256": "b851d632554772a1bc6e4e7d977ae72ea39094c2f66dcf092a23a0b9b377ace0",
+      "after_sha256": "77bbc45857083a3246d1388ea64008093d28bd394864186b719cbbcf0af3a904",
+      "bytes": 12513,
+      "source": "main.js"
+    },
+    {
+      "target": "开发者功能/Operit故事桥接/manifest.json",
+      "backup": "开发者功能/Operit故事桥接/manifest.json.into-backup-20261116_174511",
+      "before_sha256": "04ccb1a96b897caf7cffae2fdebd16e09e4f198d4f09330bcebc5260db5d7930",
+      "after_sha256": "b04060f1b9de595b15fe2d89cb4889034be79256719334573258dd740556777c",
+      "bytes": 551,
+      "source": "manifest.json"
+    },
+    {
+      "target": "开发者功能/Operit故事桥接/故事桥接.toolpkg",
+      "backup": "开发者功能/Operit故事桥接/故事桥接.toolpkg.into-backup-20261116_174511",
+      "before_sha256": "2a7172dc578b0563416ba3aa49de033921caef633ce4decad79fff155a11089f",
+      "after_sha256": "514dbfbf8b018c7937005c55ef6e9bfe635434a153036af92328e564e23945e5",
+      "bytes": 5501,
+      "source": "故事桥接.toolpkg"
+    },
+    {
+      "target": "开发者功能/开发者工具/故事桥接验收.mjs",
+      "backup": "开发者功能/开发者工具/故事桥接验收.mjs.into-backup-20261116_174511",
+      "before_sha256": "cf703f130b4ff7fcbd5ce2883bdc1f85b8425a28d0ad8b6c777576cd65f4e080",
+      "after_sha256": "c1f486f53048d1de638b29ee72b7662f70cfcd9d2b698d0a9a67d7fb295a5ca2",
+      "bytes": 14174,
+      "source": "故事桥接验收.mjs"
+    },
+    {
+      "target": "开发者功能/开发者说明书/开发者说明书.md",
+      "backup": "开发者功能/开发者说明书/开发者说明书.md.into-backup-20261116_174511",
+      "before_sha256": "0254a9ec3c29ddf9f54f1cba7807739a39e9d4e64f63b02b2dca238132e9931f",
+      "after_sha256": "d6319f659439e831812d377946d193d81d433b1ada74333b156fd8e2f92344c3",
+      "bytes": 11705,
+      "source": "开发者说明书.md"
+    }
+  ],
+  "unchanged": {
+    "data.json": {
+      "sha256": "079e1f37473701a36dfaabd350cb36fba9bda8584fee5f304935de8ba54f0f44",
+      "bytes": 3803
+    },
+    "存档/全局记忆库.txt": {
+      "sha256": "6149947df23b2c99dee6d6f6965611551213c28c56db31e76dc25585e1da786e",
+      "bytes": 5182
+    },
+    "存档/徐志北道具图鉴.txt": {
+      "sha256": "5ec84007c18ad3f9937717453e37238869ff610af5bc23ae33af2da1fc51224c",
+      "bytes": 2437
+    },
+    "存档/次要NPC名册.txt": {
+      "sha256": "7c6c74b8790273b8d71294c1e9ebe700cf97ff5dfb14b10ac213c9d83c836f0f",
+      "bytes": 1124
+    },
+    "voice_config.json": {
+      "sha256": "6bbd1ad3f537b8a52ad3a1aec684d52358f9c0b3aaf9cbbeace994715573cec0",
+      "bytes": 2618
+    },
+    "round_runtime.py": {
+      "sha256": "1747af3593f006e7fe878984ebfecd7a5fd3d15683f484b4f69e1a6055dda80a",
+      "bytes": 31591
+    },
+    "injection_core.py": {
+      "sha256": "b665b9ccf7fc1205a5baf726fc248556e20eeb9650b0fc4754695d0258af8752",
+      "bytes": 111118
+    },
+    "story_service.py": {
+      "sha256": "c4a7aafa42f7497b036bc741765d213f026da70dd1325e6787862841d4faca0b",
+      "bytes": 17907
+    }
+  },
+  "verification": [
+    "PASS bridge: single consumer, durable output, delivery retry, stop",
+    "PASS page: progress, exact retry, busy controls, failed action retained",
+    "PASS reading restore: late previous snapshot cannot resume or clear newer state",
+    "PASS L1: Python-compatible count, exact single-field replacement, one persisted repair",
+    "PASS L1: bad compression rejected, restart bounded, duplicate keys untouched",
+    "PASS L1: retry carries original action and validation feedback",
+    "PASS L1: generate + one repair, transport retry adds no model calls"
+  ]
+}

@@ -1,0 +1,1267 @@
+{
+  "step": 19,
+  "object": "深渊天平引擎 · 互动叙事",
+  "risk": "L1/R0",
+  "host_root": "/sdcard/互动对话项目/Gemini网页版",
+  "upstream_sha256": "dc3fc72a82362726367b78d9765f47388dd6e929d92d2e0e1c74bbf6c00cb017",
+  "plan_sha256": "0f205c2b98cefb95b56c8a5238044b1f3bfc7664da0de2cbb1b7e022c21f9615",
+  "baseline": {
+    "root_names": [
+      ".backup",
+      ".operit",
+      ".round-runtime",
+      "AGENTS.md",
+      "AGENTS.md.into-backup-20261117_022223",
+      "AGENTS.md.into-backup-20261117_073521",
+      "AGENTS.md.into-backup-20261117_075417",
+      "AGENTS.md.into-backup-20261117_112737",
+      "Operit世界书导出",
+      "__pycache__",
+      "data.json",
+      "injection_core.py",
+      "injection_core.py.into-backup-20261116_163312",
+      "injection_core.py.into-backup-20261117_100813",
+      "main_template.html",
+      "main_template.html.into-backup-20261116_172101",
+      "main_template.html.into-backup-20261116_181313",
+      "main_template.html.into-backup-20261116_185621",
+      "main_template.html.into-backup-20261117_022223",
+      "relationship_query.py",
+      "round_runtime.py",
+      "round_runtime.py.into-backup-20261117_091120",
+      "round_runtime.py.into-backup-20261117_094229",
+      "round_runtime.py.into-backup-20261117_100813",
+      "round_runtime.py.into-backup-20261117_112737",
+      "story_client.css",
+      "story_client.css.into-backup-20261116_181313",
+      "story_client.css.into-backup-20261116_185621",
+      "story_client.js",
+      "story_client.js.into-backup-20261116_181313",
+      "story_client.js.into-backup-20261116_185621",
+      "story_reading.py",
+      "story_service.py",
+      "story_service.py.into-backup-20261116_181313",
+      "story_service.py.into-backup-20261116_185621",
+      "story_service.py.into-backup-20261116_212924",
+      "story_service.py.into-backup-20261117_091120",
+      "story_service.py.into-backup-20261117_094229",
+      "story_service.py.into-backup-20261117_100813",
+      "story_service.py.into-backup-20261117_110458",
+      "story_service.py.into-backup-20261117_112737",
+      "txt文件",
+      "voice_client.js",
+      "voice_config.json",
+      "voice_manager.html",
+      "vosi",
+      "存档",
+      "存档开局随机盲盒.py",
+      "存档清理器.py",
+      "开发者功能",
+      "日志",
+      "语音仓库",
+      "语音运行.py",
+      "语音运行.py.into-backup-20261116_172101"
+    ],
+    "current_files": {
+      ".operit/sync.json": {
+        "sha256": "7a1a5670441725b52581ae75bf24718635a9b9e3320b38114d3c478e6c625360",
+        "bytes": 436
+      },
+      "Operit世界书导出/convert_to_operit.py": {
+        "sha256": "db092c67a64ab0c92507eb1423ee0183d9f1d46702655b53d4c6d083df414157",
+        "bytes": 6470
+      },
+      "data.json": {
+        "sha256": "c538e2d3a36320fe674b57a915f11980c17cf177abd5396ec28eda5072810eb1",
+        "bytes": 2537
+      },
+      "injection_core.py": {
+        "sha256": "a0f8f08eac00041ff5e85e337fdd210c17d83155125bcef839136db2be984968",
+        "bytes": 122195
+      },
+      "main_template.html": {
+        "sha256": "d7d5b001f7cca00b09ec3c9de55957ff510eefaceadca45919d0131aa633b794",
+        "bytes": 274301
+      },
+      "round_runtime.py": {
+        "sha256": "aa1ac7f41aeab4c8eee53194360d188a06fb840d01c8acab862da2595a824d52",
+        "bytes": 55738
+      },
+      "story_client.css": {
+        "sha256": "c7d929cfa6a986ae2391e45af0947084e49dc0816d26968df0ccc7d76df22ebc",
+        "bytes": 9109
+      },
+      "story_client.js": {
+        "sha256": "e55e317159409e60d4885ea0faabe1329d5092106fb79f9fd3f3e3340941e91f",
+        "bytes": 24189
+      },
+      "story_service.py": {
+        "sha256": "2477cbcc06dc1872cc3955d66f880cb72f9641dfdc9e4e6c70402b1ae4a83480",
+        "bytes": 46117
+      },
+      "txt文件/故事检索索引.md": {
+        "sha256": "d0c3daf904804c0b5f0bb2e0954ddced85afacb9cdf43a5d1ef343eb30ffed74",
+        "bytes": 5482
+      },
+      "txt文件/知识库/世界观类.json": {
+        "sha256": "3a0f9916f7c5a4ab7979882dfa2000adcc171eca48535cfbda734c8dc6f2f5bf",
+        "bytes": 6817
+      },
+      "voice_client.js": {
+        "sha256": "8247309ca6fcf1d864ddd5b181e86265d5ed1aeec73cdcfa3a0fd4ab7101985d",
+        "bytes": 5698
+      },
+      "voice_config.json": {
+        "sha256": "6bbd1ad3f537b8a52ad3a1aec684d52358f9c0b3aaf9cbbeace994715573cec0",
+        "bytes": 2618
+      },
+      "voice_manager.html": {
+        "sha256": "58aa936025c0a6428c9b70239a0ab52f892e7bb0c2b2dd51c94eb3487ced0748",
+        "bytes": 69381
+      },
+      "存档/全局记忆库.txt": {
+        "sha256": "3895c68c55ebea8c265cffd0bae564487205eedc767f78b950937320d744112f",
+        "bytes": 5046
+      },
+      "存档/徐志北道具图鉴.txt": {
+        "sha256": "5ec84007c18ad3f9937717453e37238869ff610af5bc23ae33af2da1fc51224c",
+        "bytes": 2437
+      },
+      "存档/次要NPC名册.txt": {
+        "sha256": "7c6c74b8790273b8d71294c1e9ebe700cf97ff5dfb14b10ac213c9d83c836f0f",
+        "bytes": 1124
+      },
+      "开发者功能/Operit故事桥接/main.js": {
+        "sha256": "f9629a177afd680227634e934aa3a43d8d86d3b38a23f46a436932a23f2982e9",
+        "bytes": 26106
+      },
+      "开发者功能/Operit故事桥接/manifest.json": {
+        "sha256": "11d6a3107897da70c78ba06e0e61033dd922e7e37e0970bfdd11347445e7b176",
+        "bytes": 686
+      },
+      "开发者功能/Operit故事桥接/tools.js": {
+        "sha256": "d5aa8ed7db8ede487b2cfaca91fe327cf918809ff7b3ab5beff749eeb86c3df7",
+        "bytes": 2067
+      },
+      "开发者功能/Operit故事桥接/故事桥接.toolpkg": {
+        "sha256": "8068c0afd6112e1764c3f3ab5f863e35f95c09dd00320eaebcc46a49b4b66b27",
+        "bytes": 9871
+      },
+      "开发者功能/开发者说明书/世界书关键字配置.txt": {
+        "sha256": "225f4fa97ae0da9f1caeb55a87cd6e005018e8b5f0d487524c1b74b31d5470e7",
+        "bytes": 8892
+      },
+      "语音运行.py": {
+        "sha256": "f846a8ee8c00c0e66b4cd087dcfcfcdc77e3365c376430f87f3c77c5bffa781a",
+        "bytes": 39890
+      },
+      "txt文件/一键注入指南.txt": {
+        "sha256": "7d0a6c4e970a5cf54986e8e68eb068bf4fc31f2005243042996be2bf141b2398",
+        "bytes": 57856
+      },
+      "AGENTS.md": {
+        "sha256": "baa5f5a89078d0289e643651c8aaee6f206c0a573a07932ceec7702dafed3c4c",
+        "bytes": 11065
+      },
+      "txt文件/提示词.md": {
+        "sha256": "2c1b999f5d69e7a5dd62890533f5152b2156f1b3ecf144b9994b4b6302b5a6fd",
+        "bytes": 16390
+      },
+      "txt文件/全局执行法典.md": {
+        "sha256": "f3422c04383f32611d70ea0c1fc6b356956723f19350bef85ecdb86db5b5a6aa",
+        "bytes": 13713
+      },
+      "txt文件/知识库/角色类.json": {
+        "sha256": "20a66c1eb9b59f474029c24715950658abab50b2f6aae8b657007e1dcf6610ec",
+        "bytes": 25701
+      },
+      "txt文件/知识库/叙事判断.json": {
+        "sha256": "9b6f50556b80aab03316ee1fb2a6242dce395f6782a48ce988ef8645c52e1fec",
+        "bytes": 17042
+      },
+      "txt文件/知识库/系统标签类.json": {
+        "sha256": "f13f71fb0c575ff8bfebcdc9e295c4e20795db99428bc508ca8c7c545eab1561",
+        "bytes": 39720
+      },
+      "开发者功能/开发者说明书/开发者说明书.md": {
+        "sha256": "05e80a99fa39bd8ec8cb261ab1655fdb31279f133b83b6e8766905bd014a5d11",
+        "bytes": 15638
+      },
+      "Operit世界书导出/operit_worldbook_深渊天平.json": {
+        "sha256": "cc1985b298367a0949bc8fb7dcd4a6846dc9cde0643f13e045637036d5564c8d",
+        "bytes": 85198
+      },
+      "txt文件/事件注册表.json": {
+        "sha256": "9ba945df6564524f4666b3d2d26b9f0565bfe09f33134dd9c8c5639a05c8b922",
+        "bytes": 34206
+      },
+      "relationship_query.py": {
+        "sha256": "99543416126bdf8f41627697c1bfa33054fb586db835cb9f1e5350d7f766860d",
+        "bytes": 15433
+      },
+      "txt文件/关系称谓库.json": {
+        "sha256": "b256e42669e1a1939d037579d90ded67e3ac04235c77626644ebd0d02479461a",
+        "bytes": 11752
+      },
+      "txt文件/关系称谓查询.jsonl": {
+        "sha256": "dc30de2cc2df577a04189c5155369248ea7147e0d8e84968072d3b34ada15e23",
+        "bytes": 139766
+      },
+      "story_reading.py": {
+        "sha256": "530ad4129327c57cea5739256c644b040142a4ce10d1678fb68d5b97ec504611",
+        "bytes": 12455
+      }
+    },
+    "historical_backups": [
+      {
+        "step": 10,
+        "original": "txt文件/一键注入指南.txt",
+        "path": "txt文件/一键注入指南.txt.into-backup-20261117_073521",
+        "sha256": "1012b02cd9c115f107ced181d2395a150e2742a11c41d101f2c4898703214f99",
+        "bytes": 47671
+      },
+      {
+        "step": 10,
+        "original": "AGENTS.md",
+        "path": "AGENTS.md.into-backup-20261117_073521",
+        "sha256": "b01179269a802ea1f0b754548a3e2f36e3ad05a4ca7afa82f2afa6fde12e1c91",
+        "bytes": 10852
+      },
+      {
+        "step": 10,
+        "original": "txt文件/提示词.md",
+        "path": "txt文件/提示词.md.into-backup-20261117_073521",
+        "sha256": "07d4e68b7873ff71d4938a107495878404b87a1e31fd57d1b3d5635356e9442a",
+        "bytes": 11748
+      },
+      {
+        "step": 10,
+        "original": "txt文件/全局执行法典.md",
+        "path": "txt文件/全局执行法典.md.into-backup-20261117_073521",
+        "sha256": "b2c3cbd62d4774353774a0f25222caae103fe5b10bdf349f1cfbfedea967a701",
+        "bytes": 13130
+      },
+      {
+        "step": 10,
+        "original": "txt文件/知识库/角色类.json",
+        "path": "txt文件/知识库/角色类.json.into-backup-20261117_073521",
+        "sha256": "95080778960c5ade60b5397a55d9cbde868643336fe6a86d83569bae332f69cb",
+        "bytes": 23352
+      },
+      {
+        "step": 10,
+        "original": "txt文件/知识库/叙事判断.json",
+        "path": "txt文件/知识库/叙事判断.json.into-backup-20261117_073521",
+        "sha256": "674e2abc662b87882df9ef319b3d5918a3c2f4894cda2f25944e14133827f5b3",
+        "bytes": 15880
+      },
+      {
+        "step": 10,
+        "original": "txt文件/知识库/系统标签类.json",
+        "path": "txt文件/知识库/系统标签类.json.into-backup-20261117_073521",
+        "sha256": "a86a36ab2afbc221a3257e6154dab22c2191bfcc8c27a4b8b964e0f0486802cc",
+        "bytes": 28161
+      },
+      {
+        "step": 10,
+        "original": "开发者功能/开发者说明书/开发者说明书.md",
+        "path": "开发者功能/开发者说明书/开发者说明书.md.into-backup-20261117_073521",
+        "sha256": "397353ed53437e8c90158a92c57bd8e08fbc7e02770525ad4a592821f8ab8a25",
+        "bytes": 12710
+      },
+      {
+        "step": 10,
+        "original": "Operit世界书导出/operit_worldbook_深渊天平.json",
+        "path": "Operit世界书导出/operit_worldbook_深渊天平.json.into-backup-20261117_073521",
+        "sha256": "893bc90f32dd5d7cbd840b0cbda3ec42a64ad6db7646775c8fa95d219c014830",
+        "bytes": 70871
+      },
+      {
+        "step": 11,
+        "original": "txt文件/提示词.md",
+        "path": "txt文件/提示词.md.into-backup-20261117_075417",
+        "sha256": "cefbbac8829953214201a4c67a9ffd644aa89adfccdc8079db39d5c690ce6aab",
+        "bytes": 11775
+      },
+      {
+        "step": 11,
+        "original": "AGENTS.md",
+        "path": "AGENTS.md.into-backup-20261117_075417",
+        "sha256": "676d1beb2403658a9dfee2850ac77576c9685c64de4ff7ce518730d2fe693f1c",
+        "bytes": 10816
+      },
+      {
+        "step": 11,
+        "original": "txt文件/全局执行法典.md",
+        "path": "txt文件/全局执行法典.md.into-backup-20261117_075417",
+        "sha256": "3280809b945f2f0febab66d1cf2afcbcaa0a259e46b99deeb82dc28789ee89ed",
+        "bytes": 13196
+      },
+      {
+        "step": 11,
+        "original": "txt文件/一键注入指南.txt",
+        "path": "txt文件/一键注入指南.txt.into-backup-20261117_075417",
+        "sha256": "5fe8ef811fd119259cdf40a08987b425b0fafe2402c2877258c6f2110d97beb1",
+        "bytes": 48000
+      },
+      {
+        "step": 11,
+        "original": "txt文件/故事检索索引.md",
+        "path": "txt文件/故事检索索引.md.into-backup-20261117_075417",
+        "sha256": "472be11ad1b97f55d992283fe48cfedda0f739dbb5a9b623c1440e654b783fed",
+        "bytes": 3861
+      },
+      {
+        "step": 11,
+        "original": "开发者功能/开发者说明书/开发者说明书.md",
+        "path": "开发者功能/开发者说明书/开发者说明书.md.into-backup-20261117_075417",
+        "sha256": "71543b229be02ffd6e06d5538f498a38e3ed8c5b3d80adcef7d91851e965d62f",
+        "bytes": 12947
+      },
+      {
+        "step": 12,
+        "original": "txt文件/知识库/角色类.json",
+        "path": "txt文件/知识库/角色类.json.into-backup-20261117_082209",
+        "sha256": "ddab2d8e3cfa0990ed362e0263591d6f0c76df12888575693e62b3e0cd1cebd1",
+        "bytes": 23411
+      },
+      {
+        "step": 12,
+        "original": "Operit世界书导出/operit_worldbook_深渊天平.json",
+        "path": "Operit世界书导出/operit_worldbook_深渊天平.json.into-backup-20261117_082209",
+        "sha256": "7dd6083367e689a2e827c7463c79d46f2f3cb8bc67893b0fd006a2fe638eb7af",
+        "bytes": 70899
+      },
+      {
+        "step": 12,
+        "original": "开发者功能/开发者说明书/开发者说明书.md",
+        "path": "开发者功能/开发者说明书/开发者说明书.md.into-backup-20261117_082209",
+        "sha256": "03f360af51b835df011591fb983e78894f6c7a5a070841c335572dba6425e93c",
+        "bytes": 13187
+      },
+      {
+        "step": 13,
+        "original": "txt文件/全局执行法典.md",
+        "path": "txt文件/全局执行法典.md.into-backup-20261117_084257",
+        "sha256": "b0e21bf276adb48ce27413293b278060bafb22cec96047046c088688f0afcb68",
+        "bytes": 13413
+      },
+      {
+        "step": 13,
+        "original": "txt文件/知识库/叙事判断.json",
+        "path": "txt文件/知识库/叙事判断.json.into-backup-20261117_084257",
+        "sha256": "7969eb57b0a6271af946634dae7096cd2f5c2ae5f6cecfdcb7a7b63b9f673e7f",
+        "bytes": 15870
+      },
+      {
+        "step": 13,
+        "original": "txt文件/知识库/系统标签类.json",
+        "path": "txt文件/知识库/系统标签类.json.into-backup-20261117_084257",
+        "sha256": "0614fc603e73a517c3434ec08953c123dc8b5dcec1ec20001eafb8923ee28b90",
+        "bytes": 28140
+      },
+      {
+        "step": 13,
+        "original": "开发者功能/开发者说明书/世界书关键字配置.txt",
+        "path": "开发者功能/开发者说明书/世界书关键字配置.txt.into-backup-20261117_084257",
+        "sha256": "4df3f38bf3365377168115d408ef76a99056c1c47e9f69f5b64b36d96d60186a",
+        "bytes": 8225
+      },
+      {
+        "step": 13,
+        "original": "开发者功能/开发者说明书/开发者说明书.md",
+        "path": "开发者功能/开发者说明书/开发者说明书.md.into-backup-20261117_084257",
+        "sha256": "a55e8c310684804c166af48fe66ffd8a8205004c0883e853862a582ea12a3988",
+        "bytes": 13425
+      },
+      {
+        "step": 13,
+        "original": "Operit世界书导出/operit_worldbook_深渊天平.json",
+        "path": "Operit世界书导出/operit_worldbook_深渊天平.json.into-backup-20261117_084257",
+        "sha256": "3d5c9e7f82a19a77405331d3a4ea3f99d97a8615b2dce1efa1cc536aa706375d",
+        "bytes": 73250
+      },
+      {
+        "step": 14,
+        "original": "story_service.py",
+        "path": "story_service.py.into-backup-20261117_091120",
+        "sha256": "d6beccbffa4b4c1e9a2fe8e8a09162b351a33688e4d5e0aeb672d8251a75dd7d",
+        "bytes": 32254
+      },
+      {
+        "step": 14,
+        "original": "round_runtime.py",
+        "path": "round_runtime.py.into-backup-20261117_091120",
+        "sha256": "1747af3593f006e7fe878984ebfecd7a5fd3d15683f484b4f69e1a6055dda80a",
+        "bytes": 31591
+      },
+      {
+        "step": 14,
+        "original": "txt文件/提示词.md",
+        "path": "txt文件/提示词.md.into-backup-20261117_091120",
+        "sha256": "c9f40635c77a58ec40c7bf2eeaad6cf49b22def1bd3f9ac5a5e89d0e3467460a",
+        "bytes": 13990
+      },
+      {
+        "step": 14,
+        "original": "txt文件/一键注入指南.txt",
+        "path": "txt文件/一键注入指南.txt.into-backup-20261117_091120",
+        "sha256": "4ee8e331f2674424a5c9cd3676038f40c2937af9784f8fe83d07abdc6d84102d",
+        "bytes": 47773
+      },
+      {
+        "step": 14,
+        "original": "开发者功能/开发者说明书/开发者说明书.md",
+        "path": "开发者功能/开发者说明书/开发者说明书.md.into-backup-20261117_091120",
+        "sha256": "1d79ff9b5982b1bbf717c1eb05f6d9a2d67895fd8a69879a6edbd46948362a65",
+        "bytes": 13672
+      },
+      {
+        "step": 15,
+        "original": "round_runtime.py",
+        "path": "round_runtime.py.into-backup-20261117_094229",
+        "sha256": "36dde820c54c11980451a293fc14e517319f6ab947e37f2c025dbc3cdcb19c4e",
+        "bytes": 38079
+      },
+      {
+        "step": 15,
+        "original": "story_service.py",
+        "path": "story_service.py.into-backup-20261117_094229",
+        "sha256": "49f8d200e9de69b0fd5af1f5041bf0f0d3c522facf2955fa8ef3d53a8238d43f",
+        "bytes": 40294
+      },
+      {
+        "step": 15,
+        "original": "txt文件/一键注入指南.txt",
+        "path": "txt文件/一键注入指南.txt.into-backup-20261117_094229",
+        "sha256": "b332748f70d5c5644556bcfc005d4355380c3d6ebeae501170920cf447b76432",
+        "bytes": 48753
+      },
+      {
+        "step": 15,
+        "original": "txt文件/知识库/系统标签类.json",
+        "path": "txt文件/知识库/系统标签类.json.into-backup-20261117_094229",
+        "sha256": "b6c7c12f36419a3e541e0eaba10b25a84bd2ded92ad56ed84e7bcb76afb7e24c",
+        "bytes": 29342
+      },
+      {
+        "step": 15,
+        "original": "开发者功能/开发者说明书/世界书关键字配置.txt",
+        "path": "开发者功能/开发者说明书/世界书关键字配置.txt.into-backup-20261117_094229",
+        "sha256": "9783e76b483cf444e284f66c65c732a6a866e36bf94a821938a3cc932ce774b9",
+        "bytes": 8499
+      },
+      {
+        "step": 15,
+        "original": "开发者功能/开发者说明书/开发者说明书.md",
+        "path": "开发者功能/开发者说明书/开发者说明书.md.into-backup-20261117_094229",
+        "sha256": "9211ea24e3513dd1afee1fcfe68292d7f25a6cde9d3e9a569a87e0e5c5e77ef0",
+        "bytes": 13949
+      },
+      {
+        "step": 15,
+        "original": "Operit世界书导出/operit_worldbook_深渊天平.json",
+        "path": "Operit世界书导出/operit_worldbook_深渊天平.json.into-backup-20261117_094229",
+        "sha256": "6f0757aa6a908e2815c4b8a4c832efa3a57193452b54cbc492eafd31957279f3",
+        "bytes": 75568
+      },
+      {
+        "step": 16,
+        "original": "injection_core.py",
+        "path": "injection_core.py.into-backup-20261117_100813",
+        "sha256": "b665b9ccf7fc1205a5baf726fc248556e20eeb9650b0fc4754695d0258af8752",
+        "bytes": 111118
+      },
+      {
+        "step": 16,
+        "original": "round_runtime.py",
+        "path": "round_runtime.py.into-backup-20261117_100813",
+        "sha256": "4000c6eeccfe4083ac41bf3d25c4dad9274a30c00cf06c4fc25387b63b565c9e",
+        "bytes": 54149
+      },
+      {
+        "step": 16,
+        "original": "story_service.py",
+        "path": "story_service.py.into-backup-20261117_100813",
+        "sha256": "5f83e66879e9e6d7bc0dd81dd46839b76833c650146cbae957edf0fda36dfa4a",
+        "bytes": 40778
+      },
+      {
+        "step": 16,
+        "original": "txt文件/一键注入指南.txt",
+        "path": "txt文件/一键注入指南.txt.into-backup-20261117_100813",
+        "sha256": "faa3ba0b41d8f6e38f45a7d756b35a5b5a39ae1b613b6c7b94f72440b4617d18",
+        "bytes": 49460
+      },
+      {
+        "step": 16,
+        "original": "txt文件/知识库/系统标签类.json",
+        "path": "txt文件/知识库/系统标签类.json.into-backup-20261117_100813",
+        "sha256": "cca27c9986d0cfddfb458089434243350f52c0430d05e41b0f6b958e5d64a33e",
+        "bytes": 29674
+      },
+      {
+        "step": 16,
+        "original": "开发者功能/开发者说明书/世界书关键字配置.txt",
+        "path": "开发者功能/开发者说明书/世界书关键字配置.txt.into-backup-20261117_100813",
+        "sha256": "33e418f1d4eb41d6a25942b89e09dc874b5587aabf72f5a45b32c8b3499eba7d",
+        "bytes": 8588
+      },
+      {
+        "step": 16,
+        "original": "txt文件/故事检索索引.md",
+        "path": "txt文件/故事检索索引.md.into-backup-20261117_100813",
+        "sha256": "414e69b71e537d873ad9ee2a00718b5e791b5cd71bbe642b63a1ca86d84bb961",
+        "bytes": 3867
+      },
+      {
+        "step": 16,
+        "original": "开发者功能/开发者说明书/开发者说明书.md",
+        "path": "开发者功能/开发者说明书/开发者说明书.md.into-backup-20261117_100813",
+        "sha256": "462710655681b3cc14543863aa99c2749484f78121ff8ef8ebe6206937561d30",
+        "bytes": 14211
+      },
+      {
+        "step": 16,
+        "original": "Operit世界书导出/operit_worldbook_深渊天平.json",
+        "path": "Operit世界书导出/operit_worldbook_深渊天平.json.into-backup-20261117_100813",
+        "sha256": "3f6263129553f3208ae9e02f4f7c6e2cd4fa705720a2146822a9bb1af2c6344e",
+        "bytes": 75899
+      },
+      {
+        "step": 17,
+        "original": "story_service.py",
+        "path": "story_service.py.into-backup-20261117_110458",
+        "sha256": "e8d7909682ce9db5e3fa4dbc73435880d71d3b2b3398632c918474bda82696fc",
+        "bytes": 41189
+      },
+      {
+        "step": 17,
+        "original": "txt文件/知识库/角色类.json",
+        "path": "txt文件/知识库/角色类.json.into-backup-20261117_110458",
+        "sha256": "3232eb14c36c154762893a901b709fb90eaf683a81d91d2ed911e02171093649",
+        "bytes": 25762
+      },
+      {
+        "step": 17,
+        "original": "txt文件/知识库/世界观类.json",
+        "path": "txt文件/知识库/世界观类.json.into-backup-20261117_110458",
+        "sha256": "f223990abc623062681166d6cb7dc39ddc6a545ff6cdb39a7f78e36821939284",
+        "bytes": 7559
+      },
+      {
+        "step": 17,
+        "original": "txt文件/知识库/叙事判断.json",
+        "path": "txt文件/知识库/叙事判断.json.into-backup-20261117_110458",
+        "sha256": "141337dfd6de6fceb043e68591fc8f157e99b71afa12eafbe4a342a3bc09b514",
+        "bytes": 16986
+      },
+      {
+        "step": 17,
+        "original": "txt文件/故事检索索引.md",
+        "path": "txt文件/故事检索索引.md.into-backup-20261117_110458",
+        "sha256": "d9ba8de934379169bf2765878784a610d4f060b62647bcc8fde1c03446fec3e0",
+        "bytes": 4010
+      },
+      {
+        "step": 17,
+        "original": "开发者功能/开发者说明书/开发者说明书.md",
+        "path": "开发者功能/开发者说明书/开发者说明书.md.into-backup-20261117_110458",
+        "sha256": "f0a7c8c34a836c9496ea9bce12ecf6611d1eedd0dbe51c2765bf883880f322f1",
+        "bytes": 14637
+      },
+      {
+        "step": 17,
+        "original": "开发者功能/开发者说明书/世界书关键字配置.txt",
+        "path": "开发者功能/开发者说明书/世界书关键字配置.txt.into-backup-20261117_110458",
+        "sha256": "8c0af86b6cdf884563d874a121fb222c911933064e6f7e3e1a62ebf1fd3acc99",
+        "bytes": 8678
+      },
+      {
+        "step": 17,
+        "original": "Operit世界书导出/operit_worldbook_深渊天平.json",
+        "path": "Operit世界书导出/operit_worldbook_深渊天平.json.into-backup-20261117_110458",
+        "sha256": "156f0df3e94a37a445af41c3c84eb044a6ecbff43be372db3e55fabb76e88ec5",
+        "bytes": 85945
+      },
+      {
+        "step": 18,
+        "original": ".operit/sync.json",
+        "path": ".operit/sync.json.into-backup-20261117_112737",
+        "sha256": "50c49bae70db0e2db14017498a6802035819e45927ead4a1454e5495636461dd",
+        "bytes": 403
+      },
+      {
+        "step": 18,
+        "original": "AGENTS.md",
+        "path": "AGENTS.md.into-backup-20261117_112737",
+        "sha256": "0e325b92fd04f69096546f2d3b7fb1e710d351d035d3ce49139a06ad3f8c8dc6",
+        "bytes": 10877
+      },
+      {
+        "step": 18,
+        "original": "story_service.py",
+        "path": "story_service.py.into-backup-20261117_112737",
+        "sha256": "affa03118d3d348c510bd280a0174d201d547f443a4086c09b97b603a214aca5",
+        "bytes": 44528
+      },
+      {
+        "step": 18,
+        "original": "round_runtime.py",
+        "path": "round_runtime.py.into-backup-20261117_112737",
+        "sha256": "f5fb2216494b5b4d9b10cb00bc6dce0eb3aafd93299ee564471b2c6243d77525",
+        "bytes": 55189
+      },
+      {
+        "step": 18,
+        "original": "txt文件/提示词.md",
+        "path": "txt文件/提示词.md.into-backup-20261117_112737",
+        "sha256": "c3ade24b3d6d7434469b354e349b58fe4588f8b624246bdf135f57b68f22c169",
+        "bytes": 15798
+      },
+      {
+        "step": 18,
+        "original": "txt文件/故事检索索引.md",
+        "path": "txt文件/故事检索索引.md.into-backup-20261117_112737",
+        "sha256": "f92e2b9ce0045bb0098b34df71c099219681998d360d54e24a5ffe10bfdb7d79",
+        "bytes": 4957
+      },
+      {
+        "step": 18,
+        "original": "开发者功能/开发者说明书/开发者说明书.md",
+        "path": "开发者功能/开发者说明书/开发者说明书.md.into-backup-20261117_112737",
+        "sha256": "8de4ee7bc25d89128fdaeb42bc22ba886759ad5ba1b14573edfa9656ff9c91ab",
+        "bytes": 15140
+      }
+    ],
+    "input_files": {
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_1.md": {
+        "sha256": "ee4d5d68a194ee0992e64e8400128c9e59b386b245e681d26d1de11359fe07f9",
+        "bytes": 2285
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_1.md": {
+        "sha256": "d70b2da1560ec2660f13ea89496d767b779efa5efed806475cef87bcfb7a90da",
+        "bytes": 2673
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_2.md": {
+        "sha256": "0c99ac86f51f042e8c1c54619b06a4aec433ed60f2305d91b51046564365a569",
+        "bytes": 3874
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_2.md": {
+        "sha256": "fc278473fbfae2f9a4c444e5d18d2953fd5b0df1a3ce97152b139b0c1c57e159",
+        "bytes": 4035
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_3.md": {
+        "sha256": "32bac248de4ba77bbcfa61af4c47e291bc9698f6bdc5d9675c5528a4ec9eda6e",
+        "bytes": 3501
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_3.md": {
+        "sha256": "d68e8183531028fbf5c10beb93f00edb69fa9d43affa68740902208871ae791b",
+        "bytes": 2928
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_4.md": {
+        "sha256": "19fc6c3370187d8e4de532f210b1986bd2ae238bc23b3d790f30eb78288034b6",
+        "bytes": 2930
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_4.md": {
+        "sha256": "934644c92edb7442c26b92198b140d885989c2db1f07ebac345a037a2d08e28a",
+        "bytes": 3369
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_5.md": {
+        "sha256": "c9c679dd796fc1eb1beec1e1c287b53b050123b30f65ae86d6bca755923f027a",
+        "bytes": 2567
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_5.md": {
+        "sha256": "244d144eccdbdcbda0b253349b6920eb23a9dd2854367df400d149db40afecab",
+        "bytes": 4143
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_6.md": {
+        "sha256": "1788ceb726579d3478e37efcd7364ed121adc1fbeeaeb171a6922840de12fa52",
+        "bytes": 2596
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_6.md": {
+        "sha256": "89be945532e4b2619f5b5218d6fc1021c6418bec82b5f46441446364315a186f",
+        "bytes": 3567
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_7.md": {
+        "sha256": "b406901b5341ed0dd370ed3e5dcc435b299ff6959929cf1d3bfd535b8195cad1",
+        "bytes": 3896
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_7.md": {
+        "sha256": "c6d071ec847a35be91a5f559e848638ccf7375e7574192453f24c0195379a878",
+        "bytes": 4105
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_8.md": {
+        "sha256": "c8d16d51c9461320794a3d9ffafa26a03bd31663588e392ad4a731bc97184e32",
+        "bytes": 3720
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_8.md": {
+        "sha256": "eba60268c892f0399008e1439d2840759701cb773224e2d1fcd0f7c184c5e3c1",
+        "bytes": 2810
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_9.md": {
+        "sha256": "722e9fc47a28e730cfb8c40a9655d452e0e48734e1d42d2537a6f01397d86f13",
+        "bytes": 28421
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_9.md": {
+        "sha256": "582a572ca29a99297865e45a857282ac16f54d1831d263a5da2addec8c4543b1",
+        "bytes": 3611
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_10.md": {
+        "sha256": "8c545b0dd5f22715af533807f9ffd08d4775f8e1918e9ec646f7879fbae5303c",
+        "bytes": 4415
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_10.md": {
+        "sha256": "a8623f76e380304875c9499e975e39b3427eabe88d7986b6da02e81b81425ff6",
+        "bytes": 3445
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_11.md": {
+        "sha256": "4460da400d92d90bee030ace1a1923ced96e5e7a754d77ac0585c13b90b761a4",
+        "bytes": 4375
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_11.md": {
+        "sha256": "25e0a100eca288bd0cccfa86c9933be0ba1cdca91911e59be6c9658f58fa512d",
+        "bytes": 3730
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_12.md": {
+        "sha256": "725cfb0bb01196afddbdd23cbef61784ea5d93cf653bc76ff43d8b3af7b10437",
+        "bytes": 4716
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_12.md": {
+        "sha256": "2a81ea076048688e70ecf6e09b1bf78cdb252b9ef61762634810bc2abec25437",
+        "bytes": 3966
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_13.md": {
+        "sha256": "8991bc90c283f6498eaa6e2698502d38b31b127dec60f988c739efa54f3e8d7c",
+        "bytes": 5451
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_13.md": {
+        "sha256": "bb2e33247f20640afb96698af948552e6c369bd9db077f1d4a8d9966bad56de2",
+        "bytes": 4117
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_14.md": {
+        "sha256": "70735a290865db9e6086870e0c58f91b1dfec282edfaec7fd342fe8d639e6fb9",
+        "bytes": 5618
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_14.md": {
+        "sha256": "96ba371a1d98ac259fa524b52215cabecef675c6e6494939bdc75bcf8efad091",
+        "bytes": 4299
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_15.md": {
+        "sha256": "7922501b1f27b2b4eccd73f26e173f9eee3fa671bc3750ade083cb828c055ebc",
+        "bytes": 7034
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_15.md": {
+        "sha256": "2b3107fb2f12340396ce8983885343ca2fe9e3f6a51ada57df0162c453e8d51d",
+        "bytes": 3926
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_16.md": {
+        "sha256": "9a401628abfbdeae0456d5a98e1dc8a62e821c2ebe8da48adc725ab9349c785a",
+        "bytes": 4848
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_16.md": {
+        "sha256": "ab56f3c93f6b21826b692129cced4e997aa3abfa1795845e9ddc831b040f3e50",
+        "bytes": 4210
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_17.md": {
+        "sha256": "93e7e47c9138711ceaace8f3fa00161c8d5f777bc977fb354388090dc3a17390",
+        "bytes": 4900
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_17.md": {
+        "sha256": "9486cd2c4ec93e403e042c963dc916558113c0a1d85ac8b431e4e7d5fb592ea1",
+        "bytes": 3646
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/plan/step_18.md": {
+        "sha256": "6ef3fac3b38ee68ea05a3c3286b398699fafbe0d2b34fa0df167a7b39a90e3e3",
+        "bytes": 5010
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/logs/step_18.md": {
+        "sha256": "dc3fc72a82362726367b78d9765f47388dd6e929d92d2e0e1c74bbf6c00cb017",
+        "bytes": 3761
+      },
+      "AGENTS.md": {
+        "sha256": "baa5f5a89078d0289e643651c8aaee6f206c0a573a07932ceec7702dafed3c4c",
+        "bytes": 11065
+      },
+      ".operit/sync.json": {
+        "sha256": "7a1a5670441725b52581ae75bf24718635a9b9e3320b38114d3c478e6c625360",
+        "bytes": 436
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_10.json": {
+        "sha256": "97e8cf6bd8e43d4deb8ed0e93eac7911d36d40aaecc59cf26aab8fedc2754ab8",
+        "bytes": 11890
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/P1修补与验收_10.md": {
+        "sha256": "fe38ce3baa55b9cfac69b51eb93f826c10bed5da11f9c2523744f4049cbc1987",
+        "bytes": 3040
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_11.json": {
+        "sha256": "c13e33accf3ef8b8f43f2b4c475bd66fa29809f6e5729224690f0852123c1f34",
+        "bytes": 30154
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/P2修补与验收_11.md": {
+        "sha256": "fc2c0aa2e6749a434ea4be35b5151d7e5a786ac753c106f796409023799c7e54",
+        "bytes": 4799
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_12.json": {
+        "sha256": "2cb0f7ff90a663666d31a72df0e19eadb5d273187bdb4ab6b9cb0975328c8eb5",
+        "bytes": 21278
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/P3修补与验收_12.md": {
+        "sha256": "7359b88c9cc06ecd69c8056cfffd5880edf770f43551f92504cb061d83c57748",
+        "bytes": 6743
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_13.json": {
+        "sha256": "c1f15b7937da1a0026bdff33a9606dac4c889b406f478b7ff65bfffdccffaf34",
+        "bytes": 69481
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/P4修补与验收_13.md": {
+        "sha256": "cf938848c9d8661b0741b5d6c4edecc639cc3ae80ce11739afab121cb93cb7b3",
+        "bytes": 8086
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_14.json": {
+        "sha256": "5ed845dae3c518049663801fafd60ed765478f12714104130a4f3a9ba4fb04a0",
+        "bytes": 39362
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/P8自动组装与验收_14.md": {
+        "sha256": "1593ed48b7dafbb2e5085ebbbe807a0ae15faf8ceeb1a39b4816d7f58b7e604f",
+        "bytes": 8345
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/P8隔离验收结果_14.json": {
+        "sha256": "ba4add4b850fabd2eb584849bac2d17da4debe19cc78ddb01efeae9941a7ce54",
+        "bytes": 4505
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_15.json": {
+        "sha256": "b1f9ff2b3b439a9853d59bf0ff6790b725e5219bdd3472c47e597e7c9755353b",
+        "bytes": 256441
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/P9生命周期与验收_15.md": {
+        "sha256": "ada240f6034aac1051199df2cbe5de79095257aad98d0e4763a89dd7f611ea8c",
+        "bytes": 6202
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/P9隔离验收结果_15.json": {
+        "sha256": "7fd3c6f9a22ef76dcaf4d9aa7adb6dacacaee464ad869ee585426f363bef4dc8",
+        "bytes": 3786
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_16.json": {
+        "sha256": "29425bb632d8a8bc3eebda806ae30d55c7ab75e0599f98bfee5a2455522c0d7f",
+        "bytes": 105108
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/P10注册与验收_16.md": {
+        "sha256": "eb9786e9ac9be994d65331777e0cacabd8c6f6e5a4414a71dd15db22b69923e0",
+        "bytes": 6889
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/P10隔离验收结果_16.json": {
+        "sha256": "f14b12c398941b74b556e0c07ab981aaf7a64743a04f980287a9da59c5d1515e",
+        "bytes": 6189
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_17.json": {
+        "sha256": "5b9e7f5d455d2c9cff9b5d04a92b38060f2981a0333ff320a71021dee7061d0c",
+        "bytes": 15613
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/P11查询与验收_17.md": {
+        "sha256": "49ba6c970d487b10ae860026e6f3081ee732f44d9a45da2269ca072adc44efa3",
+        "bytes": 6070
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/P11隔离验收结果_17.json": {
+        "sha256": "c7340dc6b33f610d53297067c2c6d91214ee812db19905c32b0c3487cfeabcd4",
+        "bytes": 6181
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_18.json": {
+        "sha256": "729ed21dde6d46eb2036897aed47efb06642cec0cb081995c4b511a728dd55c6",
+        "bytes": 14315
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/P12提取与验收_18.md": {
+        "sha256": "c3d1b6485480564b03efa971ae8080d1312d1e44bbda51cfff564718cebfdc80",
+        "bytes": 6923
+      },
+      "开发者功能/修订日志/2026.11/回合执行基础/src/P12隔离验收结果_18.json": {
+        "sha256": "e31c3426eb3f0eed3b208eca316792b9d3f2d377b85c33790d5fc437542529bc",
+        "bytes": 8745
+      }
+    },
+    "round": 4,
+    "tmp_before_transaction": [],
+    "transitions_mismatched": []
+  },
+  "stages": [
+    {
+      "project": "P1",
+      "step": 10,
+      "report": "开发者功能/修订日志/2026.11/回合执行基础/src/P1修补与验收_10.md",
+      "manifest": "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_10.json",
+      "status": "INSTALLED",
+      "existing_replacements": 9,
+      "new_runtime_files": 0,
+      "protected_at_install": 23,
+      "paths": [
+        "txt文件/一键注入指南.txt",
+        "AGENTS.md",
+        "txt文件/提示词.md",
+        "txt文件/全局执行法典.md",
+        "txt文件/知识库/角色类.json",
+        "txt文件/知识库/叙事判断.json",
+        "txt文件/知识库/系统标签类.json",
+        "开发者功能/开发者说明书/开发者说明书.md",
+        "Operit世界书导出/operit_worldbook_深渊天平.json"
+      ],
+      "plan_fingerprint_matches": true,
+      "upstream_fingerprint_matches": true
+    },
+    {
+      "project": "P2",
+      "step": 11,
+      "report": "开发者功能/修订日志/2026.11/回合执行基础/src/P2修补与验收_11.md",
+      "manifest": "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_11.json",
+      "status": "INSTALLED",
+      "existing_replacements": 6,
+      "new_runtime_files": 0,
+      "protected_at_install": 26,
+      "paths": [
+        "txt文件/提示词.md",
+        "AGENTS.md",
+        "txt文件/全局执行法典.md",
+        "txt文件/一键注入指南.txt",
+        "txt文件/故事检索索引.md",
+        "开发者功能/开发者说明书/开发者说明书.md"
+      ],
+      "plan_fingerprint_matches": true,
+      "upstream_fingerprint_matches": true
+    },
+    {
+      "project": "P3",
+      "step": 12,
+      "report": "开发者功能/修订日志/2026.11/回合执行基础/src/P3修补与验收_12.md",
+      "manifest": "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_12.json",
+      "status": "INSTALLED",
+      "existing_replacements": 3,
+      "new_runtime_files": 0,
+      "protected_at_install": 29,
+      "paths": [
+        "txt文件/知识库/角色类.json",
+        "Operit世界书导出/operit_worldbook_深渊天平.json",
+        "开发者功能/开发者说明书/开发者说明书.md"
+      ],
+      "plan_fingerprint_matches": true,
+      "upstream_fingerprint_matches": true
+    },
+    {
+      "project": "P4",
+      "step": 13,
+      "report": "开发者功能/修订日志/2026.11/回合执行基础/src/P4修补与验收_13.md",
+      "manifest": "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_13.json",
+      "status": "INSTALLED",
+      "existing_replacements": 6,
+      "new_runtime_files": 0,
+      "protected_at_install": 26,
+      "paths": [
+        "txt文件/全局执行法典.md",
+        "txt文件/知识库/叙事判断.json",
+        "txt文件/知识库/系统标签类.json",
+        "开发者功能/开发者说明书/世界书关键字配置.txt",
+        "开发者功能/开发者说明书/开发者说明书.md",
+        "Operit世界书导出/operit_worldbook_深渊天平.json"
+      ],
+      "plan_fingerprint_matches": true,
+      "upstream_fingerprint_matches": true
+    },
+    {
+      "project": "P8",
+      "step": 14,
+      "report": "开发者功能/修订日志/2026.11/回合执行基础/src/P8自动组装与验收_14.md",
+      "manifest": "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_14.json",
+      "status": "INSTALLED",
+      "existing_replacements": 5,
+      "new_runtime_files": 0,
+      "protected_at_install": 27,
+      "paths": [
+        "story_service.py",
+        "round_runtime.py",
+        "txt文件/提示词.md",
+        "txt文件/一键注入指南.txt",
+        "开发者功能/开发者说明书/开发者说明书.md"
+      ],
+      "plan_fingerprint_matches": true,
+      "upstream_fingerprint_matches": true,
+      "historical_acceptance": {
+        "source": "开发者功能/修订日志/2026.11/回合执行基础/src/P8隔离验收结果_14.json",
+        "cases": 27,
+        "all_recorded_pass": true,
+        "executed_this_step": false,
+        "metrics": {
+          "previous_required_top_keys": 9,
+          "compact_required_top_keys": 4,
+          "identity_fields_no_longer_model_required": 4,
+          "manual_system_log_replaced_by": "model_audit semantic fields; facts generated from verified audit",
+          "cases": 27,
+          "fixture_kind": "synthetic completed-receipt/tool records, real Flask client and RoundStore",
+          "real_operit_model_called": false,
+          "tts_called": false,
+          "live_round_unchanged": true,
+          "candidate": false
+        }
+      }
+    },
+    {
+      "project": "P9",
+      "step": 15,
+      "report": "开发者功能/修订日志/2026.11/回合执行基础/src/P9生命周期与验收_15.md",
+      "manifest": "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_15.json",
+      "status": "INSTALLED",
+      "existing_replacements": 7,
+      "new_runtime_files": 0,
+      "protected_at_install": 25,
+      "paths": [
+        "round_runtime.py",
+        "story_service.py",
+        "txt文件/一键注入指南.txt",
+        "txt文件/知识库/系统标签类.json",
+        "开发者功能/开发者说明书/世界书关键字配置.txt",
+        "开发者功能/开发者说明书/开发者说明书.md",
+        "Operit世界书导出/operit_worldbook_深渊天平.json"
+      ],
+      "plan_fingerprint_matches": true,
+      "upstream_fingerprint_matches": true,
+      "historical_acceptance": {
+        "source": "开发者功能/修订日志/2026.11/回合执行基础/src/P9隔离验收结果_15.json",
+        "cases": 41,
+        "all_recorded_pass": true,
+        "executed_this_step": false,
+        "metrics": {
+          "real_store": true,
+          "real_engine": true,
+          "real_model_called": false,
+          "tts_called": false,
+          "http_tested": false,
+          "bridge_context_method_tested": true,
+          "installed": false,
+          "live_facts_unchanged": true
+        }
+      }
+    },
+    {
+      "project": "P10",
+      "step": 16,
+      "report": "开发者功能/修订日志/2026.11/回合执行基础/src/P10注册与验收_16.md",
+      "manifest": "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_16.json",
+      "status": "INSTALLED",
+      "existing_replacements": 9,
+      "new_runtime_files": 1,
+      "protected_at_install": 23,
+      "paths": [
+        "injection_core.py",
+        "txt文件/事件注册表.json",
+        "round_runtime.py",
+        "story_service.py",
+        "txt文件/一键注入指南.txt",
+        "txt文件/知识库/系统标签类.json",
+        "开发者功能/开发者说明书/世界书关键字配置.txt",
+        "txt文件/故事检索索引.md",
+        "开发者功能/开发者说明书/开发者说明书.md",
+        "Operit世界书导出/operit_worldbook_深渊天平.json"
+      ],
+      "plan_fingerprint_matches": true,
+      "upstream_fingerprint_matches": true,
+      "historical_acceptance": {
+        "source": "开发者功能/修订日志/2026.11/回合执行基础/src/P10隔离验收结果_16.json",
+        "cases": 57,
+        "all_recorded_pass": true,
+        "executed_this_step": false,
+        "metrics": {
+          "numeric_comparisons": 2100,
+          "main_tag_count": 65,
+          "vigilance_tag_count": 10,
+          "real_store": true,
+          "real_engine": true,
+          "real_model_called": false,
+          "tts_called": false,
+          "http_tested": false,
+          "installed": false,
+          "original_engine_functions_ast_equal": 59,
+          "reused_passed_cases": 56,
+          "targeted_retry_cases": 1,
+          "first_attempt_failures": [
+            {
+              "case": "__main__.P10Cases.test_63_item_ids",
+              "status": "ERROR"
+            }
+          ],
+          "live_facts_unchanged": true,
+          "cases": 57
+        }
+      }
+    },
+    {
+      "project": "P11",
+      "step": 17,
+      "report": "开发者功能/修订日志/2026.11/回合执行基础/src/P11查询与验收_17.md",
+      "manifest": "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_17.json",
+      "status": "INSTALLED",
+      "existing_replacements": 8,
+      "new_runtime_files": 3,
+      "protected_at_install": 25,
+      "paths": [
+        "story_service.py",
+        "txt文件/知识库/角色类.json",
+        "txt文件/知识库/世界观类.json",
+        "txt文件/知识库/叙事判断.json",
+        "txt文件/故事检索索引.md",
+        "开发者功能/开发者说明书/开发者说明书.md",
+        "开发者功能/开发者说明书/世界书关键字配置.txt",
+        "Operit世界书导出/operit_worldbook_深渊天平.json",
+        "relationship_query.py",
+        "txt文件/关系称谓库.json",
+        "txt文件/关系称谓查询.jsonl"
+      ],
+      "plan_fingerprint_matches": true,
+      "upstream_fingerprint_matches": true,
+      "historical_acceptance": {
+        "source": "开发者功能/修订日志/2026.11/回合执行基础/src/P11隔离验收结果_17.json",
+        "cases": 47,
+        "all_recorded_pass": true,
+        "executed_this_step": false,
+        "metrics": {}
+      }
+    },
+    {
+      "project": "P12",
+      "step": 18,
+      "report": "开发者功能/修订日志/2026.11/回合执行基础/src/P12提取与验收_18.md",
+      "manifest": "开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_18.json",
+      "status": "INSTALLED",
+      "existing_replacements": 7,
+      "new_runtime_files": 1,
+      "protected_at_install": 29,
+      "paths": [
+        ".operit/sync.json",
+        "AGENTS.md",
+        "story_service.py",
+        "round_runtime.py",
+        "txt文件/提示词.md",
+        "txt文件/故事检索索引.md",
+        "开发者功能/开发者说明书/开发者说明书.md",
+        "story_reading.py"
+      ],
+      "plan_fingerprint_matches": true,
+      "upstream_fingerprint_matches": true,
+      "historical_acceptance": {
+        "source": "开发者功能/修订日志/2026.11/回合执行基础/src/P12隔离验收结果_18.json",
+        "cases": 35,
+        "all_recorded_pass": true,
+        "executed_this_step": false,
+        "metrics": {
+          "kb_entries_exact": 22,
+          "new_available_keys": [
+            "char.徐志北",
+            "char.沈知韫",
+            "contract.inject",
+            "gate.V1",
+            "lore.命名锁",
+            "lore.驻地",
+            "narrative.dialogue_tts",
+            "narrative.pace",
+            "rule.prompt",
+            "state.memory",
+            "sys.breakout",
+            "sys.task"
+          ],
+          "isolated_round": {
+            "status": "committed",
+            "round": 1,
+            "replay": true
+          },
+          "comparison": {
+            "unit": "Unicode characters, not tokens",
+            "same_case": "ordinary two-person material handoff",
+            "before": {
+              "read_body_chars": 84634,
+              "envelope_chars": 6516,
+              "total_chars": 91150,
+              "content_read_calls": 10
+            },
+            "after": {
+              "read_body_chars": 45020,
+              "envelope_chars": 8805,
+              "total_chars": 53825,
+              "content_read_calls": 14
+            },
+            "model_required_top_fields_before": 4,
+            "model_required_top_fields_after": 4,
+            "synthetic_contract_validation_retries": 0,
+            "real_model_retry_rate": null,
+            "creative_quality": null,
+            "counting": "one complete-content call per file; directory listing calls=3 in both; tool display wrappers excluded; baseline reads four raw libraries to obtain the same required keys"
+          }
+        }
+      }
+    }
+  ],
+  "pending_projects": [
+    "P5",
+    "P6",
+    "P7"
+  ],
+  "independent_followups": [
+    "运行加载与真实模型链路验收",
+    "历史任务缓存维护"
+  ],
+  "process_loaded_version": "not_inspected",
+  "historical_tests_rerun": false,
+  "real_model_called_this_step": false,
+  "tts_called_this_step": false,
+  "service_operated_this_step": false,
+  "official_round_submitted_this_step": false,
+  "outputs": [
+    "开发者功能/修订日志/2026.11/回合执行基础/plan/step_19.md",
+    "开发者功能/修订日志/2026.11/回合执行基础/src/阶段复盘与后续安排_19.md",
+    "开发者功能/修订日志/2026.11/回合执行基础/src/阶段复盘证据_19.json",
+    "开发者功能/修订日志/2026.11/回合执行基础/logs/step_19.md"
+  ],
+  "rollback_command": "python3 -c 'from pathlib import Path; targets=['\"'\"'开发者功能/修订日志/2026.11/回合执行基础/plan/step_19.md'\"'\"', '\"'\"'开发者功能/修订日志/2026.11/回合执行基础/src/阶段复盘与后续安排_19.md'\"'\"', '\"'\"'开发者功能/修订日志/2026.11/回合执行基础/src/阶段复盘证据_19.json'\"'\"', '\"'\"'开发者功能/修订日志/2026.11/回合执行基础/logs/step_19.md'\"'\"']; [Path(p).unlink(missing_ok=True) for p in targets]'",
+  "rollback_syntax_checked": true,
+  "actual_rollback": false,
+  "tools": {
+    "preflight": 24,
+    "write_execute": 3,
+    "verify_close": 2,
+    "total": 29,
+    "transactions": 1,
+    "verification_executions": 2
+  },
+  "verification": {
+    "targeted": {
+      "status": "PASS",
+      "output": "REVIEW19_PASS stages=9 pending=3 current_files=37 historical_backups=60 input_fingerprints_unchanged=true source_links=true metrics=true root_unchanged=true historical_tests_rerun=false",
+      "source_link_count": 21,
+      "current_file_count": 37,
+      "historical_backup_count": 60,
+      "historical_test_counts": [
+        27,
+        41,
+        57,
+        47,
+        35
+      ],
+      "rollback_syntax": true,
+      "actual_rollback": false
+    },
+    "close": {
+      "status": "PASS",
+      "output": "REVIEW19_FINAL_PASS outputs=4 plan_log_pairs=19 tmp_empty=true root_unchanged=true round=4 actual_rollback=false",
+      "plan_log_pairs": 19,
+      "tmp_empty": true,
+      "unexpected_root_entries": [],
+      "outputs_reopened": true,
+      "log_fields": 7,
+      "temporary_files_removed": 1
+    }
+  },
+  "report_fingerprint": {
+    "sha256": "abb3c9362037390425a58112b8d437c199d6bde89429ddf88f8ad2176e8d5764",
+    "bytes": 12254
+  },
+  "log_fingerprint": {
+    "sha256": "89b95948e690e29fb383733b4fc0b8022a182e5b9bf9ffc8db140e861e0c9a54",
+    "bytes": 3159
+  }
+}

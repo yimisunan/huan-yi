@@ -1,0 +1,22 @@
+{
+  "source_verified": 5,
+  "backups_verified": 5,
+  "protected_verified": 30,
+  "installed_plugin_byte_match": true,
+  "version": "1.3.0",
+  "plugin_enabled": true,
+  "subpackage_enabled": true,
+  "running": false,
+  "busy": false,
+  "pending_result": false,
+  "inFlight": null,
+  "live_saves_and_jobs_unchanged": true,
+  "rollback_syntax": true,
+  "live_get": {
+    "http": 200,
+    "reading_preflight": null,
+    "bridge_control": true,
+    "task_status": "failed"
+  },
+  "real_model_called": false
+}

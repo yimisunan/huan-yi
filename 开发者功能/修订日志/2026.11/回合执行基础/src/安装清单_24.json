@@ -1,0 +1,484 @@
+{
+  "root": "/sdcard/互动对话项目/Gemini网页版",
+  "status": "INSTALLED_SOURCE",
+  "risk": "L2/R1",
+  "changes": [
+    {
+      "path": "story_service.py",
+      "before": {
+        "sha256": "7205ad031fd4da62142eae31d5cdb85ff4fdc67102aa32b9615b311fdfeacc39",
+        "bytes": 53432,
+        "mtime_ns": 1794853515956271642,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "c098444c8e720e52b62a62c958c619a0149658936980833edacc3ce97e23f595",
+        "bytes": 60160
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate24_0.py",
+      "backup": "story_service.py.into-backup-20261117_150904"
+    },
+    {
+      "path": "开发者功能/Operit故事桥接/main.js",
+      "before": {
+        "sha256": "112af5c82c216d408bf2c98732b2a40b7209345c8004baefe2b834015b4edbea",
+        "bytes": 31872,
+        "mtime_ns": 1794853515968271642,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "e976382b704733caa565f9e13acc3e8a789a4bedbd99768f45ce406d5df144b0",
+        "bytes": 34815
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate24_1.js",
+      "backup": "开发者功能/Operit故事桥接/main.js.into-backup-20261117_150904"
+    },
+    {
+      "path": "开发者功能/Operit故事桥接/manifest.json",
+      "before": {
+        "sha256": "ac3d9e4309b6850fd187d49f910d296beab9d796001331362a436051891e9a74",
+        "bytes": 708,
+        "mtime_ns": 1794853515980271642,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "555d2f2f662b1b58b87a7d8682b9ef32ce65c881ddbfedd4dc195d93a3440820",
+        "bytes": 708
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate24_2.json",
+      "backup": "开发者功能/Operit故事桥接/manifest.json.into-backup-20261117_150904"
+    },
+    {
+      "path": "开发者功能/开发者说明书/开发者说明书.md",
+      "before": {
+        "sha256": "934ab444ef97cf39ab2f92a6ec9bb260b71c19173bdd081f5d7cc6aeb1e9ac42",
+        "bytes": 16620,
+        "mtime_ns": 1794903828874436972,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "db9ab7bd7d2aa9c3244a09e72d027919eb9cb541b4220ea20945c66705d2709c",
+        "bytes": 16880
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate24_4.md",
+      "backup": "开发者功能/开发者说明书/开发者说明书.md.into-backup-20261117_150904"
+    },
+    {
+      "path": "开发者功能/Operit故事桥接/故事桥接.toolpkg",
+      "before": {
+        "sha256": "1854ce3d0bb91c7f9d797e1da57a9273554636892a6fcfae3aecb50856cb3f14",
+        "bytes": 11710,
+        "mtime_ns": 1794853515988271642,
+        "mode": 432
+      },
+      "after": {
+        "sha256": "ec9d2dc624b014c9f386ed99abbabb9d9d2ecdd998a91b8ae15a21503c334352",
+        "bytes": 12688
+      },
+      "staged": "开发者功能/修订日志/2026.11/回合执行基础/tmp/tmp_candidate24_bridge.toolpkg",
+      "backup": "开发者功能/Operit故事桥接/故事桥接.toolpkg.into-backup-20261117_150904"
+    }
+  ],
+  "protected": {
+    ".operit/sync.json": {
+      "sha256": "7a1a5670441725b52581ae75bf24718635a9b9e3320b38114d3c478e6c625360",
+      "bytes": 436,
+      "mtime_ns": 1794845848988274567,
+      "mode": 432
+    },
+    "Operit世界书导出/convert_to_operit.py": {
+      "sha256": "db092c67a64ab0c92507eb1423ee0183d9f1d46702655b53d4c6d083df414157",
+      "bytes": 6470,
+      "mtime_ns": 1785992744000000000,
+      "mode": 432
+    },
+    "injection_core.py": {
+      "sha256": "a0f8f08eac00041ff5e85e337fdd210c17d83155125bcef839136db2be984968",
+      "bytes": 122195,
+      "mtime_ns": 1794311346881000000,
+      "mode": 432
+    },
+    "main_template.html": {
+      "sha256": "d7d5b001f7cca00b09ec3c9de55957ff510eefaceadca45919d0131aa633b794",
+      "bytes": 274301,
+      "mtime_ns": 1794853515940271642,
+      "mode": 432
+    },
+    "txt文件/故事检索索引.md": {
+      "sha256": "d0c3daf904804c0b5f0bb2e0954ddced85afacb9cdf43a5d1ef343eb30ffed74",
+      "bytes": 5482,
+      "mtime_ns": 1786001188000000000,
+      "mode": 432
+    },
+    "txt文件/知识库/世界观类.json": {
+      "sha256": "3a0f9916f7c5a4ab7979882dfa2000adcc171eca48535cfbda734c8dc6f2f5bf",
+      "bytes": 6817,
+      "mtime_ns": 1794310247407000000,
+      "mode": 432
+    },
+    "voice_client.js": {
+      "sha256": "8247309ca6fcf1d864ddd5b181e86265d5ed1aeec73cdcfa3a0fd4ab7101985d",
+      "bytes": 5698,
+      "mtime_ns": 1794394473464827642,
+      "mode": 432
+    },
+    "voice_config.json": {
+      "sha256": "6bbd1ad3f537b8a52ad3a1aec684d52358f9c0b3aaf9cbbeace994715573cec0",
+      "bytes": 2618,
+      "mtime_ns": 1794292912340000000,
+      "mode": 432
+    },
+    "voice_manager.html": {
+      "sha256": "58aa936025c0a6428c9b70239a0ab52f892e7bb0c2b2dd51c94eb3487ced0748",
+      "bytes": 69381,
+      "mtime_ns": 1794394473476827642,
+      "mode": 432
+    },
+    "开发者功能/开发者说明书/世界书关键字配置.txt": {
+      "sha256": "225f4fa97ae0da9f1caeb55a87cd6e005018e8b5f0d487524c1b74b31d5470e7",
+      "bytes": 8892,
+      "mtime_ns": 1786036402000000000,
+      "mode": 432
+    },
+    "语音运行.py": {
+      "sha256": "f846a8ee8c00c0e66b4cd087dcfcfcdc77e3365c376430f87f3c77c5bffa781a",
+      "bytes": 39890,
+      "mtime_ns": 1794311352508000000,
+      "mode": 432
+    },
+    "txt文件/一键注入指南.txt": {
+      "sha256": "7d0a6c4e970a5cf54986e8e68eb068bf4fc31f2005243042996be2bf141b2398",
+      "bytes": 57856,
+      "mtime_ns": 1794846792420274207,
+      "mode": 432
+    },
+    "AGENTS.md": {
+      "sha256": "baa5f5a89078d0289e643651c8aaee6f206c0a573a07932ceec7702dafed3c4c",
+      "bytes": 11065,
+      "mtime_ns": 1794310247394000000,
+      "mode": 432
+    },
+    "txt文件/提示词.md": {
+      "sha256": "2c1b999f5d69e7a5dd62890533f5152b2156f1b3ecf144b9994b4b6302b5a6fd",
+      "bytes": 16390,
+      "mtime_ns": 1786001188000000000,
+      "mode": 432
+    },
+    "txt文件/全局执行法典.md": {
+      "sha256": "f3422c04383f32611d70ea0c1fc6b356956723f19350bef85ecdb86db5b5a6aa",
+      "bytes": 13713,
+      "mtime_ns": 1794902190862437597,
+      "mode": 432
+    },
+    "txt文件/知识库/角色类.json": {
+      "sha256": "20a66c1eb9b59f474029c24715950658abab50b2f6aae8b657007e1dcf6610ec",
+      "bytes": 25701,
+      "mtime_ns": 1789229650000000000,
+      "mode": 432
+    },
+    "txt文件/知识库/叙事判断.json": {
+      "sha256": "9b6f50556b80aab03316ee1fb2a6242dce395f6782a48ce988ef8645c52e1fec",
+      "bytes": 17042,
+      "mtime_ns": 1786036360000000000,
+      "mode": 432
+    },
+    "txt文件/知识库/系统标签类.json": {
+      "sha256": "f13f71fb0c575ff8bfebcdc9e295c4e20795db99428bc508ca8c7c545eab1561",
+      "bytes": 39720,
+      "mtime_ns": 1786036360000000000,
+      "mode": 432
+    },
+    "Operit世界书导出/operit_worldbook_深渊天平.json": {
+      "sha256": "cc1985b298367a0949bc8fb7dcd4a6846dc9cde0643f13e045637036d5564c8d",
+      "bytes": 85198,
+      "mtime_ns": 1794903828858436972,
+      "mode": 432
+    },
+    "txt文件/事件注册表.json": {
+      "sha256": "9ba945df6564524f4666b3d2d26b9f0565bfe09f33134dd9c8c5639a05c8b922",
+      "bytes": 34206,
+      "mtime_ns": 1794910810110434309,
+      "mode": 432
+    },
+    "relationship_query.py": {
+      "sha256": "99543416126bdf8f41627697c1bfa33054fb586db835cb9f1e5350d7f766860d",
+      "bytes": 15433,
+      "mtime_ns": 1794913498678433283,
+      "mode": 432
+    },
+    "txt文件/关系称谓库.json": {
+      "sha256": "b256e42669e1a1939d037579d90ded67e3ac04235c77626644ebd0d02479461a",
+      "bytes": 11752,
+      "mtime_ns": 1794913498694433283,
+      "mode": 432
+    },
+    "txt文件/关系称谓查询.jsonl": {
+      "sha256": "dc30de2cc2df577a04189c5155369248ea7147e0d8e84968072d3b34ada15e23",
+      "bytes": 139766,
+      "mtime_ns": 1794913498702433283,
+      "mode": 432
+    },
+    "story_reading.py": {
+      "sha256": "530ad4129327c57cea5739256c644b040142a4ce10d1678fb68d5b97ec504611",
+      "bytes": 12455,
+      "mtime_ns": 1794914857894432765,
+      "mode": 432
+    },
+    "存档清理器.py": {
+      "sha256": "0646b0ec0a7fe7b2fb9640ed2f57a94dfccdcbea79ac1f97ab6e3691767e7913",
+      "bytes": 21043,
+      "mtime_ns": 1794311359343000000,
+      "mode": 432
+    },
+    "round_runtime.py": {
+      "sha256": "05070372eb70bfbdb090d25e87166aa4f268c690699653439b89e1eee6468dcb",
+      "bytes": 56858,
+      "mtime_ns": 1794846792400274207,
+      "mode": 432
+    },
+    "story_client.js": {
+      "sha256": "75847df16484ed195b1cefdda500e3495660d91be1d728a0ee22ce40b8ded692",
+      "bytes": 32991,
+      "mtime_ns": 1794853515908271642,
+      "mode": 432
+    },
+    "story_client.css": {
+      "sha256": "c1ebd65759a61ace7622f3628c9230a28fb5166179ec5c30e1839a43c1d97eb9",
+      "bytes": 11112,
+      "mtime_ns": 1794853767752271546,
+      "mode": 432
+    },
+    "开发者功能/Operit故事桥接/tools.js": {
+      "sha256": "da957a1965400a99150c44b9265bd98bf8c65b6c96cb2960517b75d693817686",
+      "bytes": 2201,
+      "mtime_ns": 1794849661344273113,
+      "mode": 432
+    },
+    "开发者功能/修订日志/2026.11/回合执行基础/src/页面对接说明.md": {
+      "sha256": "8d31ff3b3241d164f57c78df9960f6f67d519b2fd4c83f418c9938fc93ff9089",
+      "bytes": 5959,
+      "mtime_ns": 1794849544176273157,
+      "mode": 432
+    }
+  },
+  "dynamic_before": {
+    "data.json": {
+      "sha256": "238cf9c58f8dbdd15de13ba7f8086350928b3945eb5d0f0d3026d403ac709972",
+      "bytes": 4470,
+      "mtime_ns": 1794921161154430360,
+      "mode": 432
+    },
+    "存档/全局记忆库.txt": {
+      "sha256": "15961c9baecb881037f63cec540d681c4330a227a80f40fde3e0125bc2f002c1",
+      "bytes": 4320,
+      "mtime_ns": 1794918220790431482,
+      "mode": 432
+    },
+    "存档/徐志北道具图鉴.txt": {
+      "sha256": "5ec84007c18ad3f9937717453e37238869ff610af5bc23ae33af2da1fc51224c",
+      "bytes": 2437,
+      "mtime_ns": 1794918220794431482,
+      "mode": 432
+    },
+    "存档/次要NPC名册.txt": {
+      "sha256": "7c6c74b8790273b8d71294c1e9ebe700cf97ff5dfb14b10ac213c9d83c836f0f",
+      "bytes": 1124,
+      "mtime_ns": 1794918220794431482,
+      "mode": 432
+    },
+    ".round-runtime/state.json": {
+      "sha256": "3a0ba0284f4ce68da84b35a4155c27c02f73dbde68c47aab7ba953ebc28bab02",
+      "bytes": 992,
+      "mtime_ns": 1794926154559211107,
+      "mode": 432
+    },
+    ".round-runtime/save-epoch.json": {
+      "sha256": "e5283c98754a056ca93d41a9f0fc4a8e76632340a12779e24c58379c4b9afcb8",
+      "bytes": 66,
+      "mtime_ns": 1794921161170430360,
+      "mode": 432
+    }
+  },
+  "jobs_before": {
+    "page-2e64c9e9-c283-469c-ac7f-10dd929306cb": {
+      "action": "开始新故事开始故事",
+      "attempt": 1,
+      "base_revision": "d25572362f58185cd8dab6c8ab3cfbdbc92a7367e790a502acebd7e8d56c5708",
+      "before_panel": "[系统宿主] 积分 0 | 经验值 0 | 体力 100 | 魅力 70 | 商业嗅觉 0\n[沈知韫] 好感 95 | 堕落 0 | 欲望 0 | 羞耻 100 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0\n[徐念薇] 好感 30 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 65 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0\n[苏婉青] 好感 40 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0",
+      "created_at": 1794923119.363974,
+      "current_round": 1,
+      "error": "",
+      "generation_model": {
+        "function_type": "CHAT",
+        "key": "[\"CHAT\",\"DEEPSEEK\",\"deepseek-v4-flash\"]",
+        "model_id": "deepseek-v4-flash",
+        "pricing_configured": true,
+        "provider_id": "DEEPSEEK",
+        "provider_name": "DeepSeek"
+      },
+      "lease": "0erbCUm-Q1ka2esK1CAACnLDH6PRGiQx",
+      "lease_until": 1794926264.5774367,
+      "model_key": "[\"CHAT\",\"DEEPSEEK\",\"deepseek-v4-flash\"]",
+      "receipt": {
+        "optimistic_lock": true,
+        "replayed": false,
+        "request_id": "page-2e64c9e9-c283-469c-ac7f-10dd929306cb",
+        "revision": "c0beeb2c3f58062d1605054dff32e67034357ccf55991a2bf5833016b4a5a5ef",
+        "round": 1,
+        "state_version": 1,
+        "status": "committed"
+      },
+      "request_id": "page-2e64c9e9-c283-469c-ac7f-10dd929306cb",
+      "status": "committed"
+    },
+    "page-8d8604db-30aa-46ac-9d67-13a1bfb93a43": {
+      "action": "[B. 社交接触]：自己起身去灶边添汤，回来时手背擦过她还搭在勺柄上的手",
+      "attempt": 1,
+      "base_revision": "1c1aabf60fcf5c7eaf003881b5fa55770a7bce492760a2adf9761540a1db868e",
+      "before_panel": "[系统宿主] 积分 3 | 经验值 1 | 体力 100 | 魅力 70 | 商业嗅觉 0\n[沈知韫] 好感 95 | 堕落 0 | 欲望 0 | 羞耻 100 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0\n[徐念薇] 好感 30 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 65 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0\n[苏婉青] 好感 40 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0",
+      "created_at": 1794926685.8678427,
+      "current_round": 3,
+      "error": "回合校验未通过：必需key未完整读取: sys.shame",
+      "generation_model": {
+        "function_type": "CHAT",
+        "key": "[\"CHAT\",\"DEEPSEEK\",\"deepseek-v4-flash\"]",
+        "model_id": "deepseek-v4-flash",
+        "pricing_configured": true,
+        "provider_id": "DEEPSEEK",
+        "provider_name": "DeepSeek"
+      },
+      "lease": "fgi5hp9kwOStXKsWLZyor1jZkHz7m_Rp",
+      "lease_until": 1794926887.0249748,
+      "model_key": "[\"CHAT\",\"DEEPSEEK\",\"deepseek-v4-flash\"]",
+      "receipt": null,
+      "request_id": "page-8d8604db-30aa-46ac-9d67-13a1bfb93a43",
+      "status": "failed"
+    },
+    "page-d1a5924a-abd6-497a-810d-4f891832e06b": {
+      "action": "[A. 日常互动]：先坐下喝完那碗汤，随口问她今天在公司忙到几点，周末的事先不提",
+      "attempt": 1,
+      "base_revision": "c0beeb2c3f58062d1605054dff32e67034357ccf55991a2bf5833016b4a5a5ef",
+      "before_panel": "[系统宿主] 积分 1 | 经验值 0 | 体力 100 | 魅力 70 | 商业嗅觉 0\n[沈知韫] 好感 95 | 堕落 0 | 欲望 0 | 羞耻 100 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0\n[徐念薇] 好感 30 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 65 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0\n[苏婉青] 好感 40 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0",
+      "created_at": 1794926399.0290782,
+      "current_round": 2,
+      "error": "",
+      "generation_model": {
+        "function_type": "CHAT",
+        "key": "[\"CHAT\",\"DEEPSEEK\",\"deepseek-v4-flash\"]",
+        "model_id": "deepseek-v4-flash",
+        "pricing_configured": true,
+        "provider_id": "DEEPSEEK",
+        "provider_name": "DeepSeek"
+      },
+      "lease": "WedzItXWbYGhGWM_UY15ftYRI89pNS5U",
+      "lease_until": 1794926621.8885777,
+      "model_key": "[\"CHAT\",\"DEEPSEEK\",\"deepseek-v4-flash\"]",
+      "receipt": {
+        "optimistic_lock": true,
+        "replayed": false,
+        "request_id": "page-d1a5924a-abd6-497a-810d-4f891832e06b",
+        "revision": "1c1aabf60fcf5c7eaf003881b5fa55770a7bce492760a2adf9761540a1db868e",
+        "round": 2,
+        "state_version": 2,
+        "status": "committed"
+      },
+      "request_id": "page-d1a5924a-abd6-497a-810d-4f891832e06b",
+      "status": "committed"
+    },
+    "page-e368846a-a800-4964-b39a-022db1cebe8a": {
+      "action": "开始新故事",
+      "attempt": 2,
+      "base_revision": "d25572362f58185cd8dab6c8ab3cfbdbc92a7367e790a502acebd7e8d56c5708",
+      "before_panel": "[系统宿主] 积分 0 | 经验值 0 | 体力 100 | 魅力 70 | 商业嗅觉 0\n[沈知韫] 好感 95 | 堕落 0 | 欲望 0 | 羞耻 100 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0\n[徐念薇] 好感 30 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 65 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0\n[苏婉青] 好感 40 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0",
+      "created_at": 1794921216.4401133,
+      "current_round": 1,
+      "error": "回合校验未通过：memory_deltas: 未知键=['affection_events', 'depravity_events', 'ds_events', 'host_events', 'item_entries', 'shame_events', 'task_issue', 'vigilance_events']; 缺键=[]",
+      "generation_model": {
+        "function_type": "CHAT",
+        "key": "[\"CHAT\",\"DEEPSEEK\",\"deepseek-v4-flash\"]",
+        "model_id": "deepseek-v4-flash",
+        "pricing_configured": true,
+        "provider_id": "DEEPSEEK",
+        "provider_name": "DeepSeek"
+      },
+      "lease": "hUETDfnNcj6ORBP-CZMUigb2PQfYsdOM",
+      "lease_until": 1794921733.644964,
+      "model_key": "[\"CHAT\",\"DEEPSEEK\",\"deepseek-v4-flash\"]",
+      "receipt": null,
+      "request_id": "page-e368846a-a800-4964-b39a-022db1cebe8a",
+      "status": "failed"
+    }
+  },
+  "latest_before": "page-8d8604db-30aa-46ac-9d67-13a1bfb93a43",
+  "root_names": [
+    ".backup",
+    ".operit",
+    ".round-runtime",
+    "AGENTS.md",
+    "AGENTS.md.into-backup-20261117_022223",
+    "AGENTS.md.into-backup-20261117_073521",
+    "AGENTS.md.into-backup-20261117_075417",
+    "AGENTS.md.into-backup-20261117_112737",
+    "Operit世界书导出",
+    "__pycache__",
+    "data.json",
+    "injection_core.py",
+    "injection_core.py.into-backup-20261116_163312",
+    "injection_core.py.into-backup-20261117_100813",
+    "main_template.html",
+    "main_template.html.into-backup-20261116_172101",
+    "main_template.html.into-backup-20261116_181313",
+    "main_template.html.into-backup-20261116_185621",
+    "main_template.html.into-backup-20261117_022223",
+    "relationship_query.py",
+    "round_runtime.py",
+    "round_runtime.py.into-backup-20261117_091120",
+    "round_runtime.py.into-backup-20261117_094229",
+    "round_runtime.py.into-backup-20261117_100813",
+    "round_runtime.py.into-backup-20261117_112737",
+    "round_runtime.py.into-backup-20261117_133037",
+    "story_client.css",
+    "story_client.css.into-backup-20261116_181313",
+    "story_client.css.into-backup-20261116_185621",
+    "story_client.css.into-backup-20261117_141420",
+    "story_client.js",
+    "story_client.js.into-backup-20261116_181313",
+    "story_client.js.into-backup-20261116_185621",
+    "story_client.js.into-backup-20261117_123813",
+    "story_client.js.into-backup-20261117_125316",
+    "story_client.js.into-backup-20261117_141420",
+    "story_reading.py",
+    "story_service.py",
+    "story_service.py.into-backup-20261116_181313",
+    "story_service.py.into-backup-20261116_185621",
+    "story_service.py.into-backup-20261116_212924",
+    "story_service.py.into-backup-20261117_091120",
+    "story_service.py.into-backup-20261117_094229",
+    "story_service.py.into-backup-20261117_100813",
+    "story_service.py.into-backup-20261117_110458",
+    "story_service.py.into-backup-20261117_112737",
+    "story_service.py.into-backup-20261117_123813",
+    "story_service.py.into-backup-20261117_125316",
+    "story_service.py.into-backup-20261117_133037",
+    "story_service.py.into-backup-20261117_141420",
+    "txt文件",
+    "voice_client.js",
+    "voice_config.json",
+    "voice_manager.html",
+    "vosi",
+    "存档",
+    "存档开局随机盲盒.py",
+    "存档清理器.py",
+    "存档清理器.py.into-backup-20261117_125316",
+    "开发者功能",
+    "日志",
+    "语音仓库",
+    "语音运行.py",
+    "语音运行.py.into-backup-20261116_172101"
+  ],
+  "plan_sha256": "42c0f12a95e03976385189143f526c5679eb78467cfa0d970f576571909511df",
+  "upstream_sha256": "feea9a195b3c6e61e00675dbc59b50ca2469f2d28961ae014854004620f48b9c",
+  "rollback_command": "PYTHONDONTWRITEBYTECODE=1 python3 -c 'from pathlib import Path\nimport hashlib,json,os,uuid\nr=Path.cwd().resolve();m=json.loads((r/'\"'\"'开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_24.json'\"'\"').read_bytes())\nassert str(r)==m['\"'\"'root'\"'\"']\nfor c in m['\"'\"'changes'\"'\"']:\n assert hashlib.sha256((r/c['\"'\"'backup'\"'\"']).read_bytes()).hexdigest()==c['\"'\"'before'\"'\"']['\"'\"'sha256'\"'\"']\n assert hashlib.sha256((r/c['\"'\"'path'\"'\"']).read_bytes()).hexdigest() in {c['\"'\"'before'\"'\"']['\"'\"'sha256'\"'\"'],c['\"'\"'after'\"'\"']['\"'\"'sha256'\"'\"']}\nfor c in m['\"'\"'changes'\"'\"']:\n p=r/c['\"'\"'path'\"'\"'];t=p.with_name('\"'\"'.'\"'\"'+p.name+'\"'\"'.round-tmp-'\"'\"'+uuid.uuid4().hex)\n try:\n  with t.open('\"'\"'xb'\"'\"') as f:f.write((r/c['\"'\"'backup'\"'\"']).read_bytes());f.flush();os.fsync(f.fileno())\n  os.chmod(t,c['\"'\"'before'\"'\"']['\"'\"'mode'\"'\"']);os.replace(t,p)\n finally:t.unlink(missing_ok=True)\n'",
+  "installed_at": "2026-11-17T15:15:40.115594",
+  "tests_sha256": "f1e342d4155e442367876800560b7363c8f2bac472f41f38cb30bfd6e2ca868d"
+}

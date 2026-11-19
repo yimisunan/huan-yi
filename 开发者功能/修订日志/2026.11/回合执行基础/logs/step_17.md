@@ -1,0 +1,11 @@
+- 【步骤编号】step_17
+- 【上游依赖】用户“继续下一步”承接P10建议；logs/step_16.md，SHA-256=ab56f3c93f6b21826b692129cced4e997aa3abfa1795845e9ddc831b040f3e50；plan/step_17.md，SHA-256=93e7e47c9138711ceaace8f3fa00161c8d5f777bc977fb354388090dc3a17390。使用into、iter-revise、任务五步走·落盘规范；只读接口与工具范围在契约锁定，不扩展敏感区。
+- 【做了什么】安装关系称谓唯一源、只读查询与生成行视图；迁移旧关系/知情/具体自称清单为引用，桥接按实际查询行审计，保留原文件只读权限及人物选择/省略自由。
+- 【产物】src/P11查询与验收_17.md、P11关系构建_17.py、P11隔离验收_17.py、P11隔离验收结果_17.json；src/安装清单_17.json，SHA-256=5b9e7f5d455d2c9cff9b5d04a92b38060f2981a0333ff320a71021dee7061d0c；新增relationship_query.py、txt文件/关系称谓库.json、txt文件/关系称谓查询.jsonl。八父版精确路径/指纹在清单。本轮清理tmp顶层14项（含11候选、2脚本及1隔离树），现为空。
+- 【验收证据】
+  - V1 改前基线：Host pwd=/storage/emulated/0/互动对话项目/Gemini网页版，resolve=/sdcard/互动对话项目/Gemini网页版；BASELINE_CHECK checked=33 changed=[]；tmp为空、step_17两侧不存在。同步排除已覆盖备份/tmp/runtime，未改配置。八现役SHA/字节/mtime/权限、三新增不存在及25保护项见安装清单；写前并发复核通过。
+  - V2 改后结果：初验46/46PASS；资料完整性补充后12项定向复核全PASS，合并47项全PASS；60方向查询、30多人交集，最新887来源指针。实际服务类/合同与审计执行，无Flask/HTTP/模型。INSTALLED existing=8 new=3 BACKUPS_VERIFIED=8 PROTECTED_UNCHANGED=25；P11_INSTALLED_PASS existing=8 new=3 backups=8 protected=25 candidate_byte_match=true；VIEW_PASS rows=41 view_matches=true；导出22条/7常驻、知识库元数据未变，以上退出0。最终配对/清理观测追加src记录，不事先宣称未执行的结果。
+  - V3 反向可行：八父版均与before指纹一致；清单恢复命令shlex/Python静态解析通过。ROLLBACK_PASS syntax=true backup_fingerprints=true actual_rollback=false。先检查全部归属，再逐文件原子恢复八现役并删除仍属本轮三新增；未实际回滚。
+  - 成本与异常：1个L2/R1+R0事务；P11累计63次子工具调用（摘要前8+本续段55）；预检50、写入/控制10、验证/收尾3，验证执行4次。超默认30次的原因及两次不同锚点预检停机、一次检索图片超限、后续定向处理详见src记录。全程无现役写入失败；无依赖安装、模型/TTS调用或服务操作。
+- 【回滚方式】八现役R1、三新增R0；项目根一条调取命令：python3 -c 'import json,subprocess; from pathlib import Path; p=Path("开发者功能/修订日志/2026.11/回合执行基础/src/安装清单_17.json"); subprocess.run(json.loads(p.read_bytes())["rollback_command"],shell=True,check=True)'。代码恢复后须重启服务，正式回合数据不在代码回滚范围；新增开发资产保留R0。
+- 【下一步】P11交付；建议P12减少重复读取与包装，复用本项来源指纹/查询行/covered_lines，不自动注入全表。运行中Python服务仍需重启加载P8—P11，新行动或显式重试刷新合同；本项未重启。真实模型称谓自然度、隐藏信息语义纪律、网页端到端及TTS未实测。正式data.json、三存档、语音配置、四敏感文件、round_runtime及桥接插件指纹未变，剧情仍第4回合。P5—P7未启动。

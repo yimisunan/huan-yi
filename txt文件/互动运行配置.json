@@ -1,0 +1,55 @@
+{
+  "version": 2,
+  "locations": [
+    "徐家主宅",
+    "市中心顶层公寓",
+    "大学",
+    "工作室",
+    "公司"
+  ],
+  "operations": [
+    "move_player",
+    "transfer_item",
+    "use_recovery_item"
+  ],
+  "resource": {
+    "status": "active",
+    "version": 2,
+    "scheme": "fixed_tiers",
+    "attribute": "体力",
+    "costs": {
+      "A": 5,
+      "B": 10,
+      "C": 15
+    },
+    "custom_reserve": 15,
+    "maximum": 100,
+    "minimum_action": 5,
+    "item_recovery_percent": 20,
+    "recovery_cycle": "between_completed_overnight_sleeps",
+    "overnight": "restore_to_maximum"
+  },
+  "progression": {
+    "clock": "game_day_and_HH:MM",
+    "close_memory": "cross_midnight_or_final_stamina_below_5",
+    "actions": "accepted_paid_story_actions",
+    "legacy_timers": "BUFF/道具/微状态/守护/破局按有效行动；任务按实际面板；监视每完整游戏小时衰减2，每有效行动一次回宅判定",
+    "stage_threshold": null,
+    "game_minutes": null
+  },
+  "secret_disclosure": {
+    "status": "pending",
+    "rule": "保持关系称谓库既有知情资格，不新增秘密解锁"
+  },
+  "memory": {
+    "fact_chars": 160,
+    "round_chars": 600,
+    "l2_chars": 240,
+    "l3_chars": 600,
+    "l4_chars": 900,
+    "context_chars": 6000,
+    "history_turns": 6,
+    "history_chars": 12000,
+    "index_entries": 24
+  }
+}
