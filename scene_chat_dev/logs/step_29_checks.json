@@ -141,7 +141,11 @@
     "temp_bytes_removed": 2186015,
     "tmp_empty": true,
     "readme_links": "PASS",
-    "plan_log_pairing": "PASS",
+    "plan_log_pairing": {
+      "current_step_29": "PASS",
+      "historical_gap": "scene_chat_dev/plan/step_4.md absent in baseline, recorded without fabrication",
+      "archived_steps": "PASS"
+    },
     "preserve_recheck": "PASS",
     "remaining_backup_cache_artifacts": "none",
     "git_boundary": {
@@ -150,5 +154,15 @@
       "runtime_and_nomedia_excluded": true,
       "diff_check": "PASS"
     }
+  },
+  "publication": {
+    "cleanup_commit": "998c7948e69b042f158ac211e526d43866e7bb4a",
+    "main_origin_remote_equal": true,
+    "github_rest_tree": {
+      "blob_files": 351,
+      "deleted_paths_absent": 680,
+      "bridge_blob_matches": true
+    },
+    "mode": "normal commit, ff-only merge, no force push or repo recreation"
   }
 }
