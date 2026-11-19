@@ -1,0 +1,40 @@
+{
+  "version": "1.8.2",
+  "package_sha256": "1240034ca33966396acf90a89c50b90aa4d10acfd8f2b2519a047a5d2ea9fdd7",
+  "import_result": "Package imported: local.story.operit_bridge; stored /operitapp/data/extensions/device/packages/故事桥接.toolpkg",
+  "status": {
+    "running": true,
+    "enabled": true,
+    "busy": false,
+    "inFlight": null,
+    "pendingResult": false,
+    "lastError": "",
+    "version": "1.8.2"
+  },
+  "actual_failed_packet_pagination": {
+    "lines": 2364,
+    "calls": 12,
+    "max_line_chars": 6443,
+    "max_page_chars": 9000,
+    "max_page_bytes": 22611
+  },
+  "protected_unchanged": [
+    "main_template.html",
+    "story_client.js",
+    "story_client.css",
+    "语音运行.py",
+    "injection_core.py",
+    "round_runtime.py",
+    "story_service.py",
+    "story_progression.py",
+    "data.json",
+    "voice_config.json",
+    "存档/全局记忆库.txt",
+    "存档/徐志北道具图鉴.txt",
+    "存档/次要NPC名册.txt"
+  ],
+  "source_backups_verified": 7,
+  "python_service_restarted": false,
+  "live_model_retry_executed": false,
+  "tts_executed": false
+}

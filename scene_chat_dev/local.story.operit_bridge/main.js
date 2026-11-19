@@ -8,9 +8,10 @@ let busy = null;
 let lastError = '';
 let monitorTimer = null, monitorBusy = false, starting = null;
 let controlSupported = null, sessionReady = false;
-const PLUGIN_VERSION = '1.8.1';
+const PLUGIN_VERSION = '1.8.2';
 let heartbeats = new Set();
 const FILE_TOOLS = ['list_files', 'find_files', 'grep_code', 'read_file', 'read_file_full', 'read_file_part', 'file_info', 'file_exists'];
+const LIVE_READ_TOOLS = ['read_file','read_file_full','read_file_part','file_info','grep_code'];
 const ROLE_MARK = 'local.story.operit_bridge:readonly';
 const SESSION_TIMEOUT = 600000;
 
@@ -39,8 +40,9 @@ async function restoreChat(chatId, returnChatId) {
 }
 
 function roleChanges(model, scene = false) {
-    if (scene === 'live') return { ...roleChanges(model, true), name: '同席互动·项目只读',
-        characterSetting: '你是正式互动故事生成者。entry_mode=live_interaction时完整真实读取当前packet，依据设定、实际存档和玩家意图推演有发展且连贯的剧情，在需要玩家新决定处停下。只按本次output_contract输出messages/decision/operation/handoff/checks及resolution裸JSON，decision提供本段A/B/C。玩家点按演播完成后才行动。resolution只交原文事件依据、分类、游戏时刻及本次记忆事实，费用/退款/低体力由程序计算。不写旧整回合或SYSTEM_LOG，不写文件或执行命令。',
+    if (scene === 'live') return { ...roleChanges(model, true),
+        toolAccessConfig:{enabled:true,allowedBuiltinTools:LIVE_READ_TOOLS,allowedPackages:[],allowedSkills:[],allowedMcpServers:[]}, name: '同席互动·项目只读',
+        characterSetting: '你是正式互动故事生成者。entry_mode=live_interaction时按packet.read_ranges用read_file_part逐段完整读取当前packet；grep_code仅定位指定文件，不算正文覆盖，不用list_files/find_files，依据设定、实际存档和玩家意图推演有发展且连贯的剧情，在需要玩家新决定处停下。只按本次output_contract输出messages/decision/operation/handoff/checks及resolution裸JSON，decision提供本段A/B/C。玩家点按演播完成后才行动。resolution只交原文事件依据、分类、游戏时刻及本次记忆事实，费用/退款/低体力由程序计算。不写旧整回合或SYSTEM_LOG，不写文件或执行命令。',
         otherContentChat: '遵循本次output_contract；正式传输中operation无操作时明确写空字符串两个双引号，不省略值，桥接在合法解析后转换为内部null。resolution.task、resolution.sleep.start、resolution.conditions及其中npc无内容同样写空字符串，不得省略值；有任务/时间/条件则写合法对象。严格区分玩家私有状态与角色共同知情。正文与登记操作一致；未支持操作写待处理，不宣称完成。' };
     return { name: scene ? '场景交流·项目只读' : '故事生成·项目只读', description: '网页故事桥接的专用只读生成参与者。',
         characterSetting: scene ? '你是隔离场景交流参与者。entry_mode=scene_chat时只真实读取指定packet，按其中交流规范回应；不执行完整回合读取链、字数、节拍、OPTIONS或结算。当前packet覆盖事实，不从旧会话引入其他场景。只输出裸JSON，不写文件、不执行命令。' : '你是项目故事回合生成器。按本次网页信封调用真实只读文件工具；当前文件是事实源，历史会话不能代替本轮读取。最终只返回契约JSON；禁止写文件、执行命令、外部服务或自行提交。',
@@ -120,7 +122,7 @@ async function sceneSession(config, model, task) {
 }
 
 async function liveSession(config, model, task) {
-    const identity = JSON.stringify([task.save_epoch, task.interaction_scope, model.key, 'live-accounting-resolution-v3-empty-optionals']);
+    const identity = JSON.stringify([task.save_epoch, task.interaction_scope, model.key, 'live-accounting-resolution-v3-read-ranges']);
     let state = config.liveSession;
     if (!state || state.identity !== identity || state.observedChars + task.packet_bytes > 120000) {
         state = { identity, chatId: '', participantId: state ? state.participantId : '', observedChars: 0 };
@@ -449,12 +451,12 @@ function generationTurns(task, previousError) {
                 if (resolution.sleep) resolution.sleep.start = '';
                 if (resolution.conditions && typeof resolution.conditions === 'object') resolution.conditions.npc = '';
             }
-            envelope.instruction += ' 最终传输约定：无操作operation、无任务resolution.task、无睡眠起点resolution.sleep.start、无行动条件resolution.conditions及无对象conditions.npc均写空字符串两个双引号；不要留空。有对象则交原合法对象。截断按较小行段补齐，不能重复整读或读取许可外文件。';
+            envelope.instruction += ' 最终传输约定：无操作operation、无任务resolution.task、无睡眠起点resolution.sleep.start、无行动条件resolution.conditions及无对象conditions.npc均写空字符串两个双引号；不要留空。有对象则交原合法对象。按packet.read_ranges依序读完全部范围；grep_code只定位不替代正文读取，不用list_files/find_files；截断缩小范围补齐，不读许可外文件。';
             return { ...turn, content: JSON.stringify(envelope) };
         });
         const contract = { ...JSON.parse(turns[0].content).output_contract, operation:'', handoff:'' };
         return [...turns, {kind:'user',content:JSON.stringify({output_contract:contract,
-            instruction:'最终仅交单个合法JSON，键恰为本次output_contract所列；不照抄结构说明。先真实完整读取本次packet，建议每次10至20行；遇截断缩小范围从未覆盖行补齐，不能重复同一整段或改读许可外原文件，重试也重新读取。无操作operation、无待处理handoff、无任务resolution.task、无睡眠起点resolution.sleep.start、无行动条件resolution.conditions和无对象conditions.npc均明确写空字符串两个双引号；例如sleep为{\"kind\":\"none\",\"start\":\"\",\"evidence\":\"\"}且task为空字符串。禁止冒号后直接接逗号，不修补残缺JSON。按设定/存档/意图推演连贯剧情及本段decision，不定长、不等整场结束。若契约要求resolution，完整提交分类/实际游戏时间/事件原文依据/本次记忆事实及必要源摘要、有效行动条件；程序算费用与实际结算。事件group=host_events时target必须是系统宿主，其他事件用实际场内登记姓名；固定ABC不能重新定价；自定义只判档，不填面板数值；预扣不代表疲劳，最终不足5由执行器判断。SYSTEM休息须实际过渡及睡眠起止，不伪造整夜；纯道具由执行器处理。严格保留角色知情，不以系统数值写NPC台词。',
+            instruction:'最终仅交单个合法JSON，键恰为本次output_contract所列；不照抄结构说明。先真实完整读取本次packet，按packet.read_ranges依次读取全部范围；grep_code只定位，不计正文覆盖；禁止list_files/find_files，遇截断缩小范围补齐未覆盖行，重试也重新读取。无操作operation、无待处理handoff、无任务resolution.task、无睡眠起点resolution.sleep.start、无行动条件resolution.conditions和无对象conditions.npc均明确写空字符串两个双引号；例如sleep为{\"kind\":\"none\",\"start\":\"\",\"evidence\":\"\"}且task为空字符串。禁止冒号后直接接逗号，不修补残缺JSON。按设定/存档/意图推演连贯剧情及本段decision，不定长、不等整场结束。若契约要求resolution，完整提交分类/实际游戏时间/事件原文依据/本次记忆事实及必要源摘要、有效行动条件；程序算费用与实际结算。事件group=host_events时target必须是系统宿主，其他事件用实际场内登记姓名；固定ABC不能重新定价；自定义只判档，不填面板数值；预扣不代表疲劳，最终不足5由执行器判断。SYSTEM休息须实际过渡及睡眠起止，不伪造整夜；纯道具由执行器处理。严格保留角色知情，不以系统数值写NPC台词。',
             previous_validation_error:previousError||''})}];
     }
     if (task.entry_mode === 'scene_chat') return [...task.turns, {kind: 'user', content: JSON.stringify({

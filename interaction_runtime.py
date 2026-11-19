@@ -15,6 +15,7 @@ ARCHIVE = '.round-runtime/interaction'
 RULE = 'txt文件/场景交流规范.md'
 PEOPLE = ('沈知韫', '苏婉青', '徐念薇')
 PLAYBACK = ARCHIVE + '/playback.json'
+LIVE_READ_TOOLS = ('read_file', 'read_file_full', 'read_file_part', 'file_info', 'grep_code')
 OPTION_NAMES = {'A': '日常互动', 'B': '社交接触', 'C': '主动行为'}
 
 
@@ -451,6 +452,20 @@ def encode_live_packet(data):
     return (''.join(out)+'\n').encode('utf-8')
 
 
+def packet_read_ranges(raw):
+    """Bound returned source text rather than counting many short JSON syntax lines."""
+    lines=raw.decode('utf-8').splitlines();ranges=[];begin=1;chars=0;byte_count=0
+    for number,line in enumerate(lines,1):
+        cost=len(line)+len(str(number))+4
+        encoded=len(line.encode('utf-8'))+len(str(number))+4
+        if number>begin and (chars+cost>9000 or byte_count+encoded>24000):
+            ranges.append({'start_line':begin,'end_line':number-1})
+            begin=number;chars=0;byte_count=0
+        chars+=cost;byte_count+=encoded
+    if lines:ranges.append({'start_line':begin,'end_line':len(lines)})
+    return ranges
+
+
 def packet(story, prepared, key, text, command=None, previous_error='', selected=None, reservation=None):
     """Deterministic source extracts, scoped knowledge and original accepted messages."""
     from scene_chat import SceneService, encode_packet
@@ -563,8 +578,10 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
                 'checks': {'intent': '具体依据', 'knowledge': '本场信息边界', 'action': '操作与正文一致或无动作', 'pace': '本段推进及此处交还控制权的依据'}}
     if charged:
         contract['resolution'] = sp.contract(story.root)
-    envelope = {'entry_mode': MODE, 'packet': {'path': relative, 'through_line': len(raw.decode().splitlines())},
-                'output_contract': contract, 'instruction': '真实完整读取本次packet、memory_transfer_sources.required_reads和history_archive.required_reads指定原文；packet建议每次10至20行读取，结果截断则缩小范围继续未覆盖行，不可重复整读或补读许可外文件；其余旧事实按本任务精确行号或归档索引补读。返回单个裸JSON，生成连贯剧情及decision中的A/B/C；无需演完一场戏，不写旧完整回合、L1或SYSTEM_LOG。'}
+    envelope = {'entry_mode': MODE, 'packet': {'path': relative, 'through_line': len(raw.decode().splitlines()), 'read_ranges':packet_read_ranges(raw)},
+                'reading_tools':list(LIVE_READ_TOOLS),
+                'required_memory_reads':projection['required'],'required_history_reads':required_history,
+                'output_contract': contract, 'instruction': '真实完整读取本次packet、memory_transfer_sources.required_reads和history_archive.required_reads指定原文；先按packet.read_ranges依序read_file_part读完全部范围（不是只读搜索命中），截断则缩小范围补齐未覆盖行；只允许reading_tools和本任务文件路径，grep_code只定位不计正文覆盖，禁止list_files/find_files或读取许可外文件；其余旧事实按本任务精确行号或归档索引补读。返回单个裸JSON，生成连贯剧情及decision中的A/B/C；无需演完一场戏，不写旧完整回合、L1或SYSTEM_LOG。'}
     if charged:
         envelope['instruction'] += ' 必须同时返回resolution：只分类和提供依据，不计算成本/最终面板；免费休息为SYSTEM且实际休息推进，睡眠有正文起止，不以短休冒充整夜。判档/事件/事实/时间只按当前资料；不能把人物系统数值或玩家私有记忆写成NPC知情。'
     return {'protocol': 3, 'interaction_protocol': 3 if charged else 2, 'entry_mode': MODE, 'audit': sources,
@@ -604,8 +621,8 @@ def verify(story, key, proof):
     if rr._digest(raw) != wanted['sha256']:
         raise rr.ConflictError('本次资料包已经改变')
     for call in tools:
-        if not isinstance(call, dict) or call.get('name') not in ('read_file', 'read_file_full', 'read_file_part', 'file_info'):
-            raise rr.RoundError('正式互动仅允许读取指定资料')
+        if not isinstance(call, dict) or call.get('name') not in LIVE_READ_TOOLS:
+            raise rr.RoundError('正式互动工具未许可：'+str(call.get('name') if isinstance(call,dict) else type(call).__name__)+'；允许 '+','.join(LIVE_READ_TOOLS))
         params = call.get('parameters', {})
         if not isinstance(params, dict) or not isinstance(params.get('path'), str):
             raise rr.RoundError('读取工具参数无效')
@@ -615,14 +632,18 @@ def verify(story, key, proof):
                 path = path[len(prefix.rstrip('/')) + 1:]
                 break
         if path not in allowed:
-            raise rr.RoundError('读取了非本任务资料')
+            raise rr.RoundError('读取了非本任务资料：'+path)
         if path==rr.FILES[0]:
             begin,end=params.get('start_line'),params.get('end_line')
-            if (call['name']!='read_file_part' or type(begin) is not int or type(end) is not int
+            try:
+                if isinstance(begin,bool) or isinstance(end,bool) or not re.fullmatch(r'[0-9]+',str(begin)) or not re.fullmatch(r'[0-9]+',str(end)):raise ValueError()
+                begin,end=int(begin),int(end)
+            except (ValueError,TypeError):raise rr.RoundError('记忆补读行号须为整数')
+            if (call['name']!='read_file_part'
                     or not any(ref['start_line']<=begin<=end<=ref['end_line'] for ref in memory_refs)):
                 raise rr.RoundError('记忆补读须使用本任务指定的精确行号，不得整库重读')
         entry = {'name': call['name'], 'path': path, 'status': call.get('status')}
-        if call.get('status') == 'success' and call['name'] != 'file_info':
+        if call.get('status') == 'success' and call['name'] in ('read_file','read_file_full','read_file_part'):
             source = story.store._path(path).read_bytes()
             begin, end = params.get('start_line', 1), params.get('end_line', len(source.decode().splitlines()))
             try:

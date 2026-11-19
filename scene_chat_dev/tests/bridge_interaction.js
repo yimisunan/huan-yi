@@ -75,5 +75,8 @@ const latest=vm.runInContext('generationTurns(task2,"")',box).map(x=>JSON.parse(
 assert.equal(latest[0].output_contract.resolution.task,'');
 assert.equal(latest[0].output_contract.resolution.sleep.start,'');
 assert.equal(latest[1].output_contract.resolution.conditions.npc,'');
-assert(latest[1].instruction.includes('系统宿主'));assert(latest[1].instruction.includes('10至20行'));
+assert(latest[1].instruction.includes('系统宿主'));assert(latest[1].instruction.includes('packet.read_ranges'));
 console.log('LIVE_NULLABLE_WIRE_OK task/start/npc/conditions, exact paths, duplicates, malformed rejected, objects and legacy preserved');
+
+assert.deepEqual(Array.from(role.toolAccessConfig.allowedBuiltinTools).sort(),["read_file","read_file_full","read_file_part","file_info","grep_code"].sort());
+console.log("LIVE_READ_TOOLS_OK exact readonly tools, no directory browse");
