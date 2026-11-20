@@ -58,6 +58,24 @@ class ProgressionChecks(unittest.TestCase):
   for letter in ('A','B','C'):
    before=self.energy();request=self.request(letter);self.service.create(request);self.assertEqual(self.energy(),before-sp.COSTS[letter]);self.service.create(request);self.assertEqual(self.energy(),before-sp.COSTS[letter]);task=self.service.claim()['task'];body=self.response(task,category=letter,time='22:10');result=self.service.result(task['request_id'],body);self.assertEqual(result['task']['status'],'committed',result);self.play()
   before=self.energy();self.service.create(self.request('CUSTOM','问问明天的天气'));self.assertEqual(self.energy(),before-15);task=self.service.claim()['task'];result=self.service.result(task['request_id'],self.response(task,category='A',time='22:15'));self.assertEqual(result['task']['status'],'committed',result);self.assertEqual(self.energy(),before-5);self.play();self.assertEqual(self.service.interaction_snapshot()['settlement']['refunded'],10)
+ def test_model_switch_queue_retry_and_active_attempt(self):
+  def model(name):
+   return {'function_type':'CHAT','provider_id':'fixture','provider_name':'fixture','model_id':name,'key':json.dumps(['CHAT','fixture',name],separators=(',',':')),'pricing_configured':False}
+  first,second,third=map(model,('first','second','third'))
+  self.begin();request=self.request('A');request['model_key']=first['key']
+  self.service.create(request);self.assertEqual(self.energy(),95)
+  task=self.service.claim({'model':second})['task'];self.assertEqual(task['model_key'],second['key'])
+  self.assertEqual(self.service.status()['task']['generation_model'],second)
+  self.service.claim({'model':third})
+  self.assertEqual(self.service.status()['task']['generation_model'],second)
+  self.service.result(task['request_id'],{'lease':task['lease'],'error':'retry test'})
+  self.assertEqual(self.energy(),100)
+  self.service.retry(task['request_id']);self.assertEqual(self.energy(),95)
+  self.assertNotIn('generation_model',self.service.status()['task'])
+  retried=self.service.claim({'model':third})['task'];self.assertEqual(retried['model_key'],third['key'])
+  self.assertNotEqual(retried['lease'],task['lease'])
+  with self.assertRaises(rr.ConflictError):self.service.result(task['request_id'],{'lease':task['lease'],'error':'stale'})
+  sp.cancel(self.service,task['request_id']);self.assertEqual(self.energy(),100)
  def test_failure_cancel_retry_and_late_result(self):
   self.begin();request=self.request('CUSTOM','谈谈今天');self.service.create(request);task=self.service.claim()['task'];late=self.response(task,category='A');self.service.result(task['request_id'],{'lease':task['lease'],'error':'offline failure'});self.assertEqual(self.energy(),100);self.service.retry(task['request_id']);self.assertEqual(self.energy(),85)
   with self.assertRaises(rr.ConflictError):self.service.result(task['request_id'],late)

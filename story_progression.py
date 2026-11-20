@@ -439,15 +439,28 @@ def apply_staged(store,engine,stage,body,files,parsed):
     return runtime,receipt
 
 
-def resolution_policy(kind):
+def category_policy(kind, option_id=None):
+    if kind != 'action':
+        return {'mode':'system', 'required_category':'SYSTEM',
+                'instruction':'本次为免费系统过渡，resolution.category只能为SYSTEM。'}
+    if option_id in COSTS:
+        return {'mode':'fixed_option', 'required_category':option_id,
+                'instruction':f'本次玩家已选固定{option_id}选项，resolution.category必须原样返回{option_id}，不能按正文重新判档或降价。按已授权原行动生成，不因档位提高接触、情绪或剧情烈度，不保证成功。conditions.intensity按现有契约与category一致，不据此虚构事件。'}
+    return {'mode':'custom', 'required_category':None,
+            'instruction':'本次为自定义行动，resolution.category按实际成立行为判A/B/C并给出依据，不得使用SYSTEM；费用由程序计算。'}
+
+
+def resolution_policy(kind, option_id=None):
     return {'kind':kind,'conditions_required':kind=='action',
+            'category_policy':category_policy(kind, option_id),
             'conditions_fields':['intensity','effective_progress','scene','npc','action_changed','stress_signals','breakout_triggered'],
             'instruction':'普通付费行动必须提交七字段conditions对象；澄清/未移动也填，按事实用false，不改字段名；无NPC仅npc为空。免费SYSTEM的conditions为空。'}
 
 
-def contract(root=None,kind='action'):
+def contract(root=None,kind='action',option_id=None):
     limits=memory_policy(root) if root is not None else MEMORY_DEFAULTS
-    return {'category':'A|B|C' if kind=='action' else 'SYSTEM','basis':'按玩家实际输入分类，不猜费用',
+    category = category_policy(kind, option_id)
+    return {'category':category['required_category'] or 'A|B|C','basis':category['instruction'],
             'clock':{'day':1,'time':'HH:MM','basis':'实际经过的行为与时间依据，首次从剧情初始化'},
             'events':[{'group':'登记事件组','target':'本场对象或系统宿主','tags':['登记原标签'],'evidence':'本段原文子串'}],
             'memory':{'fact':f"无长期新增价值时空串；否则<={limits['fact_chars']}字符，仅记承诺/待办/关系或信息变化/不可逆事实，计划保留未执行状态",
@@ -537,7 +550,7 @@ def retry(service,key,body):
         if job['status'] in ('queued','generating','validating','committed','preparing'):return {'task':service._public(job)}
         if job.get('reservation',{}).get('status')=='held':refund(service,tasks,job,'failed','重试前返还原预扣')
         request={k:job.get(k) for k in ('request_id','base_revision','action','entry_mode','operation','save_epoch','selection','model_key')}
-        if body.get('model_key') is not None:request['model_key']=service._model_key(body)
+        request['model_key']=service._model_key(body)
     return create(service,request,retry_key=key)
 
 

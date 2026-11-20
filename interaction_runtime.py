@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import re
+import secrets
 import time
 import round_runtime as rr
 import story_reading as sr
@@ -301,7 +302,7 @@ def validate(root, request, files):
             if m['speaker'] != '':
                 raise rr.RoundError('旁白不带说话人')
         elif not isinstance(m['speaker'], str) or (m['speaker'] not in allowed and not (modern and m['kind'] == 'action' and m['speaker'] == '徐志北')):
-            raise rr.RoundError('角色不在场或模型代写玩家台词')
+            raise rr.RoundError('角色不在场或模型代写玩家台词：'+m['kind']+' / '+str(m['speaker']))
     if not isinstance(request['handoff'], str) or len(request['handoff']) > 300:
         raise rr.RoundError('待处理说明无效')
     if proposed and request['handoff']:
@@ -540,6 +541,8 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
     sources.update({n: rr._digest(story.store._path(n).read_bytes()) for n in names})
     for p,_ in recent:
         sources[str(p.relative_to(story.root))] = rr._digest(p.read_bytes())
+    for path in required_history:
+        sources[path] = rr._digest(story.store._path(path).read_bytes())
     relevant = []
     for filename in ('世界观类', '叙事判断', '系统标签类'):
         for entry in json.loads((story.root / ('txt文件/知识库/' + filename + '.json')).read_text())['data']['entries']:
@@ -599,13 +602,13 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
                 'handoff': '无待处理时空字符串',
                 'checks': {'intent': '具体依据', 'knowledge': '本场信息边界', 'action': '操作与正文一致或无动作', 'pace': '本段推进及此处交还控制权的依据'}}
     if charged:
-        contract['resolution'] = sp.contract(story.root,preview_cost['kind'])
+        contract['resolution'] = sp.contract(story.root,preview_cost['kind'], (selected or {}).get('option_id'))
     envelope = {'entry_mode': MODE, 'packet': {'path': relative, 'through_line': len(raw.decode().splitlines()), 'read_ranges':packet_read_ranges(raw)},
                 'reading_tools':list(LIVE_READ_TOOLS),'previous_validation_error':previous_error,
                 'continuity':{'source':'正式存档与accepted_history','rule':'本次资料包含当前正式记忆、已接受原文及原行动；旧会话未提交草稿不属于事实。重试承接同一冻结点，不跳到下一行动。'},
                 'required_memory_reads':projection['required'],'required_history_reads':required_history,
                 'operation_context':{'requested':resolved,'input_evidence':intent,'source_location':state['location'],'location_aliases':location_aliases(story.root)},
-                **({'resolution_policy':sp.resolution_policy(preview_cost['kind'])} if charged else {}),
+                **({'resolution_policy':sp.resolution_policy(preview_cost['kind'], (selected or {}).get('option_id'))} if charged else {}),
                 'output_contract': contract, 'instruction': '先执行读取阶段：逐一照用packet.path和packet.read_ranges中的start_line/end_line调用read_file_part，读完每一段；header显示请求范围不代表正文已齐，核对实际返回的末行。需要时补齐截断正文，文件末尾空白不作为未读正文。再读required_memory_reads与required_history_reads，最后生成完整JSON；只允许reading_tools和本任务文件路径，grep_code只定位不计正文覆盖，禁止list_files/find_files或读取许可外文件；其余旧事实按本任务精确行号或归档索引补读。返回单个裸JSON，生成连贯剧情及decision中的A/B/C；无需演完一场戏，不写旧完整回合、L1或SYSTEM_LOG。'}
     if charged:
         envelope['instruction'] += ' 必须同时返回resolution并逐项遵循resolution_policy：普通付费action即使只澄清或未发生移动也必须交完整conditions对象，字段名称不改；SYSTEM才允许无条件。已预检的operation_context.requested直接对应玩家原文与登记别名，不再猜地点。只分类和提供依据，不计算成本/最终面板；免费休息为SYSTEM且实际休息推进，睡眠有正文起止，不以短休冒充整夜。判档/事件/事实/时间只按当前资料；不能把人物系统数值或玩家私有记忆写成NPC知情。'
@@ -640,6 +643,113 @@ def missing_read_target(key, path, raw, missing):
     return {'key':key,'reads':reads}
 
 
+def material_delivery(story, key, job, chat_id, participant_id):
+    """Read and freeze this task's source material for one direct session input."""
+    context = json.loads(story._blob(key, '.context.json').read_bytes())
+    if context.get('entry_mode') != MODE:
+        raise rr.RoundError('资料直送只用于正式互动')
+    story._source_check(context)
+    wanted = context['packet']
+    raw = story.store._path(wanted['path']).read_bytes()
+    if rr._digest(raw) != wanted['sha256']:
+        raise rr.ConflictError('本次资料包已经改变')
+    sources = [{'path': wanted['path'], 'source_sha256_at_result': rr._digest(raw),
+                'verified_lines': sorted(required_source_lines(raw, wanted['through_line']))}]
+    supplements = []
+    refs = list(context.get('required_memory_reads', []))
+    refs.extend({'path': path, 'start_line': 1,
+                 'end_line': len(story.store._path(path).read_bytes().decode().splitlines())}
+                for path in context.get('required_history_reads', []))
+    seen = set()
+    for ref in refs:
+        path, begin, end = ref['path'], ref['start_line'], ref['end_line']
+        if (path, begin, end) in seen:
+            continue
+        seen.add((path, begin, end))
+        source = story.store._path(path).read_bytes()
+        if context['audit'].get(path) != rr._digest(source):
+            raise rr.ConflictError('必要补读源未冻结或已经改变: ' + path)
+        lines = source.decode().splitlines()
+        if not 1 <= begin <= end <= len(lines):
+            raise rr.RoundError('必要补读源行号无效')
+        supplements.append({'path': path, 'start_line': begin, 'end_line': end,
+                            'body': '\n'.join(lines[begin-1:end])})
+        sources.append({'path': path, 'source_sha256_at_result': rr._digest(source),
+                        'verified_lines': list(range(begin, end+1))})
+    envelope = json.loads(context['turns'][0]['content'])
+    envelope.pop('instruction', None)
+    envelope['output_contract']['operation'] = ''
+    envelope['output_contract']['handoff'] = ''
+    resolution = envelope['output_contract'].get('resolution')
+    if resolution:
+        resolution['task'] = ''
+        resolution['sleep']['start'] = ''
+        if isinstance(resolution.get('conditions'), dict):
+            resolution['conditions']['npc'] = ''
+    payload = {'entry_mode': MODE, 'material_delivery': 'program_inline_v1',
+               'request_id': key, 'envelope': envelope, 'material': json.loads(raw),
+               'required_sources': supplements,
+               'instruction': '本次material及required_sources是程序从当前冻结源完整读取后直接交付的正文，须完整理解，不为证明读取而再次逐段读packet；不虚构模型工具读取。旧会话、失败草稿均不替代本次正式存档。确需更早原文时，只按本任务索引和许可路径补查，保留实际听众与知情边界。messages按序排列：dialogue.speaker只能取material.scenario.cast中的实际在场人物，不能写徐志北或场外人物；玩家徐志北的发言和行动不得写成dialogue，不代写玩家新台词；action.speaker为在场人物或徐志北；narration.speaker为空字符串。依据人物设定、世界规则、当前状态和玩家意图推演连贯剧情，保留完整回应与必要后果，在需要新决定处停下。不代替玩家决定，不将私有资料当共同知识。最终仅交envelope.output_contract要求的单个裸JSON，decision含A/B/C；按envelope.resolution_policy.category_policy执行：fixed_option的resolution.category只能为required_category，禁止重新判档；只有custom按实际行为分类，system为SYSTEM。conditions.intensity按现有契约与category一致，不因档位升级行为或虚构事件。按resolution_policy交完整conditions，只给事件原文依据、实际游戏时间和必要记忆，程序结算费用和数值。operation无操作、task无任务、sleep.start无起点、conditions.npc无对象时明确写空字符串，不能省略值。SYSTEM才允许无conditions；host_events对象固定为系统宿主。不执行命令、不写文件、不写旧整回合或SYSTEM_LOG。'}
+    content = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False)
+    if len(content.encode('utf-8')) > 2 * 1024 * 1024:
+        raise rr.RoundError('资料直送超过2MiB，停止生成，不截断正文')
+    record = {'version': 1, 'id': secrets.token_hex(24), 'request_id': key,
+              'lease_sha256': rr._digest(job['lease'].encode()),
+              'context_sha256': rr._digest(story._blob(key, '.context.json').read_bytes()),
+              'input_sha256': rr._digest(content.encode('utf-8')),
+              'chat_id': chat_id, 'participant_id': participant_id, 'sources': sources}
+    existing = story._blob(key, '.delivery.json')
+    if existing.is_file():
+        old = json.loads(existing.read_bytes())
+        if old.get('lease_sha256') == record['lease_sha256']:
+            if any(old.get(field) != record[field] for field in
+                   ('version', 'request_id', 'context_sha256', 'input_sha256', 'chat_id', 'participant_id', 'sources')):
+                raise rr.ConflictError('同一租约的资料或会话已经改变')
+            record = old
+    rr._atomic(existing, rr._json(record))
+    return {'input_text': content, 'delivery': {k: record[k] for k in ('id', 'input_sha256')}}
+
+
+def verify_delivery(story, key, context, proof):
+    delivered = proof.get('delivery')
+    if delivered is None:
+        return None
+    path = story._blob(key, '.delivery.json')
+    if not isinstance(delivered, dict) or not path.is_file():
+        raise rr.RoundError('缺少本次程序交付记录')
+    record = json.loads(path.read_bytes())
+    job = story._read()['jobs'].get(key, {})
+    if (context.get('entry_mode') != MODE or record.get('version') != 1 or record.get('request_id') != key
+            or job.get('status') not in ('generating', 'validating')
+            or (job.get('status') == 'generating' and job.get('lease_until', 0) < time.time())
+            or not job.get('lease')
+            or record.get('lease_sha256') != rr._digest(job['lease'].encode())
+            or record.get('context_sha256') != rr._digest(story._blob(key, '.context.json').read_bytes())):
+        raise rr.ConflictError('资料交付属于过期任务或租约')
+    if (set(delivered) != {'id', 'input_sha256', 'user_message_timestamp'}
+            or delivered.get('id') != record.get('id')
+            or delivered.get('input_sha256') != record.get('input_sha256')
+            or proof.get('chat_id') != record.get('chat_id')
+            or proof.get('participant_id') != record.get('participant_id')):
+        raise rr.RoundError('程序交付身份、内容或会话不符')
+    passes = proof.get('read_passes')
+    if passes is not None and (not isinstance(passes, list) or not passes or not isinstance(passes[0], dict)):
+        raise rr.RoundError('资料交付阶段回执无效')
+    first = passes[0].get('outcome', {}) if passes else proof['outcome']
+    if not isinstance(first, dict) or not isinstance(first.get('assistant'), dict):
+        raise rr.RoundError('资料交付阶段回执无效')
+    stamp = delivered.get('user_message_timestamp')
+    if (type(stamp) is not int or stamp <= 0 or first.get('userMessageTimestamp') != stamp
+            or stamp > first.get('assistant', {}).get('messageTimestamp', 0)
+            or stamp > proof['snapshot_message_timestamp']):
+        raise rr.RoundError('程序交付缺少本次用户消息回执')
+    for source in record['sources']:
+        current = story.store._path(source['path']).read_bytes()
+        if rr._digest(current) != source['source_sha256_at_result']:
+            raise rr.ConflictError('已交付资料源已经改变')
+    return record
+
+
 def verify(story, key, proof, allow_missing=False):
     context = json.loads(story._blob(key, '.context.json').read_bytes())
     story._source_check(context)
@@ -653,8 +763,9 @@ def verify(story, key, proof, allow_missing=False):
             or type(stamp) is not int or proof.get('snapshot_message_timestamp') != stamp
             or not proof.get('chat_id') or not proof.get('participant_id')):
         raise rr.RoundError('正式会话尚未完成或快照不符')
+    delivered = verify_delivery(story, key, context, proof)
     tools = proof.get('tools')
-    if not isinstance(tools, list) or not 1 <= len(tools) <= 128:
+    if not isinstance(tools, list) or not (0 if delivered else 1) <= len(tools) <= 128:
         raise rr.RoundError('读取工具审计无效')
     passes=proof.get('read_passes')
     if passes is not None:
@@ -666,7 +777,8 @@ def verify(story, key, proof, allow_missing=False):
             if (not isinstance(receipt,dict) or receipt.get('type')!='committed' or receipt.get('status')!='completed'
                     or not isinstance(receipt.get('assistant'),dict) or type(timestamp) is not int or timestamp in stamps
                     or receipt['assistant'].get('messageTimestamp')!=timestamp or stage.get('tool_start')!=cursor
-                    or type(count) is not int or count<1):raise rr.RoundError('补读回执身份或工具范围不符')
+                    or type(count) is not int or count < (0 if delivered else 1)):
+                raise rr.RoundError('补读回执身份或工具范围不符')
             stamps.add(timestamp);cursor+=count
         if cursor!=len(tools) or passes[-1]['outcome']!=outcome or passes[-1]['snapshot_message_timestamp']!=stamp:
             raise rr.RoundError('补读累计工具或最终快照不符')
@@ -678,6 +790,16 @@ def verify(story, key, proof, allow_missing=False):
     raw = story.store._path(wanted['path']).read_bytes()
     if rr._digest(raw) != wanted['sha256']:
         raise rr.ConflictError('本次资料包已经改变')
+    if delivered:
+        for source in delivered['sources']:
+            lines = source['verified_lines']
+            path = source['path']
+            if path == wanted['path']:
+                covered.update(lines)
+            if path == rr.FILES[0]:
+                memory_covered.update(lines)
+            if path in context.get('required_history_reads', []):
+                history_covered.setdefault(path, set()).update(lines)
     for call in tools:
         if not isinstance(call, dict) or call.get('name') not in LIVE_READ_TOOLS:
             raise rr.RoundError('正式互动工具未许可：'+str(call.get('name') if isinstance(call,dict) else type(call).__name__)+'；允许 '+','.join(LIVE_READ_TOOLS))
@@ -733,6 +855,10 @@ def verify(story, key, proof, allow_missing=False):
     if targets and not allow_missing:raise rr.RoundError('；'.join(messages))
     return {'required_reads_verified': not targets, 'origin': 'operit_session', 'chat_id': proof['chat_id'],
             'verified_tools': verified, 'source_manifest': context['audit'],
+            **({'material_delivery': {'kind': 'program_inline_v1', 'id': delivered['id'],
+                'input_sha256': delivered['input_sha256'],
+                'user_message_timestamp': proof['delivery']['user_message_timestamp'],
+                'sources': delivered['sources']}} if delivered else {}),
             'snapshot_message_timestamp': stamp, 'packet_sha256': wanted['sha256'],
             'missing_keys':[item['key'] for item in targets],'read_targets':targets}
 

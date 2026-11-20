@@ -1,127 +1,1026 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="noir">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Fish Audio 调音台 - 双引擎语音中控</title>
-    <style>
-        :root { color-scheme: light; --bg:#f6f7f9; --panel:#ffffff; --line:#d9dee7; --line-soft:#edf0f4; --text:#20242c; --muted:#68707f; --subtle:#8b94a3; --green:#138a53; --green-soft:#e8f6ef; --blue:#1f6feb; --blue-soft:#eaf2ff; --amber:#a15c00; --amber-soft:#fff5e5; --danger:#bf3a3a; --shadow:0 10px 28px rgba(22, 29, 39, .08); }
-        * { box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 22px 18px calc(86px + env(safe-area-inset-bottom, 0px)); letter-spacing: 0; }
-        .header, .wallet-panel, .pager, #editor-container { width: min(1160px, 100%); margin-left: auto; margin-right: auto; }
-        .header { display:flex; align-items:flex-end; justify-content:space-between; gap:18px; margin-bottom:16px; padding:6px 2px; text-align:left; color:var(--text); }
-        .header h2 { margin:0; font-size:24px; line-height:1.15; letter-spacing:0; }
-        .header p { margin:0 !important; max-width:640px !important; color:var(--muted) !important; text-align:right; }
-        .card { background: transparent; border-radius: 0; padding: 0; margin-bottom: 18px; box-shadow: none; }
-        .card-head { display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; }
-        .card-title { font-size:20px; font-weight:800; color:var(--text); margin:0; border:0; padding:0; }
-        .engine-tag { display:inline-flex; align-items:center; width:max-content; font-size:12px; padding:3px 9px; border-radius:999px; margin-top:6px; border:1px solid transparent; font-weight:700; }
-        .engine-tag.edge { background:var(--blue-soft); color:#174ea6; border-color:#c9dcff; }
-        .engine-tag.fish { background:var(--green-soft); color:var(--green); border-color:#c7ead7; }
-        .voice-dashboard { display:grid; grid-template-columns:minmax(320px, 1.05fr) minmax(320px, .95fr); gap:14px; align-items:start; }
-        .tool-panel { background:var(--panel); border:1px solid var(--line-soft); border-radius:8px; padding:16px; box-shadow:var(--shadow); }
-        .tool-panel.wide { grid-column:1 / -1; }
-        .panel-title { font-size:13px; line-height:1; font-weight:800; color:var(--text); margin:0 0 14px; display:flex; align-items:center; justify-content:space-between; }
-        .panel-title span { color:var(--subtle); font-size:12px; font-weight:700; }
-        .form-group { margin-bottom: 14px; }
-        .form-group:last-child { margin-bottom:0; }
-        .form-group label { display:block; font-size:12px; color:var(--muted); margin-bottom:7px; font-weight:800; }
-        select, input[type="text"], textarea { min-height:48px; width:100%; padding:10px 11px; border-radius:7px; border:1px solid var(--line); font-size:14px; background:#fbfcfe; color:var(--text); outline:none; }
-        select:focus, input[type="text"]:focus, textarea:focus { border-color:#8bb8ff; box-shadow:0 0 0 3px rgba(31,111,235,.12); background:#fff; }
-        textarea { resize:vertical; line-height:1.55; }
-        .inline-row { display:flex; gap:8px; align-items:center; }
-        .inline-row input { flex:1; min-width:0; }
-        .btn-small { flex:0 0 auto; padding:10px 12px; border-radius:7px; font-size:13px; }
-        .voice-chips, .fish-search-results { display:flex; flex-wrap:wrap; gap:7px; align-items:center; margin-top:9px; }
-        .chips-label { font-size:12px; color:var(--subtle); font-weight:700; }
-        .voice-chip, .fish-search-result { flex:0 1 auto; max-width:100%; padding:6px 10px; border-radius:999px; border:1px solid var(--line); background:#fbfcfe; color:#3b4250; font-size:12px; cursor:pointer; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .voice-chip.current { background:var(--green-soft); border-color:#8fd2ad; color:var(--green); font-weight:800; }
-        .fish-search-result { background:var(--blue-soft); border-color:#bdd3ff; color:#174ea6; }
-        .chip-cur { margin-left:5px; font-size:10px; }
-        .voice-chip-del { flex:0 0 auto; min-width:48px; min-height:48px; margin-left:0; padding:3px 7px; border:none; background:transparent; color:#a0a8b5; font-size:13px; cursor:pointer; }
-        .voice-chip-del:hover { color:var(--danger); }
-        .fish-search-status, .hint { font-size:12px; color:var(--subtle); line-height:1.45; margin-top:6px; }
-        .pager { margin-bottom:14px; display:flex; flex-wrap:wrap; gap:8px; align-items:center; background:var(--panel); border:1px solid var(--line-soft); border-radius:8px; padding:10px; box-shadow:0 8px 22px rgba(22,29,39,.05); }
-        .pager-info { font-size:13px; font-weight:800; color:var(--muted); margin-right:4px; }
-        .pager-btn, .pager-chip { flex:0 0 auto; padding:7px 11px; border-radius:7px; border:1px solid var(--line); background:#fbfcfe; color:#343a46; font-size:12px; cursor:pointer; font-weight:800; }
-        .pager-btn:hover, .pager-chip:hover { background:var(--blue-soft); border-color:#bdd3ff; color:#174ea6; }
-        .pager-chips { display:flex; flex-wrap:wrap; gap:6px; }
-        .pager-chip.active { background:#20242c; border-color:#20242c; color:#fff; }
-        .pager-voice { color:#9aa3b2; font-size:11px; }
-        .role-dot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; background:var(--green); }
-        .role-dot.edge { background:var(--blue); }
-        .dirty-dot { display:inline-block; width:6px; height:6px; border-radius:50%; background:#d48806; margin-left:6px; vertical-align:middle; }
-        .current-summary { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 14px; border:1px solid #c7ead7; border-radius:8px; background:var(--green-soft); margin-bottom:14px; }
-        .current-summary strong { font-size:14px; } .current-summary small { display:block; margin-top:3px; color:var(--muted); }
-        .voice-library-list { display:grid; gap:8px; margin-top:10px; }
-        .voice-library-item { display:flex; align-items:center; gap:8px; padding:9px 10px; background:#fbfcfe; border:1px solid var(--line-soft); border-radius:8px; }
-        .voice-library-info { flex:1; min-width:0; } .voice-library-name { font-weight:800; font-size:13px; } .voice-library-meta { margin-top:3px; color:var(--subtle); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-        .library-actions { display:flex; gap:6px; flex:0 0 auto; } .library-actions button { flex:0 0 auto; padding:6px 8px; font-size:11px; }
-        details.advanced-panel > summary { cursor:pointer; font-size:13px; font-weight:800; color:var(--blue); list-style:none; } details.advanced-panel > summary::-webkit-details-marker { display:none; } details.advanced-panel > summary::before { content:'▸ '; } details.advanced-panel[open] > summary::before { content:'▾ '; }
-        .settings-toggle { margin: 14px 0 5px; font-size: 14px; font-weight: 700; color: var(--blue); cursor: pointer; display: flex; align-items: center; }
-        .settings-toggle input { margin-right: 8px; cursor: pointer; }
-        .custom-panel, .edge-panel { background:var(--panel); border:1px solid var(--line-soft); border-radius:8px; padding:16px; margin-top:0; box-shadow:var(--shadow); }
-        .param-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:14px 16px; }
-        .slider-row { display:flex; flex-direction:column; margin-bottom:0; }
-        .slider-header { display:flex; justify-content:space-between; gap:10px; font-size:12px; color:var(--muted); margin-bottom:7px; font-weight:700; }
-        .slider-val { flex:0 0 auto; min-width:44px; text-align:right; font-weight:800; color:var(--green); }
-        input[type="range"] { min-height:44px; width:100%; cursor:pointer; accent-color:var(--green); }
-        .checkbox-row { display:flex; align-items:center; font-size:13px; color:var(--muted); margin-top:8px; font-weight:700; }
-        .checkbox-row input { margin-right:8px; cursor:pointer; accent-color:var(--green); }
-        .wallet-panel { margin-bottom:14px; background:var(--panel); border:1px solid var(--line-soft); border-radius:8px; padding:12px 14px; box-shadow:0 8px 22px rgba(22,29,39,.05); }
-        .wallet-row { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
-        .wallet-title { font-size:13px; font-weight:800; color:var(--green); }
-        .wallet-data { font-size:13px; color:var(--muted); line-height:1.55; margin-top:6px; }
-        .wallet-data strong { color:var(--text); }
-        .btn-wallet { flex:0 0 auto; padding:8px 11px; background:var(--green-soft); color:var(--green); border:1px solid #c7ead7; border-radius:7px; font-size:12px; font-weight:800; }
-        .btn-group { display:flex; gap:10px; margin-top:0; flex-wrap:wrap; }
-        button { min-height:48px; touch-action:manipulation; flex:1; padding:11px 12px; border:none; border-radius:7px; font-size:14px; font-weight:800; cursor:pointer; transition:background .15s, border-color .15s, color .15s, transform .05s; }
-        button:active { transform:translateY(1px); }
-        .btn-test { background:var(--blue-soft); color:#174ea6; border:1px solid #bdd3ff; }
-        .btn-test:hover { background:#d8e7ff; }
-        .btn-save-all { position:fixed; bottom:calc(16px + env(safe-area-inset-bottom, 0px)); left:50%; transform:translateX(-50%); width:min(420px, calc(100% - 32px)); padding:13px 16px; background:#20242c; color:white; font-size:15px; border-radius:8px; box-shadow:0 14px 34px rgba(22,29,39,.22); z-index:100; }
-        .secondary-action { flex:0 0 auto; width:max-content; margin-bottom:0 !important; padding:10px 12px !important; border-radius:7px !important; border:1px solid var(--line) !important; background:#fbfcfe !important; color:#3b4250 !important; font-size:13px !important; font-weight:800 !important; cursor:pointer !important; }
-        .player-panel { width:min(1160px, 100%); margin:0 auto 16px; padding:10px 14px; background:var(--panel); border:1px solid var(--line-soft); border-radius:8px; box-shadow:0 8px 22px rgba(22,29,39,.05); }
-        .player-panel audio { width:100%; margin-top:8px; }
-        .player-status { font-size:12px; color:var(--muted); }
-        .param-help { display:block; margin-top:5px; font-size:11px; line-height:1.45; color:var(--subtle); font-weight:500; }
-        .error-panel { width:min(1160px, 100%); margin:24px auto; padding:18px; background:#fff5f5; color:var(--danger); border:1px solid #ffd0d0; border-radius:8px; line-height:1.55; }
-        button:disabled { opacity:.6; cursor:wait; }
-        .manager-status { width:min(1160px, 100%); margin:0 auto 12px; min-height:24px; font-size:14px; line-height:1.5; color:var(--muted); }
-        .manager-status.is-error { color:var(--danger); }
-        .voice-chips, .fish-search-results, .pager-chips, .library-actions { gap:8px; }
-        .tool-panel, .custom-panel, .edge-panel { min-width:0; }
-        details.advanced-panel > summary { min-height:48px; display:flex; align-items:center; }
-        @media (max-width: 780px) { body { padding:14px 12px calc(82px + env(safe-area-inset-bottom, 0px)); } .inline-row { flex-wrap:wrap; } .inline-row input { flex-basis:120px; } .header { display:block; } .header p { text-align:left; margin-top:8px !important; } .voice-dashboard, .param-grid { grid-template-columns:1fr; } .tool-panel.wide { grid-column:auto; } .inline-row { align-items:stretch; } .btn-small { width:96px; padding-left:8px; padding-right:8px; } }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0d0b09">
+  <title>深渊天平 · 声学工坊</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0c0a09;
+      --bg-elev: #15120f;
+      --surface: #1b1713;
+      --surface-2: #241f1a;
+      --surface-3: #2e2720;
+      --glass: rgba(18, 15, 12, 0.88);
+      --ink: #f2ebe0;
+      --ink-soft: #cdc2b2;
+      --muted: #938676;
+      --gold: #d8b476;
+      --gold-bright: #f1d9a8;
+      --gold-deep: #8b6836;
+      --gold-soft: rgba(216, 180, 118, 0.14);
+      --jade: #6db592;
+      --jade-soft: rgba(109, 181, 146, 0.14);
+      --mist: #8eb7d1;
+      --mist-soft: rgba(142, 183, 209, 0.15);
+      --rose: #df9a8b;
+      --rose-soft: rgba(223, 154, 139, 0.15);
+      --amber: #e2a957;
+      --amber-soft: rgba(226, 169, 87, 0.14);
+      --danger: #d46969;
+      --danger-soft: rgba(212, 105, 105, 0.15);
+      --line: rgba(216, 180, 118, 0.15);
+      --line-strong: rgba(216, 180, 118, 0.34);
+      --shadow: 0 12px 32px rgba(0, 0, 0, 0.44);
+      --font-serif: "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", "STSong", Georgia, serif;
+      --font-sans: "PingFang SC", "HarmonyOS Sans SC", "MiSans", "Noto Sans CJK SC", system-ui, -apple-system, sans-serif;
+    }
+
+    html[data-theme="ivory"] {
+      color-scheme: light;
+      --bg: #f4efe6;
+      --bg-elev: #faf6ee;
+      --surface: #ffffff;
+      --surface-2: #eee6d9;
+      --surface-3: #e3d7c4;
+      --glass: rgba(250, 246, 238, 0.92);
+      --ink: #221d18;
+      --ink-soft: #4c4237;
+      --muted: #7a6e60;
+      --gold: #9a7438;
+      --gold-bright: #7d5b25;
+      --gold-deep: #6b4e21;
+      --gold-soft: rgba(154, 116, 56, 0.11);
+      --jade: #2f7755;
+      --jade-soft: rgba(47, 119, 85, 0.12);
+      --mist: #3b6f8c;
+      --mist-soft: rgba(59, 111, 140, 0.12);
+      --rose: #b65e4d;
+      --rose-soft: rgba(182, 94, 77, 0.12);
+      --amber: #a36514;
+      --amber-soft: rgba(163, 101, 20, 0.11);
+      --danger: #b53a3a;
+      --danger-soft: rgba(181, 58, 58, 0.11);
+      --line: rgba(114, 86, 44, 0.16);
+      --line-strong: rgba(114, 86, 44, 0.34);
+      --shadow: 0 8px 24px rgba(42, 32, 18, 0.09);
+    }
+
+    * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      background:
+        radial-gradient(ellipse 90% 34% at 50% 0%, rgba(216, 180, 118, 0.09), transparent 72%),
+        var(--bg);
+      color: var(--ink);
+      font: 14px/1.6 var(--font-sans);
+      padding: calc(12px + env(safe-area-inset-top, 0px)) 14px calc(138px + env(safe-area-inset-bottom, 0px));
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .shell {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+    }
+
+    /* Studio Top Bar */
+    .studio-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 8px 2px 14px;
+      border-bottom: 1px solid var(--line);
+      margin-bottom: 14px;
+    }
+
+    .brand-lockup {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      min-width: 0;
+    }
+
+    .crest-svg {
+      width: 36px;
+      height: 36px;
+      color: var(--gold-bright);
+      flex: none;
+    }
+
+    .brand-copy {
+      min-width: 0;
+    }
+
+    .brand-copy h1 {
+      margin: 0;
+      font: 600 18px/1.2 var(--font-serif);
+      letter-spacing: 1.5px;
+      color: var(--ink);
+    }
+
+    .brand-copy p {
+      margin: 2px 0 0;
+      font-size: 11.5px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex: none;
+    }
+
+    .pill-link, .icon-pill-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      min-height: 40px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      color: var(--ink-soft);
+      font-size: 12.5px;
+      font-weight: 600;
+      text-decoration: none;
+      cursor: pointer;
+      touch-action: manipulation;
+      transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+    }
+
+    .pill-link:hover, .icon-pill-btn:hover {
+      border-color: var(--line-strong);
+      color: var(--gold-bright);
+    }
+
+    .icon-svg {
+      width: 16px;
+      height: 16px;
+      flex: none;
+    }
+
+    /* Compact Info & Wallet Strip */
+    .top-meta-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .wallet-panel, .protocol-banner {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 11px 14px;
+    }
+
+    .wallet-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .wallet-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12.5px;
+      font-weight: 700;
+      color: var(--gold-bright);
+    }
+
+    .wallet-data {
+      margin-top: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .wallet-data strong { color: var(--ink); }
+
+    .protocol-banner {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      gap: 3px;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.55;
+    }
+
+    .protocol-banner strong { color: var(--ink-soft); }
+
+    .btn-wallet {
+      min-height: 34px;
+      padding: 4px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--line-strong);
+      background: var(--gold-soft);
+      color: var(--gold-bright);
+      font-size: 11.5px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    /* Status Line */
+    .manager-status {
+      min-height: 20px;
+      margin: 0 2px 10px;
+      font-size: 12.5px;
+      color: var(--muted);
+    }
+    .manager-status.is-error { color: var(--danger); }
+
+    /* Character Role Switcher */
+    .pager {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      padding: 8px;
+      border-radius: 16px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+    .pager::-webkit-scrollbar { display: none; }
+
+    .pager-nav-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      flex: none;
+    }
+
+    .pager-info {
+      font-size: 11.5px;
+      font-weight: 700;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      padding: 0 4px;
+    }
+
+    .pager-btn {
+      min-height: 38px;
+      padding: 6px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--bg-elev);
+      color: var(--ink-soft);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      flex: none;
+    }
+
+    .pager-chips {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      flex: 1 1 auto;
+    }
+
+    .pager-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 40px;
+      padding: 4px 12px 4px 5px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--bg-elev);
+      color: var(--ink-soft);
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      flex: none;
+      transition: all 0.18s ease;
+    }
+
+    .pager-chip.active {
+      background: linear-gradient(135deg, rgba(216, 180, 118, 0.24), rgba(139, 104, 54, 0.18));
+      border-color: var(--gold);
+      color: var(--gold-bright);
+    }
+
+    .pager-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      object-fit: cover;
+      object-position: 50% 18%;
+      border: 1px solid var(--line-strong);
+      flex: none;
+    }
+
+    .pager-monogram {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--surface-3);
+      border: 1px solid var(--line-strong);
+      color: var(--gold-bright);
+      font: 600 12px/1 var(--font-serif);
+      flex: none;
+    }
+
+    .role-dot {
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--jade);
+      flex: none;
+    }
+    .role-dot.edge { background: var(--mist); }
+    .role-dot.drama { background: var(--rose); }
+
+    .dirty-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--amber);
+      display: inline-block;
+    }
+
+    /* Main Character Card & Grid */
+    .card { margin-bottom: 18px; }
+
+    .card-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+
+    .card-identity {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .card-avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      object-fit: cover;
+      object-position: 50% 18%;
+      border: 1.5px solid var(--gold);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+      flex: none;
+    }
+
+    .card-title {
+      margin: 0;
+      font: 600 20px/1.2 var(--font-serif);
+      letter-spacing: 1px;
+      color: var(--ink);
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .engine-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      padding: 2px 9px;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      font-weight: 700;
+    }
+
+    .engine-tag.fish { background: var(--gold-soft); color: var(--gold-bright); border-color: var(--line-strong); }
+    .engine-tag.drama { background: var(--rose-soft); color: var(--rose); border-color: rgba(223, 154, 139, 0.35); }
+    .engine-tag.free { background: var(--jade-soft); color: var(--jade); border-color: rgba(109, 181, 146, 0.35); }
+    .engine-tag.edge { background: var(--mist-soft); color: var(--mist); border-color: rgba(142, 183, 209, 0.35); }
+
+    .voice-dashboard {
+      display: grid;
+      grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .tool-panel {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 15px;
+      box-shadow: var(--shadow);
+      min-width: 0;
+    }
+
+    .tool-panel.wide { grid-column: 1 / -1; }
+
+    .panel-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin: 0 0 13px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--gold-bright);
+      letter-spacing: 0.6px;
+    }
+
+    .panel-title span {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--muted);
+    }
+
+    .form-group { margin-bottom: 13px; }
+    .form-group:last-child { margin-bottom: 0; }
+
+    .form-group label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--ink-soft);
+      margin-bottom: 6px;
+    }
+
+    select, input[type="text"], input[type="number"], textarea {
+      width: 100%;
+      min-height: 44px;
+      padding: 9px 12px;
+      border-radius: 11px;
+      border: 1px solid var(--line-strong);
+      background: var(--bg-elev);
+      color: var(--ink);
+      font: 13.5px/1.5 var(--font-sans);
+      outline: none;
+      transition: border-color 0.18s ease, box-shadow 0.18s ease;
+    }
+
+    select:focus, input[type="text"]:focus, input[type="number"]:focus, textarea:focus {
+      border-color: var(--gold);
+      box-shadow: 0 0 0 3px var(--gold-soft);
+    }
+
+    textarea { resize: vertical; min-height: 92px; }
+
+    .inline-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .inline-row input { flex: 1; min-width: 0; }
+
+    .current-summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, var(--gold-soft), var(--bg-elev));
+      border: 1px solid var(--line-strong);
+      margin-bottom: 13px;
+    }
+    .current-summary strong { display: block; font-size: 13.5px; color: var(--ink); }
+    .current-summary small { display: block; margin-top: 2px; font-size: 11px; color: var(--muted); word-break: break-all; }
+
+    .model-callout {
+      margin-top: 7px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: var(--bg-elev);
+      border: 1px solid var(--line);
+      font-size: 11.5px;
+      color: var(--ink-soft);
+      line-height: 1.5;
+    }
+
+    /* Quick Tag / Phoneme Insert Chips */
+    .cue-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 8px;
+    }
+
+    .cue-chip {
+      min-height: 30px;
+      padding: 3px 9px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--bg-elev);
+      color: var(--ink-soft);
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      flex: none;
+    }
+    .cue-chip:hover { border-color: var(--gold); color: var(--gold-bright); }
+    .cue-chip.is-drama { border-color: rgba(223, 154, 139, 0.35); color: var(--rose); background: var(--rose-soft); }
+    .cue-chip.is-phoneme { border-color: rgba(109, 181, 146, 0.35); color: var(--jade); background: var(--jade-soft); }
+
+    /* Sliders & Parameter Groups */
+    .preset-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      margin-bottom: 14px;
+    }
+
+    .preset-pill {
+      min-height: 36px;
+      padding: 5px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--bg-elev);
+      color: var(--ink-soft);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      flex: none;
+    }
+    .preset-pill:hover { border-color: var(--gold); color: var(--gold-bright); background: var(--gold-soft); }
+
+    .param-section {
+      padding: 13px;
+      border-radius: 13px;
+      background: var(--bg-elev);
+      border: 1px solid var(--line);
+      margin-bottom: 12px;
+    }
+    .param-section:last-child { margin-bottom: 0; }
+
+    .param-section-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 11px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--gold);
+      letter-spacing: 0.5px;
+    }
+    .param-section-head small { color: var(--muted); font-weight: 500; font-size: 11px; }
+
+    .param-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 13px 16px;
+    }
+
+    .param-grid.three {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .slider-row {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .slider-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--ink-soft);
+      margin-bottom: 4px;
+    }
+
+    .slider-val {
+      font-weight: 700;
+      color: var(--gold-bright);
+      font-variant-numeric: tabular-nums;
+      min-width: 44px;
+      text-align: right;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      min-height: 36px;
+      accent-color: var(--gold);
+      cursor: pointer;
+      margin: 0;
+    }
+
+    .toggle-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .toggle-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 11px;
+      border-radius: 11px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      cursor: pointer;
+    }
+
+    .toggle-card input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      margin-top: 2px;
+      accent-color: var(--gold);
+      flex: none;
+      cursor: pointer;
+    }
+
+    .toggle-card strong {
+      display: block;
+      font-size: 12.5px;
+      color: var(--ink);
+    }
+
+    .toggle-card span {
+      display: block;
+      margin-top: 2px;
+      font-size: 11px;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .warn-chip {
+      display: inline-flex;
+      align-items: center;
+      padding: 1px 7px;
+      border-radius: 999px;
+      font-size: 10.5px;
+      font-weight: 700;
+      background: var(--amber-soft);
+      color: var(--amber);
+      border: 1px solid rgba(226, 169, 87, 0.32);
+    }
+
+    .hint, .param-help, .fish-search-status {
+      display: block;
+      margin-top: 5px;
+      font-size: 11.5px;
+      line-height: 1.5;
+      color: var(--muted);
+    }
+
+    details.advanced-panel > summary {
+      cursor: pointer;
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--gold-bright);
+      list-style: none;
+    }
+    details.advanced-panel > summary::-webkit-details-marker { display: none; }
+    details.advanced-panel > summary::after { content: '展开 ▾'; font-size: 11.5px; color: var(--muted); }
+    details.advanced-panel[open] > summary::after { content: '收起 ▴'; }
+
+    /* Voice Chips & Search */
+    .voice-chips, .fish-search-results {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      align-items: center;
+      margin-top: 9px;
+    }
+    .chips-label { font-size: 11.5px; color: var(--muted); font-weight: 700; }
+
+    .voice-chip, .fish-search-result {
+      max-width: 100%;
+      min-height: 36px;
+      padding: 5px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--bg-elev);
+      color: var(--ink-soft);
+      font-size: 12px;
+      cursor: pointer;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .voice-chip.current {
+      background: var(--gold-soft);
+      border-color: var(--gold);
+      color: var(--gold-bright);
+      font-weight: 700;
+    }
+    .fish-search-result {
+      background: var(--mist-soft);
+      border-color: rgba(142, 183, 209, 0.35);
+      color: var(--mist);
+    }
+    .chip-cur { margin-left: 5px; font-size: 10px; }
+    .voice-chip-del {
+      min-width: 34px;
+      min-height: 34px;
+      padding: 2px 6px;
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 14px;
+      cursor: pointer;
+      flex: none;
+    }
+    .voice-chip-del:hover { color: var(--danger); }
+
+    /* Buttons */
+    .btn-group {
+      display: flex;
+      gap: 9px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      font-family: inherit;
+      touch-action: manipulation;
+    }
+
+    .btn-primary, .btn-test, .secondary-action, .btn-small {
+      min-height: 46px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 13.5px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: transform 0.12s ease, opacity 0.16s ease, border-color 0.16s ease;
+    }
+
+    .btn-primary:active, .btn-test:active, .secondary-action:active {
+      transform: scale(0.975);
+    }
+
+    .btn-test {
+      flex: 1 1 auto;
+      border: 1px solid var(--line-strong);
+      background: linear-gradient(135deg, rgba(216, 180, 118, 0.25), rgba(139, 104, 54, 0.18));
+      color: var(--gold-bright);
+    }
+
+    .secondary-action {
+      flex: 0 0 auto;
+      border: 1px solid var(--line-strong);
+      background: var(--surface-2);
+      color: var(--ink-soft);
+    }
+
+    .btn-small {
+      flex: 0 0 auto;
+      min-height: 44px;
+      padding: 8px 13px;
+      font-size: 12.5px;
+    }
+
+    .download-btn {
+      display: none;
+      flex: 0 0 auto;
+      min-height: 46px;
+      padding: 10px 14px;
+      border-radius: 12px;
+      background: var(--amber-soft);
+      color: var(--amber);
+      border: 1px solid rgba(226, 169, 87, 0.38);
+      font-size: 13px;
+      font-weight: 700;
+      text-decoration: none;
+      align-items: center;
+      justify-content: center;
+    }
+
+    button:disabled { opacity: 0.48; cursor: wait; }
+
+    /* Sticky Bottom Studio Dock (Audition Player + Save Bar) */
+    .studio-dock {
+      position: fixed;
+      inset: auto 0 0 0;
+      z-index: 90;
+      background: var(--glass);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border-top: 1px solid var(--line-strong);
+      padding: 8px 14px max(10px, env(safe-area-inset-bottom, 0px));
+    }
+
+    .studio-dock-inner {
+      width: min(1120px, 100%);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .player-wrap {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .vu-svg {
+      width: 28px;
+      height: 24px;
+      color: var(--gold);
+      flex: none;
+    }
+
+    .vu-bar {
+      fill: currentColor;
+      transform-box: fill-box;
+      transform-origin: center bottom;
+      opacity: 0.45;
+    }
+
+    .vu-svg.is-playing .vu-bar {
+      opacity: 1;
+      animation: vu-pulse 0.8s ease-in-out infinite;
+    }
+    .vu-svg.is-playing .v2 { animation-delay: 0.14s; }
+    .vu-svg.is-playing .v3 { animation-delay: 0.28s; }
+    .vu-svg.is-playing .v4 { animation-delay: 0.42s; }
+    .vu-svg.is-playing .v5 { animation-delay: 0.56s; }
+
+    .player-meta {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .player-status {
+      font-size: 11.5px;
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      margin-bottom: 3px;
+    }
+
+    #tester-audio {
+      width: 100%;
+      height: 32px;
+      display: block;
+    }
+
+    .btn-save-all {
+      min-height: 46px;
+      min-width: 146px;
+      padding: 10px 18px;
+      border: 0;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #e5c68e 0%, #c19652 60%, #9f7535 100%);
+      color: #19130c;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 0.4px;
+      cursor: pointer;
+      box-shadow: 0 6px 18px rgba(193, 150, 82, 0.28);
+      white-space: nowrap;
+    }
+
+    html[data-theme="ivory"] .btn-save-all {
+      background: linear-gradient(135deg, #a67e3d, #835f27);
+      color: #fffdf8;
+    }
+
+    .btn-save-all.is-dirty {
+      box-shadow: 0 0 0 2px var(--gold-bright), 0 8px 24px rgba(216, 180, 118, 0.38);
+    }
+
+    .error-panel {
+      margin: 18px 0;
+      padding: 16px;
+      border-radius: 14px;
+      background: var(--danger-soft);
+      border: 1px solid rgba(212, 105, 105, 0.35);
+      color: var(--danger);
+    }
+
+    @keyframes vu-pulse {
+      0%, 100% { transform: scaleY(0.32); }
+      50% { transform: scaleY(1.1); }
+    }
+
+    @media (max-width: 820px) {
+      .top-meta-grid, .voice-dashboard, .param-grid, .param-grid.three, .toggle-grid {
+        grid-template-columns: 1fr;
+      }
+      .tool-panel.wide { grid-column: auto; }
+      .studio-dock-inner {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+      .btn-save-all { width: 100%; }
+      body { padding-bottom: calc(176px + env(safe-area-inset-bottom, 0px)); }
+    }
+
+    @media (max-width: 480px) {
+      .studio-header { flex-wrap: wrap; }
+      .header-actions { width: 100%; justify-content: flex-end; }
+      .inline-row { flex-wrap: wrap; }
+      .inline-row .btn-small { width: 100%; }
+    }
+  </style>
 </head>
 <body>
-
-<div class="header">
-<h2>🎬 双引擎调音台</h2>
-<p style="font-size:13px; color:#888;">旁白/人物 = Fish Audio 音色 · Edge 仍可作为旁白回退 · 密钥只在后端</p>
-<p style="font-size:12px; color:#b8956c; margin-top:8px; line-height:1.55; max-width:520px; margin-left:auto; margin-right:auto;">
-    人物语气由<strong>台词内标签</strong>驱动；旁白按文字自然朗读，不长期绑定情绪。<br>
-    下方「试听情感」仅影响本次试听，保存配置时一律清空。
-</p>
-</div>
-
-<div class="wallet-panel">
-    <div class="wallet-row">
-        <div class="wallet-title">Fish Audio 余额</div>
-        <button class="btn-wallet" type="button" onclick="loadFishWallet()">刷新余额</button>
+<div class="shell">
+  <header class="studio-header">
+    <div class="brand-lockup">
+      <svg viewBox="0 0 40 40" class="crest-svg" aria-hidden="true" focusable="false">
+        <circle cx="20" cy="20" r="18" fill="none" stroke="currentColor" stroke-opacity="0.24" stroke-width="1"/>
+        <path d="M20 7v24M14 31h12" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        <path d="M9 14h22" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+        <path d="M9 14 6.5 21h5L9 14Zm22 0-2.5 7h5L31 14Z" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="1.15" stroke-linejoin="round"/>
+        <path d="M14.5 24.5c1.5-3.2 3-3.2 4.2 0s2.5 3.2 3.8 0 2.3-3.2 3 0" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
+        <circle cx="20" cy="14" r="1.9" fill="currentColor"/>
+      </svg>
+      <div class="brand-copy">
+        <h1>深渊天平 · 声学工坊</h1>
+        <p>Fish Audio S2.1 / Drama 3 双引擎中控 · Edge 旁白回退 · 密钥仅驻后端</p>
+      </div>
     </div>
-    <div id="fish-wallet-data" class="wallet-data">尚未查询</div>
+    <div class="header-actions">
+      <button type="button" class="icon-pill-btn" id="theme-toggle-btn" onclick="toggleStudioTheme()">昼夜切换</button>
+      <a href="/" class="pill-link">
+        <svg viewBox="0 0 24 24" class="icon-svg" aria-hidden="true"><path d="m15 6-6 6 6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>返回剧场</span>
+      </a>
+    </div>
+  </header>
+
+  <section class="top-meta-grid">
+    <div class="wallet-panel">
+      <div class="wallet-row">
+        <div class="wallet-title">
+          <svg viewBox="0 0 24 24" class="icon-svg" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M16 12h3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <span>Fish Audio 账户额度</span>
+        </div>
+        <button class="btn-wallet" type="button" onclick="loadFishWallet()">刷新余额</button>
+      </div>
+      <div id="fish-wallet-data" class="wallet-data">尚未查询 · 点右上刷新</div>
+    </div>
+    <div class="protocol-banner">
+      <div><strong>声学隔离原则：</strong>正式剧情语气由台词内 <code>[bracket]</code> / Drama 3 标签实时驱动，不长期绑定固定情绪。</div>
+      <div>「试听情感」与快捷导演标签仅作用于本次试听，保存配置时 <code>emotion</code> 一律清空。</div>
+    </div>
+  </section>
+
+  <div id="manager-status" class="manager-status" role="status" aria-live="polite"></div>
+  <nav id="pager" class="pager" aria-label="角色音色切换"></nav>
+
+  <main id="editor-container">
+    <div style="text-align:center; padding: 48px 16px; color: var(--muted);">正在同步本地语音配置与音色库…</div>
+  </main>
 </div>
 
-<div id="manager-status" class="manager-status" role="status" aria-live="polite"></div>
-<div id="pager" class="pager"></div>
-
-<div id="editor-container">
-    <div style="text-align:center; padding: 40px; color: #999;">正在同步配置与音色库...</div>
-</div>
-<button id="save-all-button" class="btn-save-all" onclick="saveAllConfig()">💾 保存全部</button>
-<div class="player-panel"><div id="tester-status" class="player-status" role="status">试听音频尚未生成</div><audio id="tester-audio" controls preload="none"></audio></div>
+<footer class="studio-dock">
+  <div class="studio-dock-inner">
+    <div class="player-wrap">
+      <svg id="studio-vu" viewBox="0 0 28 24" class="vu-svg" aria-hidden="true">
+        <rect class="vu-bar v1" x="2" y="10" width="3" height="10" rx="1.5"/>
+        <rect class="vu-bar v2" x="7.5" y="5" width="3" height="15" rx="1.5"/>
+        <rect class="vu-bar v3" x="13" y="3" width="3" height="17" rx="1.5"/>
+        <rect class="vu-bar v4" x="18.5" y="7" width="3" height="13" rx="1.5"/>
+        <rect class="vu-bar v5" x="24" y="11" width="3" height="9" rx="1.5"/>
+      </svg>
+      <div class="player-meta">
+        <div id="tester-status" class="player-status" role="status">试听音频尚未生成</div>
+        <audio id="tester-audio" controls preload="none"></audio>
+      </div>
+    </div>
+    <button id="save-all-button" class="btn-save-all" onclick="saveAllConfig()">保存全部</button>
+  </div>
+</footer>
 
 <script src="voice_client.js"></script>
 <script>
@@ -134,6 +1033,7 @@
     let repoItems = [];
     let activeTestObjectUrl = null;
     let activePreviewCharacter = '';
+    let activePreviewExt = 'mp3';
     let previewPending = false;
     let savedConfigSnapshot = '';
     let configReady = false;
@@ -143,12 +1043,29 @@
     const previewAudioUrls = new VoiceClient.AudioUrlStore(1);
     const editorDrafts = new Map();
 
+    const STUDIO_THEME_KEY = 'abyss_studio_theme_v1';
+    const PORTRAIT_CHARS = new Set(['沈知韫', '苏婉青', '徐念薇', '徐志北']);
+
     let fishTtsModels = [
-        { id: "s2.1-pro", name: "S2.1 Pro（付费主模型）" },
-        { id: "s2.1-pro-free", name: "S2.1 Pro Free（免费/备用）" }
+        { id: "s2.1-pro", name: "S2.1 Pro（官方生产主力 · 高质稳定）" },
+        { id: "s2.1-pro-free", name: "S2.1 Pro Free（同质免费开发档）" },
+        { id: "drama-3", name: "Drama 3（自然语言导演 / 局部标签旗舰）" },
+        { id: "s2-pro", name: "S2 Pro（上一代开源 S2）" }
     ];
 
-    // 静态兜底；页面加载后会被 /api/edge_voices 覆盖成「本机真实可用」列表
+    const MODEL_NOTES = {
+        "s2.1-pro": "官方生产主力（$15/M字节）：支持自由 [自然语言] 标签与多角色对话，支持响度归一化开关与中文注音；注意官方注明 repetition_penalty 在 S2.1 上不生效。",
+        "s2.1-pro-free": "同质免费开发档（$0）：与 S2.1 Pro 同等音质与标签能力，适合旁白或日常游玩零成本使用（无 TTFA 延迟保障）。",
+        "drama-3": "最新导演级模型：可用中/英文自然语言执导表演、插入停顿与气声，并支持 <whisper> <soft> <emphasis> <slow> <fast> <stress> <forceful> 局部词语标签。",
+        "s2-pro": "上一代开源 S2 模型：支持 [bracket] 标签与多角色对话，可作音色听感对照。"
+    };
+
+    const FORMAT_RATES = {
+        mp3: [32000, 44100],
+        opus: [48000],
+        wav: [8000, 16000, 24000, 32000, 44100]
+    };
+
     let edgeVoices = [
         { id: "zh-CN-YunyangNeural", name: "云扬 (专业播音男声 · 旁白首选)" },
         { id: "zh-CN-YunjianNeural", name: "云健 (成熟稳重男声)" },
@@ -159,36 +1076,72 @@
     let edgeDefaultVoice = "zh-CN-YunyangNeural";
 
     const emotions = [
-        { id: "", name: "正常 (原声直出 · 正式推演默认)" },
-        { id: "whispers", name: "🤫 贴耳低语 [whispers] · 仅试听" },
-        { id: "sighs", name: "😮‍💨 沉重叹息 [sighs] · 仅试听" },
-        { id: "laughs", name: "😂 忍不住笑 [laughs] · 仅试听" },
-        { id: "gasps", name: "😱 震惊抽气 [gasps] · 仅试听" },
-        { id: "clears throat", name: "🗣️ 战术清嗓 [clears throat] · 仅试听" },
-        { id: "cries", name: "😭 悲伤哭泣 [cries] · 仅试听" },
-        { id: "angry", name: "😡 愤怒语气 [angry] · 仅试听" }
+        { id: "", name: "正常原声（正式推演默认）" },
+        { id: "low restrained voice", name: "沉稳克制 [low restrained voice] · 仅试听" },
+        { id: "soft timid voice", name: "娇柔轻声 [soft timid voice] · 仅试听" },
+        { id: "cool restrained voice", name: "清冷内敛 [cool restrained voice] · 仅试听" },
+        { id: "whispering", name: "贴耳低语 [whispering] · 仅试听" },
+        { id: "sighing", name: "轻沉叹息 [sighing] · 仅试听" },
+        { id: "chuckling", name: "轻声微哂 [chuckling] · 仅试听" },
+        { id: "gasping", name: "微惊抽气 [gasping] · 仅试听" },
+        { id: "nervous", name: "紧张心虚 [nervous] · 仅试听" },
+        { id: "guilty", name: "愧疚压抑 [guilty] · 仅试听" },
+        { id: "sobbing", name: "低声啜泣 [sobbing] · 仅试听" },
+        { id: "angry", name: "压怒冷声 [angry] · 仅试听" }
+    ];
+
+    const QUICK_CUES = [
+        { label: "[低语]", insert: "[whispering] ", kind: "s2" },
+        { label: "[叹息]", insert: "[sighing] ", kind: "s2" },
+        { label: "[短停顿]", insert: " [break] ", kind: "s2" },
+        { label: "[屏息]", insert: "[breath catches] ", kind: "s2" },
+        { label: "Drama<whisper>", insert: "<whisper>这里压低声音</whisper>", kind: "drama" },
+        { label: "Drama<emphasis>", insert: "<emphasis>重读词语</emphasis>", kind: "drama" },
+        { label: "Drama<slow>", insert: "<slow>放慢语速</slow>", kind: "drama" },
+        { label: "注音:韫(yùn)", insert: "<|phoneme_start|>yun4<|phoneme_end|>", kind: "phoneme" },
+        { label: "注音:邺(yè)", insert: "<|phoneme_start|>ye4<|phoneme_end|>", kind: "phoneme" }
     ];
 
     const fishDefaults = VoiceClient.fishDefaults;
 
     const fishPresets = {
-        balanced: { name: "均衡叙事", speed: 1.0, volume: 0, temperature: 0.72, top_p: 0.75, latency: "normal", chunk_length: 220, min_chunk_length: 40, repetition_penalty: 1.18, condition_on_previous_chunks: true },
-        stable: { name: "稳重克制", speed: 0.94, volume: 0, temperature: 0.55, top_p: 0.62, latency: "balanced", chunk_length: 260, min_chunk_length: 55, repetition_penalty: 1.25, condition_on_previous_chunks: true },
-        expressive: { name: "高表现力", speed: 1.03, volume: 0, temperature: 0.86, top_p: 0.88, latency: "normal", chunk_length: 180, min_chunk_length: 30, repetition_penalty: 1.12, condition_on_previous_chunks: true },
-        close: { name: "贴耳低语", speed: 0.88, volume: -1.5, temperature: 0.68, top_p: 0.72, latency: "normal", chunk_length: 150, min_chunk_length: 24, repetition_penalty: 1.2, condition_on_previous_chunks: true },
-        narrator_free: { name: "Fish 免费旁白", tts_model: "s2.1-pro-free", speed: 0.94, volume: 0, temperature: 0.58, top_p: 0.66, latency: "balanced", chunk_length: 260, min_chunk_length: 55, repetition_penalty: 1.25, condition_on_previous_chunks: true }
+        balanced: { name: "均衡叙事", speed: 1.0, volume: 0, normalize_loudness: true, temperature: 0.72, top_p: 0.75, latency: "normal", chunk_length: 220, min_chunk_length: 40, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 128, sample_rate: 44100 },
+        zhiyun: { name: "沈知韫 · 沉稳掌权", speed: 0.96, volume: 0, normalize_loudness: true, temperature: 0.62, top_p: 0.72, latency: "normal", chunk_length: 240, min_chunk_length: 45, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 192, sample_rate: 44100 },
+        wanqing: { name: "苏婉青 · 娇柔贴耳", speed: 0.93, volume: -1.0, normalize_loudness: false, temperature: 0.68, top_p: 0.76, latency: "normal", chunk_length: 190, min_chunk_length: 30, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 192, sample_rate: 44100 },
+        nianwei: { name: "徐念薇 · 清冷克制", speed: 0.97, volume: 0, normalize_loudness: true, temperature: 0.58, top_p: 0.68, latency: "normal", chunk_length: 220, min_chunk_length: 40, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 128, sample_rate: 44100 },
+        narrator_free: { name: "旁白 · 免费电影腔", tts_model: "s2.1-pro-free", speed: 0.94, volume: 0, normalize_loudness: true, temperature: 0.58, top_p: 0.66, latency: "balanced", chunk_length: 260, min_chunk_length: 55, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 128, sample_rate: 44100 },
+        drama3_cinematic: { name: "Drama 3 · 导演演绎", tts_model: "drama-3", speed: 0.98, volume: 0, normalize_loudness: false, temperature: 0.74, top_p: 0.78, latency: "normal", chunk_length: 240, min_chunk_length: 40, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 192, sample_rate: 44100, quality_guard: true }
     };
 
-    // 试听专用情感：不进 configData，不随「保存」写入 voice_config.json
     const testEmotions = {};
 
     const sampleTexts = {
-        "沈知韫": "这是一段语音测试。听音色本身是否合适，不要依赖固定情绪滤镜。",
-        "徐念薇": "这是一段语音测试。听音色本身是否合适，不要依赖固定情绪滤镜。",
-        "苏婉青": "这是一段语音测试。听音色本身是否合适，不要依赖固定情绪滤镜。",
-        "旁白": "画室灯没关。松节油味还在。徐念薇肩上的毯子滑到肘弯，她用指节顶回去，没有抬眼。",
-        "default": "这是一段语音测试。听音色本身是否合适。"
+        "沈知韫": "这件事先不急着定论。坐下来把热茶喝了，剩下的我来处理。",
+        "徐念薇": "画布还没干，别靠太近。有话直接说就好。",
+        "苏婉青": "刚煮好的咖啡，还是温水？下午我还要回主宅看婆婆，上午陪我说说话也好。",
+        "旁白": "窗外细雨未停，落地灯在木质桌面投下一圈暖光。她收回手，指尖停在瓷杯边缘，没有立刻接话。",
+        "default": "这是一段语音测试。请听音色、停顿与气口是否自然。"
     };
+
+    function applyStudioTheme(theme) {
+        try {
+            const next = theme === 'ivory' ? 'ivory' : 'noir';
+            if (document.documentElement) document.documentElement.dataset.theme = next;
+            const meta = document.querySelector && document.querySelector('meta[name="theme-color"]');
+            if (meta && meta.setAttribute) meta.setAttribute('content', next === 'ivory' ? '#f4efe6' : '#0c0a09');
+            try { localStorage.setItem(STUDIO_THEME_KEY, next); } catch (_) {}
+        } catch (_) {}
+    }
+
+    function toggleStudioTheme() {
+        const cur = (document.documentElement && document.documentElement.dataset && document.documentElement.dataset.theme) || 'noir';
+        applyStudioTheme(cur === 'noir' ? 'ivory' : 'noir');
+    }
+
+    try {
+        const savedTheme = localStorage.getItem(STUDIO_THEME_KEY);
+        if (savedTheme === 'ivory' || savedTheme === 'noir') applyStudioTheme(savedTheme);
+    } catch (_) {}
 
     function isEdgeChar(character, cfg) {
         const voice = (cfg && cfg.voice) || "";
@@ -196,14 +1149,12 @@
     }
 
     function parseRate(rateStr) {
-        // 旁白默认略慢：-8%（电影旁白，非播音加速）
         if (rateStr === undefined || rateStr === null || rateStr === "") return -8;
         const m = String(rateStr).match(/([+-]?\d+)/);
         return m ? parseInt(m[1], 10) : -8;
     }
 
     function parsePitch(pitchStr) {
-        // 旁白默认略降：-4Hz
         if (pitchStr === undefined || pitchStr === null || pitchStr === "") return -4;
         const m = String(pitchStr).match(/([+-]?\d+)/);
         return m ? parseInt(m[1], 10) : -4;
@@ -228,49 +1179,34 @@
     function loadFishWallet() {
         const box = document.getElementById('fish-wallet-data');
         if (!box) return;
-        box.textContent = '查询中...';
+        box.textContent = '查询中…';
         VoiceClient.requestJson('/api/fish_wallet?t=' + Date.now(), {}, 18000)
             .then(data => {
-                if (!data) {
-                    box.textContent = '查询失败';
-                    return;
-                }
+                if (!data) { box.textContent = '查询失败'; return; }
                 const pkg = data.package || {};
                 const credit = data.api_credit || {};
                 const parts = [];
                 if (Object.keys(pkg).length) {
-                    parts.push(`<strong>套餐</strong>：${pkg.type || '-'} · balance ${formatMaybeNumber(pkg.balance)} / total ${formatMaybeNumber(pkg.total)}`);
+                    parts.push(`<strong>套餐</strong> ${escapeHtml(pkg.type || '-')} · 剩余 ${formatMaybeNumber(pkg.balance)} / ${formatMaybeNumber(pkg.total)}`);
                 }
                 if (Object.keys(credit).length) {
-                    parts.push(`<strong>API Credit</strong>：${formatMaybeNumber(credit.credit)}`);
+                    parts.push(`<strong>API Credit</strong> ${formatMaybeNumber(credit.credit)}`);
                     if (credit.has_free_credit !== undefined && credit.has_free_credit !== null) {
-                        parts.push(`<strong>免费额度</strong>：${credit.has_free_credit ? '有' : '无'}`);
+                        parts.push(`<strong>免费额度</strong> ${credit.has_free_credit ? '可用' : '无'}`);
                     }
                 }
                 if (data.warnings && data.warnings.length) {
-                    parts.push('<span style="color:#d48806;">⚠️ ' + data.warnings.join('<br>⚠️ ') + '</span>');
+                    parts.push('<span style="color:var(--amber);">' + data.warnings.map(escapeHtml).join(' · ') + '</span>');
                 }
                 if (!parts.length) {
-                    box.textContent = 'Fish Audio 未返回余额信息';
+                    box.textContent = data.error ? '未配置 FISH_API_KEY（不影响编辑本地配置）' : 'Fish Audio 未返回余额信息';
                     return;
                 }
                 box.innerHTML = parts.join('<br>');
             })
             .catch(() => {
-                box.textContent = '查询失败，请检查后端或 Fish API Key（不影响 TTS 生成）';
+                box.textContent = '查询失败，请检查后端服务或 Fish API Key';
             });
-    }
-
-    function clampNumber(value, fallback, min, max) {
-        const n = parseFloat(value);
-        if (!Number.isFinite(n)) return fallback;
-        return Math.max(min, Math.min(max, n));
-    }
-
-    function clampInt(value, fallback, min, max) {
-        const n = parseInt(value, 10);
-        if (!Number.isFinite(n)) return fallback;
-        return Math.max(min, Math.min(max, n));
     }
 
     function normalizeFishCfg(cfg) { return VoiceClient.normalizeFish(cfg); }
@@ -295,12 +1231,15 @@
         const active = document.activeElement;
         const focusId = active && active.id;
         const selection = active && typeof active.selectionStart === 'number' ? [active.selectionStart, active.selectionEnd] : null;
-        const scroll = window.scrollY;
+        const scroll = typeof window.scrollY === 'number' ? window.scrollY : 0;
         renderEditor();
         document.querySelectorAll('#editor-container details').forEach((el, i) => { el.open = !!opened[i]; });
         const focus = focusId && document.getElementById(focusId);
-        if (focus) { focus.focus({ preventScroll: true }); if (selection) focus.setSelectionRange(...selection); }
-        window.scrollTo(0, scroll);
+        if (focus && focus.focus) {
+            focus.focus({ preventScroll: true });
+            if (selection && focus.setSelectionRange) focus.setSelectionRange(...selection);
+        }
+        if (window.scrollTo) window.scrollTo(0, scroll);
     }
 
     async function loadVoiceLibraries() {
@@ -319,12 +1258,12 @@
         const results = await Promise.allSettled(jobs);
         refreshEditorPreservingDraft();
         if (!isDirty()) setManagerStatus(results.some(result => result.status === 'rejected')
-            ? '部分音色列表未更新，仍可编辑和保存本地配置。' : '音色列表已更新。');
+            ? '部分远端音色列表未更新，本地配置仍可自由编辑与保存。' : '本地配置与音色库已同步。');
     }
 
     async function initializeManager() {
         configReady = false; updateSaveState();
-        setManagerStatus('正在读取本地配置…');
+        setManagerStatus('正在读取本地语音配置…');
         try {
             const config = await VoiceClient.requestJson('/api/config', { cache: 'no-store' });
             if (!config || typeof config !== 'object' || !Object.keys(config).length) throw new Error('未收到有效配置。');
@@ -337,17 +1276,28 @@
             savedConfigSnapshot = JSON.stringify(sanitizeConfigForSave(configData));
             configReady = true;
             renderEditor();
-            setManagerStatus('本地配置已加载，音色列表正在后台更新。');
+            setManagerStatus('本地配置已就绪，正在后台同步音色列表…');
             loadVoiceLibraries();
         } catch (error) {
             const container = document.getElementById('editor-container');
             container.replaceChildren();
             const message = document.createElement('p'); message.className = 'error-panel'; message.textContent = error.message;
-            const retry = document.createElement('button'); retry.type = 'button'; retry.textContent = '重新读取配置'; retry.onclick = initializeManager;
+            const retry = document.createElement('button'); retry.type = 'button'; retry.className = 'btn-test'; retry.textContent = '重新读取配置'; retry.onclick = initializeManager;
             container.append(message, retry);
             setManagerStatus(error.message, true); updateSaveState();
         }
     }
+
+    const bindAudioVu = () => {
+        const audio = document.getElementById('tester-audio');
+        const vu = document.getElementById('studio-vu');
+        if (!audio || !vu || !audio.addEventListener) return;
+        const setPlay = on => vu.classList.toggle('is-playing', !!on);
+        audio.addEventListener('play', () => setPlay(true));
+        audio.addEventListener('pause', () => setPlay(false));
+        audio.addEventListener('ended', () => setPlay(false));
+    };
+    bindAudioVu();
 
     initializeManager();
     window.addEventListener('beforeunload', event => {
@@ -356,245 +1306,357 @@
     window.addEventListener('pagehide', () => {
         previewSequence++; VoiceClient.cancel('preview');
         const audio = document.getElementById('tester-audio');
-        if (audio) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
+        if (audio && audio.pause) { audio.pause(); audio.removeAttribute('src'); audio.load(); }
         previewAudioUrls.clear(); activeTestObjectUrl = null;
     });
+
+    function insertPreviewCue(char, text) {
+        const area = document.getElementById('test-text-' + char);
+        if (!area) return;
+        const start = typeof area.selectionStart === 'number' ? area.selectionStart : area.value.length;
+        const end = typeof area.selectionEnd === 'number' ? area.selectionEnd : start;
+        area.value = area.value.slice(0, start) + text + area.value.slice(end);
+        editorDrafts.set(area.id, area.value);
+        area.focus();
+        if (area.setSelectionRange) area.setSelectionRange(start + text.length, start + text.length);
+    }
 
     function renderEditor() {
         captureEditorDraft();
         const container = document.getElementById('editor-container');
         container.innerHTML = '';
 
-        // 统计每个 fish: 音色当前被哪个角色使用（用于下拉标注，避免误导）
-        const voiceOwner = {};
-        for (const [nm, cf] of Object.entries(configData)) {
-            if (nm === "__settings__") continue;
-            const v = cf && cf.voice;
-            if (v && String(v).startsWith('fish:')) {
-                const vid = String(v).split(':')[1];
-                if (vid) voiceOwner[vid] = nm;
-            }
-        }
-
         const pageNames = editablePageNames();
         if (!pageNames.length) { renderPager([], 0); return; }
         if (currentPage >= pageNames.length) currentPage = 0;
         const character = pageNames[currentPage];
         const cfg = configData[character];
-        {
-            const edgeMode = isEdgeChar(character, cfg);
-            let currentModel = cfg.voice && cfg.voice.includes(':') ? cfg.voice.split(':')[0] : (edgeMode ? "edge" : "fish");
-            let currentSpeaker = cfg.voice && cfg.voice.includes(':') ? cfg.voice.split(':')[1] : "";
-            if (!edgeMode && currentModel !== "fish") {
-                currentModel = "fish";
-                currentSpeaker = voiceList[0] ? voiceList[0].id : "";
-                cfg.voice = `fish:${currentSpeaker}`;
+        const edgeMode = isEdgeChar(character, cfg);
+        let currentModel = cfg.voice && cfg.voice.includes(':') ? cfg.voice.split(':')[0] : (edgeMode ? "edge" : "fish");
+        let currentSpeaker = cfg.voice && cfg.voice.includes(':') ? cfg.voice.split(':')[1] : "";
+
+        if (!edgeMode && currentModel !== "fish") {
+            currentModel = "fish";
+            currentSpeaker = voiceList[0] ? voiceList[0].id : "";
+            cfg.voice = `fish:${currentSpeaker}`;
+        }
+
+        if (edgeMode) {
+            currentModel = "edge";
+            if (!currentSpeaker) currentSpeaker = edgeDefaultVoice;
+            if (!edgeVoices.some(v => v.id === currentSpeaker)) {
+                edgeVoices = [{ id: currentSpeaker, name: currentSpeaker + '（已保存）' }, ...edgeVoices];
             }
+        }
 
-            if (edgeMode) {
-                currentModel = "edge";
-                if (!currentSpeaker) currentSpeaker = edgeDefaultVoice;
-                // 音色列表离线时仍保留已保存的选择。
-                if (!edgeVoices.some(v => v.id === currentSpeaker)) {
-                    edgeVoices = [{ id: currentSpeaker, name: currentSpeaker + '（已保存）' }, ...edgeVoices];
-                }
-            }
+        const card = document.createElement('div');
+        card.className = 'card';
+        const avatarHtml = PORTRAIT_CHARS.has(character)
+            ? `<img class="card-avatar" src="/txt文件/image/${encodeURIComponent(character)}/into.png" alt="${escapeHtml(character)}" decoding="async">`
+            : `<span class="card-avatar" style="display:grid;place-items:center;background:var(--surface-2);color:var(--gold-bright);font:600 20px/1 var(--font-serif);">${escapeHtml(character.slice(0, 1))}</span>`;
 
-            const card = document.createElement('div');
-            card.className = 'card';
+        if (edgeMode) {
+            const rateNum = parseRate(cfg.rate);
+            const pitchNum = parsePitch(cfg.pitch);
+            const speakerHtml = edgeVoices.map(v =>
+                `<option value="${escapeHtml(v.id)}" ${currentSpeaker === v.id ? 'selected' : ''}>${escapeHtml(v.name)}</option>`
+            ).join('');
 
-            if (edgeMode) {
-                // ========== Edge 旁白专属 UI ==========
-                const rateNum = parseRate(cfg.rate);
-                const pitchNum = parsePitch(cfg.pitch);
-                const speakerHtml = edgeVoices.map(v =>
-                    `<option value="${v.id}" ${currentSpeaker === v.id ? 'selected' : ''}>${v.name}</option>`
-                ).join('');
-
-                card.innerHTML = `
-                    <div class="card-head">
+            card.innerHTML = `
+                <div class="card-head">
+                    <div class="card-identity">
+                        ${avatarHtml}
                         <div>
-                            <div class="card-title">${character}</div>
-                            <span class="engine-tag edge">Edge 旁白回退</span>
+                            <h2 class="card-title">${escapeHtml(character)}</h2>
+                            <div class="tag-row"><span class="engine-tag edge">Edge 旁白回退</span></div>
                         </div>
-                        ${character === '旁白' ? `<button type="button" class="secondary-action" onclick="switchNarratorToFishFree()">切换 Fish 免费旁白</button>` : ''}
                     </div>
-                    <div class="voice-dashboard">
-                        <section class="tool-panel">
-                            <div class="panel-title">Edge 声音 <span>${currentSpeaker || edgeDefaultVoice}</span></div>
-                            <div class="form-group">
-                                <label>发音人</label>
-                                <select onchange="updateEdgeSpeaker('${character}', this.value)">
-                                    ${speakerHtml}
-                                </select>
-                                <div class="hint">列表来自本机 Edge 真实可用音色。云泽/晓甄通常不在免费列表。</div>
+                    ${character === '旁白' ? `<button type="button" class="secondary-action" onclick="switchNarratorToFishFree()">切换 Fish 免费旁白</button>` : ''}
+                </div>
+                <div class="voice-dashboard">
+                    <section class="tool-panel">
+                        <div class="panel-title">Edge 发音人与韵律 <span>${escapeHtml(currentSpeaker || edgeDefaultVoice)}</span></div>
+                        <div class="form-group">
+                            <label>发音人</label>
+                            <select onchange="updateEdgeSpeaker('${character}', this.value)">${speakerHtml}</select>
+                            <div class="hint">来自本机 Edge 真实可用中文音色。</div>
+                        </div>
+                        <div class="param-grid">
+                            <div class="slider-row">
+                                <div class="slider-header"><span>语速 rate</span><span class="slider-val" id="rate-val-${character}">${formatRate(rateNum)}</span></div>
+                                <input type="range" min="-20" max="30" step="1" value="${rateNum}" oninput="updateEdgeSlider('${character}', 'rate', this.value, 'rate-val-${character}')">
                             </div>
-                            <div class="param-grid">
-                                <div class="slider-row">
-                                    <div class="slider-header"><span>语速 rate</span><span class="slider-val" id="rate-val-${character}">${formatRate(rateNum)}</span></div>
-                                    <input type="range" min="-20" max="30" step="1" value="${rateNum}" oninput="updateEdgeSlider('${character}', 'rate', this.value, 'rate-val-${character}')">
-                                </div>
-                                <div class="slider-row">
-                                    <div class="slider-header"><span>音高 pitch</span><span class="slider-val" id="pitch-val-${character}">${formatPitch(pitchNum)}</span></div>
-                                    <input type="range" min="-20" max="20" step="1" value="${pitchNum}" oninput="updateEdgeSlider('${character}', 'pitch', this.value, 'pitch-val-${character}')">
-                                </div>
+                            <div class="slider-row">
+                                <div class="slider-header"><span>音高 pitch</span><span class="slider-val" id="pitch-val-${character}">${formatPitch(pitchNum)}</span></div>
+                                <input type="range" min="-20" max="20" step="1" value="${pitchNum}" oninput="updateEdgeSlider('${character}', 'pitch', this.value, 'pitch-val-${character}')">
                             </div>
-                            <button type="button" class="secondary-action" style="margin-top:14px;" onclick="applyNarrationFilmPreset('${character}')">应用电影旁白预设</button>
-                            <div class="hint">Edge 不使用 Fish emotion；旁白方括号标签在回退时自动剥除。</div>
-                        </section>
-                        <section class="tool-panel">
-                            <div class="panel-title">试听与保存 <span>Edge 参数</span></div>
-                            <div class="form-group">
-                                <label>自定义试听文本</label>
-                                <textarea id="test-text-${character}" rows="7">${sampleTexts[character] || sampleTexts["default"]}</textarea>
-                            </div>
-                            <div class="btn-group">
-                                <button class="btn-test" onclick="testVoice('${character}')">试听与生成</button>
-                                <a id="download-link-${character}" style="display:none; flex:1; text-align:center; text-decoration:none; padding:11px 12px; background:var(--amber-soft); color:var(--amber); border:1px solid #ffd591; border-radius:7px; font-size:14px; font-weight:800; cursor:pointer;">下载音频</a>
-                            </div>
-                        </section>
-                    </div>
-                `;
-            } else {
-                // ========== Fish Audio 人物 UI ==========
-                // 试听情感与长期配置脱钩：默认原声；仅试听时用 testEmotions
-                if (testEmotions[character] === undefined) testEmotions[character] = "";
-                let currentEmotion = testEmotions[character] || "";
-                cfg.emotion = "";
-                Object.assign(cfg, normalizeFishCfg(cfg));
+                        </div>
+                        <button type="button" class="secondary-action" style="margin-top:14px;" onclick="applyNarrationFilmPreset('${character}')">应用电影旁白预设（-8% / -4Hz）</button>
+                        <div class="hint">Edge 回退会自动剥除 Fish 方括号、Drama 3 尖括号和音素标签。</div>
+                    </section>
+                    <section class="tool-panel">
+                        <div class="panel-title">试听台 <span>Edge 实时合成</span></div>
+                        <div class="form-group">
+                            <label>试听文本</label>
+                            <textarea id="test-text-${character}" rows="6">${escapeHtml(sampleTexts[character] || sampleTexts["default"])}</textarea>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn-test" onclick="testVoice('${character}')">试听与生成</button>
+                            <a id="download-link-${character}" class="download-btn">下载音频</a>
+                        </div>
+                    </section>
+                </div>
+            `;
+        } else {
+            if (testEmotions[character] === undefined) testEmotions[character] = "";
+            const currentEmotion = testEmotions[character] || "";
+            cfg.emotion = "";
+            Object.assign(cfg, normalizeFishCfg(cfg));
+            const fishCfg = normalizeFishCfg(cfg);
 
-                const currentFishTtsModel = cfg.tts_model || (character === '旁白' ? 's2.1-pro-free' : ((configData.__settings__ && configData.__settings__.fish_tts_model) || window.fishTtsModel || "s2.1-pro"));
-                let modelHtml = fishTtsModels.map(m =>
-                    `<option value="${m.id}" ${currentFishTtsModel === m.id ? 'selected' : ''}>${m.name}</option>`
-                ).join('');
-                let fishSpeakerOptions = [{ id: "", name: "Fish 默认音色（不传 reference_id）" }].concat(voiceList || []);
-                let speakerHtml = fishSpeakerOptions.map(v => {
-                    const owner = (v.id && voiceOwner[v.id] && voiceOwner[v.id] !== character) ? voiceOwner[v.id] : null;
-                    const suffix = owner ? `（当前用于：${owner}）` : '';
-                    return `<option value="${v.id}" ${currentSpeaker === v.id ? 'selected' : ''}>${v.name}${suffix}</option>`;
-                }).join('');
-                let emotionHtml = emotions.map(e =>
-                    `<option value="${e.id}" ${currentEmotion === e.id ? 'selected' : ''}>${e.name}</option>`
-                ).join('');
-                const fishCfg = normalizeFishCfg(cfg);
+            const currentFishTtsModel = cfg.tts_model || (character === '旁白' ? 's2.1-pro-free' : ((configData.__settings__ && configData.__settings__.fish_tts_model) || window.fishTtsModel || "s2.1-pro"));
+            const isS21 = currentFishTtsModel === 's2.1-pro' || currentFishTtsModel === 's2.1-pro-free';
+            const isDrama3 = currentFishTtsModel === 'drama-3';
+            const isFree = currentFishTtsModel === 's2.1-pro-free';
 
-                card.innerHTML = `
-                    <div class="card-head">
+            const modelHtml = fishTtsModels.map(m =>
+                `<option value="${escapeHtml(m.id)}" ${currentFishTtsModel === m.id ? 'selected' : ''}>${escapeHtml(m.name)}</option>`
+            ).join('');
+            const emotionHtml = emotions.map(e =>
+                `<option value="${escapeHtml(e.id)}" ${currentEmotion === e.id ? 'selected' : ''}>${escapeHtml(e.name)}</option>`
+            ).join('');
+
+            const sampleRates = FORMAT_RATES[fishCfg.format] || FORMAT_RATES.mp3;
+            const rateOpts = sampleRates.map(r => `<option value="${r}" ${fishCfg.sample_rate === r ? 'selected' : ''}>${(r / 1000).toFixed(r % 1000 ? 1 : 0)} kHz</option>`).join('');
+
+            const bitrateBlock = fishCfg.format === 'mp3'
+                ? `<div class="form-group"><label>MP3 码率</label><select onchange="updateFishField('${character}', 'mp3_bitrate', Number(this.value), true)">
+                    <option value="64" ${fishCfg.mp3_bitrate === 64 ? 'selected' : ''}>64 kbps（最省流量）</option>
+                    <option value="128" ${fishCfg.mp3_bitrate === 128 ? 'selected' : ''}>128 kbps（默认均衡）</option>
+                    <option value="192" ${fishCfg.mp3_bitrate === 192 ? 'selected' : ''}>192 kbps（高保真）</option>
+                  </select></div>`
+                : fishCfg.format === 'opus'
+                ? `<div class="form-group"><label>Opus 码率</label><select onchange="updateFishField('${character}', 'opus_bitrate', Number(this.value), true)">
+                    <option value="-1000" ${fishCfg.opus_bitrate === -1000 ? 'selected' : ''}>自动（推荐 -1000）</option>
+                    <option value="24000" ${fishCfg.opus_bitrate === 24000 ? 'selected' : ''}>24 kbps</option>
+                    <option value="32000" ${fishCfg.opus_bitrate === 32000 ? 'selected' : ''}>32 kbps（默认）</option>
+                    <option value="48000" ${fishCfg.opus_bitrate === 48000 ? 'selected' : ''}>48 kbps</option>
+                    <option value="64000" ${fishCfg.opus_bitrate === 64000 ? 'selected' : ''}>64 kbps</option>
+                  </select></div>`
+                : `<div class="form-group"><label>WAV 编码</label><input type="text" value="16-bit PCM 无损单声道" disabled></div>`;
+
+            const cueButtons = QUICK_CUES.map(c =>
+                `<button type="button" class="cue-chip ${c.kind === 'drama' ? 'is-drama' : c.kind === 'phoneme' ? 'is-phoneme' : ''}" onclick="insertPreviewCue('${character}', decodeURIComponent('${encodeURIComponent(c.insert)}'))">${escapeHtml(c.label)}</button>`
+            ).join('');
+
+            const presetButtons = Object.entries(fishPresets).map(([id, p]) =>
+                `<button type="button" class="preset-pill" onclick="applyFishPreset('${character}', '${id}')">${escapeHtml(p.name)}</button>`
+            ).join('');
+
+            card.innerHTML = `
+                <div class="card-head">
+                    <div class="card-identity">
+                        ${avatarHtml}
                         <div>
-                            <div class="card-title">${character}</div>
-                            <span class="engine-tag fish">Fish Audio</span>
+                            <h2 class="card-title">${escapeHtml(character)}</h2>
+                            <div class="tag-row">
+                                <span class="engine-tag ${isDrama3 ? 'drama' : 'fish'}">${escapeHtml(currentFishTtsModel)}</span>
+                                ${isFree ? '<span class="engine-tag free">$0 免费档</span>' : ''}
+                                ${!fishCfg.normalize_loudness ? '<span class="engine-tag drama">保留低语动态</span>' : ''}
+                                <span class="engine-tag fish">${escapeHtml(fishCfg.format.toUpperCase())} · ${(fishCfg.sample_rate / 1000).toFixed(fishCfg.sample_rate % 1000 ? 1 : 0)}kHz</span>
+                            </div>
                         </div>
-                        ${character === '旁白' ? `<button type="button" class="secondary-action" onclick="switchNarratorToEdge()">切换 Edge 旁白</button>` : ''}
                     </div>
-                    <div class="voice-dashboard">
-                        <section class="tool-panel">
-                            <div class="panel-title">音色来源 <span>${currentSpeaker ? '已选 reference_id' : '默认音色'}</span></div>
-                            <div class="form-group">
-                                <label>Fish TTS 模型</label>
-                                <select onchange="updateFishTtsModel('${character}', this.value); renderEditor();">
-                                    ${modelHtml}
-                                </select>
+                    ${character === '旁白' ? `<button type="button" class="secondary-action" onclick="switchNarratorToEdge()">切换 Edge 旁白</button>` : ''}
+                </div>
+
+                <div class="voice-dashboard">
+                    <section class="tool-panel">
+                        <div class="panel-title">音色与推理模型 <span>${currentSpeaker ? '已绑定 reference_id' : 'Fish 默认音色'}</span></div>
+                        <div class="form-group">
+                            <label>Fish TTS 模型</label>
+                            <select onchange="updateFishTtsModel('${character}', this.value); renderEditor();">${modelHtml}</select>
+                            <div class="model-callout">${escapeHtml(MODEL_NOTES[currentFishTtsModel] || '')}</div>
+                        </div>
+                        <div class="current-summary">
+                            <div>
+                                <strong>${escapeHtml(voiceDisplayName(currentSpeaker))}</strong>
+                                <small>${currentSpeaker ? escapeHtml(shortenRepoId(currentSpeaker)) : 'Fish 默认音色'} · ${escapeHtml(currentFishTtsModel)}</small>
                             </div>
-                            <div class="current-summary">
-                                <div>
-                                    <strong>当前音色：${escapeHtml(voiceDisplayName(currentSpeaker))}</strong>
-                                    <small>${currentSpeaker ? escapeHtml(shortenRepoId(currentSpeaker)) : 'Fish 默认音色'} · ${currentFishTtsModel}</small>
-                                </div>
-                                <span class="engine-tag fish">Fish</span>
-                            </div>
-                            <div class="form-group">
-                                <label>语音仓库</label>
-                                <select id="repo-select-${character}" onchange="pullRepoVoice('${character}', this.value)">
-                                    ${repoOptionsHtml(currentSpeaker)}
-                                </select>
-                                <div class="hint">点击下拉框查看已收藏音色；选择后立即设为当前角色音色。</div>
-                            </div>
-                            <details class="advanced-panel">
-                                <summary>搜索、收藏与角色候选</summary>
-                                <div class="form-group" style="margin-top:12px;">
-                                    <label>搜索公开音色或粘贴完整 ID</label>
+                            <span class="engine-tag fish">当前生效</span>
+                        </div>
+                        <div class="form-group">
+                            <label>全局语音仓库（跨角色收藏池）</label>
+                            <select id="repo-select-${character}" onchange="pullRepoVoice('${character}', this.value)">${repoOptionsHtml(currentSpeaker)}</select>
+                        </div>
+                        <details class="advanced-panel">
+                            <summary>搜索公开音色、收藏与候选池</summary>
+                            <div style="margin-top:10px;">
+                                <div class="form-group">
+                                    <label>搜索公开音色或直接粘贴 reference_id</label>
                                     <div class="inline-row">
-                                        <input type="text" id="fish-search-${character}" value="${escapeHtml(fishVoiceSearchQuery)}" placeholder="例如：温柔、学姐、旁白，或 reference_id">
+                                        <input type="text" id="fish-search-${character}" value="${escapeHtml(fishVoiceSearchQuery)}" placeholder="例如：温柔、御姐、旁白，或完整 ID">
                                         <button type="button" class="btn-small btn-test" onclick="searchOrApplyVoice('${character}')">搜索 / 应用</button>
                                     </div>
-                                    <div class="hint">输入完整 reference_id 会直接设为当前；其他输入按公开音色关键词搜索。</div>
                                     ${fishVoiceSearchHtml(character)}
                                 </div>
                                 <div class="form-group">
-                                    <label>收藏新音色</label>
+                                    <label>加入长期语音仓库</label>
                                     <div class="inline-row">
                                         <input type="text" id="repo-id-${character}" placeholder="音色 ID">
-                                        <input type="text" id="repo-name-${character}" placeholder="名称" style="max-width:100px;">
+                                        <input type="text" id="repo-name-${character}" placeholder="名称" style="max-width:110px;">
                                         <input type="text" id="repo-note-${character}" placeholder="备注" style="max-width:120px;">
-                                        <button type="button" class="btn-small btn-test" onclick="addRepoVoice('${character}')">收藏</button>
+                                        <button type="button" class="btn-small secondary-action" onclick="addRepoVoice('${character}')">收藏</button>
                                     </div>
                                 </div>
                                 ${fishVoiceChipsHtml(character, cfg, currentSpeaker)}
-                            </details>
+                            </div>
+                        </details>
+                    </section>
 
-                        </section>
-                        <section class="tool-panel">
-                            <div class="panel-title">试听与保存 <span>emotion 不写入配置</span></div>
-                            <div class="form-group">
-                                <label>试听情感</label>
-                                <select onchange="setTestEmotion('${character}', this.value)">
-                                    ${emotionHtml}
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label>自定义试听文本</label>
-                                <textarea id="test-text-${character}" rows="7">${sampleTexts[character] || sampleTexts["default"]}</textarea>
-                            </div>
-                            <div class="btn-group">
-                                <button class="btn-test" onclick="testVoice('${character}')">试听与生成</button>
-                                <a id="download-link-${character}" style="display:none; flex:1; text-align:center; text-decoration:none; padding:11px 12px; background:var(--amber-soft); color:var(--amber); border:1px solid #ffd591; border-radius:7px; font-size:14px; font-weight:800; cursor:pointer;">下载音频</a>
-                            </div>
-                            <div class="hint">文本里的 Fish 方括号标签会原样送入 TTS；这里的情感下拉只服务试听。</div>
-                        </section>
-                        <section class="tool-panel wide">
-                            <details class="advanced-panel"><summary>声音风格与高级采样参数 · ${currentFishTtsModel}</summary><div style="margin-top:14px;">
-                            <div class="form-group">
-                                <label>表现力预设</label>
-                                <select onchange="applyFishPreset('${character}', this.value)">
-                                    <option value="">选择后立即应用到当前角色</option>
-                                    ${Object.entries(fishPresets).map(([id, p]) => `<option value="${id}">${p.name}</option>`).join('')}
-                                </select>
-                            </div>
+                    <section class="tool-panel">
+                        <div class="panel-title">导演试听台 <span>试听标签不写入配置</span></div>
+                        <div class="form-group">
+                            <label>临时试听情绪前置</label>
+                            <select onchange="setTestEmotion('${character}', this.value)">${emotionHtml}</select>
+                        </div>
+                        <div class="form-group">
+                            <label>快捷插入标签（S2.1 / Drama 3 / 中文注音）</label>
+                            <div class="cue-bar">${cueButtons}</div>
+                            <textarea id="test-text-${character}" rows="5">${escapeHtml(sampleTexts[character] || sampleTexts["default"])}</textarea>
+                            <span class="hint">可直接在正文插入 <code>[soft timid voice]</code>、<code>&lt;whisper&gt;…&lt;/whisper&gt;</code>（Drama 3）或 <code>&lt;|phoneme_start|&gt;yun4&lt;|phoneme_end|&gt;</code> 测试发音。</span>
+                        </div>
+                        <div class="btn-group">
+                            <button class="btn-test" onclick="testVoice('${character}')">试听与生成</button>
+                            <a id="download-link-${character}" class="download-btn">下载音频</a>
+                        </div>
+                    </section>
+
+                    <section class="tool-panel wide">
+                        <div class="panel-title">角色声学预设与核心参数 <span>对照 Fish Audio 2026 官方 /v1/tts 规范</span></div>
+                        <div class="preset-strip">${presetButtons}</div>
+
+                        <div class="param-section">
+                            <div class="param-section-head"><span>1. 韵律与动态响度（Prosody）</span><small>影响语速、响度与贴耳低语质感</small></div>
                             <div class="param-grid">
                                 <div class="slider-row"><div class="slider-header"><span>语速 speed</span><span class="slider-val" id="fish-speed-val-${character}">${fishCfg.speed.toFixed(2)}</span></div><input type="range" min="0.5" max="2.0" step="0.05" value="${fishCfg.speed}" oninput="updateFishParam('${character}', 'speed', this.value, 'fish-speed-val-${character}', 2)"></div>
-                                <div class="slider-row"><div class="slider-header"><span>音量 volume</span><span class="slider-val" id="fish-volume-val-${character}">${fishCfg.volume.toFixed(1)}</span></div><input type="range" min="-20" max="20" step="0.5" value="${fishCfg.volume}" oninput="updateFishParam('${character}', 'volume', this.value, 'fish-volume-val-${character}', 1)"></div>
-                                <div class="slider-row"><div class="slider-header"><span title="越高变化越多，过高可能不稳定">表现力 temperature</span><span class="slider-val" id="fish-temperature-val-${character}">${fishCfg.temperature.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.01" value="${fishCfg.temperature}" oninput="updateFishParam('${character}', 'temperature', this.value, 'fish-temperature-val-${character}', 2)"></div>
-                                <div class="slider-row"><div class="slider-header"><span title="越高采样范围越大">采样 top_p</span><span class="slider-val" id="fish-top-p-val-${character}">${fishCfg.top_p.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.01" value="${fishCfg.top_p}" oninput="updateFishParam('${character}', 'top_p', this.value, 'fish-top-p-val-${character}', 2)"></div>
-                                <div class="slider-row"><div class="slider-header"><span>重复抑制</span><span class="slider-val" id="fish-repetition-val-${character}">${fishCfg.repetition_penalty.toFixed(2)}</span></div><input type="range" min="1.0" max="2.0" step="0.01" value="${fishCfg.repetition_penalty}" oninput="updateFishParam('${character}', 'repetition_penalty', this.value, 'fish-repetition-val-${character}', 2)"></div>
-                                <div class="slider-row"><div class="slider-header"><span>分块长度</span><span class="slider-val" id="fish-chunk-val-${character}">${fishCfg.chunk_length}</span></div><input type="range" min="100" max="300" step="10" value="${fishCfg.chunk_length}" oninput="updateFishParam('${character}', 'chunk_length', this.value, 'fish-chunk-val-${character}', 0)"><small class="param-help">更长通常更连贯，但生成等待可能更久。</small></div>
-                                <div class="slider-row"><div class="slider-header"><span>最小分块长度</span><span class="slider-val" id="fish-min-chunk-val-${character}">${fishCfg.min_chunk_length}</span></div><input type="range" min="0" max="100" step="5" value="${fishCfg.min_chunk_length}" oninput="updateFishParam('${character}', 'min_chunk_length', this.value, 'fish-min-chunk-val-${character}', 0)"><small class="param-help">末段短文本的最小合成长度；不会超过分块长度。</small></div>
+                                <div class="slider-row"><div class="slider-header"><span>音量增益 volume (dB)</span><span class="slider-val" id="fish-volume-val-${character}">${fishCfg.volume.toFixed(1)}</span></div><input type="range" min="-20" max="20" step="0.5" value="${fishCfg.volume}" oninput="updateFishParam('${character}', 'volume', this.value, 'fish-volume-val-${character}', 1)"></div>
                             </div>
-                            <div class="form-group" style="margin-top:14px;">
-                                <label>延迟/质量</label>
-                                <select onchange="updateFishLatency('${character}', this.value)">
-                                    <option value="low" ${fishCfg.latency === 'low' ? 'selected' : ''}>low（更快）</option>
-                                    <option value="normal" ${fishCfg.latency === 'normal' ? 'selected' : ''}>normal（均衡）</option>
-                                    <option value="balanced" ${fishCfg.latency === 'balanced' ? 'selected' : ''}>balanced（更稳）</option>
-                                </select>
-                                <label class="checkbox-row"><input type="checkbox" ${fishCfg.condition_on_previous_chunks ? 'checked' : ''} onchange="updateFishContinuation('${character}', this.checked)">跨分块保持声线一致</label>
-                            </div></div></details>
+                            <div class="toggle-grid">
+                                <label class="toggle-card">
+                                    <input type="checkbox" ${fishCfg.normalize_loudness ? 'checked' : ''} onchange="updateFishBool('${character}', 'normalize_loudness', this.checked, true)">
+                                    <div><strong>响度归一化 normalize_loudness</strong><span>默认开启使各句音量平稳；<strong>关闭</strong>后可保留低语/气声的真实轻柔动态，避免把耳语拉响。</span></div>
+                                </label>
+                                <label class="toggle-card">
+                                    <input type="checkbox" ${fishCfg.condition_on_previous_chunks ? 'checked' : ''} onchange="updateFishBool('${character}', 'condition_on_previous_chunks', this.checked, false)">
+                                    <div><strong>跨分块声线延续 condition_on_previous_chunks</strong><span>长台词跨分块保持音色与语调连贯。</span></div>
+                                </label>
                             </div>
-                        </section>
-                    </div>
-                `;
-            }
+                        </div>
 
-            container.appendChild(card);
-            container.querySelectorAll('input[type="text"], textarea').forEach(el => {
-                if (el.id && editorDrafts.has(el.id)) el.value = editorDrafts.get(el.id);
-            });
-            const download = document.getElementById('download-link-' + character);
-            if (download && character === activePreviewCharacter && previewAudioUrls.has(activeTestObjectUrl)) {
-                download.href = activeTestObjectUrl; download.download = character + '_音频.mp3'; download.style.display = 'block';
-            }
-            renderPager(pageNames, currentPage);
-            updateSaveState();
+                        <div class="param-section">
+                            <div class="param-section-head"><span>2. 表现力、采样与响应延迟</span><small>平衡起伏、稳定性与首字速度</small></div>
+                            <div class="param-grid">
+                                <div class="slider-row"><div class="slider-header"><span>表现力 temperature</span><span class="slider-val" id="fish-temperature-val-${character}">${fishCfg.temperature.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.01" value="${fishCfg.temperature}" oninput="updateFishParam('${character}', 'temperature', this.value, 'fish-temperature-val-${character}', 2)"><small class="param-help">默认 0.70；越低越稳，越高起伏越大。</small></div>
+                                <div class="slider-row"><div class="slider-header"><span>核采样 top_p</span><span class="slider-val" id="fish-top-p-val-${character}">${fishCfg.top_p.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.01" value="${fishCfg.top_p}" oninput="updateFishParam('${character}', 'top_p', this.value, 'fish-top-p-val-${character}', 2)"><small class="param-help">默认 0.70；过低（如 &lt;0.2）容易声音发呆。</small></div>
+                                <div class="slider-row"><div class="slider-header"><span>分块长度 chunk_length</span><span class="slider-val" id="fish-chunk-val-${character}">${fishCfg.chunk_length}</span></div><input type="range" min="100" max="300" step="10" value="${fishCfg.chunk_length}" oninput="updateFishParam('${character}', 'chunk_length', this.value, 'fish-chunk-val-${character}', 0)"><small class="param-help">100–300；小块出声快，大块语境连贯。</small></div>
+                                <div class="slider-row"><div class="slider-header"><span>最小分块 min_chunk_length</span><span class="slider-val" id="fish-min-chunk-val-${character}">${fishCfg.min_chunk_length}</span></div><input type="range" min="0" max="100" step="5" value="${fishCfg.min_chunk_length}" oninput="updateFishParam('${character}', 'min_chunk_length', this.value, 'fish-min-chunk-val-${character}', 0)"><small class="param-help">末段短句最小阈值，不超过分块长度。</small></div>
+                            </div>
+                            <div class="form-group" style="margin-top:12px;">
+                                <label>延迟与稳定模式 latency</label>
+                                <select onchange="updateFishLatency('${character}', this.value)">
+                                    <option value="normal" ${fishCfg.latency === 'normal' ? 'selected' : ''}>normal（最高音质与稳定度 · 叙事首选）</option>
+                                    <option value="balanced" ${fishCfg.latency === 'balanced' ? 'selected' : ''}>balanced（~300ms 首包 · 交互均衡）</option>
+                                    <option value="low" ${fishCfg.latency === 'low' ? 'selected' : ''}>low（极速流式响应）</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="param-section">
+                            <div class="param-section-head"><span>3. 音频格式、码率与中文文本规范（2026 新参数）</span><small>Opus 更省流，zh-CN 防数字误读</small></div>
+                            <div class="param-grid three">
+                                <div class="form-group">
+                                    <label>输出格式 format</label>
+                                    <select onchange="updateFishFormat('${character}', this.value)">
+                                        <option value="mp3" ${fishCfg.format === 'mp3' ? 'selected' : ''}>MP3（兼容性最佳 / 支持流式）</option>
+                                        <option value="opus" ${fishCfg.format === 'opus' ? 'selected' : ''}>Opus（48kHz 轻量高效 · 手机省流）</option>
+                                        <option value="wav" ${fishCfg.format === 'wav' ? 'selected' : ''}>WAV（无损母带 · 体积较大）</option>
+                                    </select>
+                                </div>
+                                ${bitrateBlock}
+                                <div class="form-group">
+                                    <label>采样率 sample_rate</label>
+                                    <select onchange="updateFishField('${character}', 'sample_rate', Number(this.value), true)">${rateOpts}</select>
+                                </div>
+                            </div>
+                            <div class="param-grid" style="margin-top:6px;">
+                                <div class="form-group">
+                                    <label>文本规范化语言 language</label>
+                                    <select onchange="updateFishField('${character}', 'language', this.value, false)">
+                                        <option value="" ${fishCfg.language === '' ? 'selected' : ''}>自动检测（中英混排推荐）</option>
+                                        <option value="zh-CN" ${fishCfg.language === 'zh-CN' ? 'selected' : ''}>zh-CN（简体中文数字/日期规范）</option>
+                                        <option value="zh-TW" ${fishCfg.language === 'zh-TW' ? 'selected' : ''}>zh-TW（繁体中文规范）</option>
+                                        <option value="en" ${fishCfg.language === 'en' ? 'selected' : ''}>en（英文规范）</option>
+                                        <option value="ja" ${fishCfg.language === 'ja' ? 'selected' : ''}>ja（日文规范）</option>
+                                    </select>
+                                    <span class="hint">仅决定数字/日期/符号怎么念，不改变角色音色或口音。</span>
+                                </div>
+                                <label class="toggle-card" style="align-self:end;">
+                                    <input type="checkbox" ${fishCfg.normalize ? 'checked' : ''} onchange="updateFishBool('${character}', 'normalize', this.checked, false)">
+                                    <div><strong>文本规范化 normalize</strong><span>自动把时间（如 15:30）、数字、百分比转为自然口语；关闭时保留原文朗读。</span></div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <details class="advanced-panel" style="margin-top:8px;">
+                            <summary>4. 高级推理、质量守卫与发音词典</summary>
+                            <div class="param-section" style="margin-top:8px;">
+                                <div class="param-grid">
+                                    <div class="slider-row"><div class="slider-header"><span>单块最大帧数 max_new_tokens</span><span class="slider-val" id="fish-tokens-val-${character}">${fishCfg.max_new_tokens}</span></div><input type="range" min="256" max="4096" step="128" value="${fishCfg.max_new_tokens}" oninput="updateFishParam('${character}', 'max_new_tokens', this.value, 'fish-tokens-val-${character}', 0)"><small class="param-help">默认 1024；长情绪戏或慢语速被截断时可调至 1536–2048。</small></div>
+                                    <div class="slider-row"><div class="slider-header"><span>早停阈值 early_stop_threshold</span><span class="slider-val" id="fish-early-val-${character}">${fishCfg.early_stop_threshold.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.05" value="${fishCfg.early_stop_threshold}" oninput="updateFishParam('${character}', 'early_stop_threshold', this.value, 'fish-early-val-${character}', 2)"><small class="param-help">默认 1.00；一般无需调低。</small></div>
+                                    <div class="slider-row">
+                                        <div class="slider-header">
+                                            <span>重复抑制 repetition_penalty ${isS21 ? '<span class="warn-chip">S2.1 官方已忽略</span>' : ''}</span>
+                                            <span class="slider-val" id="fish-repetition-val-${character}">${fishCfg.repetition_penalty.toFixed(2)}</span>
+                                        </div>
+                                        <input type="range" min="1.0" max="2.0" step="0.01" value="${fishCfg.repetition_penalty}" oninput="updateFishParam('${character}', 'repetition_penalty', this.value, 'fish-repetition-val-${character}', 2)">
+                                        <small class="param-help">${isS21 ? 'Fish Audio 官方迁移说明确认该项在 S2.1-Pro 上不起作用，仅保留向后兼容。' : '仅对旧版 S1/兼容模型生效。'}</small>
+                                    </div>
+                                    <label class="toggle-card" style="align-self:start;">
+                                        <input type="checkbox" ${fishCfg.quality_guard ? 'checked' : ''} onchange="updateFishBool('${character}', 'quality_guard', this.checked, false)">
+                                        <div><strong>质量守卫 quality-guard</strong><span>请求附带 <code>features: ["quality-guard"]</code>，由后端自动拦截异常破音/吞字。</span></div>
+                                    </label>
+                                </div>
+                                <div class="param-grid" style="margin-top:12px;">
+                                    <div class="form-group">
+                                        <label>云端发音词典 ID（可选）</label>
+                                        <input type="text" id="fish-dict-id-${character}" value="${escapeHtml(fishCfg.pronunciation_dictionary_id)}" placeholder="在 Fish 官网创建发布后的 Dictionary ID" oninput="updateFishField('${character}', 'pronunciation_dictionary_id', this.value, false)">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>词典版本 version（可选）</label>
+                                        <input type="text" id="fish-dict-ver-${character}" value="${escapeHtml(fishCfg.pronunciation_dictionary_version)}" placeholder="留空或填已发布版本号" oninput="updateFishField('${character}', 'pronunciation_dictionary_version', this.value, false)">
+                                    </div>
+                                </div>
+                                <span class="hint">专有词/多音字（如 沈知韫 yùn、徐承邺 yè）可在 Fish 平台创建 Pronunciation Dictionary 并填入此处，详见项目内 <code>语音引擎升级方案/</code>。</span>
+                            </div>
+                        </details>
+                    </section>
+                </div>
+            `;
         }
+
+        container.appendChild(card);
+        container.querySelectorAll('input[type="text"], textarea').forEach(el => {
+            if (el.id && editorDrafts.has(el.id)) el.value = editorDrafts.get(el.id);
+        });
+        const download = document.getElementById('download-link-' + character);
+        if (download && character === activePreviewCharacter && previewAudioUrls.has(activeTestObjectUrl)) {
+            download.href = activeTestObjectUrl;
+            download.download = character + '_音频.' + activePreviewExt;
+            download.style.display = 'inline-flex';
+        }
+        renderPager(pageNames, currentPage);
+        updateSaveState();
     }
 
     function editablePageNames() { return Object.keys(configData).filter(k => k !== '__settings__' && k !== 'default'); }
@@ -602,8 +1664,10 @@
     function updateSaveState() {
         const button = document.getElementById('save-all-button');
         if (button) {
+            const dirty = isDirty();
             button.disabled = !configReady || savingConfig;
-            button.textContent = savingConfig ? '正在保存…' : (isDirty() ? '保存全部（有未保存修改）' : '保存全部');
+            button.textContent = savingConfig ? '正在保存…' : (dirty ? '保存全部 · 未保存' : '保存全部');
+            if (button.classList && button.classList.toggle) button.classList.toggle('is-dirty', dirty && !savingConfig);
         }
     }
     function voiceDisplayName(id) {
@@ -626,25 +1690,6 @@
         searchFishVoices(char);
     }
 
-    function unifiedVoiceLibraryHtml(char, currentSpeaker) {
-        const rows = [];
-        const seen = new Set();
-        const add = (item, source) => {
-            if (!item || !item.id || seen.has(item.id)) return;
-            seen.add(item.id);
-            const id = String(item.id);
-            const encoded = encodeURIComponent(id);
-            const name = item.name || id;
-            const meta = item.note || source;
-            rows.push(`<div class="voice-library-item"><div class="voice-library-info"><div class="voice-library-name">${escapeHtml(name)}${id === currentSpeaker ? ' · 当前' : ''}</div><div class="voice-library-meta">${escapeHtml(shortenRepoId(id))} · ${escapeHtml(meta)}</div></div><div class="library-actions"><button type="button" class="btn-test" onclick="setCurrentVoiceId('${char}', decodeURIComponent('${encoded}'))">设为当前</button><button type="button" class="secondary-action" onclick="previewLibraryVoice('${char}', decodeURIComponent('${encoded}'))">试听</button>${source === '我的收藏' ? `<button type="button" class="voice-chip-del" aria-label="删除收藏" onclick="deleteRepoVoice(decodeURIComponent('${encoded}'))">×</button>` : ''}</div></div>`);
-        };
-        repoItems.forEach(item => add(item, '我的收藏'));
-        fishVoiceSearchResults.slice(0, 12).forEach(item => add(item, 'Fish 公开'));
-        (configData[char].voice_ids || []).forEach(id => add({ id, name: voiceDisplayName(id) }, '角色候选'));
-        const status = fishVoiceSearchStatus ? `<div class="fish-search-status">${escapeHtml(fishVoiceSearchStatus)}</div>` : '';
-        return status + (rows.length ? `<div class="voice-library-list">${rows.join('')}</div>` : '<div class="hint">暂无音色。搜索公开音色，或输入完整 ID 后直接应用。</div>');
-    }
-
     function previewLibraryVoice(char, id) {
         return testVoice(char, 'fish:' + id);
     }
@@ -656,8 +1701,6 @@
         if (!names.length) { currentPage = 0; return; }
         currentPage = Math.max(0, Math.min(names.length - 1, parseInt(n, 10) || 0));
         renderEditor();
-        const pager = document.getElementById('pager');
-        if (pager) pager.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
 
     function renderPager(names, page) {
@@ -665,20 +1708,26 @@
         if (!el) return;
         el.innerHTML = '';
         if (!names.length) return;
+        const navGroup = document.createElement('div');
+        navGroup.className = 'pager-nav-group';
         const prev = document.createElement('button');
         prev.className = 'pager-btn';
-        prev.textContent = '◀ 上一个';
+        prev.textContent = '◀';
+        prev.setAttribute('aria-label', '上一个角色');
         prev.onclick = () => gotoPage(page - 1);
-        const next = document.createElement('button');
-        next.className = 'pager-btn';
-        next.textContent = '下一个 ▶';
-        next.onclick = () => gotoPage(page + 1);
         const info = document.createElement('span');
         info.className = 'pager-info';
-        info.textContent = `${page + 1} / ${names.length}`;
-        el.appendChild(prev);
-        el.appendChild(info);
-        el.appendChild(next);
+        info.textContent = `${page + 1}/${names.length}`;
+        const next = document.createElement('button');
+        next.className = 'pager-btn';
+        next.textContent = '▶';
+        next.setAttribute('aria-label', '下一个角色');
+        next.onclick = () => gotoPage(page + 1);
+        navGroup.appendChild(prev);
+        navGroup.appendChild(info);
+        navGroup.appendChild(next);
+        el.appendChild(navGroup);
+
         const chips = document.createElement('div');
         chips.className = 'pager-chips';
         names.forEach((nm, i) => {
@@ -686,16 +1735,18 @@
             btn.className = 'pager-chip' + (i === page ? ' active' : '');
             const cf = configData[nm] || {};
             const edge = isEdgeChar(nm, cf);
-            btn.innerHTML = `<span class="role-dot${edge ? ' edge' : ''}"></span>${escapeHtml(nm)}${isDirty() ? '<span class="dirty-dot" title="存在未保存修改"></span>' : ''}`;
+            const drama = !edge && cf.tts_model === 'drama-3';
+            const avatar = PORTRAIT_CHARS.has(nm)
+                ? `<img class="pager-avatar" src="/txt文件/image/${encodeURIComponent(nm)}/into.png" alt="" decoding="async">`
+                : `<span class="pager-monogram">${escapeHtml(nm.slice(0, 1))}</span>`;
+            btn.innerHTML = `${avatar}<span>${escapeHtml(nm)}</span><span class="role-dot${edge ? ' edge' : drama ? ' drama' : ''}"></span>`;
             btn.onclick = () => gotoPage(i);
             chips.appendChild(btn);
         });
         el.appendChild(chips);
     }
 
-    function setTestEmotion(char, val) {
-        testEmotions[char] = val || "";
-    }
+    function setTestEmotion(char, val) { testEmotions[char] = val || ""; }
 
     function applyNarrationFilmPreset(char) {
         if (!configData[char]) return;
@@ -726,7 +1777,6 @@
     }
 
     function sanitizeConfigForSave(src) {
-        // 深拷贝并清空所有角色的长期 emotion；旁白缺省补电影预设
         const out = JSON.parse(JSON.stringify(src || {}));
         out.__settings__ = out.__settings__ || {};
         out.__settings__.fish_tts_model = out.__settings__.fish_tts_model || window.fishTtsModel || "s2.1-pro";
@@ -755,17 +1805,11 @@
 
     function updateEdgeSpeaker(char, speakerId) {
         configData[char].voice = `edge:${speakerId || edgeDefaultVoice}`;
-        // 保证 Edge 字段存在，清掉 Eleven 残留
         if (configData[char].rate === undefined) configData[char].rate = "-8%";
         if (configData[char].pitch === undefined) configData[char].pitch = "-4Hz";
         if (configData[char].volume === undefined) configData[char].volume = "+0%";
         configData[char].emotion = "";
-        delete configData[char].use_custom_settings;
-        delete configData[char].stability;
-        delete configData[char].similarity_boost;
-        delete configData[char].style;
-        delete configData[char].use_speaker_boost;
-        delete configData[char].speed;
+        updateSaveState();
     }
 
     function updateEdgeSlider(char, key, val, textId) {
@@ -777,10 +1821,9 @@
             document.getElementById(textId).innerText = formatPitch(val);
         }
         configData[char].voice = configData[char].voice || `edge:${edgeDefaultVoice}`;
-        if (!configData[char].voice.startsWith("edge:")) {
-            configData[char].voice = `edge:${edgeDefaultVoice}`;
-        }
+        if (!configData[char].voice.startsWith("edge:")) configData[char].voice = `edge:${edgeDefaultVoice}`;
         configData[char].emotion = "";
+        updateSaveState();
     }
 
     function updateFishTtsModel(char, modelId) {
@@ -788,10 +1831,12 @@
         if (char && configData[char]) {
             configData[char].tts_model = modelId || (char === '旁白' ? 's2.1-pro-free' : (window.fishTtsModel || 's2.1-pro'));
             configData[char].emotion = "";
+            updateSaveState();
             return;
         }
         configData.__settings__.fish_tts_model = modelId || "s2.1-pro";
         window.fishTtsModel = configData.__settings__.fish_tts_model;
+        updateSaveState();
     }
 
     function updateFishParam(char, key, val, textId, digits) {
@@ -806,18 +1851,46 @@
             const value = configData[char][key];
             el.innerText = digits > 0 ? Number(value).toFixed(digits) : String(value);
         }
+        updateSaveState();
+    }
+
+    function updateFishBool(char, key, checked, rerender) {
+        if (!configData[char]) return;
+        configData[char][key] = !!checked;
+        configData[char].emotion = "";
+        Object.assign(configData[char], normalizeFishCfg(configData[char]));
+        if (rerender) renderEditor();
+        else updateSaveState();
+    }
+
+    function updateFishField(char, key, val, rerender) {
+        if (!configData[char]) return;
+        configData[char][key] = val;
+        configData[char].emotion = "";
+        Object.assign(configData[char], normalizeFishCfg(configData[char]));
+        if (rerender) renderEditor();
+        else updateSaveState();
+    }
+
+    function updateFishFormat(char, fmt) {
+        if (!configData[char]) return;
+        configData[char].format = fmt;
+        const rates = FORMAT_RATES[fmt] || FORMAT_RATES.mp3;
+        configData[char].sample_rate = rates[rates.length - 1];
+        configData[char].emotion = "";
+        Object.assign(configData[char], normalizeFishCfg(configData[char]));
+        renderEditor();
     }
 
     function updateFishLatency(char, val) {
         if (!configData[char]) return;
         configData[char].latency = ["low", "normal", "balanced"].includes(val) ? val : fishDefaults.latency;
         configData[char].emotion = "";
+        updateSaveState();
     }
 
     function updateFishContinuation(char, checked) {
-        if (!configData[char]) return;
-        configData[char].condition_on_previous_chunks = !!checked;
-        configData[char].emotion = "";
+        return updateFishBool(char, 'condition_on_previous_chunks', checked, false);
     }
 
     function applyFishPreset(char, presetId) {
@@ -826,27 +1899,8 @@
         Object.assign(configData[char], normalizeFishCfg(preset));
         if (preset.tts_model) configData[char].tts_model = preset.tts_model;
         configData[char].emotion = "";
+        setManagerStatus(`已为「${char}」应用预设：${preset.name}（请点击保存全部生效）`);
         renderEditor();
-    }
-
-    function updateModelOrSpeaker(char, type, val) {
-        let currentVoice = configData[char].voice || "fish:";
-        let parts = currentVoice.split(':');
-        let model = parts[0] || "fish";
-        let speaker = parts[1] || "";
-
-        if (type === 'model') {
-            model = val;
-            speaker = voiceList[0] ? voiceList[0].id : "";
-        }
-        if (type === 'speaker') speaker = val;
-
-        configData[char].voice = `${model}:${speaker}`;
-        if (speaker) {
-            const ids = Array.isArray(configData[char].voice_ids) ? configData[char].voice_ids.slice() : [];
-            if (!ids.includes(speaker)) ids.push(speaker);
-            configData[char].voice_ids = ids;
-        }
     }
 
     function escapeHtml(s) {
@@ -858,11 +1912,9 @@
         if (!s) return [];
         if (s.startsWith('fish:')) s = s.slice(5);
         const parts = s.split(/[,;\n\r ]+/).map(p => p.trim()).filter(Boolean);
-        const out = [];
-        const seen = new Set();
+        const out = [], seen = new Set();
         for (const p of parts) {
-            let id = p.replace(/^reference_id[:=]/i, '').trim();
-            id = id.replace(/^['"]|['"]$/g, '').trim();
+            let id = p.replace(/^reference_id[:=]/i, '').trim().replace(/^['"]|['"]$/g, '').trim();
             if (id && !seen.has(id)) { seen.add(id); out.push(id); }
         }
         return out;
@@ -889,7 +1941,7 @@
             renderEditor();
             return;
         }
-        fishVoiceSearchStatus = '正在搜索 Fish Audio 公开音色...';
+        fishVoiceSearchStatus = '正在搜索 Fish Audio 公开音色…';
         renderEditor();
         const sequence = ++searchSequence;
         VoiceClient.requestJson('/api/voices?search=' + encodeURIComponent(q), {}, 20000)
@@ -898,10 +1950,10 @@
                 const items = Array.isArray(data) ? data : ((data && data.voices) || []);
                 mergeFishVoices(items);
                 fishVoiceSearchResults = items;
-                fishVoiceSearchStatus = items.length ? `找到 ${items.length} 个公开音色，点击结果可加入本角色候选` : '未找到公开音色；可换关键词，或直接粘贴官网音色 ID';
+                fishVoiceSearchStatus = items.length ? `找到 ${items.length} 个公开音色，点击即可设为当前` : '未找到公开音色，可换关键词或粘贴完整 ID';
                 renderEditor();
             })
-            .catch(e => {
+            .catch(() => {
                 if (sequence !== searchSequence) return;
                 fishVoiceSearchResults = [];
                 fishVoiceSearchStatus = '搜索失败，请检查后端服务或 Fish API 网络';
@@ -920,18 +1972,6 @@
         return `${status}<div class="fish-search-results">${buttons}</div>`;
     }
 
-    function applyFishVoiceId(char) {
-        const input = document.getElementById('fish-id-' + char);
-        const ids = normalizeFishVoiceIds(input ? input.value : '');
-        if (!configData[char]) return;
-        configData[char].voice_ids = ids;
-        configData[char].voice = ids.length ? `fish:${ids[0]}` : 'fish:';
-        configData[char].emotion = "";
-        if (!ids.length) alert('已清空音色 ID，使用 Fish 默认音色');
-        else alert(`已保存 ${ids.length} 个音色 ID（当前生效：${ids[0]}）`);
-        renderEditor();
-    }
-
     function setCurrentVoiceId(char, id) {
         if (!configData[char]) return;
         const ids = Array.isArray(configData[char].voice_ids) ? configData[char].voice_ids.slice() : [];
@@ -948,9 +1988,7 @@
         ids = ids.filter(x => x !== id);
         configData[char].voice_ids = ids;
         const cur = String(configData[char].voice || 'fish:').split(':')[1] || '';
-        if (cur === id) {
-            configData[char].voice = ids.length ? `fish:${ids[0]}` : 'fish:';
-        }
+        if (cur === id) configData[char].voice = ids.length ? `fish:${ids[0]}` : 'fish:';
         configData[char].emotion = "";
         renderEditor();
     }
@@ -960,13 +1998,13 @@
         if (!ids.length) return '';
         const chips = ids.map(id => {
             const isCur = id === currentSpeaker;
-            const label = escapeHtml(id.length > 16 ? id.slice(0, 8) + '…' + id.slice(-8) : id);
+            const label = escapeHtml(shortenRepoId(id));
             const enc = encodeURIComponent(id);
             const curTag = isCur ? '<span class="chip-cur">当前</span>' : '';
             return `<button type="button" class="voice-chip${isCur ? ' current' : ''}" title="${escapeHtml(id)}" onclick="setCurrentVoiceId('${char}', decodeURIComponent('${enc}'))">${label}${curTag}</button>` +
                    `<button type="button" class="voice-chip-del" aria-label="删除候选音色" title="删除" onclick="removeVoiceId('${char}', decodeURIComponent('${enc}'))">×</button>`;
         }).join('');
-        return `<div class="voice-chips"><span class="chips-label">已存 ${ids.length} 个音色：</span>${chips}</div>`;
+        return `<div class="voice-chips"><span class="chips-label">角色候选 (${ids.length})：</span>${chips}</div>`;
     }
 
     function shortenRepoId(id) {
@@ -975,25 +2013,13 @@
     }
 
     function repoOptionsHtml(currentSpeaker) {
-        if (!repoItems.length) return '<option value="">（语音库为空 · 粘贴 ID 加入）</option>';
+        if (!repoItems.length) return '<option value="">（语音库为空 · 展开下方收藏 ID）</option>';
         const opts = repoItems.map(v => {
             const sel = currentSpeaker === v.id ? ' selected' : '';
             const label = v.name ? `${v.name} · ${shortenRepoId(v.id)}` : shortenRepoId(v.id);
             return `<option value="${escapeHtml(v.id)}"${sel}>${escapeHtml(label)}</option>`;
         }).join('');
-        return `<option value="">（从语音库选择）</option>${opts}`;
-    }
-
-    function repoListHtml(character) {
-        if (!repoItems.length) return '<div class="hint" style="margin-top:6px;">语音库为空：粘贴音色 ID → 加入，长期保存，换角色不丢。</div>';
-        const chips = repoItems.map(v => {
-            const id = String(v.id || '');
-            const enc = encodeURIComponent(id);
-            const label = v.name ? `${escapeHtml(v.name)} <span style="opacity:.65">${escapeHtml(shortenRepoId(id))}</span>` : escapeHtml(shortenRepoId(id));
-            return `<button type="button" class="voice-chip" title="拉取到当前角色：${escapeHtml(id)}" onclick="pullRepoVoice('${character}', decodeURIComponent('${enc}'))">${label}</button>` +
-                   `<button type="button" class="voice-chip-del" title="从语音库删除" onclick="deleteRepoVoice(decodeURIComponent('${enc}'))">×</button>`;
-        }).join('');
-        return `<div class="voice-chips"><span class="chips-label">语音库 ${repoItems.length} 个：</span>${chips}</div>`;
+        return `<option value="">（从全局语音仓库选择）</option>${opts}`;
     }
 
     function addRepoVoice(character) {
@@ -1001,42 +2027,38 @@
         const nameInput = document.getElementById('repo-name-' + character);
         const noteInput = document.getElementById('repo-note-' + character);
         const id = idInput ? idInput.value.trim() : '';
-        if (!id) { alert('请先粘贴音色 ID'); return; }
-        const name = nameInput ? nameInput.value.trim() : '';
-        const note = noteInput ? noteInput.value.trim() : '';
+        if (!id) { setManagerStatus('请先粘贴音色 ID', true); return; }
         fetch('/api/voice_repo', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ id: id, name: name, note: note })
+            body: JSON.stringify({ id, name: nameInput ? nameInput.value.trim() : '', note: noteInput ? noteInput.value.trim() : '' })
         })
         .then(r => r.json())
         .then(res => {
             if (res.items) repoItems = res.items;
-            alert(res.msg || (res.status === 'success' ? '已加入语音库' : '加入失败'));
+            setManagerStatus(res.msg || (res.status === 'success' ? '已加入语音库' : '加入失败'), res.status !== 'success');
             if (idInput) idInput.value = '';
             if (nameInput) nameInput.value = '';
             if (noteInput) noteInput.value = '';
             renderEditor();
         })
-        .catch(() => alert('加入失败，请检查后端服务'));
+        .catch(() => setManagerStatus('加入失败，请检查后端服务', true));
     }
 
     function deleteRepoVoice(id) {
-        if (!id) return;
-        if (!confirm('从语音库删除该音色？')) return;
+        if (!id || !confirm('从语音库删除该音色？')) return;
         fetch('/api/voice_repo?id=' + encodeURIComponent(id), { method: 'DELETE' })
         .then(r => r.json())
         .then(res => {
             if (res.items) repoItems = res.items;
-            alert(res.msg || '已从语音库删除');
+            setManagerStatus(res.msg || '已从语音库删除');
             renderEditor();
         })
-        .catch(() => alert('删除失败，请检查后端服务'));
+        .catch(() => setManagerStatus('删除失败，请检查后端服务', true));
     }
 
     function pullRepoVoice(character, id) {
-        if (!configData[character]) return;
-        if (!id) { alert('语音库为空或未选择音色'); return; }
+        if (!configData[character] || !id) return;
         const ids = Array.isArray(configData[character].voice_ids) ? configData[character].voice_ids.slice() : [];
         if (!ids.includes(id)) ids.push(id);
         configData[character].voice_ids = ids;
@@ -1056,19 +2078,20 @@
         const textArea = document.getElementById('test-text-' + char);
         let text = textArea ? textArea.value.trim() : (sampleTexts[char] || sampleTexts.default);
         text = text.replace(/[\(（【].*?[\)）】]|\*.*?\*/g, '').trim();
-        if (!text) { setTesterStatus('请输入需要生成的文本。'); return; }
+        if (!text) { setTesterStatus('请输入需要试听的文本。'); return; }
         const button = document.querySelector(`button[onclick="testVoice('${char}')"]`);
         if (previewPending) {
             previewSequence++; previewPending = false; VoiceClient.cancel('preview');
             if (button) button.textContent = '试听与生成';
-            setTesterStatus('已跳过语音等待，可以继续编辑或稍后重试。');
+            setTesterStatus('已取消等待，可继续调整参数。');
             return;
         }
         const sequence = ++previewSequence;
         previewPending = true;
-        if (button) button.textContent = '生成中 · 点击跳过等待';
-        setTesterStatus(`正在生成 ${char} 的试听音频…`);
+        if (button) button.textContent = '生成中 · 点击取消';
+        setTesterStatus(`正在合成 ${char} 的试听音频…`);
         const payload = VoiceClient.buildPayload(text, cfg, configData.__settings__ || {}, testEmotions[char] || '');
+        const ext = isEdgeChar(char, cfg) ? 'mp3' : (payload.format || 'mp3');
         try {
             const blob = await VoiceClient.requestAudio(payload, { channel: 'preview' });
             if (sequence !== previewSequence) return;
@@ -1077,12 +2100,17 @@
             previewAudioUrls.clear();
             activeTestObjectUrl = previewAudioUrls.add(blob);
             activePreviewCharacter = char;
+            activePreviewExt = ext;
             audio.src = activeTestObjectUrl;
             const link = document.getElementById(`download-link-${char}`);
-            if (link) { link.href = activeTestObjectUrl; link.download = `${char}_音频.mp3`; link.style.display = 'block'; }
-            setTesterStatus(`${char}：音频已生成（${Math.ceil(blob.size / 1024)} KB）`);
+            if (link) {
+                link.href = activeTestObjectUrl;
+                link.download = `${char}_音频.${ext}`;
+                link.style.display = 'inline-flex';
+            }
+            setTesterStatus(`${char} · ${ext.toUpperCase()} 已就绪（${Math.ceil(blob.size / 1024)} KB）`);
             try { await audio.play(); }
-            catch (_) { setTesterStatus(`${char}：音频已就绪，点击下方播放器播放。`); }
+            catch (_) { setTesterStatus(`${char}：音频已生成，点底部播放器收听。`); }
         } catch (error) {
             if (sequence !== previewSequence) return;
             setTesterStatus(error.name === 'AbortError' ? '已取消语音等待。' : `生成失败：${error.message}`);
@@ -1095,7 +2123,7 @@
         if (!configReady || savingConfig) return;
         const payload = sanitizeConfigForSave(configData);
         const submitted = JSON.stringify(payload);
-        savingConfig = true; updateSaveState(); setManagerStatus('正在保存配置…');
+        savingConfig = true; updateSaveState(); setManagerStatus('正在保存语音配置…');
         try {
             const result = await VoiceClient.requestJson('/api/config', {
                 method: 'POST', headers: { 'Content-Type': 'application/json' }, body: submitted
@@ -1104,12 +2132,10 @@
             const editedDuringSave = JSON.stringify(sanitizeConfigForSave(configData)) !== submitted;
             savedConfigSnapshot = JSON.stringify(sanitizeConfigForSave(result.config));
             if (!editedDuringSave) configData = result.config;
-            setManagerStatus(editedDuringSave ? '已保存提交时的配置，后续修改尚未保存。' : '配置已保存。');
+            setManagerStatus(editedDuringSave ? '已保存提交时的配置，后续修改尚未保存。' : '全部配置已保存。');
         } catch (error) { setManagerStatus(error.message, true); }
         finally { savingConfig = false; updateSaveState(); }
     }
-
-
 </script>
 </body>
 </html>

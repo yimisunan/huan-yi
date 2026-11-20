@@ -43,18 +43,26 @@ register_story_routes(app, BASE_DIR)
 # ==========================================
 # Fish Audio API 配置（单人本地使用：密钥内置后端，不走额外 .env）
 # ==========================================
-FISH_API_KEY = os.environ.get("FISH_API_KEY", "")
+FISH_API_KEY = os.environ.get("FISH_API_KEY", "sk-fish-ZIt5QhP-mrAPI1xXHSjRvG15Bvo5cFKMDN92S0S33Zg")
 FISH_BASE_URL = "https://api.fish.audio"
 FISH_TTS_MODEL = "s2.1-pro"  # 默认付费模型；实际请求可由 voice_config.json 的 __settings__.fish_tts_model 覆盖
 FISH_TTS_MODELS = [
-    {"id": "s2.1-pro", "name": "S2.1 Pro（付费主模型）"},
-    {"id": "s2.1-pro-free", "name": "S2.1 Pro Free（免费/备用）"},
+    {"id": "s2.1-pro", "name": "S2.1 Pro（官方生产主力 · 高质稳定）"},
+    {"id": "s2.1-pro-free", "name": "S2.1 Pro Free（同质免费开发档）"},
+    {"id": "drama-3", "name": "Drama 3（自然语言导演 / 局部标签旗舰）"},
+    {"id": "s2-pro", "name": "S2 Pro（上一代开源 S2）"},
 ]
 FISH_FREE_TTS_MODEL = "s2.1-pro-free"
 FISH_DEFAULT_VOICE_ID = ""
+FISH_AUDIO_FORMATS = {
+    "mp3": {"mime": "audio/mpeg", "ext": "mp3", "default_rate": 44100, "rates": (32000, 44100)},
+    "opus": {"mime": "audio/ogg", "ext": "opus", "default_rate": 48000, "rates": (48000,)},
+    "wav": {"mime": "audio/wav", "ext": "wav", "default_rate": 44100, "rates": (8000, 16000, 24000, 32000, 44100)},
+}
 FISH_DEFAULT_STYLE = {
     "speed": 1.0,
     "volume": 0,
+    "normalize_loudness": True,
     "temperature": 0.72,
     "top_p": 0.75,
     "latency": "normal",
@@ -62,6 +70,17 @@ FISH_DEFAULT_STYLE = {
     "min_chunk_length": 40,
     "repetition_penalty": 1.18,
     "condition_on_previous_chunks": True,
+    "normalize": True,
+    "language": "",
+    "format": "mp3",
+    "mp3_bitrate": 128,
+    "opus_bitrate": -1000,
+    "sample_rate": 44100,
+    "max_new_tokens": 1024,
+    "early_stop_threshold": 1.0,
+    "quality_guard": False,
+    "pronunciation_dictionary_id": "",
+    "pronunciation_dictionary_version": "",
 }
 
 
@@ -241,6 +260,13 @@ def _normalize_bool(value, default=True):
     return default
 
 
+def _clean_token(value, pattern, max_len=64):
+    s = str(value or "").strip()
+    if not s or len(s) > max_len:
+        return ""
+    return s if re.fullmatch(pattern, s) else ""
+
+
 def _normalize_fish_cfg(cfg):
     cfg = cfg or {}
     latency = str(cfg.get("latency", FISH_DEFAULT_STYLE["latency"]) or FISH_DEFAULT_STYLE["latency"]).strip()
@@ -248,9 +274,29 @@ def _normalize_fish_cfg(cfg):
         latency = FISH_DEFAULT_STYLE["latency"]
     chunk_length = _clamp_int(cfg.get("chunk_length"), FISH_DEFAULT_STYLE["chunk_length"], 100, 300)
     min_chunk_length = min(_clamp_int(cfg.get("min_chunk_length"), FISH_DEFAULT_STYLE["min_chunk_length"], 0, 100), chunk_length)
+    fmt = str(cfg.get("format", FISH_DEFAULT_STYLE["format"]) or "mp3").strip().lower()
+    if fmt not in FISH_AUDIO_FORMATS:
+        fmt = "mp3"
+    fmt_meta = FISH_AUDIO_FORMATS[fmt]
+    mp3_bitrate = _clamp_int(cfg.get("mp3_bitrate"), FISH_DEFAULT_STYLE["mp3_bitrate"], 64, 192)
+    if mp3_bitrate not in (64, 128, 192):
+        mp3_bitrate = 128
+    try:
+        opus_bitrate = int(float(cfg.get("opus_bitrate", FISH_DEFAULT_STYLE["opus_bitrate"])))
+    except Exception:
+        opus_bitrate = -1000
+    if opus_bitrate not in (-1000, 24000, 32000, 48000, 64000):
+        opus_bitrate = -1000
+    try:
+        sample_rate = int(float(cfg.get("sample_rate", fmt_meta["default_rate"])))
+    except Exception:
+        sample_rate = fmt_meta["default_rate"]
+    if sample_rate not in fmt_meta["rates"]:
+        sample_rate = fmt_meta["default_rate"]
     return {
         "speed": round(_clamp_float(cfg.get("speed"), FISH_DEFAULT_STYLE["speed"], 0.5, 2.0), 2),
         "volume": round(_clamp_float(cfg.get("volume"), FISH_DEFAULT_STYLE["volume"], -20, 20), 1),
+        "normalize_loudness": _normalize_bool(cfg.get("normalize_loudness"), FISH_DEFAULT_STYLE["normalize_loudness"]),
         "temperature": round(_clamp_float(cfg.get("temperature"), FISH_DEFAULT_STYLE["temperature"], 0, 1), 2),
         "top_p": round(_clamp_float(cfg.get("top_p"), FISH_DEFAULT_STYLE["top_p"], 0, 1), 2),
         "latency": latency,
@@ -258,6 +304,17 @@ def _normalize_fish_cfg(cfg):
         "min_chunk_length": min_chunk_length,
         "repetition_penalty": round(_clamp_float(cfg.get("repetition_penalty"), FISH_DEFAULT_STYLE["repetition_penalty"], 1.0, 2.0), 2),
         "condition_on_previous_chunks": _normalize_bool(cfg.get("condition_on_previous_chunks"), FISH_DEFAULT_STYLE["condition_on_previous_chunks"]),
+        "normalize": _normalize_bool(cfg.get("normalize"), FISH_DEFAULT_STYLE["normalize"]),
+        "language": _clean_token(cfg.get("language"), r"[A-Za-z0-9_-]{1,35}", 35),
+        "format": fmt,
+        "mp3_bitrate": mp3_bitrate,
+        "opus_bitrate": opus_bitrate,
+        "sample_rate": sample_rate,
+        "max_new_tokens": _clamp_int(cfg.get("max_new_tokens"), FISH_DEFAULT_STYLE["max_new_tokens"], 128, 4096),
+        "early_stop_threshold": round(_clamp_float(cfg.get("early_stop_threshold"), FISH_DEFAULT_STYLE["early_stop_threshold"], 0.0, 1.0), 2),
+        "quality_guard": _normalize_bool(cfg.get("quality_guard"), FISH_DEFAULT_STYLE["quality_guard"]),
+        "pronunciation_dictionary_id": _clean_token(cfg.get("pronunciation_dictionary_id"), r"[A-Za-z0-9._:-]{1,128}", 128),
+        "pronunciation_dictionary_version": _clean_token(cfg.get("pronunciation_dictionary_version"), r"[A-Za-z0-9._:-]{1,64}", 64),
     }
 
 
@@ -590,17 +647,18 @@ def _get_current_fish_tts_model():
     return model if model in allowed else FISH_TTS_MODEL
 
 
-def _fish_headers(tts_model=None):
+def _fish_headers(tts_model=None, audio_format='mp3'):
     if not FISH_API_KEY:
         return None
     model = str(tts_model or _get_current_fish_tts_model() or FISH_TTS_MODEL).strip()
     allowed = {m["id"] for m in FISH_TTS_MODELS}
     if model not in allowed:
         model = FISH_TTS_MODEL
+    fmt_meta = FISH_AUDIO_FORMATS.get(str(audio_format or 'mp3').lower(), FISH_AUDIO_FORMATS['mp3'])
     return {
         "Authorization": f"Bearer {FISH_API_KEY}",
         "Content-Type": "application/json",
-        "Accept": "audio/mpeg",
+        "Accept": fmt_meta["mime"],
         "model": model
     }
 
@@ -668,29 +726,44 @@ def _fish_reference_id(voice_id):
 
 
 def _build_fish_payload(text, voice_id, cfg=None):
-    """Fish Audio /v1/tts：人物音色用 reference_id，模型用后端常量 FISH_TTS_MODEL。"""
+    """Fish Audio /v1/tts：构建完整官方 v1 参数载荷（兼容 s2.1-pro / s2.1-pro-free / drama-3 / s2-pro）。"""
     fish_cfg = _normalize_fish_cfg(cfg or {})
+    fmt = fish_cfg["format"]
     payload = {
         "text": text,
-        "format": "mp3",
-        "mp3_bitrate": 128,
+        "format": fmt,
+        "sample_rate": fish_cfg["sample_rate"],
         "latency": fish_cfg["latency"],
-        "normalize": True,
-        "sample_rate": 44100,
+        "normalize": fish_cfg["normalize"],
         "temperature": fish_cfg["temperature"],
         "top_p": fish_cfg["top_p"],
         "chunk_length": fish_cfg["chunk_length"],
         "min_chunk_length": fish_cfg["min_chunk_length"],
         "repetition_penalty": fish_cfg["repetition_penalty"],
         "condition_on_previous_chunks": fish_cfg["condition_on_previous_chunks"],
+        "max_new_tokens": fish_cfg["max_new_tokens"],
+        "early_stop_threshold": fish_cfg["early_stop_threshold"],
     }
+    if fmt == "mp3":
+        payload["mp3_bitrate"] = fish_cfg["mp3_bitrate"]
+    elif fmt == "opus":
+        payload["opus_bitrate"] = fish_cfg["opus_bitrate"]
+    if fish_cfg["language"]:
+        payload["language"] = fish_cfg["language"]
+    if fish_cfg["quality_guard"]:
+        payload["features"] = ["quality-guard"]
+    if fish_cfg["pronunciation_dictionary_id"]:
+        dict_ref = {"id": fish_cfg["pronunciation_dictionary_id"]}
+        if fish_cfg["pronunciation_dictionary_version"]:
+            dict_ref["version"] = fish_cfg["pronunciation_dictionary_version"]
+        payload["pronunciation_dictionary"] = [dict_ref]
     ref_id = _fish_reference_id(voice_id)
     if ref_id:
         payload["reference_id"] = ref_id
     payload["prosody"] = {
         "speed": fish_cfg["speed"],
         "volume": fish_cfg["volume"],
-        "normalize_loudness": True
+        "normalize_loudness": fish_cfg["normalize_loudness"]
     }
     return payload
 
@@ -933,10 +1006,11 @@ def _edge_audio(text, voice_id, rate, pitch, volume):
 
 
 def _fish_audio(payload, tts_model, on_chunk=None):
+    fmt = str((payload or {}).get('format') or 'mp3').lower()
     try:
         response = requests.post(
             f'{FISH_BASE_URL}/v1/tts', json=payload,
-            headers=_fish_headers(tts_model), timeout=FISH_HTTP_TIMEOUT, stream=True
+            headers=_fish_headers(tts_model, fmt), timeout=FISH_HTTP_TIMEOUT, stream=True
         )
         try:
             if response.status_code != 200:
@@ -970,7 +1044,7 @@ def _fish_audio(payload, tts_model, on_chunk=None):
         raise TtsError('语音服务连接失败，请检查网络后重试。', 502) from exc
 
 
-def _stream_cached_tts(key, factory):
+def _stream_cached_tts(key, factory, mimetype='audio/mpeg'):
     """复用现有缓存及请求去重；仅请求拥有者逐块转发。"""
     messages = queue.Queue(maxsize=8)
     stopped = threading.Event()
@@ -1030,7 +1104,7 @@ def _stream_cached_tts(key, factory):
                 yield value
         finally:
             stopped.set()
-    response = Response(body(), mimetype='audio/mpeg')
+    response = Response(body(), mimetype=mimetype)
     response.headers['Cache-Control'] = 'no-store'
     response.headers['X-Accel-Buffering'] = 'no'
     response.call_on_close(stopped.set)
@@ -1051,10 +1125,14 @@ def tts_api():
         voice_id = voice
     try:
         matched = _find_cfg_by_voice(voice)
+        audio_mime = 'audio/mpeg'
+        audio_ext = 'mp3'
         if model_name == 'edge':
             if voice_id in EDGE_UNAVAILABLE_HINTS or not voice_id:
                 voice_id = EDGE_DEFAULT_VOICE
-            text = re.sub(r'\[[^\]]{1,60}\]\s*', '', text).strip()
+            text = re.sub(r'\[[^\]]{1,60}\]\s*', '', text)
+            text = re.sub(r'<\|[^|]{1,40}\|>', '', text)
+            text = re.sub(r'</?(?:whisper|emphasis|soft|fast|slow|stress|forceful)>', '', text, flags=re.I).strip()
             if not text:
                 return jsonify({'error': '没有可朗读的文本。'}), 400
             rate = _normalize_edge_param(data.get('rate') or matched.get('rate') or '-8%', 'rate')
@@ -1066,9 +1144,7 @@ def tts_api():
             if not FISH_API_KEY:
                 return jsonify({'error': '尚未设置 Fish Audio 密钥。'}), 503
             emotion = str(data.get('emotion') or '').strip()
-            if emotion in {'whispers', 'sighs', 'gasps', 'panting', 'inhales', 'laughs', 'chuckles',
-                           'giggles', 'sobs', 'crying', 'moans', 'whimpers', 'groans', 'pause',
-                           'clears throat', 'sniffs', 'cries', 'angry', 'trembling voice'}:
+            if emotion and len(emotion) <= 48 and re.fullmatch(r'[A-Za-z0-9 ,_-]+', emotion):
                 text = f'[{emotion}] {text}'
             runtime_cfg = dict(matched)
             for name in FISH_DEFAULT_STYLE:
@@ -1078,13 +1154,16 @@ def tts_api():
                 data.get('tts_model') or matched.get('tts_model') or _get_current_fish_tts_model()
             )
             payload = _build_fish_payload(text, voice_id, runtime_cfg)
+            fmt_meta = FISH_AUDIO_FORMATS.get(payload.get('format', 'mp3'), FISH_AUDIO_FORMATS['mp3'])
+            audio_mime = fmt_meta['mime']
+            audio_ext = fmt_meta['ext']
             key_data = ['fish', tts_model, payload]
             producer = lambda: _fish_audio(payload, tts_model)
         key = hashlib.sha256(json.dumps(key_data, ensure_ascii=False, sort_keys=True).encode('utf-8')).hexdigest()
         if model_name != 'edge' and data.get('stream') is True:
-            return _stream_cached_tts(key, lambda emit: _fish_audio(payload, tts_model, on_chunk=emit))
+            return _stream_cached_tts(key, lambda emit: _fish_audio(payload, tts_model, on_chunk=emit), mimetype=audio_mime)
         audio = _cached_tts(key, producer)
-        response = send_file(io.BytesIO(audio), mimetype='audio/mpeg', download_name='tts.mp3')
+        response = send_file(io.BytesIO(audio), mimetype=audio_mime, download_name=f'tts.{audio_ext}')
         response.headers['Cache-Control'] = 'no-store'
         return response
     except ConfigError as exc:

@@ -8,7 +8,7 @@ let busy = null;
 let lastError = '';
 let monitorTimer = null, monitorBusy = false, starting = null;
 let controlSupported = null, sessionReady = false;
-const PLUGIN_VERSION = '1.9.1';
+const PLUGIN_VERSION = '1.9.5';
 let heartbeats = new Set();
 const FILE_TOOLS = ['list_files', 'find_files', 'grep_code', 'read_file', 'read_file_full', 'read_file_part', 'file_info', 'file_exists'];
 const LIVE_READ_TOOLS = ['read_file','read_file_full','read_file_part','file_info','grep_code'];
@@ -42,7 +42,7 @@ async function restoreChat(chatId, returnChatId) {
 function roleChanges(model, scene = false) {
     if (scene === 'live') return { ...roleChanges(model, true),
         toolAccessConfig:{enabled:true,allowedBuiltinTools:LIVE_READ_TOOLS,allowedPackages:[],allowedSkills:[],allowedMcpServers:[]}, name: '同席互动·项目只读',
-        characterSetting: '你是正式互动故事生成者。entry_mode=live_interaction时先按packet.read_ranges逐项照用path/start_line/end_line调用read_file_part，核对实际返回的末行再继续；取得全部正文后才生成。文件尾空白不等同缺正文，旧会话草稿和失败回复不能作为已接受事实；grep_code仅定位指定文件，不算正文覆盖，不用list_files/find_files，依据设定、实际存档和玩家意图推演有发展且连贯的剧情，在需要玩家新决定处停下。只按本次output_contract输出messages/decision/operation/handoff/checks及resolution裸JSON，decision提供本段A/B/C。玩家点按演播完成后才行动。resolution只交原文事件依据、分类、游戏时刻及本次记忆事实，费用/退款/低体力由程序计算。不写旧整回合或SYSTEM_LOG，不写文件或执行命令。',
+        characterSetting: '你是正式互动故事生成者。entry_mode=live_interaction时，material_delivery=program_inline_v1表示material与required_sources已由程序从冻结源完整读取并直接交付；完整理解正文，不为证明读取而逐段重读packet，也不声称执行了未发生的工具读取。没有该标记时按packet.read_ranges读取。确需旧史时，只补查本任务许可路径与精确范围。依据设定、正式存档和玩家意图推演连贯剧情，在需要玩家新决定处停下。只交本次output_contract要求的裸JSON；保留主权、知情边界和角色主体性；对白只归实际在场人物，玩家台词不得代写；费用与数值由程序结算。不写文件、不执行命令。',
         otherContentChat: '遵循本次output_contract；正式传输中operation无操作时明确写空字符串两个双引号，不省略值，桥接在合法解析后转换为内部null。resolution.task、resolution.sleep.start及conditions.npc无内容写空字符串，不得省略值；有任务/时间则写合法对象。conditions依本次resolution_policy：普通付费必须七字段完整对象，无NPC仅npc为空；免费SYSTEM才无条件。严格区分玩家私有状态与角色共同知情。正文与登记操作一致；未支持操作写待处理，不宣称完成。' };
     return { name: scene ? '场景交流·项目只读' : '故事生成·项目只读', description: '网页故事桥接的专用只读生成参与者。',
         characterSetting: scene ? '你是隔离场景交流参与者。entry_mode=scene_chat时只真实读取指定packet，按其中交流规范回应；不执行完整回合读取链、字数、节拍、OPTIONS或结算。当前packet覆盖事实，不从旧会话引入其他场景。只输出裸JSON，不写文件、不执行命令。' : '你是项目故事回合生成器。按本次网页信封调用真实只读文件工具；当前文件是事实源，历史会话不能代替本轮读取。最终只返回契约JSON；禁止写文件、执行命令、外部服务或自行提交。',
@@ -51,6 +51,18 @@ function roleChanges(model, scene = false) {
         chatProviderId: model.provider_id, chatModelId: model.model_id,
         toolAccessConfig: { enabled: true, allowedBuiltinTools: FILE_TOOLS,
             allowedPackages: [], allowedSkills: [], allowedMcpServers: [] } };
+}
+
+async function ownedStoryCard(model, scene) {
+    const expectedName = roleChanges(model, scene).name;
+    const listed = await ToolPkg.callDependency('com.operit.character_cards', 'character.list', {}).catch(() => []);
+    const items = Array.isArray(listed) ? listed : (listed && Array.isArray(listed.characters) ? listed.characters : []);
+    for (const item of items) {
+        if (!item || !item.id || (item.name && item.name !== expectedName)) continue;
+        const card = await ToolPkg.callDependency('com.operit.character_cards', 'character.get', { id: item.id }).catch(() => null);
+        if (card && card.marks === ROLE_MARK && card.name === expectedName) return { ...card, id: item.id };
+    }
+    return null;
 }
 
 async function ensureSession(config, model, scene = false, persist = () => PluginConfig.flush(config)) {
@@ -64,6 +76,11 @@ async function ensureSession(config, model, scene = false, persist = () => Plugi
             await persist();
         }
     }
+    if (!config.participantId) {
+        // Reuse this plugin's own card after a reinstall or cleared config; never delete user data.
+        const found = await ownedStoryCard(model, scene);
+        if (found) { config.participantId = found.id; await persist(); }
+    }
     let card;
     if (config.participantId) {
         card = await ToolPkg.callDependency('com.operit.character_cards', 'character.get', { id: config.participantId });
@@ -75,7 +92,13 @@ async function ensureSession(config, model, scene = false, persist = () => Plugi
             card = await ToolPkg.callDependency('com.operit.character_cards', 'character.update', { id: config.participantId, changes: expected });
         }
     } else {
-        card = await ToolPkg.callDependency('com.operit.character_cards', 'character.create', { values: roleChanges(model, scene) });
+        try {
+            card = await ToolPkg.callDependency('com.operit.character_cards', 'character.create', { values: roleChanges(model, scene) });
+        } catch (error) {
+            if (!/已存在|exist/i.test(String(error.message || error))) throw error;
+            card = await ownedStoryCard(model, scene);
+            if (!card) throw new Error('同名角色卡已存在但不是本插件的专用卡，未自动删除或覆盖；请先确认该卡来源。');
+        }
         if (!card || !card.id) throw new Error('未取得专用角色标识');
         config.participantId = card.id;
         await persist();
@@ -138,7 +161,7 @@ async function resetLiveSession(config, reason) {
 }
 
 async function liveSession(config, model, task) {
-    const identity=JSON.stringify([config.workspacePath,task.save_epoch,model.key,'live-accounting-resolution-v3-read-ranges']);
+    const identity=JSON.stringify([config.workspacePath,task.save_epoch,model.key,'live-program-inline-v1']);
     const policy=liveSessionPolicy(config);let state=config.liveSession;
     const reason=!state ? '首次连接' : state.identity!==identity ? '存档、工作区或模型变更'
         : policy==='service_restart' && state.serviceEpoch!==task.service_epoch ? 'Python服务已重启'
@@ -155,7 +178,7 @@ async function liveSession(config, model, task) {
     const session=await ensureSession(child,model,'live',persist);await persist();return session;
 }
 
-function finalMessage(receipt, snapshots, mode = false) {
+function finalMessage(receipt, snapshots, mode = false, inline = false) {
     const outcome = receipt && receipt.outcome;
     if (!outcome || outcome.type !== 'committed' || outcome.status !== 'completed' || !outcome.assistant) {
         throw new Error('正式会话未正常完成，结果未提交');
@@ -165,8 +188,9 @@ function finalMessage(receipt, snapshots, mode = false) {
     const parts = snapshot.parts;
     let lastResult = -1;
     for (let i = 0; i < parts.length; i++) if (parts[i].kind === 'tool_result') lastResult = i;
-    if (lastResult < 0) throw new Error('正式会话没有实际文件工具结果');
-    let text = parts.slice(lastResult + 1).filter(part => part.kind === 'markdown' && part.content.trim())
+    if (lastResult < 0 && !inline) throw new Error('正式会话没有实际文件工具结果');
+    const start = lastResult < 0 ? 0 : lastResult + 1;
+    let text = parts.slice(start).filter(part => part.kind === 'markdown' && part.content.trim())
         .map(part => part.content).join('').trim();
     let value;
     try { value = JSON.parse(text); } catch (_) {
@@ -226,7 +250,10 @@ function sessionText(task, previousError) {
 }
 
 async function executeSession(config, task, model, session) {
-    if (task.reading_preflight !== 1 || task.entry_mode==='live_interaction' && (task.live_reading_revision!==2 || task.action_contract_revision!==1)) throw new Error('请重启Pydroid3服务并重试原行动，以加载提交前读取校验');
+    if (task.reading_preflight !== 1 || task.entry_mode === 'live_interaction' &&
+            (task.live_reading_revision !== 2 || task.action_contract_revision !== 1 || task.material_delivery_revision !== 1)) {
+        throw new Error('请重启Pydroid3服务并重试原行动，以加载程序资料交付接口');
+    }
     const returnChatId = await currentChat();
     const startedAt = Date.now();
     config.inFlight = { request_id: task.request_id, lease: task.lease, model_key: model.key, entry_mode: task.entry_mode,
@@ -236,18 +263,35 @@ async function executeSession(config, task, model, session) {
     const timeout = setTimeout(() => { expired = true; void Tools.Chat.cancel(session.chatId).catch(error => { lastError = String(error.message || error); }); }, SESSION_TIMEOUT);
     const tools = [], passes = [];
     let repairKeys = [];
+    let formatRepair = false;
     try {
         const previous = task.previous_validation_error || (config.lastRejection && config.lastRejection.request_id === task.request_id ? config.lastRejection.error : '');
-        let text = sessionText(task, previous);
         const { token } = await http('/api/story/bridge-info');
+        const inline = task.entry_mode === 'live_interaction';
+        let delivered = null;
+        let text;
+        if (inline) {
+            if (task.material_delivery_revision !== 1) throw new Error('请重启Pydroid3服务以加载程序资料交付接口');
+            const material = await http(workerPath(task, 'material'), { lease: task.lease,
+                chat_id: session.chatId, participant_id: session.participantId }, token);
+            if (!material || typeof material.input_text !== 'string' || !material.delivery
+                    || !/^[0-9a-f]{64}$/.test(material.delivery.input_sha256)
+                    || !/^[0-9a-f]{48}$/.test(material.delivery.id)) throw new Error('程序交付资料不完整，未生成');
+            text = material.input_text;
+            delivered = { ...material.delivery };
+        } else text = sessionText(task, previous);
+        const inlineEnvelope = inline ? JSON.parse(text).envelope : null;
         for (let pass = 0; pass < (task.entry_mode === 'scene_chat' ? 1 : 2); pass++) {
             if (expired) throw new Error('正式会话超过10分钟，已取消；原行动保留，需显式重试');
-            await checkModel(config, model.key);
             const snapshots = new Map();
             let receipt = null;
             const passStarted = Date.now();
+            const turns = inline
+                ? [{kind: 'user', content: text}]
+                : generationTurns(task, previous);
+            const textForCall = turns.map(turn => turn.content).join('\n\n');
             const request = { kind: 'submit', chatId: session.chatId, runtime: 'main',
-                input: { text, attachments: [], replyToMessageTimestamp: null },
+                input: { text: textForCall, attachments: [], replyToMessageTimestamp: null },
                 turn: { kind: 'execute', participantId: session.participantId }, notifyReply: false };
             for await (const event of Tools.Chat.sendMessageStreaming(request)) {
                 if (event.type === 'part') {
@@ -258,8 +302,40 @@ async function executeSession(config, task, model, session) {
             }
             if (expired) throw new Error('正式会话超过10分钟，已取消；原行动保留，需显式重试');
             if (!receipt || receipt.chatId !== session.chatId) throw new Error('缺少当前正式会话的完成回执');
-            await checkModel(config, model.key);
-            const final = finalMessage(receipt, snapshots, task.entry_mode);
+            if (inline && pass === 0) {
+                const stamp = receipt.outcome && receipt.outcome.userMessageTimestamp;
+                if (!Number.isSafeInteger(stamp) || stamp <= 0) throw new Error('缺少资料交付的用户消息回执');
+                const saved = await Tools.Chat.getMessages(session.chatId, { order: 'desc', limit: 4 });
+                const message = saved.messages && saved.messages.find(item => item.timestamp === stamp && item.sender === 'user');
+                const suffix = message && typeof message.content === 'string' ? message.content.slice(text.length) : '';
+                if (saved.chatId !== session.chatId || !message || typeof message.content !== 'string'
+                        || !(message.content === text || (message.content.startsWith(text)
+                        && /^\s*<workspace_attachment>[^<]*<\/workspace_attachment>\s*$/.test(suffix)))) {
+                    throw new Error('正式会话保存的资料不完整或已改变，未提交');
+                }
+                delivered.user_message_timestamp = stamp;
+            }
+            let final;
+            try {
+                final = finalMessage(receipt, snapshots, task.entry_mode, inline);
+            } catch (error) {
+                const detail = String(error.message || error);
+                if (!inline || pass !== 0 || formatRepair || !/JSON/.test(detail)) throw error;
+                const snapshot = snapshots.get(receipt.outcome && receipt.outcome.assistant && receipt.outcome.assistant.messageTimestamp);
+                if (!snapshot || snapshot.parts.some(part => part.kind === 'tool_call')) {
+                    throw new Error('格式纠正前的回复包含工具调用，未自动重发');
+                }
+                const invalidStamp = receipt.outcome.assistant.messageTimestamp;
+                passes.push({ outcome: receipt.outcome, snapshot_message_timestamp: invalidStamp,
+                    tool_start: 0, tool_count: 0, started_at: passStarted, completed_at: Date.now(),
+                    preflight_completed_at: Date.now() });
+                formatRepair = true;
+                text = JSON.stringify({ entry_mode: 'live_interaction', request_id: task.request_id,
+                    format_repair: { attempt: 1, max_attempts: 1, error: detail },
+                    task_envelope: inlineEnvelope,
+                    instruction: '同一任务的格式纠正，上一回复未接受，也不是剧情事实。不要改动已拟定的正文、事件、时间、记忆分类或操作；只把同一回复重新输出为一个完整合法JSON对象，键恰为task_envelope.output_contract所列。不得使用代码围栏、前后解释或省略字段；无操作operation、无任务task、无睡眠起点start及无对象npc明确写空字符串两个双引号。保持原行动、冻结点与知情边界。' });
+                continue;
+            }
             if (task.entry_mode === 'scene_chat') {
                 config.sceneSession.observedChars += text.length + final.text.length + final.tools.reduce((n, t) => n + t.result_text.length, 0);
                 await PluginConfig.flush(config);
@@ -276,19 +352,29 @@ async function executeSession(config, task, model, session) {
             const audit = { api: 'Tools.Chat.sendMessageStreaming', chat_id: session.chatId,
                 participant_id: session.participantId, workspace: config.workspacePath,
                 outcome: receipt.outcome, snapshot_message_timestamp: final.timestamp,
-                started_at: startedAt, completed_at: Date.now(), read_passes: passes, repair_keys: repairKeys, tools };
+                started_at: startedAt, completed_at: Date.now(), read_passes: passes,
+                repair_keys: repairKeys, tools, ...(delivered ? {delivery: delivered} : {}) };
             const body = { lease: task.lease, text: final.text, conversation_audit: audit };
-            const check = await http(workerPath(task, 'preflight'), body, token);
-            if (check.ready === true) return body;
+            let check;
+            const preflightStarted = Date.now();
+            check = await http(workerPath(task, 'preflight'), body, token);
+            const preflightElapsed = Date.now() - preflightStarted;
+            passes[passes.length - 1].preflight_completed_at = passes[passes.length - 1].completed_at + preflightElapsed;
+            if (check.ready === true) {
+                const timing = { generation_ms: passes.reduce((sum, item) => sum + Math.max(0, item.completed_at - item.started_at), 0),
+                    preflight_ms: passes.reduce((sum, item) => sum + Math.max(0, item.preflight_completed_at - item.completed_at), 0),
+                    generation_passes: passes.length };
+                return { ...body, timing };
+            }
             if (!Array.isArray(check.missing_keys) || !check.missing_keys.length || !Array.isArray(check.read_targets)) {
                 throw new Error('读取预检返回无效结果，未提交');
             }
-            if (pass === 1) throw new Error('补读后仍缺必需正文：' + check.missing_keys.join(', ') + '；已停止自动补读，请重试原行动');
+            if (pass === 1) throw new Error('同一任务的一次补救后仍缺必需正文：' + check.missing_keys.join(', ') + '；已停止自动补读，请重试原行动');
             repairKeys = check.missing_keys.slice();
             if (task.entry_mode === 'live_interaction') {
                 text=JSON.stringify({entry_mode:'live_interaction',request_id:task.request_id,
                     read_repair:{attempt:1,max_attempts:1,missing_keys:check.missing_keys,read_targets:check.read_targets},
-                    task_envelope:JSON.parse(generationTurns(task,previous)[0].content),
+                    task_envelope:inline ? inlineEnvelope : JSON.parse(generationTurns(task,previous)[0].content),
                     instruction:'同一任务的提交前补读，上一草稿未接受。仅补读read_targets所列缺失正文；已核验部分继续有效，不重复整包。核对实际返回末行，缺失则继续取得；据新正文重新核对上一草稿并按task_envelope.output_contract返回整份JSON。保持原行动、冻结点及知情范围，不推进到下一行动。最多补读一次，仍不足则停止。'});
                 continue;
             }
@@ -574,7 +660,11 @@ async function work() {
     }
     const status = await http('/api/story/tasks');
     if (status.story_protocol !== 3 || status.reading_preflight !== 1) throw new Error('请在 Pydroid3 停止旧服务并重新运行语音运行.py，以加载正式会话读取接口（协议3）。');
-    if (status.task && status.task.status === 'queued' && status.task.entry_mode === 'live_interaction' && (status.interaction_protocol !== 3 || status.live_reading_revision !== 2 || status.action_contract_revision !== 1)) throw new Error('请先在Pydroid3重启语音运行.py，加载互动结算协议3后再重试；旧任务未领取。');
+    if (status.task && status.task.status === 'queued' && status.task.entry_mode === 'live_interaction'
+            && (status.interaction_protocol !== 3 || status.live_reading_revision !== 2
+                || status.action_contract_revision !== 1 || status.material_delivery_revision !== 1)) {
+        throw new Error('请先重启Pydroid3服务以加载程序资料交付接口；旧任务须显式重试后再生成。');
+    }
     await rememberRejection(config, status.task);
     const model = await resolveModel(config);
     lastError = '';

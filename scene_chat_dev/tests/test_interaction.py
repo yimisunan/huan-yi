@@ -129,8 +129,14 @@ class InteractionChecks(unittest.TestCase):
         bad=copy.deepcopy(body);bad['conversation_audit']['tools'][0]['result_text']='1| {'
         with self.assertRaises(rr.RoundError):self.service.preflight('job',bad)
         self.assertTrue(self.service.preflight('job',body)['ready'])
-        self.assertEqual(self.service.result('job',body)['task']['status'],'committed')
-        self.assertEqual(self.service.result('job',body)['task']['status'],'committed')
+        timed={**body,'timing':{'generation_ms':1234,'preflight_ms':25,'generation_passes':1}}
+        self.assertEqual(self.service.result('job',timed)['task']['status'],'committed')
+        public=self.service.request('job')['task']
+        self.assertEqual(public['timing']['generation_ms'],1234)
+        self.assertEqual(public['timing']['preflight_ms'],25)
+        self.assertEqual(public['timing']['generation_passes'],1)
+        self.assertNotIn('text',public);self.assertNotIn('input',public);self.assertNotIn('created_at',public)
+        self.assertEqual(self.service.result('job',timed)['task']['status'],'committed')
         self.assertEqual(len(StoryService(self.root).interaction_snapshot()['history']),1)
 
     def test_storage_interruption_recovers_staged_transcript_and_original_reply(self):

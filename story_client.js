@@ -43,7 +43,8 @@
   let audioSerial = 0, audioMessage = null, audioStatus = '', isSpeaking = false;
   let gesture = false, configPromise = null, lastTap = 0;
   let activeHubTab = 'host', selectedChar = '', selectedMapPlace = '', historyFilter = 'all';
-  let settlementFolded = false;
+  let settlementFolded = true, settlementDismissedId = '', deckCollapsed = false;
+  let activeStream = null, speakingMessageId = '', lastVectorLocation = '';
 
   const urls = new VoiceClient.AudioUrlStore(8, 16 * 1024 * 1024);
   const audioCache = new Map();
@@ -78,7 +79,7 @@
     document.documentElement.dataset.theme = prefs.theme;
     document.documentElement.dataset.font = prefs.font;
     const metaTheme = document.querySelector('meta[name="theme-color"]');
-    if (metaTheme) metaTheme.setAttribute('content', prefs.theme === 'ivory' ? '#f4efe6' : '#0f0d0b');
+    if (metaTheme) metaTheme.setAttribute('content', prefs.theme === 'ivory' ? '#f4efe6' : '#0c0a09');
     updateBackdrop();
   }
 
@@ -96,7 +97,8 @@
     const host = $('toastHost');
     if (!host || !message) return;
     while (host.children.length >= 2) host.firstElementChild.remove();
-    const item = node('div', 'toast-item', message);
+    const item = node('div', 'toast-item');
+    item.append(icon('sparkle', 'chip-svg'), node('span', '', message));
     host.append(item);
     setTimeout(() => item.remove(), 2200);
   }
@@ -112,6 +114,14 @@
     const el = document.createElementNS(SVG_NS, tag);
     for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
     return el;
+  }
+
+  function stripVoiceTags(text) {
+    return String(text || '')
+      .replace(/\[[^\]\r\n]+\]/g, '')
+      .replace(/<\/?(?:whisper|emphasis|soft|fast|slow|stress|forceful)>/gi, '')
+      .replace(/<\|[^|\r\n]+\|>/g, '')
+      .trim();
   }
 
   function icon(name, cls = 'game-icon') {
@@ -134,7 +144,10 @@
       shield:  'M12 3 5 6v5.5c0 4.6 3 8 7 9.5 4-1.5 7-4.9 7-9.5V6l-7-3Z',
       map:     'M12 21s6-5.6 6-10.5a6 6 0 1 0-12 0C6 15.4 12 21 12 21Z',
       scroll:  'M6 4h11a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a3 3 0 0 1-3-3V6a2 2 0 0 1 2-2Zm3 4h6m-6 4h6m-6 4h4',
-      gift:    'M4 10h16v10H4V10Zm-1-3h18v3H3V7Zm9 0v13m0-13c-1.5-3-5-3-5-1s3.5 1 5 1Zm0 0c1.5-3 5-3 5-1s-3.5 1-5 1Z'
+      gift:    'M4 10h16v10H4V10Zm-1-3h18v3H3V7Zm9 0v13m0-13c-1.5-3-5-3-5-1s3.5 1 5 1Zm0 0c1.5-3 5-3 5-1s-3.5 1-5 1Z',
+      volume:  'M11 5 6 9H3v6h3l5 4V5Zm4.5 3.5a5 5 0 0 1 0 7',
+      close:   'M6 6 18 18M18 6 6 18',
+      scales:  'M12 4v15M8 19h8M5 9h14M5 9 3.5 14h3L5 9Zm14 0-1.5 5h3L19 9Z'
     };
     const path = svgEl('path', {
       d: paths[name] || paths.check,
@@ -146,6 +159,73 @@
     });
     svg.append(path);
     return svg;
+  }
+
+  function renderSceneVector(location) {
+    const loc = String(location || '');
+    document.documentElement.dataset.location = loc;
+    const host = $('sceneVectorLayer');
+    if (!host || lastVectorLocation === loc) return;
+    lastVectorLocation = loc;
+
+    const svg = svgEl('svg', {
+      viewBox: '0 0 400 800',
+      preserveAspectRatio: 'xMidYMid slice',
+      class: 'scene-vector-svg',
+      'aria-hidden': 'true',
+      focusable: 'false'
+    });
+    const stroke = { fill: 'none', stroke: 'currentColor', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' };
+
+    if (loc.includes('公寓')) {
+      // Penthouse floor-to-ceiling rain-kissed glass & skyline horizon
+      svg.append(
+        svgEl('path', { ...stroke, 'stroke-width': '0.9', 'stroke-opacity': '0.35', d: 'M36 0v800M152 0v800M248 0v800M364 0v800M0 175h400M0 545h400' }),
+        svgEl('path', { ...stroke, 'stroke-width': '0.8', 'stroke-opacity': '0.26', d: 'M0 510h42v-48h28v24h34v-72h26v96h38v-34h24v-66h34v100h30v-58h36v32h30v-80h32v106h46' }),
+        svgEl('line', { ...stroke, 'stroke-width': '1.05', 'stroke-opacity': '0.52', class: 'rain-streak', x1: 78, y1: 60, x2: 72, y2: 148 }),
+        svgEl('line', { ...stroke, 'stroke-width': '0.9', 'stroke-opacity': '0.42', class: 'rain-streak r2', x1: 196, y1: 30, x2: 190, y2: 112 }),
+        svgEl('line', { ...stroke, 'stroke-width': '1.0', 'stroke-opacity': '0.48', class: 'rain-streak r3', x1: 312, y1: 90, x2: 306, y2: 178 }),
+        svgEl('line', { ...stroke, 'stroke-width': '0.85', 'stroke-opacity': '0.38', class: 'rain-streak r4', x1: 128, y1: 220, x2: 122, y2: 298 }),
+        svgEl('line', { ...stroke, 'stroke-width': '0.85', 'stroke-opacity': '0.36', class: 'rain-streak r2', x1: 274, y1: 260, x2: 268, y2: 344 }),
+        svgEl('circle', { ...stroke, 'stroke-width': '0.8', 'stroke-opacity': '0.32', class: 'arch-shimmer', cx: 200, cy: 112, r: 44 })
+      );
+    } else if (loc.includes('主宅')) {
+      // Neo-classical manor grand arches & chandelier silhouette
+      svg.append(
+        svgEl('path', { ...stroke, 'stroke-width': '1', 'stroke-opacity': '0.34', d: 'M46 800V240a154 154 0 0 1 308 0v560' }),
+        svgEl('path', { ...stroke, 'stroke-width': '0.8', 'stroke-opacity': '0.24', d: 'M82 800V256a118 118 0 0 1 236 0v544M200 0v98M146 130h108' }),
+        svgEl('path', { ...stroke, 'stroke-width': '0.85', 'stroke-opacity': '0.38', class: 'arch-shimmer', d: 'M200 98c-24 18-50 24-72 24m72-24c24 18 50 24 72 24M162 122v18m38-42v48m38-24v18' }),
+        svgEl('path', { fill: 'currentColor', 'fill-opacity': '0.28', class: 'arch-shimmer', d: 'M200 144 205 154 200 164 195 154ZM162 138 165 144 162 150 159 144ZM238 138 241 144 238 150 235 144Z' })
+      );
+    } else if (loc.includes('公司')) {
+      // Executive tower glass curtain wall & crisp diagonal light shaft
+      svg.append(
+        svgEl('path', { ...stroke, 'stroke-width': '0.85', 'stroke-opacity': '0.3', d: 'M50 0v800M100 0v800M200 0v800M300 0v800M350 0v800M0 140h400M0 320h400M0 500h400' }),
+        svgEl('path', { ...stroke, 'stroke-width': '1.05', 'stroke-opacity': '0.4', class: 'arch-shimmer', d: 'M400 40 120 440M400 110 180 420M360 0 60 420' })
+      );
+    } else if (loc.includes('大学')) {
+      // Academy classical colonnade arches & gallery sunlight
+      svg.append(
+        svgEl('path', { ...stroke, 'stroke-width': '0.95', 'stroke-opacity': '0.34', d: 'M18 800V240a56 56 0 0 1 112 0v560M144 800V240a56 56 0 0 1 112 0v560M270 800V240a56 56 0 0 1 112 0v560' }),
+        svgEl('path', { ...stroke, 'stroke-width': '0.8', 'stroke-opacity': '0.24', d: 'M0 154h400M0 172h400' }),
+        svgEl('circle', { ...stroke, 'stroke-width': '0.85', 'stroke-opacity': '0.36', class: 'arch-shimmer', cx: 200, cy: 110, r: 34 })
+      );
+    } else if (loc.includes('工作室')) {
+      // Atelier pitched skylight rafters & canvas geometric frame
+      svg.append(
+        svgEl('path', { ...stroke, 'stroke-width': '0.95', 'stroke-opacity': '0.34', d: 'M0 170 200 32 400 170M60 128 200 32M340 128 200 32M200 32v96' }),
+        svgEl('rect', { ...stroke, 'stroke-width': '0.85', 'stroke-opacity': '0.26', x: 76, y: 210, width: 248, height: 340, rx: 4 }),
+        svgEl('path', { ...stroke, 'stroke-width': '0.9', 'stroke-opacity': '0.38', class: 'arch-shimmer', d: 'M200 128 112 310M200 128 288 310' })
+      );
+    } else {
+      // Default Abyss Scales meridian arcs
+      svg.append(
+        svgEl('circle', { ...stroke, 'stroke-width': '0.85', 'stroke-opacity': '0.28', cx: 200, cy: 230, r: 140, 'stroke-dasharray': '4 8' }),
+        svgEl('circle', { ...stroke, 'stroke-width': '0.8', 'stroke-opacity': '0.22', class: 'arch-shimmer', cx: 200, cy: 230, r: 92 }),
+        svgEl('path', { ...stroke, 'stroke-width': '0.8', 'stroke-opacity': '0.24', d: 'M200 40v380M50 230h300' })
+      );
+    }
+    host.replaceChildren(svg);
   }
 
   function spawnTapRipple(x, y) {
@@ -186,6 +266,18 @@
         body: JSON.stringify(body)
       })
     }, 12000);
+  }
+
+  function queuedBridgeIssue(state) {
+    if (state?.task?.status !== 'queued') return '';
+    const b = state.bridge;
+    const controlError = b?.control?.status === 'failed' ? b.control.error : '';
+    if (b?.last_error || controlError) return '行动尚未开始 · 桥接错误：' + (b.last_error || controlError);
+    if (!b?.present) return '行动尚未开始 · Operit 桥接未连接，请在 Operit 开启故事桥接；可取消退还。';
+    if (b.phase === 'starting') return '行动尚未开始 · Operit 桥接正在启动……';
+    if (!b.running || b.phase === 'paused') return '行动尚未开始 · Operit 桥接未启动或已暂停；可取消退还。';
+    if (b.phase === 'error') return '行动尚未开始 · Operit 桥接运行异常，请查看连接详情。';
+    return '';
   }
 
   const active = () => ['preparing', 'queued', 'generating', 'validating', 'refund_pending'].includes(snapshot?.task?.status);
@@ -340,20 +432,34 @@
 
   function controls() {
     const p = snapshot?.playback, ready = canDecide(), base = baseBlocked(), hasSegment = !!p?.segment_id;
-    const rest = resting(), isAct = active();
+    const rest = resting(), isAct = active(), task = snapshot?.task;
+    const mode = !hasSegment ? 'empty' : !ready ? 'playback' : 'decision';
 
+    document.body.classList.toggle('mode-empty', mode === 'empty');
+    document.body.classList.toggle('mode-playback', mode === 'playback');
+    document.body.classList.toggle('mode-decision', mode === 'decision');
     document.body.classList.toggle('is-thinking', isAct);
     $('statusSpinner').hidden = !isAct;
 
-    $('decisionPanel').hidden = !ready || rest;
-    $('form').hidden = !ready || rest;
+    const showDecisions = ready && !rest;
+    const isCollapsed = showDecisions && deckCollapsed;
+    $('decisionPanel').hidden = !showDecisions || isCollapsed;
+    $('form').hidden = !showDecisions || isCollapsed;
+    if ($('deckCollapsedBar')) {
+      $('deckCollapsedBar').hidden = !isCollapsed;
+      if (isCollapsed && $('deckCollapsedLabel')) {
+        const optCount = current()?.decision?.options?.length || 3;
+        $('deckCollapsedLabel').textContent = '展开抉择 · ' + optCount + ' 项可选 / 自由行动';
+      }
+    }
+
     $('restCard').hidden = !ready || !rest;
     $('rest').hidden = !ready || !rest;
     $('rest').disabled = base;
-    $('cancelTask').hidden = !isAct || !snapshot?.task?.reservation;
+    $('cancelTask').hidden = !isAct || !task?.reservation;
     $('cancelTask').disabled = posting || progressing;
 
-    const pg = progression(), res = snapshot?.task?.reservation;
+    const pg = progression(), res = task?.reservation;
     $('resourceStatus').textContent = pg
       ? (res?.status === 'held'
           ? '已暂扣 ' + res.quote.total + ' · 原体力 ' + res.quote.before + ' · 结算后判断疲惫'
@@ -395,13 +501,15 @@
       : '';
     if (hasSegment) updatePlaybackPips(p);
 
-    $('voiceToggle').textContent = cache.voice ? '语音开' : '已静音';
     $('voiceToggle').setAttribute('aria-pressed', String(cache.voice));
+    $('voiceToggle').setAttribute('aria-label', cache.voice ? '关闭语音' : '开启语音');
+    $('voiceToggle').title = cache.voice ? '语音已开（点击静音）' : '已静音（点击开启）';
     $('hudVoiceBtn').setAttribute('aria-pressed', String(cache.voice));
     $('hudVoiceWave').classList.toggle('is-speaking', isSpeaking && cache.voice);
 
-    $('replayVoice').hidden = !audioMessage;
-    $('replayVoice').textContent = audioStatus.includes('启用') ? '启用语音' : '重听';
+    const needsAudioUnlock = audioStatus.includes('启用');
+    $('replayVoice').hidden = !audioMessage || !needsAudioUnlock;
+    $('replayVoice').textContent = needsAudioUnlock ? '启用语音' : '重听';
     $('audioStatus').textContent = audioStatus;
 
     $('begin').hidden = hasSegment;
@@ -409,7 +517,7 @@
     if (!hasSegment) $('begin').textContent = rest ? '开始休息 · 免费' : '踏入此刻 · 继续剧情';
 
     $('refresh').disabled = posting || polling || progressing;
-    const showRetry = ['failed', 'interrupted', 'cancelled'].includes(snapshot?.task?.status);
+    const showRetry = ['failed', 'interrupted', 'cancelled'].includes(task?.status);
     $('retry').hidden = !showRetry;
     $('retry').disabled = base;
     $('older').disabled = posting || polling || progressing;
@@ -426,7 +534,6 @@
     $('editPending').disabled = posting || polling || !online;
     $('recoveryBox').hidden = !(showRetry || showCheck || showResend || showEdit);
 
-    const task = snapshot?.task;
     $('pending').textContent = cache.pending
       ? '待确认行动：' + cache.pending.action
       : task && ['queued', 'generating', 'validating', 'failed', 'interrupted'].includes(task.status)
@@ -434,10 +541,18 @@
         : '';
     $('pending').hidden = !$('pending').textContent;
 
-    $('status').classList.toggle('error', !!error || !!task?.error);
+    const protoBad = online && ![2, 3].includes(snapshot?.interaction_protocol);
+    const bridgeWarn = hasSegment && ready && online && !snapshot?.bridge_connected;
+    const showStatusStrip = Boolean(
+      isAct || !online || error || task?.error || cache.pending || protoBad || bridgeWarn || needsAudioUnlock
+    );
+    if ($('statusWrap')) $('statusWrap').hidden = !showStatusStrip;
+
+    const queueIssue = queuedBridgeIssue(snapshot);
+    $('status').classList.toggle('error', !!error || !!task?.error || !!queueIssue);
     $('status').textContent = error || (
       !online ? '正在连接本地剧场服务，你的行动已安全保留……'
-      : ![2, 3].includes(snapshot?.interaction_protocol) ? '请重启本地服务以加载最新剧情演播接口。'
+      : protoBad ? '请重启本地服务以加载最新剧情演播接口。'
       : cache.pending
         ? (mismatch ? '原编号与服务记录不符，请在系统设定查看连接详情。'
           : missing ? '原编号尚未登记，可点击下方按钮重发。'
@@ -445,14 +560,14 @@
       : isAct
         ? (task.status === 'generating' ? '天平演算中 · 正在承接你的抉择推演剧情……'
           : task.status === 'validating' ? '正在校验剧情并写入记忆存档……'
-          : '已入列 · 等待 Operit 桥接回应……')
-      : task?.error || (
-        !hasSegment ? '幕布已备好，轻触下方按钮进入此刻现场。'
-        : !p.completed ? '轻触屏幕任意处继续阅读，读完本段后落下抉择。'
-        : !snapshot.bridge_connected ? '抉择已就绪 · 桥接待连接。'
-        : rest ? '夜色已深，本段收束，请安稳休整后再启程。'
-        : '此刻由你决定下一步。'
-      )
+          : queueIssue || '已入列 · 等待 Operit 领取，开始时使用最新选择的模型……')
+      : task?.error
+      || (needsAudioUnlock ? '浏览器暂停了自动播放，轻触右侧“启用语音”继续听读。'
+      : bridgeWarn ? '抉择已就绪 · Operit 桥接待连接。'
+      : !hasSegment ? '幕布已备好，轻触下方按钮进入此刻现场。'
+      : !p.completed ? '轻触屏幕继续阅读。'
+      : rest ? '夜色已深，本段收束，请安稳休整后再启程。'
+      : '此刻由你决定下一步。')
     );
 
     const bridgeOnline = !!snapshot?.bridge_connected;
@@ -509,13 +624,40 @@
     if (!$('portraitDialog').open) $('portraitDialog').showModal();
   }
 
+  function updateSpeakingUI() {
+    document.querySelectorAll('#messages .msg.is-speaking').forEach(el => {
+      el.classList.remove('is-speaking');
+      el.querySelector('.speaking-wave')?.remove();
+    });
+    if (!isSpeaking || !speakingMessageId) return;
+    const escaped = window.CSS && CSS.escape ? CSS.escape(speakingMessageId) : speakingMessageId.replace(/"/g, '\\"');
+    const activeEl = $('messages')?.querySelector('.msg[data-message-id="' + escaped + '"]');
+    if (!activeEl) return;
+    activeEl.classList.add('is-speaking');
+    const heading = activeEl.querySelector('.message-heading') || activeEl.querySelector('.narration-mark');
+    if (heading && !heading.querySelector('.speaking-wave')) {
+      const wave = node('span', 'speaking-wave');
+      wave.setAttribute('aria-hidden', 'true');
+      wave.append(node('i'), node('i'), node('i'));
+      const replayBtn = heading.querySelector('.msg-replay-btn');
+      if (replayBtn) heading.insertBefore(wave, replayBtn);
+      else heading.append(wave);
+    }
+  }
+
   function stopVoice() {
     audioSerial++;
     isSpeaking = false;
+    speakingMessageId = '';
+    if (activeStream) {
+      activeStream.dispose();
+      activeStream = null;
+    }
     VoiceClient.cancel('live');
     $('audio').pause();
     $('audio').onended = null;
     audioStatus = '';
+    updateSpeakingUI();
   }
 
   function unlock() {
@@ -536,44 +678,107 @@
     const serial = audioSerial;
     audioStatus = '合成语音中…';
     controls();
-    try {
-      let url = audioCache.get(id);
-      if (!url || !urls.has(url)) {
-        configPromise = configPromise || VoiceClient.requestJson('/api/config', { cache: 'no-store' }).catch(e => { configPromise = null; throw e; });
-        const config = await configPromise;
-        if (serial !== audioSerial || document.hidden) return;
-        const who = m.kind === 'dialogue' ? m.speaker : '旁白';
-        const cfg = config[who] || config['旁白'] || {};
-        const blob = await VoiceClient.requestAudio(VoiceClient.buildPayload(m.text, cfg, config.__settings__ || {}), { channel: 'live', maxBytes: 16 * 1024 * 1024 });
-        if (serial !== audioSerial || document.hidden) return;
-        url = urls.add(blob);
-        audioCache.set(id, url);
-        for (const [key, value] of audioCache) if (!urls.has(value)) audioCache.delete(key);
-      }
-      if (serial !== audioSerial || !cache.voice || document.hidden) return;
-      urls.pin(url);
-      $('audio').src = url;
-      await $('audio').play();
-      if (serial !== audioSerial) return;
-      isSpeaking = true;
-      audioStatus = '朗读中';
+    const bindEnded = () => {
       $('audio').onended = () => {
         if (serial === audioSerial) {
           isSpeaking = false;
+          speakingMessageId = '';
           audioStatus = '已播完';
+          updateSpeakingUI();
           controls();
         }
       };
+    };
+    const playBuffered = async payload => {
+      const blob = await VoiceClient.requestAudio(payload, { channel: 'live', maxBytes: 16 * 1024 * 1024 });
+      if (serial !== audioSerial || !cache.voice || document.hidden) return;
+      const blobUrl = urls.add(blob);
+      audioCache.set(id, blobUrl);
+      for (const [key, value] of audioCache) if (!urls.has(value)) audioCache.delete(key);
+      urls.pin(blobUrl);
+      $('audio').src = blobUrl;
+      bindEnded();
+      await $('audio').play();
+      if (serial !== audioSerial) return;
+      isSpeaking = true;
+      speakingMessageId = id;
+      audioStatus = '朗读中';
+      updateSpeakingUI();
+    };
+    try {
+      const cachedUrl = audioCache.get(id);
+      if (cachedUrl && urls.has(cachedUrl)) {
+        if (serial !== audioSerial || !cache.voice || document.hidden) return;
+        urls.pin(cachedUrl);
+        $('audio').src = cachedUrl;
+        bindEnded();
+        await $('audio').play();
+        if (serial !== audioSerial) return;
+        isSpeaking = true;
+        speakingMessageId = id;
+        audioStatus = '朗读中';
+        updateSpeakingUI();
+      } else {
+        configPromise = configPromise || VoiceClient.requestJson('/api/config', { cache: 'no-store' }).catch(e => { configPromise = null; throw e; });
+        const config = await configPromise;
+        if (serial !== audioSerial || !cache.voice || document.hidden) return;
+        const who = m.kind === 'dialogue' ? m.speaker : '旁白';
+        const cfg = config[who] || config['旁白'] || {};
+        const payload = VoiceClient.buildPayload(m.text, cfg, config.__settings__ || {});
+        let streamStarted = false;
+        const stream = await VoiceClient.requestStream(payload, {
+          channel: 'live',
+          onReady: () => {
+            if (serial !== audioSerial) return;
+            streamStarted = true;
+            isSpeaking = true;
+            speakingMessageId = id;
+            audioStatus = '流式朗读中';
+            updateSpeakingUI();
+            controls();
+          }
+        });
+        if (stream) {
+          if (serial !== audioSerial || !cache.voice || document.hidden) {
+            stream.dispose();
+            return;
+          }
+          activeStream = stream;
+          $('audio').src = stream.url;
+          bindEnded();
+          try {
+            await Promise.all([$('audio').play(), stream.done]);
+            if (serial === audioSerial && !streamStarted && !$('audio').paused) {
+              isSpeaking = true;
+              speakingMessageId = id;
+              audioStatus = '朗读中';
+              updateSpeakingUI();
+            }
+          } catch (streamErr) {
+            if (serial !== audioSerial) return;
+            if (activeStream === stream) { stream.dispose(); activeStream = null; }
+            if (!streamStarted && streamErr?.name !== 'AbortError' && streamErr?.name !== 'NotAllowedError') {
+              await playBuffered(payload);
+            } else {
+              throw streamErr;
+            }
+          }
+        } else {
+          await playBuffered(payload);
+        }
+      }
     } catch (e) {
       isSpeaking = false;
-      if (serial === audioSerial) {
-        audioStatus = e.name === 'NotAllowedError' ? '点“启用语音”继续听读' : '语音暂不可用';
+      speakingMessageId = '';
+      updateSpeakingUI();
+      if (serial === audioSerial && e?.name !== 'AbortError') {
+        audioStatus = e?.name === 'NotAllowedError' ? '点“启用语音”继续听读' : '语音暂不可用';
       }
     }
     controls();
   }
 
-  function entry(kind, speaker, text, id) {
+  function entry(kind, speaker, text, id, opts = {}) {
     const isPlayer = speaker === '徐志北';
     const el = node('article', 'msg ' + kind + (isPlayer ? ' player' : ''));
     el.dataset.messageId = id;
@@ -581,11 +786,13 @@
     el.setAttribute('aria-label', kind === 'narration' ? '旁白' : speaker + (kind === 'action' ? '的动作' : '的对白'));
 
     if (kind === 'narration') {
-      const mark = node('div', 'narration-mark');
-      const diamond = svgEl('svg', { viewBox: '0 0 12 12', class: 'narration-diamond', 'aria-hidden': 'true' });
-      diamond.append(svgEl('path', { d: 'M6 1 11 6 6 11 1 6Z', fill: 'currentColor' }));
-      mark.append(diamond, node('span', '', '旁白'), diamond.cloneNode(true));
-      el.append(mark);
+      if (opts.showNarrationMark !== false) {
+        const mark = node('div', 'narration-mark');
+        const diamond = svgEl('svg', { viewBox: '0 0 12 12', class: 'narration-diamond', 'aria-hidden': 'true' });
+        diamond.append(svgEl('path', { d: 'M6 1 11 6 6 11 1 6Z', fill: 'currentColor' }));
+        mark.append(diamond, node('span', '', '旁白'), diamond.cloneNode(true));
+        el.append(mark);
+      }
     } else if (kind === 'handoff') {
       const h = node('div', 'message-heading');
       h.append(icon('scroll', 'chip-svg'), node('span', '', speaker));
@@ -605,28 +812,50 @@
       const h = node('div', 'message-heading');
       h.append(node('span', '', speaker));
       if (kind === 'action') h.append(node('span', 'kind-label', '动作'));
+      if (!isPlayer && (kind === 'dialogue' || kind === 'action')) {
+        const replay = node('button', 'msg-replay-btn');
+        replay.type = 'button';
+        replay.setAttribute('aria-label', '重听本句语音');
+        replay.title = '重听语音';
+        replay.append(icon('volume', 'chip-svg'));
+        replay.onclick = e => {
+          e.stopPropagation();
+          haptic(8);
+          unlock();
+          cache.voice = true;
+          save();
+          void speak({ kind, speaker, text }, id);
+        };
+        h.append(replay);
+      }
       el.append(h);
     }
-    el.append(node('div', 'text', isPlayer ? text : text.replace(/\[[^\]\r\n]+\]/g, '')));
+    el.append(node('div', 'text', isPlayer ? text : stripVoiceTags(text)));
     return el;
   }
 
   function timeline(filter = 'all') {
     const out = [];
+    let prevKind = '';
     for (const t of history) {
       if (filter === 'all' && t.selection?.option_id !== 'BEGIN') {
         out.push(entry(t.input_kind === 'action' ? 'action' : 'dialogue', '徐志北', t.input, t.id + ':input'));
+        prevKind = 'player';
       }
       t.messages.forEach((m, i) => {
         if (filter === 'settlement') return;
         if (filter === 'dialogue' && m.kind !== 'dialogue') return;
-        out.push(entry(m.kind, m.speaker, m.text, t.id + ':' + i));
+        const showNarrationMark = m.kind !== 'narration' ? true : prevKind !== 'narration';
+        out.push(entry(m.kind, m.speaker, m.text, t.id + ':' + i, { showNarrationMark }));
+        prevKind = m.kind;
       });
       if (filter === 'all' && t.handoff) {
         out.push(entry('handoff', '待处理', t.handoff, t.id + ':handoff'));
+        prevKind = 'handoff';
       }
       if (t.settlement && (filter === 'settlement' || t.id !== snapshot?.playback?.segment_id)) {
         out.push(settlementCard(t.settlement, false));
+        prevKind = 'settlement';
       }
     }
     return out;
@@ -642,24 +871,99 @@
     return { icon: 'sparkle', cls: '' };
   }
 
-  function settlementCard(s, foldable = false) {
+  let svgGradUid = 0;
+
+  function buildSettlementMeterSvg(before, after, refunded) {
+    const b = Math.max(0, Math.min(100, Number(before) || 0));
+    const a = Math.max(0, Math.min(100, Number(after) || 0));
+    const ref = Math.max(0, Number(refunded) || 0);
+    const gid = 'settleMeterGrad-' + (++svgGradUid);
+    const svg = svgEl('svg', {
+      viewBox: '0 0 240 14',
+      class: 'settlement-svg-meter',
+      role: 'meter',
+      'aria-label': '结算后体力 ' + a + ' / 100',
+      'aria-valuemin': '0',
+      'aria-valuemax': '100',
+      'aria-valuenow': String(a)
+    });
+    const defs = svgEl('defs');
+    const grad = svgEl('linearGradient', { id: gid, x1: '0%', y1: '0%', x2: '100%', y2: '0%' });
+    grad.append(
+      svgEl('stop', { offset: '0%', 'stop-color': a < 20 ? '#d06161' : '#6db592' }),
+      svgEl('stop', { offset: '100%', 'stop-color': a < 20 ? '#a83c3c' : '#f2daa9' })
+    );
+    defs.append(grad);
+    svg.append(defs);
+
+    const w = 236, ox = 2, y = 4, h = 6;
+    svg.append(svgEl('rect', { x: ox, y, width: w, height: h, rx: 3, fill: 'var(--surface-3)' }));
+    if (b > a) {
+      svg.append(svgEl('rect', {
+        x: ox, y, width: ((b / 100) * w).toFixed(1), height: h, rx: 3,
+        fill: 'var(--gold)', 'fill-opacity': '0.2'
+      }));
+    }
+    svg.append(svgEl('rect', {
+      x: ox, y, width: Math.max(2, (a / 100) * w).toFixed(1), height: h, rx: 3,
+      fill: 'url(#' + gid + ')'
+    }));
+    if (ref > 0 && a > 0) {
+      const rw = Math.min(a, ref) / 100 * w;
+      const rx = Math.max(ox, ox + (a / 100) * w - rw);
+      svg.append(svgEl('rect', {
+        x: rx.toFixed(1), y, width: rw.toFixed(1), height: h, rx: 3,
+        fill: '#8be0b6', 'fill-opacity': '0.55'
+      }));
+    }
+    for (const tick of [25, 50, 75]) {
+      const tx = (ox + (tick / 100) * w).toFixed(1);
+      svg.append(svgEl('line', { x1: tx, y1: y, x2: tx, y2: y + h, stroke: 'var(--bg)', 'stroke-width': '1', 'stroke-opacity': '0.55' }));
+    }
+    const markerX = (ox + (a / 100) * w).toFixed(1);
+    svg.append(svgEl('circle', { cx: markerX, cy: y + h / 2, r: 3.4, fill: '#f6e2b8', stroke: 'var(--bg)', 'stroke-width': '1.2' }));
+    return svg;
+  }
+
+  function settlementCard(s, foldable = false, dismissKey = '') {
     const isFolded = foldable && settlementFolded;
     const box = node('section', 'settlement-card game-settlement' + (s.phase === 'resting' ? ' resting' : s.sleep_completed ? ' rested' : '') + (isFolded ? '' : ' is-expanded'));
-    const header = node('div', 'settlement-head');
-    const title = node('div', 'settlement-title');
+    const changes = s.changes || [];
+    const rewards = changes.filter(c => c.target !== '系统宿主' || c.attribute !== '体力');
+
+    const buildRewardPills = (cls, mini = false) => {
+      const wrap = node('div', cls);
+      rewards.slice(0, mini ? 3 : 6).forEach((c, idx) => {
+        const meta = rewardIconFor(c.attribute);
+        const tag = node('span', 'reward-pill ' + (mini ? 'is-mini ' : '') + (c.delta < 0 ? 'is-negative' : meta.cls));
+        if (!mini) tag.style.animationDelay = (idx * 55) + 'ms';
+        const who = c.target === '系统宿主' ? '' : c.target + ' ';
+        tag.append(icon(meta.icon), node('span', '', who + c.attribute + ' ' + (c.delta > 0 ? '+' : '') + c.delta));
+        wrap.append(tag);
+      });
+      return wrap;
+    };
+
+    const ribbon = node('div', 'settlement-ribbon');
+    const left = node('div', 'settlement-ribbon-left');
     const mark = node('span', 'reward-mark');
-    mark.append(icon(s.sleep_completed ? 'moon' : s.phase === 'resting' ? 'clock' : 'check'));
+    mark.append(icon(s.sleep_completed ? 'moon' : s.phase === 'resting' ? 'clock' : 'scales'));
 
-    const titleStack = node('div', 'settlement-title-stack');
-    titleStack.append(node('span', '', s.sleep_completed ? '安稳醒来 · 崭新晨光' : s.phase === 'resting' ? '本段收束 · 宜入眠休整' : '行动已结算'));
-    if (foldable) {
-      titleStack.append(node('span', 'settlement-quick-sub', '体力 ' + s.stamina_before + ' → ' + s.stamina_after + ' / 100'));
+    const shortTitle = s.sleep_completed ? '安稳醒来' : s.phase === 'resting' ? '体力已尽' : '已结算';
+    const badgeText = s.kind === 'item' ? '道具恢复' : s.kind === 'rest' ? '免费休息' : '-' + s.net_cost + '⚡';
+    left.append(mark, node('span', 'settlement-summary-title', shortTitle), node('span', 'settlement-badge', badgeText));
+
+    if (foldable && rewards.length) {
+      left.append(buildRewardPills('settlement-inline-pills', true));
+    } else if (foldable) {
+      const wrap = node('div', 'settlement-inline-pills');
+      const stChip = node('span', 'reward-pill is-mini');
+      stChip.append(icon('energy'), node('span', '', s.stamina_before + '→' + s.stamina_after));
+      wrap.append(stChip);
+      left.append(wrap);
     }
-    title.append(mark, titleStack);
 
-    const right = node('div', 'settlement-head-right');
-    right.append(node('span', 'settlement-badge', s.kind === 'item' ? '道具恢复' : s.kind === 'rest' ? '免费休息' : '-' + s.net_cost + ' 体力'));
-
+    const actions = node('div', 'settlement-actions');
     const body = node('div', 'settlement-body' + (isFolded ? ' is-folded' : ''));
     if (foldable) {
       const foldBtn = node('button', 'settlement-fold-btn', isFolded ? '明细 ▾' : '收起 ▴');
@@ -672,30 +976,20 @@
         foldBtn.textContent = settlementFolded ? '明细 ▾' : '收起 ▴';
         sizing();
       };
-      right.append(foldBtn);
+      const dismissBtn = node('button', 'settlement-dismiss-btn');
+      dismissBtn.type = 'button';
+      dismissBtn.setAttribute('aria-label', '关闭结算提示');
+      dismissBtn.append(icon('close', 'chip-svg'));
+      dismissBtn.onclick = () => {
+        haptic(6);
+        settlementDismissedId = dismissKey;
+        $('settlement').hidden = true;
+        sizing();
+      };
+      actions.append(foldBtn, dismissBtn);
     }
-
-    header.append(title, right);
-    box.append(header);
-
-    const changes = s.changes || [];
-    const rewards = changes.filter(c => c.target !== '系统宿主' || c.attribute !== '体力');
-    const buildRewardPills = cls => {
-      const wrap = node('div', cls);
-      rewards.slice(0, 5).forEach((c, idx) => {
-        const meta = rewardIconFor(c.attribute);
-        const tag = node('span', 'reward-pill ' + (c.delta < 0 ? 'is-negative' : meta.cls));
-        tag.style.animationDelay = (idx * 55) + 'ms';
-        const who = c.target === '系统宿主' ? '' : c.target + ' ';
-        tag.append(icon(meta.icon), node('span', '', who + c.attribute + ' ' + (c.delta > 0 ? '+' : '') + c.delta));
-        wrap.append(tag);
-      });
-      return wrap;
-    };
-
-    if (foldable && rewards.length) {
-      box.append(buildRewardPills('settlement-compact-rewards'));
-    }
+    ribbon.append(left, actions);
+    box.append(ribbon);
 
     const balance = node('div', 'balance-line');
     const label = node('span', '');
@@ -703,16 +997,7 @@
     balance.append(label, node('strong', '', s.stamina_before + ' → ' + s.stamina_after), node('span', 'balance-cap', '/ 100'));
     body.append(balance);
 
-    const meter = node('div', 'stamina-meter');
-    meter.setAttribute('role', 'meter');
-    meter.setAttribute('aria-label', '结算后体力');
-    meter.setAttribute('aria-valuemin', '0');
-    meter.setAttribute('aria-valuemax', '100');
-    meter.setAttribute('aria-valuenow', String(s.stamina_after));
-    const fill = node('span', 'stamina-fill');
-    fill.style.setProperty('--balance', Math.max(0, Math.min(100, s.stamina_after)) + '%');
-    meter.append(fill);
-    body.append(meter);
+    body.append(buildSettlementMeterSvg(s.stamina_before, s.stamina_after, s.refunded));
 
     const fees = node('div', 'fee-line');
     for (const [key, value] of [['暂扣', s.reserved], ['返还', s.refunded], ['实耗', s.net_cost]]) {
@@ -723,7 +1008,7 @@
     body.append(fees);
 
     if (rewards.length) {
-      body.append(buildRewardPills('reward-list'));
+      body.append(buildRewardPills('reward-list', false));
     }
 
     if (s.item) {
@@ -760,21 +1045,44 @@
     const box = $('settlement');
     const refund = snapshot?.task?.refund;
     const s = refund ? null : snapshot?.settlement;
-    box.hidden = !s && !refund;
     const key = s?.request_id || (refund ? snapshot.task.request_id + ':refund' : '');
-    if (box.dataset.id === key) return;
+    if (!key) {
+      box.hidden = true;
+      box.dataset.id = '';
+      box.replaceChildren();
+      return;
+    }
+    if (box.dataset.id === key) {
+      box.hidden = settlementDismissedId === key;
+      return;
+    }
     box.dataset.id = key;
+    settlementDismissedId = '';
     settlementFolded = true;
+    box.hidden = false;
     box.replaceChildren();
     if (s) {
-      box.append(settlementCard(s, true));
+      box.append(settlementCard(s, true, key));
     } else if (refund) {
       const card = node('section', 'settlement-card game-settlement returned');
-      const title = node('div', 'settlement-title');
+      const ribbon = node('div', 'settlement-ribbon');
+      const left = node('div', 'settlement-ribbon-left');
       const mark = node('span', 'reward-mark');
       mark.append(icon('refund'));
-      title.append(mark, node('strong', '', '预扣体力已全额返还'));
-      card.append(title, node('p', 'round-receipt', '已返还 +' + refund.amount + ' 体力'), node('p', 'muted', refund.reason));
+      left.append(mark, node('span', 'settlement-summary-title', '预扣已返还'), node('span', 'settlement-badge', '+' + refund.amount + '⚡'));
+      if (refund.reason) left.append(node('span', 'muted', refund.reason));
+      const dismissBtn = node('button', 'settlement-dismiss-btn');
+      dismissBtn.type = 'button';
+      dismissBtn.setAttribute('aria-label', '关闭返还提示');
+      dismissBtn.append(icon('close', 'chip-svg'));
+      dismissBtn.onclick = () => {
+        haptic(6);
+        settlementDismissedId = key;
+        box.hidden = true;
+        sizing();
+      };
+      ribbon.append(left, dismissBtn);
+      card.append(ribbon);
       box.append(card);
     }
   }
@@ -947,6 +1255,15 @@
       occupants[info.location].push(who);
     }
 
+    const nodeGlyphPath = loc => {
+      if (loc.includes('主宅')) return 'M-4.5 0 L0 -4.2 L4.5 0 M-3 0v3.8h6V0';
+      if (loc.includes('公寓')) return 'M-3 4V-2.4L0 -5L3 -2.4V4M-1 1h2';
+      if (loc.includes('公司')) return 'M-4.2 4V-3.6h3.2V4M1 4V-1.4h3.2V4';
+      if (loc.includes('大学')) return 'M-4.5 -1.4L0 -4.5L4.5 -1.4M-3 -1.4v5M0 -1.4v5M3 -1.4v5M-4.5 3.6h9';
+      if (loc.includes('工作室')) return 'M-3.4 -3.4h6.8v4.8h-6.8ZM-2 1.4L-3.4 4.4M2 1.4L3.4 4.4';
+      return 'M0 -3.2L3.2 0L0 3.2L-3.2 0Z';
+    };
+
     for (const loc of locations) {
       const pos = coords[loc];
       if (!pos) continue;
@@ -959,26 +1276,27 @@
         'aria-label': loc + (isHere ? '（当前所在）' : '')
       });
       if (isHere) {
-        const ring = svgEl('circle', { cx: pos.x, cy: pos.y, r: 10, class: 'map-beacon-ring', opacity: '0.65' });
+        const ring = svgEl('circle', { cx: pos.x, cy: pos.y, r: 12, class: 'map-beacon-ring', opacity: '0.65' });
         if (!reducedMotion()) {
           ring.append(
-            svgEl('animate', { attributeName: 'r', values: '9;22', dur: '2.4s', repeatCount: 'indefinite' }),
+            svgEl('animate', { attributeName: 'r', values: '12;25', dur: '2.4s', repeatCount: 'indefinite' }),
             svgEl('animate', { attributeName: 'opacity', values: '0.85;0', dur: '2.4s', repeatCount: 'indefinite' })
           );
         }
         g.append(ring);
       }
       g.append(
-        svgEl('circle', { cx: pos.x, cy: pos.y, r: 24, class: 'map-node-hit' }),
-        svgEl('circle', { cx: pos.x, cy: pos.y, r: isHere || isSel ? 9 : 7, class: 'map-node-dot' })
+        svgEl('circle', { cx: pos.x, cy: pos.y, r: 25, class: 'map-node-hit' }),
+        svgEl('circle', { cx: pos.x, cy: pos.y, r: isHere || isSel ? 12 : 10.5, class: 'map-node-dot' }),
+        svgEl('path', { d: nodeGlyphPath(loc), transform: `translate(${pos.x}, ${pos.y})`, class: 'map-node-glyph' })
       );
-      const label = svgEl('text', { x: pos.x, y: pos.y + 22, class: 'map-node-label' });
+      const label = svgEl('text', { x: pos.x, y: pos.y + 25, class: 'map-node-label' });
       label.textContent = pos.short || loc;
       g.append(label);
 
       const whoList = (occupants[loc] || []).filter(n => n !== '徐志北');
       if (whoList.length) {
-        const sub = svgEl('text', { x: pos.x, y: pos.y - 14, class: 'map-node-count' });
+        const sub = svgEl('text', { x: pos.x, y: pos.y - 16, class: 'map-node-count' });
         sub.textContent = whoList.join(' · ');
         g.append(sub);
       }
@@ -1659,10 +1977,13 @@
     $('sceneTitle').textContent = w?.location || '正在回到现场';
     $('sceneMeta').textContent = w ? (w.cast.length ? w.cast.join(' · ') + ' 在场' : '此刻独处') : '读取存档中…';
     $('revision').textContent = w ? w.interaction.count + ' 段已存剧情' : '';
+    renderSceneVector(w?.location || '');
 
-    // Dock notification dots
+    // Dock & Topbar notification dots
+    const hasBagNotice = !!(w?.tasks?.current || w?.items?.length > 0);
     if ($('dockRosterDot')) $('dockRosterDot').hidden = !(w?.cast?.length > 0);
-    if ($('dockBagDot')) $('dockBagDot').hidden = !(w?.tasks?.current || w?.items?.length > 0);
+    if ($('dockBagDot')) $('dockBagDot').hidden = !hasBagNotice;
+    if ($('hudMenuDot')) $('hudMenuDot').hidden = !hasBagNotice;
 
     const sig = cache.epoch + ':' + history.map(t => t.id + ':' + t.messages.length + ':' + (t.handoff || '') + ':' + !!t.settlement).join('|');
     if (sig !== signature) {
@@ -1674,6 +1995,7 @@
       $('messages').replaceChildren(...nodes);
       $('messageCount').textContent = String(nodes.length);
       lastSpeaker = history.flatMap(t => t.messages).filter(m => m.speaker).at(-1)?.speaker || '';
+      updateSpeakingUI();
       if (near) latest();
       else {
         stream.scrollTop = top;
@@ -1685,10 +2007,11 @@
     $('older').hidden = !hasOlder;
     $('empty').hidden = !!p?.segment_id;
 
-    // Cast Medallion Dock
+    // Desktop Side Cast Medallions + Inline Mobile Top HUD Portraits
     const names = w?.cast || [];
-    if ($('cast').dataset.names !== names.join('|')) {
-      $('cast').dataset.names = names.join('|');
+    const namesKey = names.join('|');
+    if ($('cast').dataset.names !== namesKey) {
+      $('cast').dataset.names = namesKey;
       $('cast').replaceChildren(...names.map(name => {
         const b = node('button', 'person-button');
         b.type = 'button';
@@ -1717,12 +2040,42 @@
       b.setAttribute('aria-current', String(b.dataset.name === lastSpeaker));
     });
 
+    const hudCast = $('hudCast');
+    if (hudCast) {
+      if (hudCast.dataset.names !== namesKey) {
+        hudCast.dataset.names = namesKey;
+        hudCast.replaceChildren(...names.map(name => {
+          const b = node('button', 'hud-cast-btn');
+          b.type = 'button';
+          b.dataset.name = name;
+          b.setAttribute('aria-label', '查看' + name + '立绘');
+          b.title = name;
+          const im = node('img');
+          im.src = image(name, 'into.png');
+          im.alt = name;
+          im.decoding = 'async';
+          const orbit = svgEl('svg', { viewBox: '0 0 36 36', class: 'hud-cast-orbit', 'aria-hidden': 'true' });
+          orbit.append(svgEl('circle', {
+            cx: 18, cy: 18, r: 16.2, fill: 'none', stroke: 'currentColor',
+            'stroke-width': '1.15', 'stroke-dasharray': '4 4'
+          }));
+          b.append(im, orbit);
+          b.onclick = () => { haptic(10); showPortrait(name); };
+          return b;
+        }));
+      }
+      hudCast.querySelectorAll('button').forEach(b => {
+        b.setAttribute('aria-current', String(b.dataset.name === lastSpeaker));
+      });
+    }
+
     updateBackdrop();
 
     // Decision Choice Cards
     const turn = current(), decision = turn?.decision, decisionKey = p?.completed ? turn?.id : '';
     if ($('choices').dataset.key !== decisionKey) {
       $('choices').dataset.key = decisionKey || '';
+      deckCollapsed = false;
       $('choices').replaceChildren();
       if (decision) {
         $('decisionPrompt').textContent = decision.prompt;
@@ -1917,7 +2270,6 @@
       entry_mode: 'live_interaction',
       action: text,
       selection: selected,
-      ...(snapshot.bridge_model ? { model_key: snapshot.bridge_model.key } : {}),
       ...(op ? { operation: op } : {})
     };
     if (optionId === 'CUSTOM' && !op) cache.draft = '';
@@ -1969,8 +2321,26 @@
     };
   });
 
-  $('dockHistoryBtn').onclick = () => { haptic(8); renderHistoryDialog(); $('historyDialog').showModal(); };
-  $('history').onclick = () => { haptic(8); renderHistoryDialog(); $('historyDialog').showModal(); };
+  const openHistorySheet = () => { haptic(8); renderHistoryDialog(); $('historyDialog').showModal(); };
+  $('dockHistoryBtn').onclick = openHistorySheet;
+  $('history').onclick = openHistorySheet;
+  if ($('playbackHistoryBtn')) $('playbackHistoryBtn').onclick = openHistorySheet;
+  if ($('deckToggleBtn')) {
+    $('deckToggleBtn').onclick = () => {
+      haptic(8);
+      deckCollapsed = true;
+      controls();
+      sizing();
+    };
+  }
+  if ($('deckCollapsedBar')) {
+    $('deckCollapsedBar').onclick = () => {
+      haptic(8);
+      deckCollapsed = false;
+      controls();
+      sizing();
+    };
+  }
   document.querySelectorAll('#historyFilters .filter-pill').forEach(btn => {
     btn.onclick = () => {
       haptic(6);
@@ -2061,7 +2431,7 @@
     haptic(12);
     posting = true;
     controls();
-    try { await api('tasks/' + encodeURIComponent(snapshot.task.request_id) + '/retry', snapshot.bridge_model ? { model_key: snapshot.bridge_model.key } : {}); }
+    try { await api('tasks/' + encodeURIComponent(snapshot.task.request_id) + '/retry', {}); }
     catch (e) { error = e.message; }
     finally { posting = false; await restore(); }
   };
@@ -2203,9 +2573,16 @@
   });
 
   function sizing() {
-    document.documentElement.style.setProperty('--bottom', Math.ceil($('composer').getBoundingClientRect().height) + 'px');
+    const compH = $('composer') ? Math.ceil($('composer').getBoundingClientRect().height) : 0;
+    const setEl = $('settlement');
+    const setH = setEl && !setEl.hidden ? Math.ceil(setEl.getBoundingClientRect().height) : 0;
+    document.documentElement.style.setProperty('--bottom', (compH + setH) + 'px');
   }
-  if (window.ResizeObserver) new ResizeObserver(sizing).observe($('composer'));
+  if (window.ResizeObserver) {
+    const ro = new ResizeObserver(sizing);
+    ro.observe($('composer'));
+    if ($('settlement')) ro.observe($('settlement'));
+  }
 
   function viewport() {
     const v = window.visualViewport;

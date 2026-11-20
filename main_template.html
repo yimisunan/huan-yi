@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="noir" data-time-of-day="day" data-font="normal">
+<html lang="zh-CN" data-theme="noir" data-time-of-day="day" data-font="normal" data-location="">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
-  <meta name="theme-color" content="#0f0d0b">
+  <meta name="theme-color" content="#0c0a09">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="description" content="深渊天平 · 沉浸式互动剧情演播">
@@ -12,49 +12,51 @@
   <script defer src="/voice_client.js"></script>
   <script defer src="/story_client.js"></script>
 </head>
-<body>
-  <!-- Dynamic Ambient Atmosphere Stage -->
+<body class="mode-empty">
+  <!-- Dynamic-Static Ambient Atmosphere Stage (动静结合氛围幕景) -->
   <div class="ambient-stage" id="ambientStage" aria-hidden="true">
     <img id="stageBackdrop" class="stage-backdrop" alt="" decoding="async">
     <div class="ambient-vignette"></div>
+    <!-- Location-Reactive Architectural Linework SVG -->
+    <div id="sceneVectorLayer" class="scene-vector-layer"></div>
+    <!-- Subtle Floating Dust & Light Motes -->
     <svg class="ambient-particles" viewBox="0 0 400 800" preserveAspectRatio="xMidYMid slice" focusable="false">
       <defs>
-        <radialGradient id="ambientGlow" cx="50%" cy="18%" r="60%">
-          <stop offset="0%" stop-color="var(--aura-color)" stop-opacity="0.22"/>
-          <stop offset="65%" stop-color="var(--aura-color)" stop-opacity="0.04"/>
+        <radialGradient id="ambientGlow" cx="50%" cy="14%" r="58%">
+          <stop offset="0%" stop-color="var(--aura-color)" stop-opacity="0.18"/>
+          <stop offset="62%" stop-color="var(--aura-color)" stop-opacity="0.03"/>
           <stop offset="100%" stop-color="var(--aura-color)" stop-opacity="0"/>
         </radialGradient>
         <radialGradient id="moteGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="#f6dfae" stop-opacity="0.9"/>
+          <stop offset="0%" stop-color="#f6e0b3" stop-opacity="0.85"/>
           <stop offset="100%" stop-color="#d4b27a" stop-opacity="0"/>
         </radialGradient>
       </defs>
       <rect width="400" height="800" fill="url(#ambientGlow)"/>
       <g class="motes">
-        <circle class="mote m1" cx="68" cy="180" r="2.2" fill="url(#moteGlow)"/>
-        <circle class="mote m2" cx="318" cy="130" r="1.8" fill="url(#moteGlow)"/>
-        <circle class="mote m3" cx="240" cy="340" r="2.5" fill="url(#moteGlow)"/>
-        <circle class="mote m4" cx="95" cy="520" r="1.6" fill="url(#moteGlow)"/>
-        <circle class="mote m5" cx="332" cy="480" r="2.1" fill="url(#moteGlow)"/>
-        <circle class="mote m6" cx="185" cy="660" r="1.9" fill="url(#moteGlow)"/>
+        <circle class="mote m1" cx="62" cy="172" r="1.9" fill="url(#moteGlow)"/>
+        <circle class="mote m2" cx="328" cy="146" r="1.5" fill="url(#moteGlow)"/>
+        <circle class="mote m3" cx="238" cy="360" r="2.0" fill="url(#moteGlow)"/>
+        <circle class="mote m4" cx="88" cy="540" r="1.4" fill="url(#moteGlow)"/>
+        <circle class="mote m5" cx="336" cy="510" r="1.7" fill="url(#moteGlow)"/>
       </g>
     </svg>
   </div>
   <div id="tapRippleLayer" class="tap-ripple-layer" aria-hidden="true"></div>
 
-  <!-- Top Luxury Game HUD -->
+  <!-- Ultra-Slim Unified Top HUD (46px · Replaces Heavy Dual Mobile Headers) -->
   <header class="topbar" id="topbar">
     <div class="hud-left">
-      <button id="sceneLocationBtn" class="location-pill" type="button" aria-label="查看当前地点与城市地图">
+      <button id="sceneLocationBtn" class="location-trigger" type="button" aria-label="查看当前地点与城市地图">
         <span class="scales-badge" id="scaleEmblem" aria-hidden="true">
-          <svg viewBox="0 0 36 36" class="scales-svg" focusable="false">
-            <circle cx="18" cy="18" r="16" fill="none" stroke="currentColor" stroke-opacity="0.22" stroke-width="1"/>
-            <path d="M18 7v19M13.5 26h9" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
+          <svg viewBox="0 0 32 32" class="scales-svg" focusable="false">
+            <circle cx="16" cy="16" r="14.2" fill="none" stroke="currentColor" stroke-opacity="0.22" stroke-width="0.9"/>
+            <path d="M16 6.5v17M12 23.5h8" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
             <g class="scales-beam">
-              <path d="M9 12.5h18" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
-              <path d="M9 12.5 6.5 18.5h5L9 12.5Zm18 0-2.5 6h5L27 12.5Z" fill="currentColor" fill-opacity="0.18" stroke="currentColor" stroke-width="1.15" stroke-linejoin="round"/>
+              <path d="M8 11.5h16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+              <path d="M8 11.5 5.8 16.8h4.4L8 11.5Zm16 0-2.2 5.3h4.4L24 11.5Z" fill="currentColor" fill-opacity="0.16" stroke="currentColor" stroke-width="1.05" stroke-linejoin="round"/>
             </g>
-            <circle cx="18" cy="12.5" r="1.6" fill="currentColor"/>
+            <circle cx="16" cy="11.5" r="1.5" fill="currentColor"/>
           </svg>
         </span>
         <span class="location-text">
@@ -68,18 +70,21 @@
     </div>
 
     <div class="hud-right">
-      <button id="staminaHud" class="stamina-pill" type="button" aria-label="查看主角体力与属性">
+      <!-- Inline Mobile Present Cast Portraits (Tap to Open Full Portrait Viewer) -->
+      <div id="hudCast" class="hud-cast" aria-label="当前在场人物"></div>
+
+      <!-- Compact Stamina Ring (Value Inside SVG Ring) -->
+      <button id="staminaHud" class="stamina-ring-btn" type="button" aria-label="查看主角体力与属性">
         <svg viewBox="0 0 36 36" class="hud-ring" aria-hidden="true" focusable="false">
           <circle class="hud-ring-track" cx="18" cy="18" r="14"/>
           <circle id="hudStaminaHold" class="hud-ring-hold" cx="18" cy="18" r="14" stroke-dasharray="87.96" stroke-dashoffset="87.96"/>
           <circle id="hudStaminaFill" class="hud-ring-fill" cx="18" cy="18" r="14" stroke-dasharray="87.96" stroke-dashoffset="0"/>
         </svg>
-        <span class="stamina-pill-meta">
-          <strong id="hudStaminaVal">--</strong>
-          <small id="hudStaminaTag">体力</small>
-        </span>
+        <strong id="hudStaminaVal" class="ring-num">--</strong>
+        <span id="hudStaminaTag" class="sr-only">体力</span>
       </button>
 
+      <!-- Voice Equalizer Toggle -->
       <button id="hudVoiceBtn" class="hud-icon-btn" type="button" aria-label="语音开关" aria-pressed="true">
         <svg id="hudVoiceWave" viewBox="0 0 24 24" class="voice-eq-svg" aria-hidden="true" focusable="false">
           <rect class="eq-bar b1" x="4" y="10" width="2.2" height="4" rx="1.1"/>
@@ -90,20 +95,20 @@
         </svg>
       </button>
 
-      <button id="settingsBtn" class="hud-icon-btn" type="button" aria-label="系统与设定">
+      <!-- Unified Game Hub & System Trigger -->
+      <button id="settingsBtn" class="hud-icon-btn" type="button" aria-label="档案与系统设定">
         <svg viewBox="0 0 24 24" class="hud-svg" aria-hidden="true" focusable="false">
-          <path d="M4 7h9m4 0h3M4 12h3m4 0h9M4 17h11m4 0h1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
-          <circle cx="15" cy="7" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/>
-          <circle cx="9" cy="12" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/>
-          <circle cx="17" cy="17" r="2" fill="none" stroke="currentColor" stroke-width="1.6"/>
+          <path d="M5 7.5h14M5 12h14M5 16.5h9" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round"/>
+          <circle cx="18" cy="16.5" r="1.5" fill="currentColor"/>
         </svg>
+        <i id="hudMenuDot" class="hud-menu-dot" hidden></i>
       </button>
     </div>
   </header>
 
   <!-- Main Stage Container -->
   <div class="layout">
-    <!-- Presence Dock (Mobile Ribbon / Desktop Side Stage) -->
+    <!-- Desktop Editorial Side Stage (Hidden on Mobile < 860px to Free Story Viewport) -->
     <aside class="scene-info" aria-label="当前在场人物与场景">
       <div class="desktop-brand">
         <a class="brand" href="/">
@@ -112,7 +117,7 @@
         </a>
         <div class="desktop-quick-actions">
           <button id="world" type="button" class="side-action-btn">档案中心</button>
-          <button id="actions" type="button" class="side-action-btn">出行与赠礼</button>
+          <button id="actions" type="button" class="side-action-btn">出行赠礼</button>
           <button id="refresh" type="button" class="side-action-btn">同步</button>
         </div>
       </div>
@@ -128,7 +133,7 @@
             <path d="M5 4.5h11a3 3 0 0 1 3 3V20H8a3 3 0 0 0-3 3V4.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
             <path d="M9 9h6M9 13h5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
           </svg>
-          <span>回溯</span>
+          <span>剧场手记</span>
           <b id="messageCount">0</b>
         </button>
       </div>
@@ -138,57 +143,62 @@
         <p class="scope-note" id="policyNote">A 5 · B 10 · C 15 体力</p>
         <div class="scene-links">
           <button id="connection" type="button" class="text-link-btn">桥接状态</button>
-          <a href="/admin" target="_blank" rel="noopener" class="text-link-btn">语音工坊</a>
+          <a href="/admin" target="_blank" rel="noopener" class="text-link-btn">声学工坊</a>
         </div>
       </div>
     </aside>
 
-    <!-- Story Reading Stage -->
+    <!-- Pure Unobstructed Story Reading Stage -->
     <main id="stream" tabindex="0" aria-label="轻触阅读现场剧情">
       <button id="older" type="button" class="older-pill" hidden>
         <svg viewBox="0 0 24 24" class="chip-svg" aria-hidden="true"><path d="M12 19V5m-5 5 5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>回溯更早剧情</span>
       </button>
 
+      <!-- Hand-Crafted SVG Abyss Astrolabe Scales Empty/Resume Stage -->
       <div id="empty" class="empty-stage">
         <div class="hero-crest" aria-hidden="true">
-          <svg viewBox="0 0 160 160" class="hero-scales-svg" focusable="false">
+          <svg viewBox="0 0 180 180" class="hero-scales-svg" focusable="false">
             <defs>
               <linearGradient id="goldStroke" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#f4ddb0"/>
-                <stop offset="50%" stop-color="#cfa563"/>
-                <stop offset="100%" stop-color="#8c6735"/>
+                <stop offset="0%" stop-color="#f6e2b8"/>
+                <stop offset="50%" stop-color="#d4ad6b"/>
+                <stop offset="100%" stop-color="#876332"/>
               </linearGradient>
               <radialGradient id="crestAura" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stop-color="#d4b27a" stop-opacity="0.22"/>
-                <stop offset="70%" stop-color="#d4b27a" stop-opacity="0.04"/>
-                <stop offset="100%" stop-color="#d4b27a" stop-opacity="0"/>
+                <stop offset="0%" stop-color="#d8b476" stop-opacity="0.22"/>
+                <stop offset="68%" stop-color="#d8b476" stop-opacity="0.04"/>
+                <stop offset="100%" stop-color="#d8b476" stop-opacity="0"/>
               </radialGradient>
             </defs>
-            <circle cx="80" cy="80" r="76" fill="url(#crestAura)"/>
-            <circle class="orbit-ring" cx="80" cy="80" r="64" fill="none" stroke="url(#goldStroke)" stroke-opacity="0.28" stroke-width="1" stroke-dasharray="3 6"/>
-            <circle cx="80" cy="80" r="52" fill="none" stroke="url(#goldStroke)" stroke-opacity="0.45" stroke-width="0.9"/>
-            <path d="M80 28v96M58 124h44M66 130h28" fill="none" stroke="url(#goldStroke)" stroke-width="1.8" stroke-linecap="round"/>
-            <path d="M80 20 84 26 80 32 76 26Z" fill="url(#goldStroke)"/>
+            <circle cx="90" cy="90" r="84" fill="url(#crestAura)"/>
+            <circle class="orbit-ring" cx="90" cy="90" r="74" fill="none" stroke="url(#goldStroke)" stroke-opacity="0.28" stroke-width="0.9" stroke-dasharray="2 7"/>
+            <circle class="orbit-ring-rev" cx="90" cy="90" r="62" fill="none" stroke="url(#goldStroke)" stroke-opacity="0.42" stroke-width="0.85" stroke-dasharray="18 10 3 10"/>
+            <!-- Cardinal Diamond Ticks -->
+            <path d="M90 12 93 17 90 22 87 17ZM90 158 93 163 90 168 87 163ZM12 90 17 87 22 90 17 93ZM158 90 163 87 168 90 163 93Z" fill="url(#goldStroke)" fill-opacity="0.72"/>
+            <!-- Pedestal & Pillar -->
+            <path d="M90 34v102M64 136h52M73 142h34" fill="none" stroke="url(#goldStroke)" stroke-width="1.7" stroke-linecap="round"/>
+            <path d="M90 25 94.5 31 90 37 85.5 31Z" fill="url(#goldStroke)"/>
+            <!-- Animated Balance Beam & Twin Pans -->
             <g class="hero-scales-beam">
-              <path d="M36 52h88" fill="none" stroke="url(#goldStroke)" stroke-width="1.8" stroke-linecap="round"/>
-              <circle cx="36" cy="52" r="2.2" fill="#f4ddb0"/>
-              <circle cx="124" cy="52" r="2.2" fill="#f4ddb0"/>
+              <path d="M40 58h100" fill="none" stroke="url(#goldStroke)" stroke-width="1.75" stroke-linecap="round"/>
+              <circle cx="40" cy="58" r="2.3" fill="#f6e2b8"/>
+              <circle cx="140" cy="58" r="2.3" fill="#f6e2b8"/>
               <g class="pan-left">
-                <path d="M36 52 24 84h24L36 52Z" fill="none" stroke="url(#goldStroke)" stroke-width="1.2" stroke-opacity="0.8"/>
-                <path d="M21 84c3 9 27 9 30 0Z" fill="url(#goldStroke)" fill-opacity="0.24" stroke="url(#goldStroke)" stroke-width="1.4"/>
+                <path d="M40 58 27 94h26L40 58Z" fill="none" stroke="url(#goldStroke)" stroke-width="1.1" stroke-opacity="0.8"/>
+                <path d="M24 94c4 10 28 10 32 0Z" fill="url(#goldStroke)" fill-opacity="0.22" stroke="url(#goldStroke)" stroke-width="1.35"/>
               </g>
               <g class="pan-right">
-                <path d="M124 52 112 84h24L124 52Z" fill="none" stroke="url(#goldStroke)" stroke-width="1.2" stroke-opacity="0.8"/>
-                <path d="M109 84c3 9 27 9 30 0Z" fill="url(#goldStroke)" fill-opacity="0.24" stroke="url(#goldStroke)" stroke-width="1.4"/>
+                <path d="M140 58 127 94h26L140 58Z" fill="none" stroke="url(#goldStroke)" stroke-width="1.1" stroke-opacity="0.8"/>
+                <path d="M124 94c4 10 28 10 32 0Z" fill="url(#goldStroke)" fill-opacity="0.22" stroke="url(#goldStroke)" stroke-width="1.35"/>
               </g>
             </g>
-            <circle cx="80" cy="52" r="4" fill="#171310" stroke="url(#goldStroke)" stroke-width="1.8"/>
+            <circle cx="90" cy="58" r="4.2" fill="#120f0c" stroke="url(#goldStroke)" stroke-width="1.7"/>
           </svg>
         </div>
         <span class="eyebrow">承接此刻存档</span>
         <h2>幕启 · 故事从此刻继续</h2>
-        <p>轻触屏幕逐句沉浸演播，在落幕之际亲手落下你的抉择。</p>
+        <p>轻触画面逐句演播，读完本段后落下你的抉择。</p>
         <button id="begin" type="button" class="cta-gold">继续当前剧情</button>
       </div>
 
@@ -196,24 +206,30 @@
       <div class="stream-spacer" aria-hidden="true"></div>
     </main>
 
-    <!-- Tactile Bottom Interaction Deck -->
+    <!-- Non-Blocking Floating Settlement Ribbon / Expandable SVG Ledger -->
+    <section id="settlement" class="settlement-float" aria-label="本次结算" aria-live="polite" hidden></section>
+
+    <!-- Contextual Minimal Bottom Deck -->
     <footer id="composer">
-      <!-- Status / Thinking / Pending / Recovery Strip -->
       <div class="composer-inner">
-        <div id="statusWrap" class="status-strip">
+        <!-- Smart Contextual Status Pill (Auto-Hidden When Calmly Reading) -->
+        <div id="statusWrap" class="status-strip" hidden>
           <span id="statusSpinner" class="thinking-scales" hidden aria-hidden="true">
-            <svg viewBox="0 0 24 24" class="mini-spin-svg" focusable="false">
-              <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-opacity="0.2" stroke-width="1.8"/>
-              <path d="M12 3a9 9 0 0 1 9 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+            <svg viewBox="0 0 24 24" class="mini-scale-spin" focusable="false">
+              <path d="M12 4v15M8.5 19h7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+              <g class="mini-beam">
+                <path d="M5 9h14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                <path d="M5 9 3.5 13.5h3L5 9Zm14 0-1.5 4.5h3L19 9Z" fill="currentColor" fill-opacity="0.25" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>
+              </g>
             </svg>
           </span>
           <span id="status" role="status" aria-live="polite">正在连接本地剧场服务……</span>
           <button id="replayVoice" type="button" class="mini-pill-btn" hidden>重听</button>
-          <button id="cancelTask" type="button" class="pill-danger-sm" hidden>取消并退还</button>
+          <button id="cancelTask" type="button" class="pill-danger-sm" hidden>取消退还</button>
         </div>
 
         <div id="pending" class="pending-banner" hidden></div>
-        <p id="resourceStatus" class="resource-whisper" role="status"></p>
+        <p id="resourceStatus" class="resource-whisper" role="status" hidden></p>
 
         <div id="recoveryBox" class="recovery" hidden>
           <button id="checkPending" type="button" hidden>查询原消息</button>
@@ -221,9 +237,6 @@
           <button id="editPending" type="button" hidden>放回输入框</button>
           <button id="retry" type="button" hidden>重试本次推演</button>
         </div>
-
-        <!-- Settlement Ceremony Container -->
-        <section id="settlement" aria-label="本次结算" aria-live="polite" hidden></section>
 
         <!-- Forced Rest Ceremony Card -->
         <div id="restCard" class="rest-card" hidden>
@@ -239,36 +252,52 @@
           <button id="rest" type="button" class="cta-gold full-btn" hidden>继续休息 · 免费</button>
         </div>
 
-        <!-- Visual Novel Playback Bar -->
+        <!-- Whisper-Thin Single-Row Visual Novel Playback Bar (48px) -->
         <div id="playbackBar" class="playback-dock" hidden>
-          <div class="playback-top">
-            <div class="playback-progress-wrap">
-              <div id="playbackPips" class="playback-pips" aria-hidden="true"></div>
-              <span id="playbackCount" class="playback-count"></span>
-            </div>
-            <div class="voice-tools">
-              <span id="audioStatus" class="audio-status" role="status"></span>
-              <button id="voiceToggle" type="button" class="mini-pill-btn" aria-pressed="true">语音开</button>
-            </div>
+          <div class="playback-progress-meta">
+            <div id="playbackPips" class="playback-pips" aria-hidden="true"></div>
+            <span id="playbackCount" class="playback-count"></span>
+            <span id="audioStatus" class="audio-status" role="status"></span>
           </div>
-          <button id="advance" type="button" class="advance-btn">
-            <span id="advanceLabel">开始演播</span>
-            <svg viewBox="0 0 24 24" class="advance-chevron" aria-hidden="true"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          </button>
+          <div class="playback-main-row">
+            <button id="playbackHistoryBtn" type="button" class="playback-util-btn" aria-label="已读剧情回溯" title="回溯">
+              <svg viewBox="0 0 24 24" class="chip-svg" aria-hidden="true"><path d="M6 4h10a2.5 2.5 0 0 1 2.5 2.5V20H8a2.5 2.5 0 0 0-2 1V4Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9.5 8.5h5.5m-5.5 4h4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            </button>
+            <button id="advance" type="button" class="advance-btn">
+              <span id="advanceLabel">开始演播</span>
+              <svg viewBox="0 0 24 24" class="advance-chevron" aria-hidden="true"><path d="m9 6 6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <button id="voiceToggle" type="button" class="playback-util-btn" aria-label="语音开关" aria-pressed="true" title="语音开关">
+              <svg viewBox="0 0 24 24" class="chip-svg" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4V5Zm4.5 3.5a5 5 0 0 1 0 7m2.8-9.8a9 9 0 0 1 0 12.6" fill="none" stroke="currentColor" stroke-width="1.65" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
         </div>
 
-        <!-- Decision Choices Panel -->
+        <!-- Collapsed Decision Peek Pill (Appears When Player Folds Choices to Read Story Unobstructed) -->
+        <button id="deckCollapsedBar" type="button" class="deck-collapsed-bar" hidden>
+          <span class="deck-collapsed-left">
+            <svg viewBox="0 0 20 12" width="18" height="11" aria-hidden="true"><path d="M1 6h5m8 0h5M10 1.5 13.5 6 10 10.5 6.5 6Z" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+            <span id="deckCollapsedLabel">展开抉择与自由行动</span>
+          </span>
+          <span class="deck-collapsed-chevron">展开 ▴</span>
+        </button>
+
+        <!-- Collapsible Decision Choices Panel -->
         <section id="decisionPanel" class="decision-deck" aria-labelledby="decisionPrompt" hidden>
           <div class="decision-header">
             <span class="decision-ornament" aria-hidden="true">
-              <svg viewBox="0 0 28 12" width="28" height="12"><path d="M0 6h9m10 0h9M14 1l4 5-4 5-4-5Z" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
+              <svg viewBox="0 0 22 12" width="22" height="12"><path d="M0 6h6m10 0h6M11 1.5 14.5 6 11 10.5 7.5 6Z" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
             </span>
             <h2 id="decisionPrompt"></h2>
+            <button id="deckToggleBtn" type="button" class="deck-peek-btn" aria-label="收起抉择查看剧情">
+              <span>看剧情</span>
+              <svg viewBox="0 0 24 24" class="chip-svg" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
           </div>
           <div id="choices" class="choice-stack"></div>
         </section>
 
-        <!-- Custom Input & Quick Action Form -->
+        <!-- Slim Custom Input & Quick Action Form -->
         <form id="form" class="custom-form" hidden>
           <div class="write-shell">
             <button id="quickActionBtn" type="button" class="write-tool-btn" aria-label="出行或赠予物品" title="出行 / 赠礼">
@@ -288,7 +317,7 @@
           <div id="recoveryWrap" class="recovery-strip" hidden>
             <div class="recovery-strip-head">
               <span class="recovery-tag">免费恢复道具</span>
-              <span class="recovery-hint">不耗行动费 · 整夜间上限20点</span>
+              <span class="recovery-hint">不耗行动费 · 整夜上限20点</span>
             </div>
             <div class="action-row">
               <select id="recoveryItem" aria-label="选择恢复道具">
@@ -305,14 +334,14 @@
         </form>
       </div>
 
-      <!-- Android Thumb-Zone Game Dock -->
+      <!-- Compact Android Quick Dock (Auto-Hidden During Playback & Keyboard Open!) -->
       <nav id="gameDock" class="game-dock" aria-label="游戏功能导航">
         <button type="button" class="dock-btn" data-hub-tab="host">
-          <svg viewBox="0 0 24 24" class="dock-svg" aria-hidden="true"><circle cx="12" cy="8" r="3.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 19.5c1.5-3.4 4.1-5 7-5s5.5 1.6 7 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+          <svg viewBox="0 0 24 24" class="dock-svg" aria-hidden="true"><circle cx="12" cy="8" r="3.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5.5 19.5c1.4-3.2 3.8-4.7 6.5-4.7s5.1 1.5 6.5 4.7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
           <span>主角</span>
         </button>
         <button type="button" class="dock-btn" data-hub-tab="roster">
-          <svg viewBox="0 0 24 24" class="dock-svg" aria-hidden="true"><path d="M12 20.5 4.2 12.6C1.6 9.9 3.4 5.2 7.2 5.2c2.1 0 3.7 1.1 4.8 2.7 1.1-1.6 2.7-2.7 4.8-2.7 3.8 0 5.6 4.7 3 7.4L12 20.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <svg viewBox="0 0 24 24" class="dock-svg" aria-hidden="true"><path d="M12 20 4.4 12.4C2 9.9 3.7 5.4 7.3 5.4c2 0 3.6 1.1 4.7 2.6 1.1-1.5 2.7-2.6 4.7-2.6 3.6 0 5.3 4.5 2.9 7L12 20Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
           <span>人物</span>
           <i class="dock-dot" id="dockRosterDot" hidden></i>
         </button>
@@ -321,7 +350,7 @@
           <span>地图</span>
         </button>
         <button type="button" class="dock-btn" data-hub-tab="bag">
-          <svg viewBox="0 0 24 24" class="dock-svg" aria-hidden="true"><path d="M5 8h14l1.4 11.5a1.5 1.5 0 0 1-1.5 1.5H5.1a1.5 1.5 0 0 1-1.5-1.5L5 8Zm3.5 0V6.5a3.5 3.5 0 0 1 7 0V8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <svg viewBox="0 0 24 24" class="dock-svg" aria-hidden="true"><path d="M5 8h14l1.4 11.2a1.5 1.5 0 0 1-1.5 1.6H5.1a1.5 1.5 0 0 1-1.5-1.6L5 8Zm3.5 0V6.5a3.5 3.5 0 0 1 7 0V8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
           <span>行囊</span>
           <i class="dock-dot" id="dockBagDot" hidden></i>
         </button>
@@ -339,10 +368,10 @@
     <svg viewBox="0 0 24 24" class="chip-svg" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </button>
 
-  <!-- Ephemeral Tactile Toast Host -->
+  <!-- Ephemeral Floating Toast Host (Zero Layout Shift) -->
   <div id="toastHost" class="toast-host" aria-live="polite"></div>
 
-  <!-- Unified Game Hub Bottom Sheet (Host / Characters / Map / Inventory & Tasks / System) -->
+  <!-- Unified Game Hub Bottom Sheet -->
   <dialog id="worldDialog" class="sheet-dialog hub-dialog" aria-labelledby="worldHeading">
     <div class="sheet-handle" aria-hidden="true"><span></span></div>
     <div class="dialog-head">
@@ -365,7 +394,6 @@
 
     <div id="worldContent" class="hub-body"></div>
 
-    <!-- Kept accessible for legacy/direct control; styled neatly inside system footer when active -->
     <div id="worldDangerFooter" class="hub-danger-footer" hidden>
       <button id="newGame" type="button" class="btn-danger-outline">开启新档（自动保留旧档副本）</button>
     </div>
@@ -452,7 +480,7 @@
           <span id="portraitRole" class="portrait-role"></span>
         </div>
         <div class="portrait-top-actions">
-          <button id="portraitStatsBtn" type="button" class="glass-pill-btn">查看属性</button>
+          <button id="portraitStatsBtn" type="button" class="glass-pill-btn">查看档案</button>
           <button type="button" class="glass-circle-btn" data-close aria-label="关闭立绘">
             <svg viewBox="0 0 24 24" class="hud-svg"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
           </button>
@@ -487,9 +515,9 @@
     <div class="world-actions">
       <button id="bridgeStart" type="button" class="btn-outline">启动桥接</button>
       <button id="bridgeStop" type="button" class="btn-outline">暂停桥接</button>
-      <a href="/admin" target="_blank" rel="noopener" class="btn-outline">语音工坊</a>
+      <a href="/admin" target="_blank" rel="noopener" class="btn-outline">声学工坊</a>
     </div>
-    <div class="picker-block">
+    <div class="picker-block sheet-pad">
       <label for="storySessionPolicy">剧情会话</label>
       <select id="storySessionPolicy" aria-describedby="storySessionHelp">
         <option value="continuous">持续沿用（推荐）</option>
@@ -498,7 +526,7 @@
       </select>
       <p id="storySessionHelp" class="muted">重试沿用当前会话；新会话会携带正式记忆和已接受剧情。失败草稿不会写入存档。</p>
       <p id="storySessionStatus" class="muted" role="status"></p>
-      <div class="world-actions"><button id="storySessionReset" type="button" class="btn-outline">下次行动新建会话</button></div>
+      <div class="world-actions flush"><button id="storySessionReset" type="button" class="btn-outline">下次行动新建会话</button></div>
     </div>
     <p class="muted">保持 Operit 小窗可见；首次更新后请重启本地服务以加载最新桥接协议。</p>
     <details class="tech-details">

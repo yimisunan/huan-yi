@@ -2,7 +2,7 @@
 
 Android / Pydroid3 本地互动叙事项目。正式首页支持逐节点演播、自动语音、段末抉择、体力结算、游戏时间、随机序幕及分层记忆。
 
-新窗口维护请先读 [新窗口交接](scene_chat_dev/src/新窗口交接.md)，再读 [AGENTS.md](AGENTS.md) 与 [最新清理验收](scene_chat_dev/logs/step_29.md)。桥接当前为 1.9.1，用户已确认上一轮修复可用。
+新窗口维护请先读 [新窗口交接](scene_chat_dev/src/新窗口交接.md)，再读 [AGENTS.md](AGENTS.md) 与 [最新清理验收](scene_chat_dev/logs/step_29.md)。桥接当前为 1.9.5。
 
 ## 运行
 
@@ -10,7 +10,7 @@ Android / Pydroid3 本地互动叙事项目。正式首页支持逐节点演播�
 
 Fish 语音密钥从环境变量 `FISH_API_KEY` 读取，请在启动进程的环境中设置，不要提交密钥。本地与仓库源码都使用这一方式。
 
-Operit 桥接源码在 `scene_chat_dev/local.story.operit_bridge/`，现用成品为 [故事桥接 1.9.1](scene_chat_dev/artifacts/故事桥接-continuous-1.9.1.toolpkg)。插件 ID 为 `local.story.operit_bridge`；更新插件需构建后同 ID 导入，修改 Python 后需重启 Pydroid3，修改前端后刷新页面。
+Operit 桥接源码在 `scene_chat_dev/local.story.operit_bridge/`，现用成品为 [故事桥接 1.9.5](scene_chat_dev/artifacts/故事桥接-continuous-1.9.5.toolpkg)。插件 ID 为 `local.story.operit_bridge`；更新插件需构建后同 ID 导入，修改 Python 后需重启 Pydroid3，修改前端后刷新页面。
 
 ## 下载和更新
 
@@ -22,6 +22,6 @@ Operit 桥接源码在 `scene_chat_dev/local.story.operit_bridge/`，现用成�
 
 ## 收录范围
 
-仓库保留当前源码、权威规则和人物资料、现用图片、提交时的存档/音色快照、现役桥接源码与唯一安装包、维护测试和文字验收记录。`.round-runtime/` 等运行状态、凭据、缓存及旧备份不进入 Git，所以 GitHub 源码快照不等于完整运行备份。
+仓库保留当前源码、权威规则和人物资料、现用图片、初始 `存档/` 模板与音色配置、现役桥接源码与唯一安装包、维护测试和文字验收记录。仓库内的 `data.json` 是空档初始快照，不含测试剧情；首次使用请在页面选择“新游戏”生成序幕。`.round-runtime/`、`.scene-chat/`、游玩后的 `data.json` 变化、凭据、缓存及旧备份不应随源码提交，所以 GitHub 源码快照不等于完整运行备份。
 
 `scene_chat_dev/src/scene_live/` 与 `legacy_visibility.json` 仍被服务引用，需保留。临时目录在执行测试前创建，测试后清空；历史修改备份已按用户要求清除，追踪源从 Git 历史恢复，勿执行旧记录里依赖本地备份的命令。

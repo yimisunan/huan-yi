@@ -1,0 +1,19 @@
+{
+  "_comment": "深渊天平 · Fish Audio 中文音素注音参考表（Tone-number Pinyin，适用 s2.1-pro / s2.1-pro-free / drama-3 / 云端 Pronunciation Dictionary）",
+  "safe_auto_replace": {
+    "沈知韫": "沈知<|phoneme_start|>yun4<|phoneme_end|>",
+    "知韫": "知<|phoneme_start|>yun4<|phoneme_end|>",
+    "徐承邺": "徐承<|phoneme_start|>ye4<|phoneme_end|>",
+    "承邺": "承<|phoneme_start|>ye4<|phoneme_end|>",
+    "董事长": "董事<|phoneme_start|>zhang3<|phoneme_end|>",
+    "徐家主宅": "徐家主<|phoneme_start|>zhai2<|phoneme_end|>"
+  },
+  "context_sensitive_reference": {
+    "行_行业银行": "<|phoneme_start|>hang2<|phoneme_end|>",
+    "行_行动可行": "<|phoneme_start|>xing2<|phoneme_end|>",
+    "重_重新重复": "<|phoneme_start|>chong2<|phoneme_end|>",
+    "重_沉重重要": "<|phoneme_start|>zhong4<|phoneme_end|>",
+    "露_露面暴露": "<|phoneme_start|>lou4<|phoneme_end|>",
+    "着_睡着着凉": "<|phoneme_start|>zhao2<|phoneme_end|>"
+  }
+}

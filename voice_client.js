@@ -1,26 +1,70 @@
 (function (global) {
     'use strict';
     const TTS_TIMEOUT_MS = 65000;
-    const fishDefaults = Object.freeze({ speed: 1, volume: 0, temperature: 0.72, top_p: 0.75,
+    const fishDefaults = Object.freeze({
+        speed: 1, volume: 0, normalize_loudness: true,
+        temperature: 0.72, top_p: 0.75,
         latency: 'normal', chunk_length: 220, min_chunk_length: 40,
-        repetition_penalty: 1.18, condition_on_previous_chunks: true });
+        repetition_penalty: 1.18, condition_on_previous_chunks: true,
+        normalize: true, language: '', format: 'mp3',
+        mp3_bitrate: 128, opus_bitrate: -1000, sample_rate: 44100,
+        max_new_tokens: 1024, early_stop_threshold: 1.0,
+        quality_guard: false,
+        pronunciation_dictionary_id: '', pronunciation_dictionary_version: ''
+    });
+    const FORMAT_RATES = Object.freeze({
+        mp3: [32000, 44100],
+        opus: [48000],
+        wav: [8000, 16000, 24000, 32000, 44100]
+    });
     const channels = new Map();
     function number(value, fallback, min, max) {
         const n = parseFloat(value);
         return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : fallback;
     }
+    function flag(value, fallback = true) {
+        if (value === undefined || value === null) return fallback;
+        if (typeof value === 'boolean') return value;
+        const s = String(value).trim().toLowerCase();
+        if (['1', 'true', 'yes', 'on'].includes(s)) return true;
+        if (['0', 'false', 'no', 'off'].includes(s)) return false;
+        return fallback;
+    }
+    function cleanToken(value, pattern, maxLen = 64) {
+        const s = String(value == null ? '' : value).trim();
+        if (!s || s.length > maxLen) return '';
+        return pattern.test(s) ? s : '';
+    }
     function normalizeFish(cfg = {}) {
         const chunk = Math.round(number(cfg.chunk_length, 220, 100, 300));
+        const fmt = ['mp3', 'opus', 'wav'].includes(cfg.format) ? cfg.format : 'mp3';
+        const mp3Rate = [64, 128, 192].includes(Number(cfg.mp3_bitrate)) ? Number(cfg.mp3_bitrate) : 128;
+        const opusRate = [-1000, 24000, 32000, 48000, 64000].includes(Number(cfg.opus_bitrate)) ? Number(cfg.opus_bitrate) : -1000;
+        const allowedRates = FORMAT_RATES[fmt];
+        const rawRate = Number(cfg.sample_rate);
+        const sampleRate = allowedRates.includes(rawRate) ? rawRate : allowedRates[allowedRates.length - 1];
         return {
             speed: +number(cfg.speed, 1, 0.5, 2).toFixed(2),
             volume: +number(cfg.volume, 0, -20, 20).toFixed(1),
+            normalize_loudness: flag(cfg.normalize_loudness, true),
             temperature: +number(cfg.temperature, 0.72, 0, 1).toFixed(2),
             top_p: +number(cfg.top_p, 0.75, 0, 1).toFixed(2),
             latency: ['low', 'normal', 'balanced'].includes(cfg.latency) ? cfg.latency : 'normal',
             chunk_length: chunk,
             min_chunk_length: Math.min(chunk, Math.round(number(cfg.min_chunk_length, 40, 0, 100))),
             repetition_penalty: +number(cfg.repetition_penalty, 1.18, 1, 2).toFixed(2),
-            condition_on_previous_chunks: ![false, 0, 'false', '0'].includes(cfg.condition_on_previous_chunks)
+            condition_on_previous_chunks: flag(cfg.condition_on_previous_chunks, true),
+            normalize: flag(cfg.normalize, true),
+            language: cleanToken(cfg.language, /^[A-Za-z0-9_-]{1,35}$/, 35),
+            format: fmt,
+            mp3_bitrate: mp3Rate,
+            opus_bitrate: opusRate,
+            sample_rate: sampleRate,
+            max_new_tokens: Math.round(number(cfg.max_new_tokens, 1024, 128, 4096)),
+            early_stop_threshold: +number(cfg.early_stop_threshold, 1.0, 0, 1).toFixed(2),
+            quality_guard: flag(cfg.quality_guard, false),
+            pronunciation_dictionary_id: cleanToken(cfg.pronunciation_dictionary_id, /^[A-Za-z0-9._:-]{1,128}$/, 128),
+            pronunciation_dictionary_version: cleanToken(cfg.pronunciation_dictionary_version, /^[A-Za-z0-9._:-]{1,64}$/, 64)
         };
     }
     function buildPayload(text, cfg = {}, settings = {}, emotion = '') {
@@ -99,7 +143,8 @@
         }
     }
     async function requestStream(payload, { channel = 'story', onReady } = {}) {
-        if (!global.MediaSource || !MediaSource.isTypeSupported('audio/mpeg') || String(payload.voice || '').startsWith('edge:')) return null;
+        const fmt = String(payload.format || 'mp3').toLowerCase();
+        if (fmt !== 'mp3' || !global.MediaSource || !MediaSource.isTypeSupported('audio/mpeg') || String(payload.voice || '').startsWith('edge:')) return null;
         cancel(channel);
         const controller = new AbortController();
         const job = { controller };

@@ -107,7 +107,12 @@ class StoryService:
         if job is None:
             return None
         value = {key: val for key, val in job.items()
-                if key not in {'lease', 'lease_until', 'before_panel', 'reservation', 'settlement'}}
+                if key not in {'lease', 'lease_until', 'before_panel', 'reservation', 'settlement', 'generation_model', 'created_at', 'claimed_at', 'returned_at', 'validation_started_at', 'committed_at', 'timing'}}
+        timing = job.get('timing') or {}
+        if isinstance(timing, dict):
+            safe_timing = {key: timing[key] for key in ('queue_ms', 'generation_ms', 'preflight_ms', 'acceptance_ms', 'generation_passes', 'model_id') if key in timing}
+            if safe_timing:
+                value['timing'] = safe_timing
         if job.get('reservation'):
             value['reservation'] = {'status':job['reservation']['status'], 'quote':job['reservation']['quote']}
         return value
@@ -196,6 +201,7 @@ class StoryService:
         return {'task': self._public(state['jobs'].get(state['latest'])),
                 'bridge_connected': bool(connected), 'bridge': bridge,
                 'reading_preflight': 1, 'live_reading_revision': 2, 'action_contract_revision':1,
+                'material_delivery_revision': 1,
                 'service_epoch':self.service_epoch,
                 'story_protocol': STORY_PROTOCOL, 'bridge_model': state.get('bridge_model'),
                 'save_epoch': self._save_epoch(), 'interaction_protocol': 3 if sp.enabled(self.root) else 2}
@@ -803,7 +809,7 @@ class StoryService:
             job = {'request_id': key, 'base_revision': revision, 'action': action,
                    'current_round': prepared['current_round'], 'status': 'queued',
                    'attempt': 0, 'created_at': time.time(), 'error': '', 'lease': None,
-                   'model_key': model_key, 'entry_mode': mode, 'operation': command, 'save_epoch': epoch, 'selection': selected,
+                   'timing': {}, 'model_key': model_key, 'entry_mode': mode, 'operation': command, 'save_epoch': epoch, 'selection': selected,
                     'cost_preview': context.get('cost_preview'),
                    'before_panel': '\n'.join(line for line in
                        (prepared['snapshot'][rr.FILES[0]] or '').split('▶ 上回合历史快照', 1)[0].splitlines()
@@ -854,8 +860,7 @@ class StoryService:
                 job['before_panel'] = '\n'.join(line for line in
                     memory.split('▶ 上回合历史快照', 1)[0].splitlines()
                     if line.lstrip().startswith(('[系统宿主]', '[沈知韫]', '[徐念薇]', '[苏婉青]')))
-            if model_key is not None:
-                job['model_key'] = model_key
+            job['model_key'] = model_key
             # A retry keeps action and base identity, but reads current rules and feedback.
             rr._atomic(self._blob(key, '.context.json'), rr._json(context))
             self._blob(key, '.assembled.json').unlink(missing_ok=True)
@@ -898,13 +903,13 @@ class StoryService:
                 else: job.update(status='conflict', error='场景版本已改变，未生成或写入旧行动')
                 self._write(state)
                 return {'task': None}
-            if job.get('model_key') is not None and (not model or job['model_key'] != model['key']):
-                if job.get('reservation'):
-                    sp.refund(self,state,job,'failed','生成模型已变更，预扣已返还，请核对后重试。')
-                else: job.update(status='failed', lease=None, error='生成模型已变更，请核对悬浮窗中的模型后重试。')
-                self._write(state)
-                return {'task': None}
+            # Submission model hints do not constrain a queued task.
             job['generation_model'] = model
+            timing = dict(job.get('timing') or {})
+            timing['queue_ms'] = max(0, round((time.time() - job.get('created_at', time.time())) * 1000))
+            timing['model_id'] = model['model_id'] if model else ''
+            job['timing'] = timing
+            job['claimed_at'] = time.time()
             context = json.loads(self._blob(job['request_id'], '.context.json').read_text(encoding='utf-8'))
             if (context.get('protocol') != STORY_PROTOCOL or context.get('reading_policy', {}).get('version') != sr.VERSION
                     or (context.get('entry_mode') == ir.MODE and context.get('interaction_protocol') != (3 if sp.enabled(self.root) else 2))):
@@ -917,9 +922,10 @@ class StoryService:
                        lease_until=time.time() + LEASE_SECONDS, attempt=job['attempt'] + 1)
             self._write(state)
             return {'task': {'request_id': job['request_id'], 'lease': job['lease'],
-                             'turns': context['turns'], 'model_key': job.get('model_key'),
+                             'turns': context['turns'], 'model_key': model['key'] if model else None,
                               'previous_validation_error':context.get('previous_validation_error',''),
                               'service_epoch':self.service_epoch,'attempt':job['attempt'],'live_reading_revision':2,'action_contract_revision':1,
+                              'material_delivery_revision': 1 if job.get('entry_mode') == ir.MODE else 0,
                               'entry_mode': job.get('entry_mode'), 'save_epoch': self._save_epoch(),
                               'interaction_scope': context.get('interaction_scope'),
                               'packet_bytes': self.store._path(context['packet']['path']).stat().st_size if context.get('packet') else 0,
@@ -939,6 +945,20 @@ class StoryService:
             self._write(state)
             raise rr.ConflictError('生成租约已过期，结果未写入')
         return job
+
+    def material(self, key, body):
+        self.start()
+        rr._keys(body, {'lease', 'chat_id', 'participant_id'}, '程序资料交付',
+                 {'lease', 'chat_id', 'participant_id'})
+        for field in ('chat_id', 'participant_id'):
+            if not isinstance(body[field], str) or not 1 <= len(body[field]) <= 200:
+                raise rr.RoundError('资料交付会话身份无效')
+        with self.store._locked():
+            state = self._read()
+            job = self._leased(state, key, body['lease'])
+            if job['status'] != 'generating' or job.get('entry_mode') != ir.MODE:
+                raise rr.ConflictError('仅生成中的正式任务可领取资料')
+            return ir.material_delivery(self, key, job, body['chat_id'], body['participant_id'])
 
     def heartbeat(self, key, lease):
         with self.store._locked():
@@ -1026,6 +1046,13 @@ class StoryService:
 
     def result(self, key, body):
         self.start()
+        timing_update = body.get('timing', {})
+        allowed_timing = {'generation_ms', 'preflight_ms', 'generation_passes'}
+        if (not isinstance(timing_update, dict) or set(timing_update) - allowed_timing
+                or any(type(timing_update.get(k)) is not int or not 0 <= timing_update[k] <= 3600000
+                       for k in allowed_timing if k in timing_update)
+                or ('generation_passes' in timing_update and not 1 <= timing_update['generation_passes'] <= 2)):
+            raise rr.RoundError('耗时统计字段无效')
         with self.store._locked():
             state = self._read()
             job = self._leased(state, key, body.get('lease'))
@@ -1044,6 +1071,10 @@ class StoryService:
             text = body.get('text')
             if not isinstance(text, str) or len(text.encode('utf-8')) > 4 * 1024 * 1024:
                 raise rr.RoundError('模型结果须为4MiB内的JSON文本')
+            if timing_update:
+                job['timing'].update(timing_update)
+                job['returned_at'] = time.time()
+                job['validation_started_at'] = job['returned_at']
             if job['status'] == 'validating':
                 if self._blob(key, '.result.txt').read_text(encoding='utf-8') != text:
                     raise rr.ConflictError('同一任务已有待提交结果，不得更换')
@@ -1067,7 +1098,15 @@ class StoryService:
         with self.store._locked():
             existing=self._read()['jobs'][key]
         if existing.get('reservation'):
-            return sp.finish(self,key)
+            sp.finish(self,key)
+            with self.store._locked():
+                state = self._read()
+                current = state['jobs'][key]
+                if current['status'] == 'committed' and current.get('returned_at'):
+                    current.setdefault('timing', {})['acceptance_ms'] = max(0, round((time.time() - current['returned_at']) * 1000))
+                    current['committed_at'] = time.time()
+                    self._write(state)
+                return {'task': self._public(current)}
         with self.store._locked():
             state = self._read()
             job = dict(state['jobs'][key])
@@ -1092,6 +1131,9 @@ class StoryService:
             current = state['jobs'][key]
             if current['status'] == 'validating':
                 current.update(status=status, error=error, receipt=receipt)
+                if current.get('returned_at'):
+                    current.setdefault('timing', {})['acceptance_ms'] = max(0, round((time.time() - current['returned_at']) * 1000))
+                    current['committed_at'] = time.time()
                 self._write(state)
             return {'task': self._public(current)}
 
@@ -1201,6 +1243,10 @@ def register_story_routes(app, root):
     @app.post('/api/story/worker/claim')
     def claim():
         return jsonify(service.claim(body()))
+
+    @app.post('/api/story/worker/<key>/material')
+    def material(key):
+        return jsonify(service.material(key, body()))
 
     @app.post('/api/story/worker/<key>/heartbeat')
     def heartbeat(key):
