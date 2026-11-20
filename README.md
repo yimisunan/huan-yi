@@ -2,7 +2,7 @@
 
 Android / Pydroid3 本地互动叙事项目。正式首页支持逐节点演播、自动语音、段末抉择、体力结算、游戏时间、随机序幕及分层记忆。
 
-新窗口维护请先读 [新窗口交接](scene_chat_dev/src/新窗口交接.md)，再读 [AGENTS.md](AGENTS.md) 与 [最新清理验收](scene_chat_dev/logs/step_29.md)。桥接当前为 1.9.5。
+新窗口维护请先读 [新窗口交接](scene_chat_dev/src/新窗口交接.md)，再读 [AGENTS.md](AGENTS.md)、[维护环境说明](scene_chat_dev/src/维护环境.md) 与 [最新清理验收](scene_chat_dev/logs/step_29.md)。桥接当前为 1.9.5。跑测试用 `bash scene_chat_dev/run_tests.sh`（加 `--fast` 先拷到 /tmp）。
 
 ## 运行
 
