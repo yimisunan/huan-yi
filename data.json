@@ -2,6 +2,23 @@
   "round": 0,
   "sceneTitle": "徐家主宅",
   "storyNodes": [],
-  "presence": {},
+  "presence": {
+    "沈知韫": {
+      "location": "公司",
+      "reason": "工作日上班中"
+    },
+    "徐念薇": {
+      "location": "大学",
+      "reason": "工作日在大学"
+    },
+    "苏婉青": {
+      "location": "市中心顶层公寓",
+      "reason": "常住"
+    },
+    "徐志北": {
+      "location": "市中心顶层公寓",
+      "reason": "到访"
+    }
+  },
   "state_version": 0
 }
