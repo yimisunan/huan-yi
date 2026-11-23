@@ -5269,9 +5269,8 @@
     }
   }
 
-  // ── 落笔确认 + 刚说出口可收回（防误触） ──
+  // ── 落笔确认：发出去之前先问一次（防误触） ──
   let commitResolve = null, commitArmedAt = 0, commitArmTimer = null;
-  let withdrawState = null, withdrawTimer = null;
 
   function requestCommit({ text, optionId, cost }) {
     if (cache.confirmCommit === false) return Promise.resolve(true);
@@ -5299,18 +5298,6 @@
     const resolve = commitResolve;
     commitResolve = null;
     if (resolve) resolve(result);
-  }
-
-  function showWithdraw(requestId, text) {
-    if (!requestId) return;
-    withdrawState = { requestId, text: String(text || '') };
-    $('withdrawBar').hidden = false;
-    if (withdrawTimer) clearTimeout(withdrawTimer);
-    withdrawTimer = setTimeout(() => {
-      withdrawTimer = null;
-      withdrawState = null;
-      $('withdrawBar').hidden = true;
-    }, 9000);
   }
 
   if ($('commitGo')) {
@@ -5341,36 +5328,6 @@
     $('commitDialog').addEventListener('click', event => {
       if (event.target === $('commitDialog')) closeCommit(false);
     });
-    $('withdrawBtn').onclick = async () => {
-      if (!withdrawState || posting) return;
-      const { requestId, text } = withdrawState;
-      haptic(14);
-      posting = true;
-      controls();
-      let cancelled = false;
-      try {
-        await api('tasks/' + encodeURIComponent(requestId) + '/cancel', {});
-        cancelled = true;
-      } catch (e) {
-        error = '这一句已经落定，收不回了。';
-      } finally {
-        posting = false;
-      }
-      if (withdrawTimer) { clearTimeout(withdrawTimer); withdrawTimer = null; }
-      withdrawState = null;
-      $('withdrawBar').hidden = true;
-      if (cancelled) {
-        if (text) {
-          $('input').value = text;
-          cache.draft = text;
-        }
-        cache.pending = null;
-        save();
-        await restore({ preserveError: true });
-        toast('这句话已收回');
-      }
-      controls();
-    };
   }
 
   async function enqueue(text, op = null, optionId = 'CUSTOM') {
@@ -5403,11 +5360,7 @@
       $('input').value = '';
       $('input').style.height = 'auto';
     }
-    const pendingId = cache.pending ? cache.pending.request_id : '';
     await dispatch();
-    if (pendingId && (optionId === 'CUSTOM' || ['A', 'B', 'C'].includes(optionId))) {
-      showWithdraw(pendingId, optionId === 'CUSTOM' ? text : '');
-    }
   }
 
   function toggleVoice() {

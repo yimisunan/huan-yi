@@ -735,7 +735,7 @@
     </div>
   </dialog>
 
-  <!-- 落笔确认：防误触；发出后短时间内可收回 -->
+  <!-- 落笔确认：发出去之前先问一次，防误触 -->
   <dialog id="commitDialog" class="sheet-dialog confirm-dialog" aria-labelledby="commitHeading">
     <div class="sheet-handle" aria-hidden="true"><span></span></div>
     <div class="dialog-head">
@@ -756,11 +756,6 @@
       <button id="commitGo" type="button" class="cta-gold">落笔</button>
     </div>
   </dialog>
-
-  <div id="withdrawBar" class="withdraw-bar" hidden>
-    <span class="withdraw-text">话已出口——</span>
-    <button id="withdrawBtn" type="button" class="withdraw-btn">收回这句</button>
-  </div>
 
   <audio id="audio" preload="none" hidden></audio>
 </body>
