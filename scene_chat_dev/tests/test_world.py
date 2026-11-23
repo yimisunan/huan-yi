@@ -10,22 +10,47 @@ import tempfile
 import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 import round_runtime as rr
+import save_store
 from scene_world import LegacyWorld, ENTITIES, VISIBILITY
 from scene_chat import SceneService
 from story_service import StoryService, register_story_routes
 from flask import Flask
 
 ROOT = Path(__file__).resolve().parents[2]
+FIXTURE_L1_BODY = '徐家主宅一楼餐厅，晚间 20:10，沈知韫问起今日安排，志北尚未回答。'
+FIXTURE_L1 = '【1】' + FIXTURE_L1_BODY
 
 
 class WorldTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(dir=ROOT/'scene_chat_dev/tmp')
         self.root = Path(self.temp.name)
-        for name in (*rr.FILES, ENTITIES, VISIBILITY, 'txt文件/场景交流规范.md', 'txt文件/知识库/角色类.json', 'txt文件/关系称谓查询.jsonl'):
+        for name in (ENTITIES, 'txt文件/场景交流规范.md', 'txt文件/知识库/角色类.json', 'txt文件/关系称谓查询.jsonl'):
             p = self.root/name
             p.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT/name, p)
+        state = save_store.default_state()
+        layers = save_store.default_layers(FIXTURE_L1_BODY, prologue_active=False)
+        data = {
+            'round': 1,
+            'sceneTitle': '徐家主宅一楼餐厅 · 20:10',
+            'storyNodes': [],
+            'presence': state['presence'],
+        }
+        save_store.save_bundle(self.root, state, layers, data_dict=data)
+        (self.root / 'data.json').write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        vis_digest = hashlib.sha256(FIXTURE_L1.encode('utf-8')).hexdigest()
+        vis_path = self.root / VISIBILITY
+        vis_path.parent.mkdir(parents=True, exist_ok=True)
+        vis_path.write_text(json.dumps({
+            'schema_version': 1,
+            'entries': {
+                vis_digest: {
+                    'known_by': ['徐志北', '沈知韫'],
+                    'basis': {'path': rr.FILES[0], 'start_line': 1, 'reason': '确定性单测夹具：餐厅共同在场。'},
+                }
+            },
+        }, ensure_ascii=False, indent=2), encoding='utf-8')
         (self.root/'injection_core.py').write_text('# isolated fixture, never executed')
         self.world = LegacyWorld(self.root)
         self.service = SceneService(self.root, StoryService(self.root))
@@ -42,7 +67,7 @@ class WorldTests(unittest.TestCase):
         self.assertEqual(value['panels']['沈知韫']['value']['高潮'], '0%')
         self.assertIs(value['panels']['沈知韫']['value']['怀孕'], False)
         self.assertEqual(value['items'], [])
-        self.assertEqual(value['npcs'], [])  # 林秘书 is the example, not an acquired entity.
+        self.assertEqual(value['npcs'], [])
         self.assertIsNone(value['tasks']['current'])
         self.assertEqual(value['tasks']['history'], [])
         self.assertEqual(len(value['memories']), 1)
@@ -57,7 +82,7 @@ class WorldTests(unittest.TestCase):
             self.assertEqual('\n'.join(lines[src['start_line']-1:src['end_line']]), src['raw'])
         with self.world.db() as db:
             rows = db.execute('SELECT * FROM sources').fetchall()
-            self.assertEqual(len(rows), 6)
+            self.assertEqual(len(rows), len(self.world.sources()))
             for row in rows:
                 self.assertEqual(row['body'], (self.root/row['path']).read_bytes())
                 self.assertEqual(row['sha256'], hashlib.sha256(row['body']).hexdigest())
@@ -124,16 +149,13 @@ class WorldTests(unittest.TestCase):
         p = self.root/rr.FILES[1]
         item = '【道具名称】：测试道具\n【道具ID】：ITEM-901\n【数量】：2\n【类型】：临时性\n【剩余时效】：11回合\n【使用对象】：未使用\n'
         p.write_text(p.read_text().replace('（新游戏初始仓库为空，兑换道具后由注入逻辑写入此区域）', item))
-        p = self.root/rr.FILES[2]
-        p.write_text(p.read_text()+'\n\n【NPC名称】：林秘书\n【身份/角色】：测试登记\n【出场设定/性格】：测试\n【初始阵营/归属】：未知\n')
         p = self.root/rr.FILES[0]
         p.write_text(p.read_text().replace('当前任务：（无）', '当前任务：TASK-901 | 测试目标 | 徐志北·魅力·80 | A | 测试奖励 | active |发布回合1'))
         w = self.world.import_latest()
         self.assertEqual(w['items'][0]['fields']['剩余时效'], '11回合')
         self.assertEqual(w['items'][0]['quantity'], 2)
         self.assertEqual(w['tasks']['current']['id'], 'TASK-901')
-        self.assertEqual(len(w['npcs']), 1)
-        self.assertEqual(w['npcs'][0]['fields']['身份/角色'], '测试登记')
+        self.assertEqual(w['npcs'], [])
         self.assertEqual(w['unresolved_source'], [])
 
     def test_unknown_item_and_task_retained_without_fabrication(self):

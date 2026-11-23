@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "tiers": {
+    "low": {
+      "label": "低阶小物",
+      "min_price": 1,
+      "max_price": 10
+    },
+    "mid": {
+      "label": "中阶好物",
+      "min_price": 11,
+      "max_price": 50
+    },
+    "high": {
+      "label": "高阶臻品",
+      "min_price": 100,
+      "max_price": 9999
+    }
+  },
+  "items": [
+    {
+      "id": "SHOP-001",
+      "name": "清神薄荷糖",
+      "tier": "low",
+      "price": 8,
+      "type": "临时性（消耗品）",
+      "desc": "薄荷与陈皮调制的醒神糖盒，微凉利口，疲惫时含一颗可提振精神。",
+      "duration": "无",
+      "expire_rule": "消耗归零后归档",
+      "system_effect": "host_stamina:10",
+      "giftable": false,
+      "max_per_save": null
+    },
+    {
+      "id": "SHOP-002",
+      "name": "手工茉莉冷萃茶包",
+      "tier": "low",
+      "price": 10,
+      "type": "永久性",
+      "desc": "分装雅致的小盒冷萃花茶，清淡不甜腻，适合作为日常小礼递给同席人物。",
+      "duration": "无",
+      "expire_rule": "无",
+      "system_effect": "",
+      "giftable": true,
+      "max_per_save": 3
+    },
+    {
+      "id": "SHOP-003",
+      "name": "精品黑咖啡浓缩液",
+      "tier": "mid",
+      "price": 16,
+      "type": "临时性（消耗品）",
+      "desc": "便携装冷萃黑咖啡浓缩液，口感醇苦利落，可快速补足当夜免费恢复额度。",
+      "duration": "无",
+      "expire_rule": "消耗归零后归档",
+      "system_effect": "host_stamina:20",
+      "giftable": false,
+      "max_per_save": null
+    },
+    {
+      "id": "SHOP-004",
+      "name": "定制松木香氛手帕",
+      "tier": "mid",
+      "price": 25,
+      "type": "永久性",
+      "desc": "精纺素色棉麻手帕，熏有极淡的雪松与白茶余香，体面克制，适合随身或赠人。",
+      "duration": "无",
+      "expire_rule": "无",
+      "system_effect": "",
+      "giftable": true,
+      "max_per_save": 2
+    },
+    {
+      "id": "SHOP-005",
+      "name": "精装艺术画册《静物光影》",
+      "tier": "mid",
+      "price": 30,
+      "type": "永久性",
+      "desc": "小众外版油画静物集，印刷考究，适合带往画室或赠予爱好绘画者自然开启话题。",
+      "duration": "无",
+      "expire_rule": "无",
+      "system_effect": "",
+      "giftable": true,
+      "max_per_save": 1
+    },
+    {
+      "id": "SHOP-006",
+      "name": "商业简报摘录夹",
+      "tier": "mid",
+      "price": 35,
+      "type": "永久性",
+      "desc": "汇总近期公开行业数据与并购案例的精装摘录夹，仅含公开商业资料，便于切入商谈。",
+      "duration": "无",
+      "expire_rule": "无",
+      "system_effect": "",
+      "giftable": true,
+      "max_per_save": 1
+    },
+    {
+      "id": "SHOP-007",
+      "name": "古董银质袖扣礼盒",
+      "tier": "high",
+      "price": 100,
+      "type": "永久性",
+      "desc": "低调精致的银质工艺袖扣礼盒，分量与质感兼备，适合在重要场合体面递交。",
+      "duration": "无",
+      "expire_rule": "无",
+      "system_effect": "",
+      "giftable": true,
+      "max_per_save": 1
+    },
+    {
+      "id": "SHOP-008",
+      "name": "私人典藏白茶饼（十年陈）",
+      "tier": "high",
+      "price": 120,
+      "type": "永久性",
+      "desc": "陈香温润的福鼎老白茶礼盒，无论主宅品茗或商务会客皆显郑重，可赠予同席人物。",
+      "duration": "无",
+      "expire_rule": "无",
+      "system_effect": "",
+      "giftable": true,
+      "max_per_save": 1
+    }
+  ]
+}

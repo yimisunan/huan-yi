@@ -18,7 +18,7 @@ if not (ROOT / 'round_runtime.py').is_file():
 sys.path.insert(0, str(ROOT))
 import round_runtime as rr
 
-TMP_ROOT = ROOT / '开发者功能/修订日志/2026.11/回合执行基础/tmp'
+TMP_ROOT = ROOT / 'scene_chat_dev/tmp'
 
 
 def memory(layers=None, prologue=False):
@@ -83,11 +83,10 @@ class RoundTests(unittest.TestCase):
         self.root = Path(self.temp.name)
         (self.root / '存档').mkdir()
         (self.root / 'txt文件').mkdir()
-        for name in ('injection_core.py', 'round_runtime.py', 'txt文件/一键注入指南.txt'):
+        for name in ('save_store.py', 'injection_core.py', 'round_runtime.py', 'txt文件/一键注入指南.txt', 'txt文件/事件注册表.json'):
             shutil.copyfile(ROOT / name, self.root / name)
         self.set_memory(memory())
-        (self.root / rr.FILES[1]).write_text('▼ 已过期/已消耗道具历史区 ▼\n', encoding='utf-8')
-        (self.root / rr.FILES[2]).write_text('静态NPC名册\n', encoding='utf-8')
+        (self.root / rr.FILES[1]).write_text('▼ 活跃道具区 ▼\n\n（空）\n\n▼ 已过期/已消耗道具历史区 ▼\n\n（当前为空）\n', encoding='utf-8')
         (self.root / 'data.json').write_text('{"round":0,"storyNodes":[]}', encoding='utf-8')
         self.store = rr.RoundStore(self.root)
 
@@ -154,7 +153,7 @@ class RoundTests(unittest.TestCase):
     def test_invalid_nodes_events_options_and_system_log(self):
         base = self.request()
         cases = []
-        bad = copy.deepcopy(base); bad['story_nodes'][1]['text'] = '字' * 121; cases.append(bad)
+        bad = copy.deepcopy(base); bad['story_nodes'][1]['text'] = '字' * 4001; cases.append(bad)
         bad = copy.deepcopy(base); bad['story_nodes'][2]['speaker'] = '错字角色'; cases.append(bad)
         bad = copy.deepcopy(base); bad['story_nodes'][1]['speaker'] = '徐志北'; cases.append(bad)
         bad = copy.deepcopy(base); bad['host_events'] = ['拼错标签']; cases.append(bad)
@@ -321,7 +320,8 @@ store.submit(json.loads((root/"request.json").read_text()))
         self.store.submit(request)
         data = json.loads((self.root / 'data.json').read_text(encoding='utf-8'))
         self.assertEqual('工作室', data['presence']['沈知韫']['location'])
-        self.assertIn('验收秘书', (self.root / rr.FILES[2]).read_text(encoding='utf-8'))
+        saved_state = json.loads((self.root / rr.FILES[2]).read_text(encoding='utf-8'))
+        self.assertEqual(saved_state['presence']['沈知韫']['location'], '工作室')
         self.assertIn('验收便签', (self.root / rr.FILES[1]).read_text(encoding='utf-8'))
         self.assertIn('TASK-001', (self.root / rr.FILES[0]).read_text(encoding='utf-8'))
 

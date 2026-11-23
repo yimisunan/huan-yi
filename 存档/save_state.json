@@ -1,0 +1,254 @@
+{
+  "buffs": {
+    "徐念薇": [],
+    "沈知韫": [],
+    "苏婉青": []
+  },
+  "counters": {
+    "破局_张力淤积": 0,
+    "破局_日常冗余": 0,
+    "破局_模式重复": 0,
+    "破局_社交淤积": 0,
+    "空耗_连续未纾解_徐念薇": 0,
+    "空耗_连续未纾解_沈知韫": 0,
+    "空耗_连续未纾解_苏婉青": 0,
+    "连续守护回合": 0
+  },
+  "director": {
+    "active_threads": [],
+    "calm_streak": 0,
+    "clock_tick_acc": 0,
+    "consumed_once": [],
+    "event_cooldowns": {},
+    "global_cooldown": 0,
+    "last_time_slot": "morning",
+    "next_thread_seq": 1,
+    "offstage_clocks": {},
+    "pending_seeds": [],
+    "recent_channels": [],
+    "scene_location": "徐家主宅",
+    "scene_turns": 0,
+    "turns_since_beat": 99
+  },
+  "intel": {
+    "consumed": [],
+    "held": [],
+    "leverage_armed": "",
+    "su_ab_contacts": 0
+  },
+  "items": {
+    "active": [],
+    "delivered": [],
+    "history": [],
+    "next_seq": 1
+  },
+  "lifecycle": {
+    "ab_streak": 0,
+    "legacy_counters": {},
+    "micro": {},
+    "round": 0,
+    "scopes": {},
+    "version": 1
+  },
+  "mechanics": {
+    "c_streak": {
+      "徐念薇": {
+        "count": 0,
+        "tier": ""
+      },
+      "沈知韫": {
+        "count": 0,
+        "tier": ""
+      },
+      "苏婉青": {
+        "count": 0,
+        "tier": ""
+      }
+    },
+    "depravity_unlocked_caps": {
+      "徐念薇": 30,
+      "沈知韫": 30,
+      "苏婉青": 30
+    },
+    "first_triggers": {
+      "徐念薇": [],
+      "沈知韫": [],
+      "苏婉青": []
+    },
+    "insomnia_applied": {
+      "徐念薇": false,
+      "沈知韫": false,
+      "苏婉青": false
+    },
+    "masturbation_trace": {
+      "徐念薇": 0,
+      "沈知韫": 0,
+      "苏婉青": 0
+    },
+    "nap_last_day": {
+      "徐念薇": 0,
+      "沈知韫": 0,
+      "苏婉青": 0
+    },
+    "pregnancy_latent_until": {
+      "徐念薇": 0,
+      "沈知韫": 0,
+      "苏婉青": 0
+    },
+    "secrets_unlocked": [],
+    "su_affection_85_unlocked": false
+  },
+  "micro_states": {
+    "徐念薇": {
+      "confusion_debt": false,
+      "momentary_ease": false,
+      "residual_tension": false
+    },
+    "沈知韫": {
+      "confusion_debt": false,
+      "momentary_ease": false,
+      "residual_tension": false
+    },
+    "苏婉青": {
+      "confusion_debt": false,
+      "momentary_ease": false,
+      "residual_tension": false
+    }
+  },
+  "panels": {
+    "徐念薇": {
+      "体力": 65,
+      "内射": 0,
+      "堕落": 0,
+      "好感": 30,
+      "怀孕": false,
+      "欲望": 0,
+      "羞耻": 99,
+      "被动": 0,
+      "高潮": 0
+    },
+    "徐承邺": {
+      "堕落": 0
+    },
+    "沈知韫": {
+      "体力": 100,
+      "内射": 0,
+      "堕落": 0,
+      "好感": 95,
+      "怀孕": false,
+      "欲望": 0,
+      "羞耻": 100,
+      "被动": 0,
+      "高潮": 0
+    },
+    "系统宿主": {
+      "体力": 100,
+      "商业嗅觉": 0,
+      "积分": 0,
+      "经验值": 0,
+      "魅力": 70
+    },
+    "苏婉青": {
+      "体力": 100,
+      "内射": 0,
+      "堕落": 0,
+      "好感": 40,
+      "怀孕": false,
+      "欲望": 0,
+      "羞耻": 99,
+      "被动": 0,
+      "高潮": 0
+    }
+  },
+  "presence": {
+    "徐志北": {
+      "location": "徐家主宅",
+      "reason": "常住"
+    },
+    "徐念薇": {
+      "location": "徐家主宅",
+      "reason": "周末在家"
+    },
+    "沈知韫": {
+      "location": "徐家主宅",
+      "reason": "常住"
+    },
+    "苏婉青": {
+      "location": "徐家主宅",
+      "reason": "周日家庭午餐窗"
+    }
+  },
+  "rendered_sha256": {
+    "data_runtime": "371d4bce45c5d80d111fd2f9f31048ded61759953a86dc52ed96fb91cf9163b2",
+    "items_txt": "bece6607845af835accec7f9d318f4399b60423174d193a4f0afddc5617f451b",
+    "memory_txt": "62668310c83027734054c8d669524b7157ec4bf135225419d4781db5f2364d96"
+  },
+  "runtime": {
+    "action_index": 0,
+    "clock": {
+      "day": 1,
+      "time": "11:50"
+    },
+    "closed_by": "",
+    "item_recovered": 0,
+    "last_closed": 0,
+    "last_segment_id": "prologue-49ae0065ff989240c9764c2bfbf2408a",
+    "last_sequence": 1,
+    "memory_round": 1,
+    "phase": "ready",
+    "prologue": {
+      "request_id": "reset-20261124_020101_98bb459dfe814e6a8a7688564c4623d5",
+      "scenario_id": "zhiyun_sunday_noon",
+      "title": "周日午间 · 主宅餐厅 · 家庭",
+      "weekday": "周日"
+    },
+    "weekday": "周日"
+  },
+  "shop": {
+    "echoes": [],
+    "recent": [],
+    "redeemed": {}
+  },
+  "tasks": {
+    "current": {
+      "attr": "积分",
+      "complete_round": null,
+      "id": "TASK-001",
+      "issue_round": 1,
+      "item_desc": "银杏叶金属餐巾扣",
+      "status": "进行中",
+      "target": "系统宿主",
+      "tier": "small",
+      "title": "同席家宴",
+      "value": 4
+    },
+    "history": [],
+    "pending_items": []
+  },
+  "version": 2,
+  "vigilance": {
+    "位置": "外地",
+    "目标": {
+      "徐志北": {
+        "发现": 0,
+        "发现几率": 0,
+        "警惕": 0
+      },
+      "徐念薇": {
+        "发现": 0,
+        "发现几率": 0,
+        "警惕": 0
+      },
+      "沈知韫": {
+        "发现": 0,
+        "发现几率": 0,
+        "警惕": 0
+      },
+      "苏婉青": {
+        "发现": 0,
+        "发现几率": 0,
+        "警惕": 0
+      }
+    }
+  }
+}

@@ -1,0 +1,1867 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <title>音视频截取工具</title>
+  <style>
+    :root {
+      --bg:#f3f4f6; --card:#fff; --text:#111827; --muted:#6b7280; --line:#e5e7eb;
+      --primary:#2563eb; --primary-soft:#eff6ff; --ok:#059669; --danger:#dc2626;
+      --handle:#1d4ed8; --playhead:#ef4444;
+      --safe-b: env(safe-area-inset-bottom, 0px);
+    }
+    * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+    html,body {
+      margin:0; padding:0; background:var(--bg); color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Noto Sans SC",sans-serif;
+      overscroll-behavior-y:contain;
+    }
+    body { padding:12px 12px calc(20px + var(--safe-b)); }
+    .wrap { max-width:560px; margin:0 auto; }
+    h1 { font-size:1.15rem; margin:4px 0 10px; text-align:center; letter-spacing:.02em; }
+    .card {
+      background:var(--card); border-radius:16px; padding:14px;
+      box-shadow:0 6px 20px rgba(15,23,42,.06); margin-bottom:12px;
+    }
+    .muted { color:var(--muted); font-size:.84rem; }
+    .mono { font-variant-numeric:tabular-nums; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+    button {
+      appearance:none; border:0; border-radius:12px; padding:11px 10px;
+      font-size:.92rem; font-weight:700; background:#e5e7eb; color:var(--text);
+      cursor:pointer; touch-action:manipulation; user-select:none;
+      transition:transform .08s ease, filter .12s ease, background-color .15s ease;
+    }
+    button:active { transform:scale(.96); filter:brightness(.95); }
+    button:disabled { opacity:.42; pointer-events:none; }
+    button.primary { background:var(--primary); color:#fff; }
+    button.ok { background:var(--ok); color:#fff; }
+    button.danger { background:var(--danger); color:#fff; }
+    button.ghost { background:#f3f4f6; color:var(--text); }
+    button.block { width:100%; }
+    button.sm { padding:8px 6px; font-size:.8rem; border-radius:10px; font-weight:600; }
+    button.xs { padding:5px 9px; font-size:.78rem; border-radius:8px; font-weight:600; }
+    .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .grid3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; }
+    .grid4 { display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+
+    label.file {
+      display:block; border:2px dashed #cbd5e1; border-radius:14px;
+      padding:16px 12px; text-align:center; background:#f8fafc;
+      font-weight:600; color:#334155; cursor:pointer;
+      transition:border-color .15s, background-color .15s;
+    }
+    label.file.dragover { border-color:var(--primary); background:var(--primary-soft); }
+    label.file input { display:none; }
+    .meta { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; margin-top:10px; font-size:.85rem; }
+    .meta > div { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+    /* 视频可视化舞台 */
+    .video-card { padding:10px; }
+    .video-stage {
+      position:relative; width:100%; background:#0f172a; border-radius:12px;
+      overflow:hidden; display:flex; align-items:center; justify-content:center;
+      min-height:150px; max-height:260px; cursor:pointer;
+    }
+    video#mediaEl {
+      width:100%; max-height:260px; display:block; object-fit:contain;
+      background:#0f172a;
+    }
+    .video-hud-tl, .video-hud-br {
+      position:absolute; padding:3px 8px; border-radius:99px;
+      font-size:.74rem; font-weight:700; color:#fff;
+      background:rgba(15,23,42,.68); backdrop-filter:blur(4px);
+      pointer-events:none;
+    }
+    .video-hud-tl { top:8px; left:8px; }
+    .video-hud-br { bottom:8px; right:8px; }
+    .video-toolbar {
+      display:flex; align-items:center; justify-content:space-between;
+      gap:6px; margin-top:8px; flex-wrap:wrap;
+    }
+    .video-tools-left, .video-tools-right { display:flex; align-items:center; gap:6px; }
+    .video-stage.collapsed { display:none; }
+
+    /* 波形与缩放条 */
+    .zoom-bar {
+      display:flex; align-items:center; justify-content:space-between;
+      gap:6px; margin-bottom:8px; flex-wrap:wrap;
+    }
+    .zoom-group { display:flex; align-items:center; gap:5px; }
+    .zoom-badge {
+      min-width:44px; text-align:center; font-size:.78rem; font-weight:700;
+      color:var(--primary); background:var(--primary-soft); padding:4px 6px; border-radius:8px;
+    }
+    .wave-box {
+      position:relative; height:128px; border-radius:12px; overflow:hidden;
+      background:linear-gradient(180deg,#f8fafc,#eef2ff); border:1px solid var(--line);
+      touch-action:none; user-select:none; cursor:crosshair;
+    }
+    canvas#wave { position:absolute; inset:0; width:100%; height:100%; display:block; }
+    .sel {
+      position:absolute; top:0; bottom:0; left:0;
+      background:rgba(37,99,235,.13);
+      border-left:2px solid rgba(37,99,235,.6);
+      border-right:2px solid rgba(37,99,235,.6);
+      pointer-events:none; z-index:2; will-change:transform, width;
+    }
+    .dim-l,.dim-r {
+      position:absolute; top:0; bottom:0; left:0;
+      background:rgba(15,23,42,.2); pointer-events:none; z-index:1;
+      will-change:transform, width;
+    }
+    .handle {
+      position:absolute; top:0; bottom:0; left:0; width:44px; margin-left:-22px;
+      z-index:6; display:flex; align-items:center; justify-content:center;
+      touch-action:none; cursor:ew-resize; will-change:transform;
+    }
+    .handle::before {
+      content:""; position:absolute; top:0; bottom:0; left:50%; width:2px; margin-left:-1px;
+      background:rgba(29,78,216,.85);
+    }
+    .handle i {
+      display:block; width:12px; height:48px; border-radius:99px;
+      background:var(--handle); box-shadow:0 2px 10px rgba(29,78,216,.45);
+      transition:transform .12s ease, background-color .12s ease;
+    }
+    .handle.active i { transform:scale(1.16, 1.08); background:#1e40af; }
+    .handle .tip {
+      position:absolute; top:6px; left:50%; transform:translateX(-50%);
+      padding:2px 6px; border-radius:6px; font-size:.72rem; font-weight:700;
+      background:#0f172a; color:#fff; white-space:nowrap; pointer-events:none;
+      opacity:0; transition:opacity .12s ease;
+    }
+    .handle.active .tip { opacity:1; }
+    .handle.tip-left .tip { left:22px; transform:translateX(0); }
+    .handle.tip-right .tip { left:auto; right:22px; transform:translateX(0); }
+
+    .playhead {
+      position:absolute; top:0; bottom:0; left:0; width:2px;
+      background:var(--playhead); z-index:5; margin-left:-1px;
+      pointer-events:none; display:none; will-change:transform;
+    }
+    .playhead::after {
+      content:""; position:absolute; top:0; left:50%; transform:translateX(-50%);
+      border-left:6px solid transparent; border-right:6px solid transparent;
+      border-top:8px solid var(--playhead);
+    }
+    .minimap {
+      position:relative; height:6px; border-radius:99px; background:#e2e8f0;
+      margin-top:6px; overflow:hidden; display:none;
+    }
+    .minimap.show { display:block; }
+    .minimap-thumb {
+      position:absolute; top:0; bottom:0; left:0; border-radius:99px;
+      background:rgba(37,99,235,.55); will-change:transform, width;
+    }
+
+    .times { display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:.84rem; color:var(--muted); }
+    .times strong { color:var(--text); }
+    .field { display:flex; flex-direction:column; gap:4px; font-size:.8rem; color:var(--muted); }
+    .field input[type=number] {
+      width:100%; padding:9px 10px; border-radius:10px; border:1px solid #d1d5db;
+      font-size:.98rem; color:var(--text); font-variant-numeric:tabular-nums;
+      background:#fff; outline:none; transition:border-color .15s;
+    }
+    .field input[type=number]:focus { border-color:var(--primary); }
+
+    .seg { display:flex; gap:6px; background:#f3f4f6; padding:4px; border-radius:12px; }
+    .seg button { flex:1; background:transparent; padding:9px 8px; }
+    .seg button.on { background:#fff; box-shadow:0 1px 4px rgba(0,0,0,.1); color:var(--primary); }
+
+    .prog-wrap {
+      height:6px; border-radius:99px; background:#e5e7eb; overflow:hidden;
+      margin-top:10px; display:none;
+    }
+    .prog-wrap.show { display:block; }
+    .prog-bar {
+      height:100%; width:0%; background:linear-gradient(90deg,var(--primary),var(--ok));
+      transition:width .1s linear;
+    }
+
+    .status { min-height:1.2em; text-align:center; margin:8px 0 0; font-size:.88rem; color:var(--muted); white-space:pre-wrap; }
+    .status.err { color:var(--danger); font-weight:600; }
+    .status.ok { color:var(--ok); font-weight:600; }
+    .check { display:flex; align-items:center; gap:8px; font-size:.88rem; color:var(--text); cursor:pointer; user-select:none; }
+    .check input { width:17px; height:17px; accent-color:var(--primary); }
+    .hidden { display:none !important; }
+    .hint { font-size:.8rem; color:var(--muted); line-height:1.48; margin:0; }
+    .dlbox { margin-top:8px; display:none; word-break:break-all; font-size:.88rem; text-align:center; }
+    .dlbox a { color:var(--primary); font-weight:700; }
+    .banner {
+      background:#fff7ed; border:1px solid #fdba74; color:#9a3412;
+      border-radius:14px; padding:12px; margin-bottom:12px; font-size:.86rem; line-height:1.5;
+    }
+    .banner b { color:#c2410c; }
+    .inline-btn-row { display:flex; justify-content:center; margin-top:8px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>🎬 音视频音频截取工具</h1>
+
+    <div id="envBanner" class="banner hidden"></div>
+
+    <div class="card">
+      <label class="file" id="fileLabel">
+        <span id="fileLabelText">点此选择或拖入 音频 / 视频 文件</span>
+        <div class="muted" style="margin-top:5px;font-weight:500">支持 mp4 / mov / webm / mkv 视频提取音频，以及 mp3 / m4a / wav / flac</div>
+        <input id="file" type="file" accept="audio/*,video/*,.mp3,.m4a,.aac,.wav,.ogg,.flac,.webm,.mp4,.mov,.m4v,.mkv,.avi,.3gp" />
+      </label>
+      <div id="meta" class="meta hidden">
+        <div>文件：<b id="mName">-</b></div>
+        <div>时长：<b id="mDur" class="mono">-</b></div>
+        <div>模式：<b id="mMode">-</b></div>
+        <div>信息：<b id="mInfo">-</b></div>
+      </div>
+      <p id="loadStatus" class="status"></p>
+      <div class="inline-btn-row hidden" id="forceDecodeWrap">
+        <button type="button" class="xs ghost" id="btnForceDecode">⚡ 手动解析完整波形与极速导出（大文件慎点）</button>
+      </div>
+    </div>
+
+    <div id="workspace" class="hidden">
+      <!-- 视频可视化预览区（仅加载视频时展示） -->
+      <div class="card video-card hidden" id="videoCard">
+        <div class="video-stage" id="videoStage" title="点击播放/暂停">
+          <video id="mediaEl" playsinline webkit-playsinline preload="auto"></video>
+          <span class="video-hud-tl mono" id="vRes">VIDEO</span>
+          <span class="video-hud-br mono" id="vTime">0.00s</span>
+        </div>
+        <div class="video-toolbar">
+          <div class="video-tools-left">
+            <button type="button" class="xs ghost" id="btnFramePrev">◀ -1帧</button>
+            <button type="button" class="xs ghost" id="btnFrameNext">+1帧 ▶</button>
+            <button type="button" class="xs ghost" id="btnSetStartV">设为起点</button>
+            <button type="button" class="xs ghost" id="btnSetEndV">设为终点</button>
+          </div>
+          <div class="video-tools-right">
+            <button type="button" class="xs ghost" id="btnToggleVideo">隐藏画面</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="zoom-bar">
+          <div class="zoom-group">
+            <span class="muted">波形视图</span>
+            <button class="xs ghost" type="button" id="zoomOut">－</button>
+            <span class="zoom-badge mono" id="zoomVal">1.0x</span>
+            <button class="xs ghost" type="button" id="zoomIn">＋</button>
+          </div>
+          <div class="zoom-group">
+            <button class="xs ghost" type="button" id="zoomFit">适配选区</button>
+            <button class="xs ghost" type="button" id="zoomReset">全景</button>
+          </div>
+        </div>
+
+        <div class="wave-box" id="waveBox">
+          <canvas id="wave"></canvas>
+          <div class="dim-l" id="dimL"></div>
+          <div class="dim-r" id="dimR"></div>
+          <div class="sel" id="sel"></div>
+          <div class="handle" id="hStart"><span class="tip mono" id="tipStart">0.00s</span><i></i></div>
+          <div class="handle" id="hEnd"><span class="tip mono" id="tipEnd">0.00s</span><i></i></div>
+          <div class="playhead" id="playhead"></div>
+        </div>
+        <div class="minimap" id="minimap"><div class="minimap-thumb" id="minimapThumb"></div></div>
+
+        <div class="times mono">
+          <span id="tStart">0.00s</span>
+          <strong id="tCur">当前 0.00s</strong>
+          <span id="tEnd">0.00s</span>
+        </div>
+
+        <div class="grid2" style="margin-top:10px">
+          <label class="field">开始(秒)
+            <input id="inStart" type="number" inputmode="decimal" step="0.01" min="0" />
+          </label>
+          <label class="field">结束(秒)
+            <input id="inEnd" type="number" inputmode="decimal" step="0.01" min="0" />
+          </label>
+        </div>
+
+        <div style="margin-top:10px">
+          <div class="muted" style="margin-bottom:5px">起点微调（长按连发，视频实时联动预览）</div>
+          <div class="grid4">
+            <button class="sm" type="button" data-adj="start" data-d="-1">-1s</button>
+            <button class="sm" type="button" data-adj="start" data-d="-0.1">-0.1s</button>
+            <button class="sm" type="button" data-adj="start" data-d="0.1">+0.1s</button>
+            <button class="sm" type="button" data-adj="start" data-d="1">+1s</button>
+          </div>
+        </div>
+        <div style="margin-top:8px">
+          <div class="muted" style="margin-bottom:5px">终点微调（长按连发，视频实时联动预览）</div>
+          <div class="grid4">
+            <button class="sm" type="button" data-adj="end" data-d="-1">-1s</button>
+            <button class="sm" type="button" data-adj="end" data-d="-0.1">-0.1s</button>
+            <button class="sm" type="button" data-adj="end" data-d="0.1">+0.1s</button>
+            <button class="sm" type="button" data-adj="end" data-d="1">+1s</button>
+          </div>
+        </div>
+        <div class="times mono" style="margin-top:10px">
+          <span>选区时长：<b id="selDur" style="color:var(--text)">0.00s</b></span>
+          <span id="estSize" class="muted">预计大小：-</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="grid3">
+          <button type="button" id="btnBack">⏪ -5s</button>
+          <button type="button" id="btnPlay" class="primary">▶️ 播放</button>
+          <button type="button" id="btnFwd">⏩ +5s</button>
+        </div>
+        <div class="grid2" style="margin-top:8px">
+          <button type="button" id="btnSetStart" class="ghost">📍 当前设为起点</button>
+          <button type="button" id="btnSetEnd" class="ghost">📍 当前设为终点</button>
+        </div>
+        <div class="grid2" style="margin-top:8px">
+          <button type="button" id="btnStop" class="ghost">⏹ 回到起点</button>
+          <button type="button" id="btnPreview" class="ghost">🎧 重头试听选区</button>
+        </div>
+        <label class="check" style="margin-top:10px">
+          <input type="checkbox" id="loopSel" /> 循环播放选区
+        </label>
+      </div>
+
+      <div class="card">
+        <div class="seg" id="exportMode">
+          <button type="button" class="on" data-mode="wav" id="modeWav">原质量 WAV</button>
+          <button type="button" data-mode="wav16k" id="mode16k">16k 单声道 WAV</button>
+        </div>
+        <label class="check" style="margin-top:10px" id="fadeRow">
+          <input type="checkbox" id="fadeToggle" checked /> 首尾 15ms 防爆音微淡入淡出
+        </label>
+        <p class="hint" id="exportHint" style="margin-top:6px">
+          · 原质量 WAV：保留原始采样率与声道<br>
+          · 16k 单声道 WAV：原生抗混叠重采样，适合语音识别/配音素材
+        </p>
+        <button type="button" id="btnExport" class="ok block" style="margin-top:12px">💾 提取选区音频</button>
+        <button type="button" id="btnCancelRec" class="danger block hidden" style="margin-top:8px">取消提取</button>
+        <div class="prog-wrap" id="progWrap"><div class="prog-bar" id="progBar"></div></div>
+        <div id="dlbox" class="dlbox">若未自动下载，点击保存：<a id="dlLink" href="#" download>再次下载</a></div>
+        <p id="exportStatus" class="status"></p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    'use strict';
+
+    const $ = (id) => document.getElementById(id);
+    const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+    const fmt = (s) => {
+      if (!isFinite(s) || s < 0) s = 0;
+      const m = Math.floor(s / 60);
+      const sec = s - m * 60;
+      return m > 0 ? (m + ':' + sec.toFixed(2).padStart(5, '0')) : (sec.toFixed(2) + 's');
+    };
+    const fmtFileTime = (s) => s.toFixed(2).replace('.', 'p');
+    const fmtBytes = (b) => {
+      if (!isFinite(b) || b <= 0) return '-';
+      if (b < 1024 * 1024) return (b / 1024).toFixed(1) + ' KB';
+      return (b / (1024 * 1024)).toFixed(2) + ' MB';
+    };
+    const haptic = (ms) => { try { if (navigator.vibrate) navigator.vibrate(ms || 8); } catch (_) {} };
+
+    const MIN_LEN = 0.05;
+    const FRAME_STEP = 1 / 30;
+    const MAX_ZOOM = 32;
+    const PEAKS_COUNT = 2400;
+    const AUTO_DECODE_VIDEO_BYTES = 200 * 1024 * 1024; // 200MB 以内自动直解音轨
+    const IS_LITTLE_ENDIAN = new Uint8Array(new Uint16Array([1]).buffer)[0] === 1;
+    const VIDEO_EXT_RE = /\.(mp4|mov|m4v|webm|mkv|avi|flv|3gp|ts|mpeg|mpg)$/i;
+
+    // 核心状态
+    let currentFile = null;
+    let isVideo = false;
+    let playbackMode = 'buffer'; // 'buffer' (纯音频直解) | 'media' (视频音画同步 / 兼容模式)
+    let audioCtx = null;
+    let buffer = null;
+    let peaks = null;
+    let objectUrl = '';
+    let fileName = 'audio';
+    let duration = 0;
+    let startSec = 0, endSec = 0, cursorSec = 0;
+    let zoom = 1, viewStart = 0;
+
+    // 播放与调度状态
+    let playing = false;
+    let playSession = 0;
+    let sourceNode = null;
+    let gainNode = null;
+    let playOriginCtx = 0, playOriginBuf = 0;
+    let rafPlay = 0;
+    let rafUI = 0;
+    let loadSeq = 0;
+
+    // 视频平滑 Seek 调度
+    let pendingSeekSec = null;
+    let lastSeekAt = 0;
+    let seekTimer = 0;
+
+    // 导出与 MediaElement 音频图状态
+    let exportMode = 'wav';
+    let lastDownloadUrl = '';
+    let mediaSourceNode = null;
+    let monitorGainNode = null;
+    let cancelExtractFn = null;
+    let wavWorker = null;
+    let wavWorkerDisabled = false;
+
+    // DOM 与画布
+    const media = $('mediaEl');
+    const videoCard = $('videoCard');
+    const videoStage = $('videoStage');
+    const workspace = $('workspace');
+    const loadStatus = $('loadStatus');
+    const exportStatus = $('exportStatus');
+    const waveBox = $('waveBox');
+    const canvas = $('wave');
+    const ctx2d = canvas.getContext('2d', { alpha: true });
+    const waveBgCanvas = document.createElement('canvas');
+    const waveFgCanvas = document.createElement('canvas');
+    const bgCtx = waveBgCanvas.getContext('2d', { alpha: true });
+    const fgCtx = waveFgCanvas.getContext('2d', { alpha: true });
+    let boxW = 0, boxH = 0;
+    let layersDirty = true;
+
+    const btnPlay = $('btnPlay');
+    const inStart = $('inStart');
+    const inEnd = $('inEnd');
+    const hStart = $('hStart');
+    const hEnd = $('hEnd');
+    const tipStart = $('tipStart');
+    const tipEnd = $('tipEnd');
+    const elSel = $('sel');
+    const elDimL = $('dimL');
+    const elDimR = $('dimR');
+    const elPlayhead = $('playhead');
+    const elTCur = $('tCur');
+    const elVTime = $('vTime');
+    const progWrap = $('progWrap');
+    const progBar = $('progBar');
+
+    // ---- 环境提示 ----
+    function detectEnv() {
+      const href = String(location.href || '');
+      const ua = navigator.userAgent || '';
+      const isMT = /bin\.mt\.plus|mt\.plus|content:\/\//i.test(href) || /MT\s*管理器|mt2/i.test(ua);
+      const box = $('envBanner');
+      if (isMT) {
+        box.classList.remove('hidden');
+        box.innerHTML = '<b>检测到 MT 管理器内置页面</b>：建议改用 <b>Chrome</b> 打开本 HTML，视频预览与高速无损提取更稳定。';
+      }
+    }
+    detectEnv();
+
+    function ensureCtx() {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return Promise.reject(new Error('当前浏览器不支持 AudioContext'));
+      if (!audioCtx) audioCtx = new AC();
+      if (audioCtx.state === 'suspended') return audioCtx.resume();
+      return Promise.resolve();
+    }
+
+    function ensureMediaAudioGraph() {
+      if (!audioCtx) return false;
+      if (!mediaSourceNode) {
+        mediaSourceNode = audioCtx.createMediaElementSource(media);
+        monitorGainNode = audioCtx.createGain();
+        monitorGainNode.gain.value = 1;
+        mediaSourceNode.connect(monitorGainNode);
+        monitorGainNode.connect(audioCtx.destination);
+      }
+      return true;
+    }
+
+    function revokeObj() {
+      if (objectUrl) { try { URL.revokeObjectURL(objectUrl); } catch (_) {} objectUrl = ''; }
+    }
+
+    function setProgress(ratio, show) {
+      progWrap.classList.toggle('show', !!show);
+      progBar.style.width = clamp(ratio * 100, 0, 100).toFixed(1) + '%';
+    }
+
+    // ---- 视频预览平滑跳帧（防 4K 解码器拥堵） ----
+    function seekMediaSmooth(sec, immediate) {
+      if (playbackMode !== 'media' || !duration) return;
+      const target = clamp(sec, 0, Math.max(0, duration - 0.005));
+      pendingSeekSec = target;
+      const now = performance.now();
+
+      const commit = () => {
+        if (pendingSeekSec == null) return;
+        const t = pendingSeekSec;
+        pendingSeekSec = null;
+        lastSeekAt = performance.now();
+        try {
+          if (Math.abs((media.currentTime || 0) - t) > 0.008) {
+            media.currentTime = t;
+          }
+        } catch (_) {}
+      };
+
+      if (immediate) {
+        clearTimeout(seekTimer);
+        seekTimer = 0;
+        commit();
+        return;
+      }
+
+      if (!media.seeking && now - lastSeekAt >= 65) {
+        commit();
+      } else if (!seekTimer) {
+        seekTimer = setTimeout(() => {
+          seekTimer = 0;
+          commit();
+        }, 70);
+      }
+    }
+
+    // ---- 文件读取与解码 ----
+    function readAsArrayBuffer(file) {
+      return new Promise((resolve, reject) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = () => reject(fr.error || new Error('FileReader 读取失败'));
+        fr.readAsArrayBuffer(file);
+      });
+    }
+
+    async function readFileBytes(file) {
+      if (typeof file.arrayBuffer === 'function') {
+        try { return await file.arrayBuffer(); } catch (_) {}
+      }
+      try { return await readAsArrayBuffer(file); } catch (_) {}
+      const url = URL.createObjectURL(file);
+      try {
+        const res = await fetch(url);
+        return await res.arrayBuffer();
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    }
+
+    function decodeArrayBuffer(ab) {
+      return new Promise((resolve, reject) => {
+        let settled = false;
+        const ok = (buf) => { if (!settled) { settled = true; resolve(buf); } };
+        const bad = (e) => { if (!settled) { settled = true; reject(e || new Error('音轨解码失败')); } };
+        try {
+          const ret = audioCtx.decodeAudioData(ab, ok, bad);
+          if (ret && typeof ret.then === 'function') ret.then(ok, bad);
+        } catch (e) { bad(e); }
+      });
+    }
+
+    function waitMediaMeta(el, timeoutMs) {
+      return new Promise((resolve, reject) => {
+        let done = false;
+        const cleanup = () => {
+          clearTimeout(timer);
+          el.removeEventListener('loadedmetadata', ok);
+          el.removeEventListener('durationchange', ok);
+          el.removeEventListener('error', bad);
+        };
+        const timer = setTimeout(() => {
+          if (done) return;
+          done = true; cleanup();
+          reject(new Error('读取媒体信息超时'));
+        }, timeoutMs || 18000);
+        const ok = () => {
+          if (done || !isFinite(el.duration) || el.duration <= 0) return;
+          done = true; cleanup(); resolve(el.duration);
+        };
+        const bad = () => {
+          if (done) return;
+          done = true; cleanup(); reject(new Error('浏览器无法加载该媒体格式'));
+        };
+        el.addEventListener('loadedmetadata', ok);
+        el.addEventListener('durationchange', ok);
+        el.addEventListener('error', bad);
+        if (el.readyState >= 1 && isFinite(el.duration) && el.duration > 0) ok();
+      });
+    }
+
+    async function mountToMediaElement(file) {
+      revokeObj();
+      objectUrl = URL.createObjectURL(file);
+      media.pause();
+      media.src = objectUrl;
+      media.load();
+      return waitMediaMeta(media, 18000);
+    }
+
+    // ---- 波形峰值 ----
+    function buildPeaksFromBuffer() {
+      const bars = PEAKS_COUNT;
+      const ch0 = buffer.getChannelData(0);
+      const ch1 = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : null;
+      const len = ch0.length;
+      const block = len / bars;
+      const step = Math.max(1, Math.floor(block / 96));
+      const p = new Float32Array(bars);
+      let max = 1e-6;
+      for (let i = 0; i < bars; i++) {
+        const from = Math.floor(i * block);
+        const to = Math.min(len, Math.floor((i + 1) * block));
+        let m = 0;
+        for (let j = from; j < to; j += step) {
+          let v = ch0[j];
+          if (v < 0) v = -v;
+          if (ch1) {
+            let v1 = ch1[j];
+            if (v1 < 0) v1 = -v1;
+            if (v1 > v) v = v1;
+          }
+          if (v > m) m = v;
+        }
+        p[i] = m;
+        if (m > max) max = m;
+      }
+      const inv = 1 / max;
+      for (let i = 0; i < bars; i++) p[i] *= inv;
+      peaks = p;
+      layersDirty = true;
+    }
+
+    function buildFakePeaks() {
+      const p = new Float32Array(PEAKS_COUNT);
+      for (let i = 0; i < PEAKS_COUNT; i++) {
+        p[i] = 0.2 + 0.52 * Math.abs(Math.sin(i * 0.024)) * (0.45 + 0.55 * Math.abs(Math.sin(i * 0.0038)));
+      }
+      peaks = p;
+      layersDirty = true;
+    }
+
+    // ---- 坐标与缩放 ----
+    function viewSpan() { return duration / zoom; }
+    function clampView() {
+      if (!duration) { viewStart = 0; return; }
+      viewStart = clamp(viewStart, 0, Math.max(0, duration - viewSpan()));
+    }
+    function secToRatio(sec) {
+      const span = viewSpan();
+      return span > 0 ? (sec - viewStart) / span : 0;
+    }
+    function clientXToSec(clientX) {
+      const rect = waveBox.getBoundingClientRect();
+      if (!rect.width) return startSec;
+      const r = clamp((clientX - rect.left) / rect.width, 0, 1);
+      return clamp(viewStart + r * viewSpan(), 0, duration);
+    }
+
+    function setZoom(nextZoom, anchorSec) {
+      if (!duration) return;
+      const prevSpan = viewSpan();
+      const focus = anchorSec != null ? anchorSec : clamp(cursorSec, viewStart, viewStart + prevSpan);
+      const anchorRatio = clamp((focus - viewStart) / prevSpan, 0, 1);
+      zoom = clamp(nextZoom, 1, MAX_ZOOM);
+      viewStart = focus - anchorRatio * viewSpan();
+      clampView();
+      layersDirty = true;
+      $('zoomVal').textContent = zoom.toFixed(1) + 'x';
+      scheduleUI();
+    }
+
+    // ---- 离屏双层波形渲染 + GPU 合成 ----
+    function resizeCanvas() {
+      const rect = waveBox.getBoundingClientRect();
+      if (!rect.width || !rect.height) return false;
+      boxW = rect.width;
+      boxH = rect.height;
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const w = Math.max(1, Math.round(boxW * dpr));
+      const h = Math.max(1, Math.round(boxH * dpr));
+      if (canvas.width !== w || canvas.height !== h) {
+        canvas.width = w; canvas.height = h;
+        waveBgCanvas.width = w; waveBgCanvas.height = h;
+        waveFgCanvas.width = w; waveFgCanvas.height = h;
+        layersDirty = true;
+      }
+      return true;
+    }
+
+    function renderWaveLayers() {
+      if (!peaks || !duration || !canvas.width) return;
+      const w = canvas.width, h = canvas.height, mid = h * 0.5;
+      const maxAmp = h * 0.43;
+      const span = viewSpan();
+      const startIdx = (viewStart / duration) * peaks.length;
+      const endIdx = ((viewStart + span) / duration) * peaks.length;
+      const visibleBars = Math.max(1, endIdx - startIdx);
+      const drawCols = Math.min(Math.floor(w * 0.55), Math.ceil(visibleBars));
+      const colW = w / drawCols;
+      const barW = Math.max(1, colW * 0.72);
+
+      const drawTo = (ctx, barColor, lineColor) => {
+        ctx.clearRect(0, 0, w, h);
+        ctx.strokeStyle = lineColor;
+        ctx.lineWidth = Math.max(1, Math.round(w / 450));
+        ctx.beginPath(); ctx.moveTo(0, mid); ctx.lineTo(w, mid); ctx.stroke();
+        ctx.fillStyle = barColor;
+        for (let i = 0; i < drawCols; i++) {
+          const a = Math.floor(startIdx + (i / drawCols) * visibleBars);
+          const b = Math.min(peaks.length, Math.max(a + 1, Math.floor(startIdx + ((i + 1) / drawCols) * visibleBars)));
+          let peak = 0;
+          for (let k = a; k < b; k++) {
+            const v = peaks[k];
+            if (v > peak) peak = v;
+          }
+          const amp = Math.max(1.5, peak * maxAmp);
+          ctx.fillRect(i * colW, mid - amp, barW, amp * 2);
+        }
+      };
+
+      const bgCol = buffer ? 'rgba(147,197,253,0.82)' : 'rgba(148,163,184,0.48)';
+      const fgCol = buffer ? 'rgba(37,99,235,0.92)' : 'rgba(59,130,246,0.75)';
+      drawTo(bgCtx, bgCol, 'rgba(148,163,184,.36)');
+      drawTo(fgCtx, fgCol, 'rgba(37,99,235,.3)');
+      layersDirty = false;
+    }
+
+    function compositeWave() {
+      if (!peaks || !duration || !canvas.width) return;
+      if (layersDirty) renderWaveLayers();
+      const w = canvas.width, h = canvas.height;
+      ctx2d.clearRect(0, 0, w, h);
+      ctx2d.drawImage(waveBgCanvas, 0, 0);
+      const x1 = clamp(secToRatio(startSec), 0, 1) * w;
+      const x2 = clamp(secToRatio(endSec), 0, 1) * w;
+      if (x2 > x1) {
+        ctx2d.save();
+        ctx2d.beginPath();
+        ctx2d.rect(x1, 0, x2 - x1, h);
+        ctx2d.clip();
+        ctx2d.drawImage(waveFgCanvas, 0, 0);
+        ctx2d.restore();
+      }
+    }
+
+    function updatePlayheadVisual() {
+      if (!duration || !boxW) return;
+      const r = secToRatio(cursorSec);
+      if (r < -0.01 || r > 1.01) {
+        elPlayhead.style.display = 'none';
+      } else {
+        elPlayhead.style.display = 'block';
+        elPlayhead.style.transform = `translate3d(${(r * boxW).toFixed(2)}px,0,0)`;
+      }
+      const txt = fmt(cursorSec);
+      elTCur.textContent = '当前 ' + txt;
+      if (isVideo) elVTime.textContent = txt;
+    }
+
+    function updateEstimate() {
+      if (!duration) return;
+      const len = Math.max(0, endSec - startSec);
+      const sr = buffer ? buffer.sampleRate : (audioCtx ? audioCtx.sampleRate : 48000);
+      const ch = buffer ? buffer.numberOfChannels : 2;
+      const bytes = exportMode === 'wav16k'
+        ? 44 + Math.ceil(len * 16000) * 2
+        : 44 + Math.floor(len * sr) * ch * 2;
+      $('estSize').textContent = (buffer ? '极速提取约 ' : '实时提取约 ') + fmtBytes(bytes);
+    }
+
+    function syncUI() {
+      if (!duration) return;
+      if (!boxW) resizeCanvas();
+      startSec = clamp(startSec, 0, Math.max(0, duration - MIN_LEN));
+      endSec = clamp(endSec, startSec + MIN_LEN, duration);
+      cursorSec = clamp(cursorSec, startSec, endSec);
+      clampView();
+
+      const sr = secToRatio(startSec);
+      const er = secToRatio(endSec);
+      const sPx = clamp(sr, 0, 1) * boxW;
+      const ePx = clamp(er, 0, 1) * boxW;
+
+      elSel.style.transform = `translate3d(${sPx.toFixed(2)}px,0,0)`;
+      elSel.style.width = Math.max(0, ePx - sPx).toFixed(2) + 'px';
+      elSel.style.display = er <= 0 || sr >= 1 ? 'none' : 'block';
+
+      elDimL.style.width = sPx.toFixed(2) + 'px';
+      elDimR.style.transform = `translate3d(${ePx.toFixed(2)}px,0,0)`;
+      elDimR.style.width = Math.max(0, boxW - ePx).toFixed(2) + 'px';
+
+      const posHandle = (el, tipEl, ratio, sec) => {
+        if (ratio < -0.04 || ratio > 1.04) {
+          el.style.visibility = 'hidden';
+        } else {
+          el.style.visibility = 'visible';
+          el.style.transform = `translate3d(${(clamp(ratio, 0, 1) * boxW).toFixed(2)}px,0,0)`;
+          el.classList.toggle('tip-left', ratio < 0.14);
+          el.classList.toggle('tip-right', ratio > 0.86);
+        }
+        tipEl.textContent = fmt(sec);
+      };
+      posHandle(hStart, tipStart, sr, startSec);
+      posHandle(hEnd, tipEnd, er, endSec);
+
+      const mm = $('minimap');
+      if (zoom > 1.01) {
+        mm.classList.add('show');
+        const thumb = $('minimapThumb');
+        thumb.style.transform = `translate3d(${((viewStart / duration) * boxW).toFixed(2)}px,0,0)`;
+        thumb.style.width = Math.max(16, (1 / zoom) * boxW).toFixed(2) + 'px';
+      } else {
+        mm.classList.remove('show');
+      }
+
+      updatePlayheadVisual();
+      $('tStart').textContent = fmt(startSec);
+      $('tEnd').textContent = fmt(endSec);
+      $('selDur').textContent = fmt(endSec - startSec);
+      if (document.activeElement !== inStart) inStart.value = startSec.toFixed(2);
+      if (document.activeElement !== inEnd) inEnd.value = endSec.toFixed(2);
+      updateEstimate();
+      compositeWave();
+    }
+
+    function scheduleUI() {
+      if (rafUI) return;
+      rafUI = requestAnimationFrame(() => { rafUI = 0; syncUI(); });
+    }
+
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(() => { if (duration && resizeCanvas()) syncUI(); }).observe(waveBox);
+    } else {
+      window.addEventListener('resize', () => { if (duration && resizeCanvas()) syncUI(); });
+    }
+
+    // ---- 播放引擎（纯音频走 WebAudio 防爆音，视频走原生音画同步） ----
+    function getLiveCursor() {
+      if (!playing) return cursorSec;
+      if (playbackMode === 'buffer' && audioCtx && sourceNode) {
+        return clamp(playOriginBuf + (audioCtx.currentTime - playOriginCtx), startSec, endSec);
+      }
+      return clamp(media.currentTime || cursorSec, startSec, endSec);
+    }
+
+    function stopSourceSmooth() {
+      playSession++;
+      if (rafPlay) { cancelAnimationFrame(rafPlay); rafPlay = 0; }
+      if (sourceNode) {
+        const oldSrc = sourceNode, oldGain = gainNode;
+        sourceNode = null; gainNode = null;
+        try { oldSrc.onended = null; } catch (_) {}
+        try {
+          if (oldGain && audioCtx) {
+            const now = audioCtx.currentTime;
+            oldGain.gain.cancelScheduledValues(now);
+            oldGain.gain.setValueAtTime(oldGain.gain.value, now);
+            oldGain.gain.linearRampToValueAtTime(0.0001, now + 0.012);
+            oldSrc.stop(now + 0.015);
+            setTimeout(() => { try { oldSrc.disconnect(); oldGain.disconnect(); } catch (_) {} }, 30);
+          } else {
+            oldSrc.stop(); oldSrc.disconnect();
+          }
+        } catch (_) {}
+      }
+    }
+
+    function stopPlayback(resetToStart) {
+      if (playbackMode === 'buffer') {
+        if (playing && audioCtx && sourceNode) {
+          cursorSec = playOriginBuf + (audioCtx.currentTime - playOriginCtx);
+        }
+        stopSourceSmooth();
+      } else {
+        playSession++;
+        if (rafPlay) { cancelAnimationFrame(rafPlay); rafPlay = 0; }
+        if (playing) cursorSec = media.currentTime || cursorSec;
+        try { media.pause(); } catch (_) {}
+      }
+      playing = false;
+      btnPlay.textContent = '▶️ 播放';
+      cursorSec = resetToStart ? startSec : clamp(cursorSec, startSec, endSec);
+      if (playbackMode === 'media') seekMediaSmooth(cursorSec, true);
+      syncUI();
+    }
+
+    function tickBuffer(session) {
+      if (!playing || playbackMode !== 'buffer' || session !== playSession) return;
+      const now = playOriginBuf + (audioCtx.currentTime - playOriginCtx);
+      if (now >= endSec - 0.002) {
+        if ($('loopSel').checked) { playBufferFrom(startSec); return; }
+        cursorSec = endSec; stopSourceSmooth(); playing = false; btnPlay.textContent = '▶️ 播放'; syncUI(); return;
+      }
+      cursorSec = now;
+      if (zoom > 1.01 && cursorSec > viewStart + viewSpan() * 0.96 && cursorSec < endSec) {
+        viewStart = clamp(cursorSec - viewSpan() * 0.15, 0, duration - viewSpan());
+        layersDirty = true; syncUI();
+      } else {
+        updatePlayheadVisual();
+      }
+      rafPlay = requestAnimationFrame(() => tickBuffer(session));
+    }
+
+    async function playBufferFrom(sec) {
+      await ensureCtx();
+      stopSourceSmooth();
+      const session = playSession;
+      const from = clamp(sec, startSec, Math.max(startSec, endSec - 0.01));
+      const remain = Math.max(0.01, endSec - from);
+      const src = audioCtx.createBufferSource();
+      const gain = audioCtx.createGain();
+      const now = audioCtx.currentTime;
+      const ramp = Math.min(0.008, remain * 0.25);
+
+      src.buffer = buffer;
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(1, now + ramp);
+      if (remain > 0.02) {
+        gain.gain.setValueAtTime(1, now + remain - 0.008);
+        gain.gain.linearRampToValueAtTime(0.0001, now + remain);
+      }
+      src.connect(gain); gain.connect(audioCtx.destination);
+      src.start(now, from, remain);
+
+      sourceNode = src; gainNode = gain;
+      playOriginCtx = now; playOriginBuf = from; cursorSec = from;
+      playing = true; btnPlay.textContent = '⏸️ 暂停';
+      src.onended = () => {
+        if (session !== playSession || !playing) return;
+        if ($('loopSel').checked) playBufferFrom(startSec);
+        else { playing = false; cursorSec = endSec; btnPlay.textContent = '▶️ 播放'; syncUI(); }
+      };
+      syncUI();
+      rafPlay = requestAnimationFrame(() => tickBuffer(session));
+    }
+
+    function tickMedia(session) {
+      if (!playing || playbackMode !== 'media' || session !== playSession) return;
+      const now = media.currentTime || 0;
+      if (now >= endSec - 0.025 || media.ended) {
+        if ($('loopSel').checked) {
+          try { media.currentTime = startSec; } catch (_) {}
+          media.play().catch(() => {});
+        } else {
+          media.pause();
+          cursorSec = endSec;
+          playing = false;
+          btnPlay.textContent = '▶️ 播放';
+          syncUI();
+          return;
+        }
+      }
+      cursorSec = clamp(now, startSec, endSec);
+      if (zoom > 1.01 && cursorSec > viewStart + viewSpan() * 0.96 && cursorSec < endSec) {
+        viewStart = clamp(cursorSec - viewSpan() * 0.15, 0, duration - viewSpan());
+        layersDirty = true; syncUI();
+      } else {
+        updatePlayheadVisual();
+      }
+      rafPlay = requestAnimationFrame(() => tickMedia(session));
+    }
+
+    async function playMediaFrom(sec) {
+      if (mediaSourceNode) {
+        await ensureCtx().catch(() => {});
+        if (monitorGainNode) monitorGainNode.gain.value = 1;
+      }
+      playSession++;
+      const session = playSession;
+      const from = clamp(sec, startSec, Math.max(startSec, endSec - 0.01));
+      try { media.currentTime = from; } catch (_) {}
+      cursorSec = from;
+      try {
+        await media.play();
+      } catch (_) {
+        loadStatus.className = 'status err';
+        loadStatus.textContent = '播放被浏览器拦截，请再点击一次播放。';
+        return;
+      }
+      if (session !== playSession) return;
+      playing = true;
+      btnPlay.textContent = '⏸️ 暂停';
+      syncUI();
+      if (rafPlay) cancelAnimationFrame(rafPlay);
+      rafPlay = requestAnimationFrame(() => tickMedia(session));
+    }
+
+    function playFrom(sec) {
+      return playbackMode === 'buffer' ? playBufferFrom(sec) : playMediaFrom(sec);
+    }
+
+    function togglePlay() {
+      if (!duration) return;
+      haptic(6);
+      if (playing) stopPlayback(false);
+      else {
+        if (cursorSec >= endSec - 0.025) cursorSec = startSec;
+        playFrom(cursorSec);
+      }
+    }
+
+    btnPlay.addEventListener('click', togglePlay);
+    videoStage.addEventListener('click', togglePlay);
+    $('btnStop').addEventListener('click', () => { haptic(6); stopPlayback(true); });
+    $('btnPreview').addEventListener('click', () => { haptic(6); cursorSec = startSec; playFrom(startSec); });
+    $('btnBack').addEventListener('click', () => {
+      if (!duration) return;
+      haptic(5);
+      const was = playing;
+      const target = clamp(getLiveCursor() - 5, startSec, endSec);
+      if (was) playFrom(target);
+      else { cursorSec = target; seekMediaSmooth(target, true); syncUI(); }
+    });
+    $('btnFwd').addEventListener('click', () => {
+      if (!duration) return;
+      haptic(5);
+      const was = playing;
+      const target = clamp(getLiveCursor() + 5, startSec, endSec);
+      if (was) playFrom(target);
+      else { cursorSec = target; seekMediaSmooth(target, true); syncUI(); }
+    });
+
+    function markStart() {
+      if (!duration) return;
+      haptic(10);
+      const cur = getLiveCursor();
+      startSec = clamp(cur, 0, endSec - MIN_LEN);
+      cursorSec = Math.max(cursorSec, startSec);
+      syncUI();
+    }
+    function markEnd() {
+      if (!duration) return;
+      haptic(10);
+      const cur = getLiveCursor();
+      endSec = clamp(cur, startSec + MIN_LEN, duration);
+      if (playing && cursorSec >= endSec) stopPlayback(false);
+      else syncUI();
+    }
+    $('btnSetStart').addEventListener('click', markStart);
+    $('btnSetEnd').addEventListener('click', markEnd);
+    $('btnSetStartV').addEventListener('click', markStart);
+    $('btnSetEndV').addEventListener('click', markEnd);
+
+    // 逐帧步进与画面折叠
+    function stepFrame(dir) {
+      if (!duration) return;
+      haptic(5);
+      if (playing) stopPlayback(false);
+      cursorSec = clamp(cursorSec + dir * FRAME_STEP, 0, duration);
+      if (cursorSec < startSec) startSec = cursorSec;
+      if (cursorSec > endSec) endSec = cursorSec;
+      seekMediaSmooth(cursorSec, true);
+      syncUI();
+    }
+    $('btnFramePrev').addEventListener('click', () => stepFrame(-1));
+    $('btnFrameNext').addEventListener('click', () => stepFrame(1));
+    $('btnToggleVideo').addEventListener('click', () => {
+      const hidden = videoStage.classList.toggle('collapsed');
+      $('btnToggleVideo').textContent = hidden ? '显示画面' : '隐藏画面';
+    });
+
+    // ---- 缩放控制 ----
+    $('zoomIn').addEventListener('click', () => { haptic(5); setZoom(zoom * 1.8); });
+    $('zoomOut').addEventListener('click', () => { haptic(5); setZoom(zoom / 1.8); });
+    $('zoomReset').addEventListener('click', () => { haptic(5); setZoom(1, 0); });
+    $('zoomFit').addEventListener('click', () => {
+      if (!duration) return;
+      haptic(6);
+      const selLen = Math.max(MIN_LEN, endSec - startSec);
+      zoom = clamp(duration / (selLen * 1.18), 1, MAX_ZOOM);
+      viewStart = (startSec + endSec) * 0.5 - viewSpan() * 0.5;
+      clampView();
+      layersDirty = true;
+      $('zoomVal').textContent = zoom.toFixed(1) + 'x';
+      syncUI();
+    });
+
+    // ---- 统一 Pointer Events 拖动手柄（联动视频实时看帧） ----
+    let activeDrag = null;
+    let edgePanRaf = 0;
+    function stopEdgePan() { if (edgePanRaf) { cancelAnimationFrame(edgePanRaf); edgePanRaf = 0; } }
+
+    function bindHandle(el, type) {
+      el.addEventListener('pointerdown', (ev) => {
+        if (!duration) return;
+        ev.preventDefault(); ev.stopPropagation();
+        haptic(8);
+        if (playing) stopPlayback(false);
+        activeDrag = { type, pointerId: ev.pointerId, lastX: ev.clientX };
+        el.classList.add('active');
+        try { el.setPointerCapture(ev.pointerId); } catch (_) {}
+      });
+
+      el.addEventListener('pointermove', (ev) => {
+        if (!activeDrag || activeDrag.type !== type || activeDrag.pointerId !== ev.pointerId) return;
+        ev.preventDefault();
+        activeDrag.lastX = ev.clientX;
+        const rect = waveBox.getBoundingClientRect();
+        const rel = (ev.clientX - rect.left) / Math.max(1, rect.width);
+
+        const applyAt = (sec) => {
+          if (type === 'start') {
+            startSec = clamp(sec, 0, endSec - MIN_LEN);
+            cursorSec = startSec;
+            seekMediaSmooth(startSec, false);
+          } else {
+            endSec = clamp(sec, startSec + MIN_LEN, duration);
+            if (cursorSec > endSec) cursorSec = endSec;
+            seekMediaSmooth(endSec, false);
+          }
+          scheduleUI();
+        };
+        applyAt(clientXToSec(ev.clientX));
+
+        if (zoom > 1.01 && (rel < 0.08 || rel > 0.92)) {
+          if (!edgePanRaf) {
+            const stepPan = () => {
+              if (!activeDrag || activeDrag.type !== type) { edgePanRaf = 0; return; }
+              const r = (activeDrag.lastX - waveBox.getBoundingClientRect().left) / Math.max(1, boxW);
+              const dir = r < 0.08 ? -1 : (r > 0.92 ? 1 : 0);
+              if (dir !== 0) {
+                viewStart += dir * viewSpan() * 0.025;
+                clampView(); layersDirty = true;
+                applyAt(clientXToSec(activeDrag.lastX));
+                edgePanRaf = requestAnimationFrame(stepPan);
+              } else edgePanRaf = 0;
+            };
+            edgePanRaf = requestAnimationFrame(stepPan);
+          }
+        } else {
+          stopEdgePan();
+        }
+      });
+
+      const endDrag = (ev) => {
+        if (!activeDrag || activeDrag.type !== type) return;
+        if (ev.pointerId != null && activeDrag.pointerId !== ev.pointerId) return;
+        el.classList.remove('active');
+        const finalSec = type === 'start' ? startSec : endSec;
+        activeDrag = null;
+        stopEdgePan();
+        seekMediaSmooth(finalSec, true);
+        syncUI();
+      };
+      el.addEventListener('pointerup', endDrag);
+      el.addEventListener('pointercancel', endDrag);
+    }
+    bindHandle(hStart, 'start');
+    bindHandle(hEnd, 'end');
+
+    // ---- 波形区域交互：点击跳帧、搓动预览、放大平移、捏合/滚轮缩放 ----
+    const pointers = new Map();
+    let panState = null;
+    let pinchState = null;
+
+    waveBox.addEventListener('pointerdown', (ev) => {
+      if (!duration || ev.target.closest('.handle')) return;
+      ev.preventDefault();
+      try { waveBox.setPointerCapture(ev.pointerId); } catch (_) {}
+      pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+
+      if (pointers.size === 2) {
+        panState = null;
+        const pts = Array.from(pointers.values());
+        const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+        pinchState = { startDist: Math.max(10, dist), startZoom: zoom, anchorSec: clientXToSec((pts[0].x + pts[1].x) * 0.5) };
+      } else if (pointers.size === 1) {
+        panState = { pointerId: ev.pointerId, startX: ev.clientX, origViewStart: viewStart, moved: false };
+      }
+    });
+
+    waveBox.addEventListener('pointermove', (ev) => {
+      if (!pointers.has(ev.pointerId)) return;
+      pointers.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+
+      if (pointers.size === 2 && pinchState) {
+        const pts = Array.from(pointers.values());
+        const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y);
+        setZoom(pinchState.startZoom * (dist / pinchState.startDist), pinchState.anchorSec);
+        return;
+      }
+
+      if (panState && panState.pointerId === ev.pointerId) {
+        const dx = ev.clientX - panState.startX;
+        if (Math.abs(dx) > 6) panState.moved = true;
+        if (panState.moved) {
+          if (zoom > 1.01) {
+            viewStart = panState.origViewStart - (dx / Math.max(1, boxW)) * viewSpan();
+            clampView(); layersDirty = true; scheduleUI();
+          } else {
+            cursorSec = clamp(clientXToSec(ev.clientX), startSec, endSec);
+            seekMediaSmooth(cursorSec, false);
+            updatePlayheadVisual();
+          }
+        }
+      }
+    });
+
+    const onWaveUp = (ev) => {
+      const wasPan = panState && panState.pointerId === ev.pointerId ? panState : null;
+      pointers.delete(ev.pointerId);
+      if (pointers.size < 2) pinchState = null;
+      if (wasPan) {
+        panState = null;
+        if (!wasPan.moved) {
+          const target = clamp(clientXToSec(ev.clientX), startSec, endSec);
+          cursorSec = target;
+          if (playing) playFrom(target);
+          else { seekMediaSmooth(target, true); syncUI(); }
+        } else if (zoom <= 1.01) {
+          if (playing) playFrom(cursorSec);
+          else seekMediaSmooth(cursorSec, true);
+        }
+      }
+    };
+    waveBox.addEventListener('pointerup', onWaveUp);
+    waveBox.addEventListener('pointercancel', onWaveUp);
+
+    waveBox.addEventListener('wheel', (ev) => {
+      if (!duration) return;
+      ev.preventDefault();
+      if (ev.shiftKey || Math.abs(ev.deltaX) > Math.abs(ev.deltaY)) {
+        if (zoom > 1.01) {
+          viewStart += (ev.deltaX || ev.deltaY) * 0.002 * viewSpan();
+          clampView(); layersDirty = true; scheduleUI();
+        }
+      } else {
+        setZoom(zoom * (ev.deltaY < 0 ? 1.25 : 0.8), clientXToSec(ev.clientX));
+      }
+    }, { passive: false });
+
+    // ---- 输入框与微调长按连发 ----
+    function applyInputs() {
+      if (!duration) return;
+      let s = parseFloat(inStart.value), e = parseFloat(inEnd.value);
+      if (!isFinite(s)) s = startSec;
+      if (!isFinite(e)) e = endSec;
+      s = clamp(s, 0, duration - MIN_LEN);
+      e = clamp(e, s + MIN_LEN, duration);
+      const changedEnd = Math.abs(e - endSec) > 0.001 && Math.abs(s - startSec) <= 0.001;
+      startSec = s; endSec = e;
+      cursorSec = clamp(cursorSec, startSec, endSec);
+      if (playing) stopPlayback(false);
+      seekMediaSmooth(changedEnd ? endSec : startSec, true);
+      syncUI();
+    }
+    inStart.addEventListener('change', applyInputs);
+    inEnd.addEventListener('change', applyInputs);
+    [inStart, inEnd].forEach((inp) => inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') inp.blur(); }));
+
+    function nudge(which, d) {
+      if (!duration) return;
+      if (playing) stopPlayback(false);
+      if (which === 'start') {
+        startSec = clamp(startSec + d, 0, endSec - MIN_LEN);
+        cursorSec = startSec;
+        seekMediaSmooth(startSec, false);
+      } else {
+        endSec = clamp(endSec + d, startSec + MIN_LEN, duration);
+        cursorSec = clamp(cursorSec, startSec, endSec);
+        seekMediaSmooth(endSec, false);
+      }
+      syncUI();
+    }
+
+    document.querySelectorAll('[data-adj]').forEach((btn) => {
+      const which = btn.getAttribute('data-adj');
+      const d = parseFloat(btn.getAttribute('data-d'));
+      let holdTimer = 0, repeatTimer = 0, ticks = 0;
+      const clearHold = () => {
+        clearTimeout(holdTimer); clearTimeout(repeatTimer);
+        holdTimer = 0; repeatTimer = 0; ticks = 0;
+        seekMediaSmooth(which === 'start' ? startSec : endSec, true);
+      };
+      const loopStep = () => {
+        ticks++; nudge(which, d);
+        repeatTimer = setTimeout(loopStep, ticks > 12 ? 45 : (ticks > 5 ? 72 : 100));
+      };
+      btn.addEventListener('pointerdown', (ev) => {
+        if (!duration) return;
+        ev.preventDefault(); haptic(5); nudge(which, d);
+        clearTimeout(holdTimer); clearTimeout(repeatTimer); ticks = 0;
+        holdTimer = setTimeout(loopStep, 340);
+      });
+      btn.addEventListener('pointerup', clearHold);
+      btn.addEventListener('pointercancel', clearHold);
+      btn.addEventListener('pointerleave', clearHold);
+    });
+
+    // 桌面快捷键
+    document.addEventListener('keydown', (ev) => {
+      if (!duration) return;
+      const tag = (ev.target && ev.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea') return;
+      if (ev.code === 'Space') { ev.preventDefault(); togglePlay(); }
+      else if (ev.key === 'ArrowLeft') { ev.preventDefault(); $('btnBack').click(); }
+      else if (ev.key === 'ArrowRight') { ev.preventDefault(); $('btnFwd').click(); }
+      else if (ev.key === ',') { ev.preventDefault(); stepFrame(-1); }
+      else if (ev.key === '.') { ev.preventDefault(); stepFrame(1); }
+      else if (ev.key === '[') { ev.preventDefault(); markStart(); }
+      else if (ev.key === ']') { ev.preventDefault(); markEnd(); }
+    });
+
+    $('exportMode').addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-mode]');
+      if (!b || b.disabled) return;
+      haptic(5);
+      exportMode = b.getAttribute('data-mode');
+      $('exportMode').querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b));
+      updateEstimate();
+    });
+
+    // ---- 内联 Web Worker 极速 WAV 编码器 ----
+    function getWavWorker() {
+      if (wavWorkerDisabled) return null;
+      if (wavWorker) return wavWorker;
+      try {
+        const code = `
+          self.onmessage = function(e) {
+            const { channels, sampleRate, fadeSamples, isLittleEndian } = e.data;
+            const numCh = channels.length;
+            const numFrames = channels[0].length;
+            const blockAlign = numCh * 2;
+            const dataSize = numFrames * blockAlign;
+            const ab = new ArrayBuffer(44 + dataSize);
+            const view = new DataView(ab);
+            let p = 0;
+            const w16 = (v) => { view.setUint16(p, v, true); p += 2; };
+            const w32 = (v) => { view.setUint32(p, v, true); p += 4; };
+            const wStr = (s) => { for (let i = 0; i < s.length; i++) view.setUint8(p++, s.charCodeAt(i)); };
+            wStr('RIFF'); w32(36 + dataSize); wStr('WAVE');
+            wStr('fmt '); w32(16); w16(1); w16(numCh); w32(sampleRate);
+            w32(sampleRate * blockAlign); w16(blockAlign); w16(16);
+            wStr('data'); w32(dataSize);
+
+            const fade = Math.min(fadeSamples | 0, numFrames >> 2);
+            const fadeEndStart = numFrames - fade;
+            const reportStep = Math.max(65536, numFrames >> 4);
+
+            if (isLittleEndian) {
+              const out = new Int16Array(ab, 44);
+              if (numCh === 1) {
+                const c0 = channels[0];
+                for (let i = 0; i < numFrames; i++) {
+                  let s = c0[i];
+                  if (fade > 0) {
+                    if (i < fade) s *= i / fade;
+                    else if (i >= fadeEndStart) s *= (numFrames - 1 - i) / fade;
+                  }
+                  if (s > 1) s = 1; else if (s < -1) s = -1;
+                  out[i] = s < 0 ? (s * 32768) | 0 : (s * 32767) | 0;
+                  if ((i & 65535) === 0 && i % reportStep === 0) self.postMessage({ type: 'progress', value: i / numFrames });
+                }
+              } else if (numCh === 2) {
+                const c0 = channels[0], c1 = channels[1];
+                let o = 0;
+                for (let i = 0; i < numFrames; i++) {
+                  let g = 1;
+                  if (fade > 0) {
+                    if (i < fade) g = i / fade;
+                    else if (i >= fadeEndStart) g = (numFrames - 1 - i) / fade;
+                  }
+                  let s0 = c0[i] * g, s1 = c1[i] * g;
+                  if (s0 > 1) s0 = 1; else if (s0 < -1) s0 = -1;
+                  if (s1 > 1) s1 = 1; else if (s1 < -1) s1 = -1;
+                  out[o++] = s0 < 0 ? (s0 * 32768) | 0 : (s0 * 32767) | 0;
+                  out[o++] = s1 < 0 ? (s1 * 32768) | 0 : (s1 * 32767) | 0;
+                  if ((i & 65535) === 0 && i % reportStep === 0) self.postMessage({ type: 'progress', value: i / numFrames });
+                }
+              } else {
+                let o = 0;
+                for (let i = 0; i < numFrames; i++) {
+                  let g = 1;
+                  if (fade > 0) {
+                    if (i < fade) g = i / fade;
+                    else if (i >= fadeEndStart) g = (numFrames - 1 - i) / fade;
+                  }
+                  for (let c = 0; c < numCh; c++) {
+                    let s = channels[c][i] * g;
+                    if (s > 1) s = 1; else if (s < -1) s = -1;
+                    out[o++] = s < 0 ? (s * 32768) | 0 : (s * 32767) | 0;
+                  }
+                  if ((i & 65535) === 0 && i % reportStep === 0) self.postMessage({ type: 'progress', value: i / numFrames });
+                }
+              }
+            } else {
+              for (let i = 0; i < numFrames; i++) {
+                let g = 1;
+                if (fade > 0) {
+                  if (i < fade) g = i / fade;
+                  else if (i >= fadeEndStart) g = (numFrames - 1 - i) / fade;
+                }
+                for (let c = 0; c < numCh; c++) {
+                  let s = channels[c][i] * g;
+                  if (s > 1) s = 1; else if (s < -1) s = -1;
+                  view.setInt16(p, s < 0 ? (s * 32768) | 0 : (s * 32767) | 0, true);
+                  p += 2;
+                }
+              }
+            }
+            self.postMessage({ type: 'done', buffer: ab }, [ab]);
+          };
+        `;
+        const blob = new Blob([code], { type: 'application/javascript' });
+        const url = URL.createObjectURL(blob);
+        wavWorker = new Worker(url);
+        URL.revokeObjectURL(url);
+        return wavWorker;
+      } catch (_) {
+        wavWorkerDisabled = true;
+        return null;
+      }
+    }
+
+    async function encodeWavFallback(channels, sampleRate, fadeSamples, onProgress) {
+      const numCh = channels.length;
+      const numFrames = channels[0].length;
+      const blockAlign = numCh * 2;
+      const dataSize = numFrames * blockAlign;
+      const ab = new ArrayBuffer(44 + dataSize);
+      const view = new DataView(ab);
+      let p = 0;
+      const w16 = (v) => { view.setUint16(p, v, true); p += 2; };
+      const w32 = (v) => { view.setUint32(p, v, true); p += 4; };
+      const wStr = (s) => { for (let i = 0; i < s.length; i++) view.setUint8(p++, s.charCodeAt(i)); };
+      wStr('RIFF'); w32(36 + dataSize); wStr('WAVE');
+      wStr('fmt '); w32(16); w16(1); w16(numCh); w32(sampleRate);
+      w32(sampleRate * blockAlign); w16(blockAlign); w16(16);
+      wStr('data'); w32(dataSize);
+
+      const fade = Math.min(fadeSamples | 0, numFrames >> 2);
+      const fadeEndStart = numFrames - fade;
+      const out = IS_LITTLE_ENDIAN ? new Int16Array(ab, 44) : null;
+      const CHUNK = 131072;
+      let o = 0;
+
+      for (let start = 0; start < numFrames; start += CHUNK) {
+        const end = Math.min(numFrames, start + CHUNK);
+        for (let i = start; i < end; i++) {
+          let g = 1;
+          if (fade > 0) {
+            if (i < fade) g = i / fade;
+            else if (i >= fadeEndStart) g = (numFrames - 1 - i) / fade;
+          }
+          for (let c = 0; c < numCh; c++) {
+            let s = channels[c][i] * g;
+            if (s > 1) s = 1; else if (s < -1) s = -1;
+            const v = s < 0 ? (s * 32768) | 0 : (s * 32767) | 0;
+            if (out) out[o++] = v;
+            else { view.setInt16(p, v, true); p += 2; }
+          }
+        }
+        if (onProgress) onProgress(end / numFrames);
+        if (end < numFrames) await new Promise((r) => setTimeout(r, 0));
+      }
+      return new Blob([ab], { type: 'audio/wav' });
+    }
+
+    function encodeChannelsToWav(channels, sampleRate, fadeSamples, onProgress, canTransfer) {
+      const worker = getWavWorker();
+      if (!worker) return encodeWavFallback(channels, sampleRate, fadeSamples, onProgress);
+      return new Promise((resolve, reject) => {
+        const sendChannels = canTransfer ? channels : channels.map((ch) => ch.slice());
+        const transfers = sendChannels.map((ch) => ch.buffer);
+        const cleanup = () => { worker.onmessage = null; worker.onerror = null; };
+        worker.onmessage = (ev) => {
+          if (ev.data.type === 'progress') { if (onProgress) onProgress(ev.data.value); }
+          else if (ev.data.type === 'done') { cleanup(); resolve(new Blob([ev.data.buffer], { type: 'audio/wav' })); }
+        };
+        worker.onerror = () => {
+          cleanup(); wavWorkerDisabled = true;
+          try { worker.terminate(); } catch (_) {}
+          wavWorker = null;
+          encodeWavFallback(channels, sampleRate, fadeSamples, onProgress).then(resolve, reject);
+        };
+        worker.postMessage({ channels: sendChannels, sampleRate, fadeSamples, isLittleEndian: IS_LITTLE_ENDIAN }, transfers);
+      });
+    }
+
+    async function render16kMonoDirect(srcBuf, startS, endS) {
+      const dur = Math.max(MIN_LEN, endS - startS);
+      const frames = Math.max(1, Math.ceil(dur * 16000));
+      const OAC = window.OfflineAudioContext || window.webkitOfflineAudioContext;
+      if (OAC) {
+        const offline = new OAC(1, frames, 16000);
+        const src = offline.createBufferSource();
+        src.buffer = srcBuf;
+        src.connect(offline.destination);
+        src.start(0, startS, dur);
+        const rendered = await offline.startRendering();
+        return rendered.getChannelData(0);
+      }
+      const sr = srcBuf.sampleRate;
+      const a = clamp(Math.floor(startS * sr), 0, srcBuf.length - 1);
+      const b = clamp(Math.floor(endS * sr), a + 1, srcBuf.length);
+      const nCh = srcBuf.numberOfChannels;
+      const chs = [];
+      for (let c = 0; c < nCh; c++) chs.push(srcBuf.getChannelData(c));
+      const out = new Float32Array(frames);
+      const ratio = (b - a) / frames;
+      for (let i = 0; i < frames; i++) {
+        const pos = a + i * ratio;
+        const idx = Math.floor(pos);
+        const frac = pos - idx;
+        const idx2 = Math.min(b - 1, idx + 1);
+        let s = 0;
+        for (let c = 0; c < nCh; c++) s += chs[c][idx] * (1 - frac) + chs[c][idx2] * frac;
+        out[i] = s / nCh;
+      }
+      return out;
+    }
+
+    function downloadBlob(blob, name) {
+      if (lastDownloadUrl) URL.revokeObjectURL(lastDownloadUrl);
+      lastDownloadUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = lastDownloadUrl; a.download = name; a.style.display = 'none';
+      document.body.appendChild(a); a.click();
+      setTimeout(() => { try { document.body.removeChild(a); } catch (_) {} }, 50);
+      const link = $('dlLink');
+      link.href = lastDownloadUrl; link.download = name; link.textContent = name;
+      $('dlbox').style.display = 'block';
+    }
+
+    // ---- 大视频 / 兼容模式：直接实时捕获 PCM 并导出标准 WAV（或 16k WAV） ----
+    async function exportByRealtimeWav(want16k, useFade) {
+      await ensureCtx();
+      if (!ensureMediaAudioGraph()) throw new Error('无法建立音频采集通道');
+      stopPlayback(false);
+
+      const sr = audioCtx.sampleRate;
+      const chunksL = [];
+      const chunksR = [];
+      let totalFrames = 0;
+      let capturing = false;
+
+      const processor = audioCtx.createScriptProcessor(4096, 2, 2);
+      const silent = audioCtx.createGain();
+      silent.gain.value = 0;
+
+      processor.onaudioprocess = (ev) => {
+        if (!capturing) return;
+        const inL = ev.inputBuffer.getChannelData(0);
+        const inR = ev.inputBuffer.numberOfChannels > 1 ? ev.inputBuffer.getChannelData(1) : inL;
+        chunksL.push(new Float32Array(inL));
+        chunksR.push(new Float32Array(inR));
+        totalFrames += inL.length;
+      };
+
+      mediaSourceNode.connect(processor);
+      processor.connect(silent);
+      silent.connect(audioCtx.destination);
+      if (monitorGainNode) monitorGainNode.gain.value = 0; // 提取期间静音，不打扰
+
+      const cancelBtn = $('btnCancelRec');
+      cancelBtn.classList.remove('hidden');
+      let cancelled = false;
+
+      try {
+        // 精确等待跳帧就绪
+        media.pause();
+        await new Promise((resolve) => {
+          const onSeeked = () => { clearTimeout(t); media.removeEventListener('seeked', onSeeked); resolve(); };
+          const t = setTimeout(() => { media.removeEventListener('seeked', onSeeked); resolve(); }, 500);
+          media.addEventListener('seeked', onSeeked);
+          media.currentTime = startSec;
+        });
+
+        const clipLen = Math.max(MIN_LEN, endSec - startSec);
+        capturing = true;
+        await media.play();
+
+        await new Promise((resolve) => {
+          let timer = 0;
+          const finish = () => {
+            capturing = false;
+            clearInterval(timer);
+            cancelExtractFn = null;
+            media.removeEventListener('ended', finish);
+            media.pause();
+            resolve();
+          };
+          cancelExtractFn = () => { cancelled = true; finish(); };
+          media.addEventListener('ended', finish);
+          timer = setInterval(() => {
+            const cur = media.currentTime || startSec;
+            cursorSec = clamp(cur, startSec, endSec);
+            updatePlayheadVisual();
+            setProgress(((cur - startSec) / clipLen) * 0.85, true);
+            if (cur >= endSec - 0.02 || media.paused || media.ended) finish();
+          }, 35);
+        });
+      } finally {
+        capturing = false;
+        cancelBtn.classList.add('hidden');
+        try { mediaSourceNode.disconnect(processor); processor.disconnect(); silent.disconnect(); } catch (_) {}
+        if (monitorGainNode) monitorGainNode.gain.value = 1;
+      }
+
+      if (cancelled) throw new Error('已取消提取');
+      if (totalFrames === 0) throw new Error('未采集到音频数据（视频可能无音轨）');
+
+      const mergedL = new Float32Array(totalFrames);
+      const mergedR = new Float32Array(totalFrames);
+      let off = 0;
+      for (let i = 0; i < chunksL.length; i++) {
+        mergedL.set(chunksL[i], off);
+        mergedR.set(chunksR[i], off);
+        off += chunksL[i].length;
+      }
+
+      if (want16k) {
+        exportStatus.textContent = '重采样为 16k 单声道 WAV…';
+        const tmpBuf = audioCtx.createBuffer(2, totalFrames, sr);
+        tmpBuf.copyToChannel(mergedL, 0);
+        tmpBuf.copyToChannel(mergedR, 1);
+        const mono16k = await render16kMonoDirect(tmpBuf, 0, tmpBuf.duration);
+        const fadeSamples = useFade ? Math.round(16000 * 0.015) : 0;
+        const blob = await encodeChannelsToWav([mono16k], 16000, fadeSamples, (p) => setProgress(0.85 + p * 0.15, true), true);
+        const name = `${fileName}_${fmtFileTime(startSec)}-${fmtFileTime(endSec)}_16k_mono.wav`;
+        downloadBlob(blob, name);
+        return { name, size: blob.size };
+      } else {
+        exportStatus.textContent = '高速封装无损 WAV…';
+        const fadeSamples = useFade ? Math.round(sr * 0.015) : 0;
+        const blob = await encodeChannelsToWav([mergedL, mergedR], sr, fadeSamples, (p) => setProgress(0.85 + p * 0.15, true), true);
+        const name = `${fileName}_${fmtFileTime(startSec)}-${fmtFileTime(endSec)}_wav.wav`;
+        downloadBlob(blob, name);
+        return { name, size: blob.size };
+      }
+    }
+
+    $('btnCancelRec').addEventListener('click', () => {
+      if (cancelExtractFn) cancelExtractFn();
+    });
+
+    // ---- 导出按钮 ----
+    $('btnExport').addEventListener('click', async () => {
+      if (!duration) return;
+      if (endSec - startSec < MIN_LEN) {
+        exportStatus.className = 'status err';
+        exportStatus.textContent = '选区过短，请至少选择 0.05 秒';
+        return;
+      }
+      haptic(10);
+      const btn = $('btnExport');
+      btn.disabled = true;
+      exportStatus.className = 'status';
+      setProgress(0.05, true);
+      const t0 = performance.now();
+      const useFade = $('fadeToggle').checked;
+      const want16k = exportMode === 'wav16k';
+
+      try {
+        if (buffer) {
+          let blob, name;
+          if (want16k) {
+            exportStatus.textContent = '原生抗混叠重采样为 16k 单声道…';
+            setProgress(0.2, true);
+            const monoData = await render16kMonoDirect(buffer, startSec, endSec);
+            exportStatus.textContent = '后台线程高速封装 WAV…';
+            const fadeSamples = useFade ? Math.round(16000 * 0.015) : 0;
+            blob = await encodeChannelsToWav([monoData], 16000, fadeSamples, (p) => setProgress(0.45 + p * 0.55, true), true);
+            name = `${fileName}_${fmtFileTime(startSec)}-${fmtFileTime(endSec)}_16k_mono.wav`;
+          } else {
+            exportStatus.textContent = '后台线程极速提取 WAV…';
+            const sr = buffer.sampleRate;
+            const a = clamp(Math.floor(startSec * sr), 0, buffer.length - 1);
+            const b = clamp(Math.floor(endSec * sr), a + 1, buffer.length);
+            const chs = [];
+            for (let c = 0; c < buffer.numberOfChannels; c++) chs.push(buffer.getChannelData(c).subarray(a, b));
+            const fadeSamples = useFade ? Math.round(sr * 0.015) : 0;
+            blob = await encodeChannelsToWav(chs, sr, fadeSamples, (p) => setProgress(0.1 + p * 0.9, true), false);
+            name = `${fileName}_${fmtFileTime(startSec)}-${fmtFileTime(endSec)}_wav.wav`;
+          }
+          setProgress(1, true);
+          downloadBlob(blob, name);
+          const costMs = Math.max(1, Math.round(performance.now() - t0));
+          exportStatus.className = 'status ok';
+          exportStatus.textContent = `✅ 极速提取完成：${name}（${fmtBytes(blob.size)}，耗时 ${costMs}ms）`;
+        } else {
+          exportStatus.textContent = '正在实时采集选区音轨（静音后台提取中，请勿切出页面）…';
+          const res = await exportByRealtimeWav(want16k, useFade);
+          setProgress(1, true);
+          exportStatus.className = 'status ok';
+          exportStatus.textContent = `✅ 提取完成：${res.name}（${fmtBytes(res.size)}）`;
+        }
+      } catch (err) {
+        exportStatus.className = 'status err';
+        exportStatus.textContent = '提取未完成：' + (err && err.message ? err.message : String(err));
+      } finally {
+        btn.disabled = false;
+        setTimeout(() => setProgress(0, false), 900);
+      }
+    });
+
+    // ---- 后台静默解析视频音轨（不阻塞画面预览） ----
+    async function decodeVideoTrackInBackground(file, seq) {
+      $('forceDecodeWrap').classList.add('hidden');
+      loadStatus.className = 'status';
+      loadStatus.textContent = '视频画面已就绪，正在后台解析真实声波与极速提取通道…';
+      try {
+        await ensureCtx();
+        const ab = await readFileBytes(file);
+        if (seq !== loadSeq) return;
+        const decoded = await decodeArrayBuffer(ab);
+        if (seq !== loadSeq) return;
+        buffer = decoded;
+        buildPeaksFromBuffer();
+        $('mMode').textContent = '视频可视 + 极速提取';
+        $('mInfo').textContent = `${media.videoWidth}×${media.videoHeight} | ${buffer.sampleRate}Hz/${buffer.numberOfChannels}ch`;
+        syncUI();
+        loadStatus.className = 'status ok';
+        loadStatus.textContent = '✅ 视频与真实声波均已就绪：拖拽蓝条实时看帧，导出 WAV 毫秒级完成';
+      } catch (_) {
+        if (seq !== loadSeq) return;
+        $('mMode').textContent = '视频可视 + 实时提取';
+        loadStatus.className = 'status ok';
+        loadStatus.textContent = '视频已就绪（该视频封装不支持整轨直解，导出时将自动实时无损提取 WAV）';
+      }
+    }
+
+    $('btnForceDecode').addEventListener('click', () => {
+      if (currentFile && !buffer) decodeVideoTrackInBackground(currentFile, loadSeq);
+    });
+
+    // ---- 统一加载入口（自动分流视频 / 音频） ----
+    async function handleFile(file) {
+      if (!file) return;
+      const myLoad = ++loadSeq;
+      currentFile = file;
+      stopPlayback(true);
+      buffer = null; peaks = null; duration = 0; isVideo = false; playbackMode = 'buffer';
+      zoom = 1; viewStart = 0;
+      $('zoomVal').textContent = '1.0x';
+      workspace.classList.add('hidden');
+      videoCard.classList.add('hidden');
+      videoStage.classList.remove('collapsed');
+      $('btnToggleVideo').textContent = '隐藏画面';
+      $('meta').classList.add('hidden');
+      $('forceDecodeWrap').classList.add('hidden');
+      $('dlbox').style.display = 'none';
+      exportStatus.textContent = '';
+      loadStatus.className = 'status';
+      loadStatus.textContent = '读取文件：' + file.name;
+      $('fileLabelText').textContent = '已选：' + file.name + '（点此或拖入重选）';
+      fileName = (file.name || 'media').replace(/\.[^.]+$/, '') || 'media';
+
+      const maybeVideo = (file.type && file.type.startsWith('video/')) || VIDEO_EXT_RE.test(file.name || '');
+
+      if (maybeVideo) {
+        try {
+          loadStatus.textContent = '正在加载视频画面…';
+          const dur = await mountToMediaElement(file);
+          if (myLoad !== loadSeq) return;
+
+          const hasVideoFrame = (media.videoWidth || 0) > 0 && (media.videoHeight || 0) > 0;
+          isVideo = hasVideoFrame;
+          duration = dur;
+          startSec = 0; endSec = duration; cursorSec = 0;
+
+          if (isVideo) {
+            playbackMode = 'media';
+            buildFakePeaks();
+            $('vRes').textContent = `${media.videoWidth}×${media.videoHeight}`;
+            $('mMode').textContent = '视频可视加载中';
+            $('mInfo').textContent = `${media.videoWidth}×${media.videoHeight} | ${fmtBytes(file.size)}`;
+            videoCard.classList.remove('hidden');
+            $('mName').textContent = file.name;
+            $('mDur').textContent = fmt(duration);
+            $('meta').classList.remove('hidden');
+            workspace.classList.remove('hidden');
+            resizeCanvas();
+            seekMediaSmooth(0.01, true);
+            syncUI();
+
+            if (file.size <= AUTO_DECODE_VIDEO_BYTES) {
+              decodeVideoTrackInBackground(file, myLoad);
+            } else {
+              $('mMode').textContent = '大视频可视模式';
+              loadStatus.className = 'status ok';
+              loadStatus.textContent = `视频已秒开（${fmtBytes(file.size)}）：为节省内存已跳过整轨预解，可直接卡点并实时无损提取 WAV`;
+              $('forceDecodeWrap').classList.remove('hidden');
+            }
+            return;
+          }
+          // 若是无画面的 webm/mp4 纯音频，继续走纯音频高速解码逻辑
+        } catch (vErr) {
+          if (myLoad !== loadSeq) return;
+          loadStatus.className = 'status err';
+          loadStatus.textContent = '无法加载该视频（可能编码不被浏览器支持，如 HEVC/AVI）：' + (vErr && vErr.message ? vErr.message : '');
+          return;
+        }
+      }
+
+      // ---- 纯音频路径 ----
+      let decodeErr = null;
+      try {
+        await ensureCtx();
+        const ab = await readFileBytes(file);
+        if (myLoad !== loadSeq) return;
+        loadStatus.textContent = '正在解码音频…';
+        buffer = await decodeArrayBuffer(ab);
+        if (myLoad !== loadSeq) return;
+
+        playbackMode = 'buffer';
+        duration = buffer.duration;
+        startSec = 0; endSec = duration; cursorSec = 0;
+        buildPeaksFromBuffer();
+        $('mMode').textContent = '音频极速直解';
+        $('mInfo').textContent = `${buffer.sampleRate}Hz / ${buffer.numberOfChannels}ch`;
+      } catch (err) {
+        if (myLoad !== loadSeq) return;
+        decodeErr = err;
+        try {
+          loadStatus.textContent = '当前内核无法直解，切换兼容模式…';
+          const dur = await mountToMediaElement(file);
+          if (myLoad !== loadSeq) return;
+          playbackMode = 'media';
+          buffer = null;
+          duration = dur;
+          startSec = 0; endSec = duration; cursorSec = 0;
+          buildFakePeaks();
+          $('mMode').textContent = '音频兼容模式';
+          $('mInfo').textContent = '实时采集导出 WAV';
+        } catch (err2) {
+          if (myLoad !== loadSeq) return;
+          loadStatus.className = 'status err';
+          loadStatus.textContent =
+            '解码失败：当前浏览器内核不支持此文件格式。\n请改用 Chrome 打开本 HTML 后再选文件。\n详情：' +
+            (decodeErr && decodeErr.message ? decodeErr.message : '') + ' / ' +
+            (err2 && err2.message ? err2.message : '');
+          return;
+        }
+      }
+
+      $('mName').textContent = file.name;
+      $('mDur').textContent = fmt(duration);
+      $('meta').classList.remove('hidden');
+      workspace.classList.remove('hidden');
+      resizeCanvas();
+      syncUI();
+      loadStatus.className = 'status ok';
+      loadStatus.textContent = buffer
+        ? '加载完成：拖动蓝条选区，支持放大精裁与极速导出'
+        : '兼容模式已加载：可试听裁切并实时导出 WAV';
+    }
+
+    $('file').addEventListener('change', (e) => {
+      const f = e.target.files && e.target.files[0];
+      e.target.value = '';
+      if (f) handleFile(f);
+    });
+
+    const fileLabel = $('fileLabel');
+    ['dragenter', 'dragover'].forEach((ev) => fileLabel.addEventListener(ev, (e) => { e.preventDefault(); fileLabel.classList.add('dragover'); }));
+    ['dragleave', 'drop'].forEach((ev) => fileLabel.addEventListener(ev, (e) => { e.preventDefault(); fileLabel.classList.remove('dragover'); }));
+    fileLabel.addEventListener('drop', (e) => {
+      const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) handleFile(f);
+    });
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden && playing) stopPlayback(false);
+    });
+  })();
+  </script>
+</body>
+</html>

@@ -17,6 +17,7 @@
   <div class="ambient-stage" id="ambientStage" aria-hidden="true">
     <img id="stageBackdrop" class="stage-backdrop" alt="" decoding="async">
     <div class="ambient-vignette"></div>
+    <div id="ambientRain" class="ambient-rain" aria-hidden="true"></div>
     <!-- Location-Reactive Architectural Linework SVG -->
     <div id="sceneVectorLayer" class="scene-vector-layer"></div>
     <!-- Subtle Floating Dust & Light Motes -->
@@ -52,7 +53,7 @@
           <svg viewBox="0 0 32 32" class="scales-svg" focusable="false">
             <circle cx="16" cy="16" r="14.2" fill="none" stroke="currentColor" stroke-opacity="0.22" stroke-width="0.9"/>
             <path d="M16 6.5v17M12 23.5h8" fill="none" stroke="currentColor" stroke-width="1.35" stroke-linecap="round"/>
-            <g class="scales-beam">
+            <g class="scales-beam" id="hudScalesBeam">
               <path d="M8 11.5h16" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
               <path d="M8 11.5 5.8 16.8h4.4L8 11.5Zm16 0-2.2 5.3h4.4L24 11.5Z" fill="currentColor" fill-opacity="0.16" stroke="currentColor" stroke-width="1.05" stroke-linejoin="round"/>
             </g>
@@ -70,10 +71,10 @@
     </div>
 
     <div class="hud-right">
-      <!-- Inline Mobile Present Cast Portraits (Tap to Open Full Portrait Viewer) -->
-      <div id="hudCast" class="hud-cast" aria-label="当前在场人物"></div>
+      <!-- Mobile Quick Gaze / Scene Still Pill -->
+      <div id="hudCast" class="hud-cast" aria-label="快速凝视同席或空镜"></div>
 
-      <!-- Compact Stamina Ring (Value Inside SVG Ring) -->
+      <!-- Compact Stamina Ring (Value Inside SVG Ring + Choice Cost Preview Arc) -->
       <button id="staminaHud" class="stamina-ring-btn" type="button" aria-label="查看主角体力与属性">
         <svg viewBox="0 0 36 36" class="hud-ring" aria-hidden="true" focusable="false">
           <circle class="hud-ring-track" cx="18" cy="18" r="14"/>
@@ -106,9 +107,27 @@
     </div>
   </header>
 
+  <!-- Mobile Drop-Down Quick Gaze / Scene Still Curtain -->
+  <div id="topPeekDrawer" class="top-peek-drawer" aria-hidden="true">
+    <div class="top-peek-inner">
+      <img id="topPeekImg" class="top-peek-img" alt="" decoding="async">
+      <div class="top-peek-scrim"></div>
+      <div class="top-peek-bar">
+        <div class="top-peek-meta">
+          <strong id="topPeekTitle">同席凝视</strong>
+          <span id="topPeekSub"></span>
+        </div>
+        <div class="top-peek-actions">
+          <button id="topPeekExpand" type="button" class="glass-pill-btn">全幅细赏</button>
+          <button id="topPeekClose" type="button" class="glass-pill-btn">收起 ↑</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Main Stage Container -->
   <div class="layout">
-    <!-- Desktop Editorial Side Stage (Hidden on Mobile < 860px to Free Story Viewport) -->
+    <!-- Desktop Editorial Side Stage (Portrait / Scene-Dossier Flip Card >= 860px) -->
     <aside class="scene-info" aria-label="当前在场人物与场景">
       <div class="desktop-brand">
         <a class="brand" href="/">
@@ -124,10 +143,11 @@
 
       <div class="cast-strip">
         <div class="cast-heading">
-          <span class="eyebrow">同席人物</span>
+          <span class="eyebrow">同席焦点</span>
           <p id="sceneMeta">读取现场中……</p>
         </div>
-        <div id="cast" class="cast-rail" aria-label="点击人物查看立绘与档案"></div>
+        <div id="sideFocusCard" class="side-focus-card" aria-live="polite"></div>
+        <div id="cast" class="cast-rail" aria-label="点击人物切换焦点或查看档案"></div>
         <button id="history" class="chronicle-chip" type="button" aria-label="查看剧情记录">
           <svg viewBox="0 0 24 24" class="chip-svg" aria-hidden="true" focusable="false">
             <path d="M5 4.5h11a3 3 0 0 1 3 3V20H8a3 3 0 0 0-3 3V4.5Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
@@ -205,6 +225,59 @@
       <div id="messages" role="log" aria-live="polite" aria-relevant="additions"></div>
       <div class="stream-spacer" aria-hidden="true"></div>
     </main>
+
+    <!-- Immersive Stage Curtain (Default Mode: Holds Stage Until Atomic Commit) -->
+    <div id="stageCurtain" class="stage-curtain" hidden role="status" aria-live="polite">
+      <div class="stage-curtain-card">
+        <div class="curtain-crest" aria-hidden="true">
+          <svg viewBox="0 0 180 180" class="curtain-scales-svg" focusable="false">
+            <defs>
+              <linearGradient id="curtainGold" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#f6e2b8"/>
+                <stop offset="50%" stop-color="#d4ad6b"/>
+                <stop offset="100%" stop-color="#876332"/>
+              </linearGradient>
+              <radialGradient id="curtainAura" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#d8b476" stop-opacity="0.26"/>
+                <stop offset="68%" stop-color="#d8b476" stop-opacity="0.05"/>
+                <stop offset="100%" stop-color="#d8b476" stop-opacity="0"/>
+              </radialGradient>
+            </defs>
+            <circle cx="90" cy="90" r="82" fill="url(#curtainAura)"/>
+            <circle class="orbit-ring" cx="90" cy="90" r="72" fill="none" stroke="url(#curtainGold)" stroke-opacity="0.32" stroke-width="1" stroke-dasharray="3 7"/>
+            <circle class="orbit-ring-rev" cx="90" cy="90" r="58" fill="none" stroke="url(#curtainGold)" stroke-opacity="0.48" stroke-width="0.9" stroke-dasharray="16 10 3 10"/>
+            <path d="M90 36v98M66 134h48M75 140h30" fill="none" stroke="url(#curtainGold)" stroke-width="1.7" stroke-linecap="round"/>
+            <path d="M90 27 94 32.5 90 38 86 32.5Z" fill="url(#curtainGold)"/>
+            <g class="curtain-scales-beam">
+              <path d="M44 60h92" fill="none" stroke="url(#curtainGold)" stroke-width="1.75" stroke-linecap="round"/>
+              <circle cx="44" cy="60" r="2.2" fill="#f6e2b8"/>
+              <circle cx="136" cy="60" r="2.2" fill="#f6e2b8"/>
+              <path d="M44 60 32 92h24L44 60ZM136 60 124 92h24L136 60Z" fill="none" stroke="url(#curtainGold)" stroke-width="1.1" stroke-opacity="0.82"/>
+              <path d="M29 92c3.5 9 26.5 9 30 0ZM121 92c3.5 9 26.5 9 30 0Z" fill="url(#curtainGold)" fill-opacity="0.24" stroke="url(#curtainGold)" stroke-width="1.3"/>
+            </g>
+            <circle cx="90" cy="60" r="4" fill="#120f0c" stroke="url(#curtainGold)" stroke-width="1.6"/>
+          </svg>
+        </div>
+        <div class="curtain-steps" aria-hidden="true">
+          <span id="curtainStep1" class="curtain-step is-active"><i></i>推演</span>
+          <span class="curtain-step-line"></span>
+          <span id="curtainStep2" class="curtain-step"><i></i>落笔</span>
+          <span class="curtain-step-line"></span>
+          <span id="curtainStep3" class="curtain-step"><i></i>结算</span>
+        </div>
+        <span id="curtainEyebrow" class="eyebrow">天平演算 · 幕帷静候</span>
+        <h3 id="curtainTitle" class="stage-curtain-title">正在承接你的抉择……</h3>
+        <p id="curtainSub" class="stage-curtain-sub">主模型构思微幕剧情，后台校验完成后即刻揭幕</p>
+        <div id="curtainProgress" class="stage-curtain-pill" hidden></div>
+        <blockquote id="curtainActionQuote" class="stage-curtain-quote" hidden></blockquote>
+        <div id="curtainActions" class="stage-curtain-actions">
+          <button id="curtainCancelBtn" type="button" class="pill-danger-sm" hidden>取消并退还体力</button>
+          <button id="curtainRetryBtn" type="button" class="cta-gold compact-cta" hidden>重试本次推演</button>
+          <button id="curtainFullRetryBtn" type="button" class="btn-outline compact-btn" hidden>完整重推（含主模型）</button>
+          <button id="curtainDismissBtn" type="button" class="btn-outline compact-btn" hidden>返回上幕</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Non-Blocking Floating Settlement Ribbon / Expandable SVG Ledger -->
     <section id="settlement" class="settlement-float" aria-label="本次结算" aria-live="polite" hidden></section>
@@ -299,19 +372,26 @@
 
         <!-- Slim Custom Input & Quick Action Form -->
         <form id="form" class="custom-form" hidden>
-          <div class="write-shell">
-            <button id="quickActionBtn" type="button" class="write-tool-btn" aria-label="出行或赠予物品" title="出行 / 赠礼">
-              <svg viewBox="0 0 24 24" class="hud-svg" aria-hidden="true">
-                <path d="M12 21s6-5.6 6-10.5a6 6 0 1 0-12 0C6 15.4 12 21 12 21Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
-                <circle cx="12" cy="10.5" r="2.1" fill="none" stroke="currentColor" stroke-width="1.6"/>
-              </svg>
-            </button>
-            <label for="input" class="sr-only">自定义下一步行动</label>
-            <textarea id="input" rows="1" maxlength="2000" placeholder="说出你的回应或自由行动…"></textarea>
-            <button id="send" type="submit" class="send-btn" disabled>
-              <span class="send-label">行动</span>
-              <small id="sendCost">-15⚡</small>
-            </button>
+          <button id="customFormToggle" type="button" class="custom-form-toggle" aria-expanded="false">
+            <span class="custom-form-toggle-label">自由输入行动 / 括号指令…</span>
+            <span class="custom-form-toggle-hint">展开 ▾</span>
+          </button>
+          <div id="customFormBody" class="custom-form-body">
+            <div id="bracketChips" class="bracket-chips" aria-label="快捷语境与括号输入"></div>
+            <div class="write-shell">
+              <button id="quickActionBtn" type="button" class="write-tool-btn" aria-label="出行或赠予物品" title="出行 / 赠礼">
+                <svg viewBox="0 0 24 24" class="hud-svg" aria-hidden="true">
+                  <path d="M12 21s6-5.6 6-10.5a6 6 0 1 0-12 0C6 15.4 12 21 12 21Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                  <circle cx="12" cy="10.5" r="2.1" fill="none" stroke="currentColor" stroke-width="1.6"/>
+                </svg>
+              </button>
+              <label for="input" class="sr-only">自定义下一步行动</label>
+              <textarea id="input" rows="1" maxlength="2000" placeholder="说出你的回应或自由行动…"></textarea>
+              <button id="send" type="submit" class="send-btn" disabled>
+                <span class="send-label">行动</span>
+                <small id="sendCost">-15⚡</small>
+              </button>
+            </div>
           </div>
 
           <div id="recoveryWrap" class="recovery-strip" hidden>
@@ -349,7 +429,7 @@
           <svg viewBox="0 0 24 24" class="dock-svg" aria-hidden="true"><path d="M3.5 6.5 9 4l6 2.5L20.5 4v13.5L15 20l-6-2.5L3.5 20V6.5Zm5.5-2.5v13.5m6-11V20" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
           <span>地图</span>
         </button>
-        <button type="button" class="dock-btn" data-hub-tab="bag">
+        <button type="button" class="dock-btn" data-hub-tab="bag" aria-label="委托与行囊">
           <svg viewBox="0 0 24 24" class="dock-svg" aria-hidden="true"><path d="M5 8h14l1.4 11.2a1.5 1.5 0 0 1-1.5 1.6H5.1a1.5 1.5 0 0 1-1.5-1.6L5 8Zm3.5 0V6.5a3.5 3.5 0 0 1 7 0V8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
           <span>行囊</span>
           <i class="dock-dot" id="dockBagDot" hidden></i>
@@ -388,7 +468,8 @@
       <button type="button" class="hub-tab" role="tab" data-tab="host" aria-selected="true">主角</button>
       <button type="button" class="hub-tab" role="tab" data-tab="roster" aria-selected="false">人物</button>
       <button type="button" class="hub-tab" role="tab" data-tab="map" aria-selected="false">地图</button>
-      <button type="button" class="hub-tab" role="tab" data-tab="bag" aria-selected="false">行囊</button>
+      <button type="button" class="hub-tab" role="tab" data-tab="bag" aria-selected="false">委托·行囊</button>
+      <button type="button" class="hub-tab" role="tab" data-tab="shop" aria-selected="false">商城</button>
       <button type="button" class="hub-tab" role="tab" data-tab="system" aria-selected="false">系统</button>
     </div>
 
@@ -487,7 +568,7 @@
         </div>
       </div>
       <div class="portrait-bottom-bar">
-        <div class="outfits" role="group" aria-label="切换立绘装束">
+        <div id="portraitOutfits" class="outfits" role="group" aria-label="切换立绘装束">
           <button type="button" data-file="fullbody.png">外出立绘</button>
           <button type="button" data-file="fullbody2.png">居家立绘</button>
           <button type="button" data-file="into.png">近景特写</button>
@@ -495,6 +576,24 @@
       </div>
     </div>
   </dialog>
+
+  <!-- Hold-to-Gaze / Scene Still / No-Portrait NPC Dossier Lens -->
+  <div id="gazeLens" class="gaze-lens" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="gazeLensTitle">
+    <div class="gaze-lens-head">
+      <div class="gaze-lens-id">
+        <span id="gazeLensMode" class="gaze-lens-mode">凝视镜头</span>
+        <h3 id="gazeLensTitle"></h3>
+      </div>
+      <div class="gaze-lens-head-actions">
+        <button id="gazeLensFullBtn" type="button" class="glass-pill-btn" hidden>展开立绘</button>
+        <button id="gazeLensClose" type="button" class="glass-circle-btn" aria-label="关闭凝视">
+          <svg viewBox="0 0 24 24" class="hud-svg"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="gazeLensBody" class="gaze-lens-body"></div>
+    <div id="gazeLensFoot" class="gaze-lens-foot"></div>
+  </div>
 
   <!-- Connection & Bridge Diagnostics Sheet -->
   <dialog id="connectionDialog" class="sheet-dialog" aria-label="连接与桥接详情">
@@ -508,31 +607,109 @@
         <svg viewBox="0 0 24 24" class="hud-svg"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       </button>
     </div>
-    <div class="bridge-status-card">
-      <span id="bridgeDot" class="status-beacon"></span>
-      <p id="bridgeInfo" role="status"></p>
+    <div class="connection-scroll">
+      <div class="bridge-status-card">
+        <span id="bridgeDot" class="status-beacon"></span>
+        <p id="bridgeInfo" role="status"></p>
+      </div>
+      <div class="world-actions">
+        <button id="bridgeStart" type="button" class="btn-outline">启动桥接</button>
+        <button id="bridgeStop" type="button" class="btn-outline">暂停桥接</button>
+        <a href="/admin" target="_blank" rel="noopener" class="btn-outline">声学工坊</a>
+      </div>
+
+      <div class="bridge-group-card">
+        <div class="bridge-group-head">
+          <h3>主模型 · 前景演播</h3>
+          <span id="storyPrimaryBadge" class="cost-chip">功能槽</span>
+        </div>
+        <div class="picker-block">
+          <label for="storyPrimaryMode">主模型来源</label>
+          <select id="storyPrimaryMode">
+            <option value="slot">跟随 Operit 功能槽（默认 CHAT）</option>
+            <option value="fixed">故事专属固定模型（不改 Operit 主聊天）</option>
+          </select>
+        </div>
+        <div class="picker-block">
+          <label id="storyPrimaryTargetLabel" for="storyPrimaryTarget">主模型选择</label>
+          <select id="storyPrimaryTarget"></select>
+        </div>
+        <p id="storyPrimaryStatus" class="muted" role="status"></p>
+      </div>
+
+      <div class="bridge-group-card">
+        <div class="bridge-group-head">
+          <h3>副模型 · 后台结算</h3>
+          <span id="storyDualBadge" class="cost-chip">双阶段流式</span>
+        </div>
+        <div class="picker-block">
+          <label for="storyDualStage">演播与结算模式</label>
+          <select id="storyDualStage" aria-describedby="storySettlementStatus">
+            <option value="dual">双阶段流式（主模型演播 + 副模型后台结算 · 推荐）</option>
+            <option value="single">单阶段精简（v2 前缀缓存 · 单次 JSON）</option>
+          </select>
+        </div>
+        <div id="storySettlementControls" class="bridge-subgrid">
+          <div class="picker-block">
+            <label for="storySettlementSlot">副模型功能槽</label>
+            <select id="storySettlementSlot"></select>
+          </div>
+          <div class="picker-block">
+            <label id="storyBindSlotLabel" for="storyBindSlotModel">直接修改该功能槽绑定的模型</label>
+            <div class="action-row">
+              <select id="storyBindSlotModel"></select>
+              <button id="storyBindSlotBtn" type="button" class="btn-outline compact-btn">绑定</button>
+            </div>
+            <p class="muted">会直接更新 Operit 全局该功能槽绑定；若不想动默认摘要，可先改选 TRANSLATION 或 TITLE_GENERATION。</p>
+          </div>
+          <div class="picker-block">
+            <label for="storySettlementThinkingMode">副模型思考策略</label>
+            <select id="storySettlementThinkingMode">
+              <option value="auto">智能自适应（首轮极速免思考，重试自动开思考 · 推荐）</option>
+              <option value="off">常关（极速非思考）</option>
+              <option value="on">常开（深度思考，最稳但稍慢）</option>
+            </select>
+            <p class="muted">Operit 2 接口仅提供思考开关；若需细调思考深度可在 Operit 模型参数页配置。</p>
+          </div>
+        </div>
+        <p id="storySettlementStatus" class="muted" role="status"></p>
+      </div>
+
+      <div class="bridge-group-card">
+        <div class="bridge-group-head">
+          <h3>会话与防漂移</h3>
+        </div>
+        <div class="picker-block">
+          <label for="storySessionPolicy">剧情会话沿用</label>
+          <select id="storySessionPolicy" aria-describedby="storySessionHelp">
+            <option value="continuous">持续沿用（推荐）</option>
+            <option value="service_restart">重启 Python 服务后新建</option>
+            <option value="per_action">每次新行动新建</option>
+          </select>
+        </div>
+        <div class="picker-block">
+          <label for="storyMaxTurns">同场景防漂移自动切窗轮数</label>
+          <select id="storyMaxTurns">
+            <option value="6">每 6 轮自动开干净新会话</option>
+            <option value="8">每 8 轮自动开干净新会话</option>
+            <option value="10">每 10 轮自动开干净新会话（推荐）</option>
+            <option value="12">每 12 轮自动开干净新会话</option>
+            <option value="15">每 15 轮自动开干净新会话</option>
+            <option value="20">每 20 轮自动开干净新会话</option>
+            <option value="30">每 30 轮自动开干净新会话</option>
+          </select>
+        </div>
+        <p id="storySessionHelp" class="muted">重试沿用当前会话；新会话携带正式记忆与已接受剧情，失败草稿不入档。</p>
+        <p id="storySessionStatus" class="muted" role="status"></p>
+        <div class="world-actions flush"><button id="storySessionReset" type="button" class="btn-outline">下次行动新建会话</button></div>
+      </div>
+
+      <p class="muted sheet-pad">保持 Operit 小窗可见；也可直接在 Operit 左侧插件栏打开「故事桥接」原生设置页，双端参数实时同步。</p>
+      <details class="tech-details">
+        <summary>查看技术诊断参数</summary>
+        <pre id="connectionText"></pre>
+      </details>
     </div>
-    <div class="world-actions">
-      <button id="bridgeStart" type="button" class="btn-outline">启动桥接</button>
-      <button id="bridgeStop" type="button" class="btn-outline">暂停桥接</button>
-      <a href="/admin" target="_blank" rel="noopener" class="btn-outline">声学工坊</a>
-    </div>
-    <div class="picker-block sheet-pad">
-      <label for="storySessionPolicy">剧情会话</label>
-      <select id="storySessionPolicy" aria-describedby="storySessionHelp">
-        <option value="continuous">持续沿用（推荐）</option>
-        <option value="service_restart">重启 Python 服务后新建</option>
-        <option value="per_action">每次新行动新建</option>
-      </select>
-      <p id="storySessionHelp" class="muted">重试沿用当前会话；新会话会携带正式记忆和已接受剧情。失败草稿不会写入存档。</p>
-      <p id="storySessionStatus" class="muted" role="status"></p>
-      <div class="world-actions flush"><button id="storySessionReset" type="button" class="btn-outline">下次行动新建会话</button></div>
-    </div>
-    <p class="muted">保持 Operit 小窗可见；首次更新后请重启本地服务以加载最新桥接协议。</p>
-    <details class="tech-details">
-      <summary>查看技术诊断参数</summary>
-      <pre id="connectionText"></pre>
-    </details>
   </dialog>
 
   <!-- New Game Confirmation Dialog -->

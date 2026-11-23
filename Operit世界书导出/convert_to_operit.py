@@ -113,11 +113,11 @@ def main():
             fail_libs.append(src)
             print(f" {YELLOW('!')} {BOLD(src)}  {YELLOW('0 条条目，已跳过')}  {DIM('请检查源文件')}")
             continue
-        names = [e["name"] for e in entries]
+        converted = [to_operit(e) for e in entries]
+        names = [e["name"] for e in converted]
         ok_libs.append(src)
-        print(f" {GREEN('✔')} {BOLD(src)}  {CYAN(f'{len(entries):>2} 条')}  {DIM('(' + ', '.join(names) + ')')}")
-        for e in entries:
-            out.append(to_operit(e))
+        print(f" {GREEN('✔')} {BOLD(src)}  {CYAN(f'{len(converted):>2} 条')}  {DIM('(' + ', '.join(names) + ')')}")
+        out.extend(converted)
 
     print(f"\n{THIN}")
     total = len(out)

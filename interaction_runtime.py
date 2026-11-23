@@ -6,9 +6,12 @@ from pathlib import Path
 import re
 import secrets
 import time
+import urllib.parse
 import round_runtime as rr
+import save_store
 import story_reading as sr
 import story_progression as sp
+import story_compiler as sc
 
 MODE = 'live_interaction'
 CONFIG = 'txt文件/互动运行配置.json'
@@ -20,42 +23,79 @@ LIVE_READ_TOOLS = ('read_file', 'read_file_full', 'read_file_part', 'file_info',
 OPTION_NAMES = {'A': '日常互动', 'B': '社交接触', 'C': '主动行为'}
 
 
-def decision(value):
+def decision(value, valid_locations=None):
     rr._keys(value, {'prompt', 'options'}, 'decision', {'prompt', 'options'})
     rr._text(value['prompt'], 'decision.prompt', 300)
     options = value['options']
     if not isinstance(options, list) or len(options) != 3:
         raise rr.RoundError('decision.options须恰含A/B/C三个选项')
     for item, letter in zip(options, OPTION_NAMES):
-        rr._keys(item, {'id', 'text'}, 'decision.option', {'id', 'text'})
+        rr._keys(item, {'id', 'text', 'operation'}, 'decision.option', {'id', 'text'})
         if item['id'] != letter:
             raise rr.RoundError('选项必须按A/B/C排列且不重复')
         rr._text(item['text'], 'decision.option.text', 500)
+        op = item.get('operation')
+        if op is not None:
+            rr._keys(op, {'code', 'destination'}, 'decision.option.operation', {'code', 'destination'})
+            if op['code'] != 'move_player' or not isinstance(op['destination'], str) or not op['destination'].strip():
+                raise rr.RoundError('选项转场操作仅支持有效目的地的move_player')
+            if valid_locations is not None and op['destination'] not in valid_locations:
+                raise rr.RoundError('选项转场目的地未开放: ' + str(op['destination']))
     if len({item['text'].strip() for item in options}) != 3:
         raise rr.RoundError('三个选项须为不同的可行动作')
     return copy.deepcopy(value)
 
 
 def segment(root, files):
-    data = json.loads(files.get('data.json') or b'{}')
-    state = data.get('interaction', {})
-    if not state.get('segment_id'):
-        return None
+    raw_data = files.get('data.json')
+    data = json.loads(raw_data) if raw_data else {}
+    state = data.get('interaction', {}) if isinstance(data, dict) else {}
+    seg_id = state.get('segment_id') or ''
     sequence = state.get('last_sequence')
+    recent = None
+    if not seg_id and raw_data is None:
+        st, _, recent = save_store.load_bundle(root, files)
+        seg_id = (st.get('runtime') or {}).get('last_segment_id') or ''
+        sequence = (st.get('runtime') or {}).get('last_sequence') or 0
+    if not seg_id:
+        return None
     if type(sequence) is not int or sequence < 1:
         raise rr.RecoveryError('剧情段索引无效')
-    row = rr.load_request((Path(root) / ARCHIVE / f'{sequence:012d}.json').read_text())
-    if row.get('id') != state['segment_id'] or row.get('version') != 2:
-        raise rr.RecoveryError('剧情段与当前存档不一致')
-    return row
+    archive_path = Path(root) / ARCHIVE / f'{sequence:012d}.json'
+    if archive_path.is_file():
+        row = rr.load_request(archive_path.read_text(encoding='utf-8'))
+        if row.get('id') != seg_id or row.get('version') != 2:
+            raise rr.RecoveryError('剧情段与当前存档不一致')
+        return row
+    if recent is None:
+        _, _, recent = save_store.load_bundle(root, files)
+    for item in reversed(recent.get('segments') or []):
+        if isinstance(item, dict) and item.get('id') == seg_id and item.get('version') == 2:
+            return copy.deepcopy(item)
+    return None
 
 
 def playback(root, row):
     if row is None:
         return {'segment_id': '', 'revealed': 0, 'total': 0, 'completed': True, 'bootstrap': True}
     path = Path(root) / PLAYBACK
-    value = rr.load_request(path.read_text()) if path.is_file() else {}
     total = len(row['messages'])
+    if path.is_file():
+        value = rr.load_request(path.read_text(encoding='utf-8'))
+    else:
+        recent_path = Path(root) / save_store.RECENT_PLAYBACK_PATH
+        value = None
+        if recent_path.is_file():
+            try:
+                recent = json.loads(recent_path.read_text(encoding='utf-8'))
+                pb = recent.get('playback') if isinstance(recent, dict) else None
+                if isinstance(pb, dict) and pb.get('segment_id') == row['id']:
+                    value = pb
+            except ValueError:
+                value = None
+        if value is None:
+            return {'version': 1, 'segment_id': row['id'], 'revealed': total, 'completed': True,
+                    'total': total, 'bootstrap': False}
     if value.get('segment_id') != row['id']:
         raise rr.RecoveryError('剧情演播进度与当前段落不一致')
     if (value.get('version') != 1 or type(value.get('revealed')) is not int
@@ -65,7 +105,7 @@ def playback(root, row):
     return {**value, 'total': total, 'bootstrap': False}
 
 
-def selection(root, files, proposed, text, command=None):
+def selection(root, files, proposed, text, command=None, *, allow_handoff_drop=False):
     row = segment(root, files)
     state = playback(root, row)
     if proposed is None:
@@ -90,17 +130,56 @@ def selection(root, files, proposed, text, command=None):
             raise rr.ConflictError('抉择已过期，请恢复当前段落')
         if proposed['option_id'] != 'CUSTOM':
             item = next(item for item in row['decision']['options'] if item['id'] == proposed['option_id'])
-            if item['text'] != text or command is not None:
-                raise rr.ConflictError('选项内容与本段不一致，不允许替换原行动')
+            expected_op = item.get('operation')
+            op_ok = (command == expected_op) or (allow_handoff_drop and expected_op is not None and command is None)
+            if item['text'] != text or not op_ok:
+                raise rr.ConflictError('选项内容或转场操作与本段不一致，不允许替换原行动')
     return copy.deepcopy(proposed)
 
 
-def update_playback(store, row, revealed, completed):
+STORY_PREFS_PATH = '.round-runtime/story/prefs.json'
+
+
+def load_story_prefs(root):
+    """Load runtime story preferences (defaults: faithful protagonist presence)."""
+    defaults = {'protagonist_style': 'faithful'}
+    p = Path(root) / STORY_PREFS_PATH
+    if not p.is_file():
+        return dict(defaults)
+    try:
+        raw = json.loads(p.read_text(encoding='utf-8'))
+        if not isinstance(raw, dict):
+            return dict(defaults)
+        return {
+            'protagonist_style': sc.normalize_protagonist_style(raw.get('protagonist_style', 'faithful')),
+        }
+    except Exception:
+        return dict(defaults)
+
+
+def save_story_prefs(root, updates):
+    """Persist validated runtime story preferences atomically."""
+    if not isinstance(updates, dict):
+        raise rr.RoundError('偏好设置须为对象')
+    rr._keys(updates, {'protagonist_style'}, '偏好设置')
+    cur = load_story_prefs(root)
+    if 'protagonist_style' in updates:
+        val = updates['protagonist_style']
+        if val not in ('faithful', 'silent'):
+            raise rr.RoundError('主角戏份风格须为 faithful 或 silent')
+        cur['protagonist_style'] = val
+    target = Path(root) / STORY_PREFS_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    rr._atomic(target, rr._json(cur))
+    return cur
+
+
+def update_playback(store, row, revealed, completed, *, allow_catchup=False):
     state = playback(store.root, row)
     rr._integer(revealed, 'revealed')
     if type(completed) is not bool or row is None:
         raise rr.RoundError('演播完成标记或段落无效')
-    if revealed > state['revealed'] + 1 or revealed > state['total']:
+    if revealed > state['total'] or (not allow_catchup and revealed > state['revealed'] + 1):
         raise rr.ConflictError('演播须逐节点推进，请先恢复当前进度')
     if completed and (revealed != state['total'] or state['revealed'] != state['total']):
         raise rr.ConflictError('最后节点尚未演播，不可提前完成')
@@ -158,29 +237,223 @@ def records(store):
     return sorted(p for p in folder.glob('*.json') if re.fullmatch(r'\d{12}\.json', p.name))
 
 
+def recent_rows(store, files=None):
+    """Merge local .round-runtime/interaction archive with self-contained 存档/近期演播.json."""
+    by_seq = {}
+    _, _, recent = save_store.load_bundle(store.root, files)
+    for item in recent.get('segments') or []:
+        if isinstance(item, dict) and isinstance(item.get('sequence'), int) and item['sequence'] >= 1:
+            by_seq[item['sequence']] = (None, copy.deepcopy(item))
+    for p in records(store):
+        try:
+            seq = int(p.stem)
+            row = rr.load_request(p.read_text(encoding='utf-8'))
+            by_seq[seq] = (p, row)
+        except Exception:
+            continue
+    return [by_seq[seq] for seq in sorted(by_seq)]
+
+
+def parse_public_vigilance(memory_text):
+    """Parse 【监视状态】 for frontend display: exposes position, vigilance, discovery; STRICTLY hides 发现几率."""
+    pos_m = re.search(r'^徐承邺位置：([^\n]+)', memory_text or '', re.M)
+    position = pos_m.group(1).strip() if pos_m else '外地'
+    targets = []
+    for m in re.finditer(r'^徐承邺_([^\n：:]+)[：:]\s*警惕\s*(\d+)\s*\|\s*发现\s*(\d+)', memory_text or '', re.M):
+        targets.append({
+            'name': m.group(1).strip(),
+            'vigilance': int(m.group(2)),
+            'discovery': int(m.group(3)),
+        })
+    return {'position': position, 'targets': targets}
+
+
+def scene_cast(presence, memory_text, location):
+    """Authoritative on-stage speaker list; dynamically includes 徐承邺 when rolled into 徐家主宅 or 市中心顶层公寓."""
+    cast = [n for n in PEOPLE if presence.get(n, {}).get('location') == location]
+    if location == '徐家主宅' and re.search(r'^徐承邺位置：\s*(?:徐家主宅|徐家住宅)\b', memory_text or '', re.M):
+        cast.append('徐承邺')
+    elif location == '市中心顶层公寓' and re.search(r'^徐承邺位置：\s*市中心顶层公寓\b', memory_text or '', re.M):
+        cast.append('徐承邺')
+    return cast
+
+
+_VISUAL_EXT_PRIORITY = {'.webp': 7, '.avif': 6, '.jpg': 5, '.jpeg': 4, '.png': 3, '.gif': 2, '.svg': 1}
+_SCENE_TIME_SLOTS = frozenset({'day', 'night', 'dawn', 'dusk'})
+
+
+def parse_micro_states(memory_text):
+    """Read-only parser for 【当前激活微状态】 safe against legacy/partial files."""
+    try:
+        return rr._current_micro(memory_text or '')
+    except Exception:
+        return {name: {k: False for k in rr.MICRO_STATES} for name in rr.ROUND_NPCS}
+
+
+def scan_visual_assets(root):
+    """Auto-discover scenes/ and character visual assets under txt文件/image/ (newest mtime wins across extensions)."""
+    image_root = Path(root) / 'txt文件' / 'image'
+    scenes = {}
+    characters = {}
+    if not image_root.is_dir():
+        return {'scenes': scenes, 'characters': characters}
+
+    def _pick(bucket, key, path, rel_parts):
+        ext = path.suffix.lower()
+        prio = _VISUAL_EXT_PRIORITY.get(ext, 0)
+        if not prio:
+            return
+        try:
+            st = path.stat()
+        except OSError:
+            return
+        rank = (st.st_mtime_ns, prio)
+        prev = bucket.get(key)
+        if prev is None or rank > prev[0]:
+            url = '/txt文件/image/' + '/'.join(urllib.parse.quote(p, safe='') for p in rel_parts) + f'?v={int(st.st_mtime)}'
+            bucket[key] = (rank, url)
+
+    scenes_dir = image_root / 'scenes'
+    if scenes_dir.is_dir():
+        scene_buckets = {}
+        for f in sorted(scenes_dir.iterdir(), key=lambda p: p.name):
+            if f.name.startswith('.') or not f.is_file():
+                continue
+            stem = f.stem
+            if '_' in stem:
+                place, suffix = stem.rsplit('_', 1)
+                slot = suffix.lower() if suffix.lower() in _SCENE_TIME_SLOTS else 'default'
+                if slot == 'default':
+                    place = stem
+            else:
+                place, slot = stem, 'default'
+            place = place.strip()
+            if not place:
+                continue
+            _pick(scene_buckets.setdefault(place, {}), slot, f, ('scenes', f.name))
+        scenes = {place: {slot: pair[1] for slot, pair in slots.items()} for place, slots in scene_buckets.items()}
+
+    for entry in sorted(image_root.iterdir(), key=lambda p: p.name):
+        if entry.name.startswith('.') or entry.name == 'scenes' or not entry.is_dir():
+            continue
+        char_bucket = {}
+        for f in sorted(entry.iterdir(), key=lambda p: p.name):
+            if f.name.startswith('.') or not f.is_file():
+                continue
+            slot = f.stem.strip()
+            if not slot:
+                continue
+            _pick(char_bucket, slot, f, (entry.name, f.name))
+        if char_bucket:
+            characters[entry.name] = {slot: pair[1] for slot, pair in char_bucket.items()}
+
+    return {'scenes': scenes, 'characters': characters}
+
+
 def view(store, files=None):
     files = files or store._files()
     engine = rr._engine(store.root, store.root)
     memory = (files[rr.FILES[0]] or b'').decode('utf-8')
+    bundle_state, _, _ = save_store.load_bundle(store.root, files)
     presence = engine.parse_presence_from_memory(memory)
     location = presence['徐志北']['location']
-    cast = [n for n in PEOPLE if presence[n]['location'] == location]
+    cast = scene_cast(presence, memory, location)
+    timers = engine.parse_item_timers(memory)
     catalog = (files[rr.FILES[1]] or b'').decode('utf-8')
+    active_by_id = {it['id']: it for it in bundle_state['items'].get('active', []) if isinstance(it, dict) and it.get('id')}
     items = []
     for m in engine._ITEM_BLOCK_RE.finditer(engine._active_item_zone(catalog)):
         fields = engine._parse_item_block(m.group(0))
         if not re.fullmatch(r'ITEM-\d+', fields['道具ID']):
             continue
-        items.append({'id': fields['道具ID'], 'name': m.group('name').strip(),
-                      'quantity': engine._int_of(fields['数量'], 1), 'fields': fields})
+        iid = fields['道具ID']
+        t_info = timers.get(iid)
+        rec = active_by_id.get(iid) or {}
+        giftable = rec.get('giftable', fields.get('可赠予', '是') != '否')
+        items.append({'id': iid, 'name': m.group('name').strip(),
+                      'quantity': engine._int_of(fields['数量'], 1),
+                      'remaining_turns': t_info['turns'] if t_info else None,
+                      'giftable': bool(giftable),
+                      'fields': fields})
+    delivered_items = [
+        {
+            'id': it['id'],
+            'name': it['name'],
+            'quantity': it['quantity'],
+            'target': it.get('target', ''),
+            'type': it.get('type', '永久性'),
+            'desc': it.get('desc', ''),
+            'note': it.get('note') or it.get('remark', ''),
+            'remark': it.get('remark') or it.get('note', ''),
+            'status': it.get('status', '已交付'),
+        }
+        for it in bundle_state['items'].get('delivered', [])
+        if isinstance(it, dict) and it.get('id')
+    ]
     panel = memory.split('▶ 上回合历史快照', 1)[0]
     panels = [line for line in panel.splitlines() if line.startswith('[')]
     data = json.loads(files.get('data.json') or b'{}')
-    progression = {'runtime': sp.state(store.root, files), 'stamina':sp.stamina(store.root, files),
-                   'costs':sp.COSTS, 'item_budget':20-sp.state(store.root, files)['item_recovered']} if sp.enabled(store.root) else None
-    return {'progression': progression, 'location': location, 'cast': cast, 'presence': presence, 'panels': panels,
-            'items': items, 'tasks': engine._parse_task_block(memory),
-            'interaction': data.get('interaction', {'count': 0, 'actions': 0}),
+    runtime = sp.state(store.root, files) if sp.enabled(store.root) else None
+    weekday = sp.derive_weekday(data, memory, (runtime or {}).get('clock'))
+    progression = {'runtime': runtime, 'stamina': sp.stamina(store.root, files),
+                   'costs': sp.COSTS, 'item_budget': 20 - runtime['item_recovered']} if runtime is not None else None
+    intel_cat = sp.load_intel_catalog(store.root, optional=True)
+    intel_state = sp.parse_intel_block(memory)
+    interaction_meta = data.get('interaction')
+    if not isinstance(interaction_meta, dict):
+        rt_meta = bundle_state.get('runtime') or {}
+        interaction_meta = {'count': 0, 'actions': 0}
+        if rt_meta.get('last_sequence'):
+            interaction_meta['last_sequence'] = rt_meta['last_sequence']
+        if rt_meta.get('last_segment_id'):
+            interaction_meta['segment_id'] = rt_meta['last_segment_id']
+    parsed_buffs = engine.parse_persistent_buffs(memory)
+    cur_day = int(((runtime or {}).get('clock') or {}).get('day') or ((bundle_state.get('runtime') or {}).get('clock') or {}).get('day') or 1)
+    mech = bundle_state.get('mechanics') or {}
+    latent_map = mech.get('pregnancy_latent_until') or {}
+    trace_map = mech.get('masturbation_trace') or {}
+    counters_map = bundle_state.get('counters') or {}
+    panels_dict = bundle_state.get('panels') or {}
+    physiology = {}
+    for hname in save_store.HEROINES:
+        hpanel = panels_dict.get(hname) or {}
+        is_preg = bool(hpanel.get('怀孕'))
+        lat_until = int(latent_map.get(hname, 0) or 0)
+        lat_left = max(0, lat_until - cur_day) if (not is_preg and lat_until > cur_day) else 0
+        c_phase = engine.determine_cycle_phase(hname, cur_day)
+        fl_turns = 0
+        for bitem in (parsed_buffs.get(hname) or []):
+            if isinstance(bitem, dict) and '持续_体液锁定' in str(bitem.get('name', '')):
+                fl_turns = int(bitem.get('turns', 0) or 0)
+                break
+        physiology[hname] = {
+            'cycle_phase': '孕期停经' if is_preg else c_phase,
+            'pregnancy_stage': 'confirmed' if is_preg else ('latent' if lat_left > 0 else 'none'),
+            'latent_days_left': lat_left,
+            'creampie_count': int(hpanel.get('内射', 0) or 0),
+            'unrelieved_streak': int(counters_map.get(f'空耗_连续未纾解_{hname}', 0) or 0),
+            'masturbation_trace': int(trace_map.get(hname, 0) or 0),
+            'fluid_lock_turns': fl_turns,
+            'fluid_lock_floor': engine.fluid_lock_floor_for_turns(fl_turns),
+        }
+    return {'progression': progression, 'weekday': weekday, 'location': location, 'cast': cast,
+            'presence': presence, 'panels': panels, 'items': items,
+            'delivered_items': delivered_items,
+            'buffs': parsed_buffs,
+            'micro_states': parse_micro_states(memory),
+            'physiology': physiology,
+            'visual_assets': scan_visual_assets(store.root),
+            'vigilance': parse_public_vigilance(memory),
+            'passive_tiers': [dict(x) for x in sp.passive_levels(store.root)],
+            'secrets_unlocked': list(mech.get('secrets_unlocked', [])),
+            'intel': {
+                **intel_state,
+                'leverage_min_biz': intel_cat.get('leverage_min_biz', 60),
+                'catalog': intel_cat.get('items', []),
+            },
+            'tasks': engine._parse_task_block(memory),
+            'shop_state': sp.parse_shop_echo_block(memory),
+            'interaction': interaction_meta,
             'policy': policy(store.root)}
 
 
@@ -197,12 +470,14 @@ def travel_intent(root, text):
     """Resolve only a direct present player command, using registered aliases."""
     names={name:name for name in policy(root)['locations']};names.update(location_aliases(root))
     options='|'.join(re.escape(n) for n in sorted(names,key=len,reverse=True))
-    match=re.fullmatch(r'\s*(?:我)?(?:现在|这就|马上|先)?(?:要)?\s*(回到|返回|前往|走到|出发去|回|去)\s*('
+    lead=r'(?:(?:我)?(?:起身|站起身|收起[^\n，,。！？?]{0,6}|放下[^\n，,。！？?]{0,6}|喝完[^\n，,。！？?]{0,4}|告别|告辞|道别|出门|下楼|拿上[^\n，,。！？?]{0,6}|换好[^\n，,。！？?]{0,6})(?:[，,、\s]|告辞|出门|道别)*)?'
+    verbs=r'(?:回到|返回|前往|走到|出发去|赶去|打车去|打车回|开车去|开车回|坐车去|坐车回|乘车去|乘车回|动身去|动身回|回|去)'
+    match=re.fullmatch(r'\s*'+lead+r'(?:我)?(?:现在|这就|马上|直接|先)?(?:要)?\s*('+verbs+r')\s*('
                        +options+r')(?=$|[\s，,。！!；;、]|看看|查看|看|找|问|探望|确认|一趟|一下|吧)(.*)',text,re.S)
     if not match:return None
     tail=match[3]
     if re.search(r'还是|或者|要不要|是否前往|[？?]|(?:明天|后天|下午|晚上|稍后|以后|待会|等会|如果|假如|到时候)',tail):return None
-    if re.search(r'(?:去|回到|返回|前往|走到|回)\s*(?:'+options+r')',tail):return None
+    if re.search(verbs+r'\s*(?:'+options+r')',tail):return None
     return {'operation':{'code':'move_player','destination':names[match[2]]},
             'matched_text':match[1]+match[2],'destination_text':match[2],'input':text}
 
@@ -220,7 +495,8 @@ def operation(root, files, proposed, text='', explicit=False):
         sp.item_quote(root, files, proposed['item_id'])
         return copy.deepcopy(proposed)
     engine = rr._engine(root, root)
-    presence = engine.parse_presence_from_memory(files[rr.FILES[0]].decode('utf-8'))
+    mem_text = files[rr.FILES[0]].decode('utf-8')
+    presence = engine.parse_presence_from_memory(mem_text)
     player_place = presence['徐志北']['location']
     code = proposed['code']
     if code == 'move_player':
@@ -235,7 +511,7 @@ def operation(root, files, proposed, text='', explicit=False):
     if code == 'transfer_item':
         rr._keys(proposed, {'code', 'item_id', 'recipient'}, 'transfer_item', {'code', 'item_id', 'recipient'})
         who = proposed['recipient']
-        if who not in PEOPLE or presence[who]['location'] != player_place:
+        if who not in scene_cast(presence, mem_text, player_place):
             raise rr.RoundError('接收人必须实际在场')
         catalog = (files[rr.FILES[1]] or b'').decode('utf-8')
         if not isinstance(proposed['item_id'], str) or not re.fullmatch(r'ITEM-\d+', proposed['item_id']):
@@ -246,9 +522,22 @@ def operation(root, files, proposed, text='', explicit=False):
         fields = engine._parse_item_block(found['block'])
         if fields['当前状态'] != '仓库中' or fields['使用对象'] not in ('', '无', '未使用', '徐志北'):
             raise rr.RoundError('该道具不属于玩家可交付库存')
-        if not explicit and (who not in text or not re.search(r'交给|送给|递给|赠给', text)
-                             or re.search(r'【道具名称】：([^\n]+)', found['block']).group(1).strip() not in text
-                             or not re.search(r'整组|全部|所有', text)):
+        item_name = re.search(r'【道具名称】：([^\n]+)', found['block']).group(1).strip()
+        bundle_state, _, _ = save_store.load_bundle(root, files)
+        rec = next((it for it in bundle_state['items'].get('active', []) if it.get('id') == proposed['item_id']), None)
+        non_giftable = (fields.get('可赠予') == '否') or (isinstance(rec, dict) and rec.get('giftable') is False)
+        if not non_giftable:
+            shop_cat = sp.load_shop_catalog(root, optional=True)
+            for shop_it in shop_cat.get('items', []):
+                if shop_it.get('name') == item_name and shop_it.get('giftable') is False:
+                    non_giftable = True
+                    break
+        if non_giftable:
+            raise rr.RoundError('该道具为宿主专用不可赠予物品')
+        qty = engine._int_of(fields.get('数量', '1'), 1)
+        if not explicit and (who not in text or not re.search(r'交给|送给|递给|赠给|送出', text)
+                             or item_name not in text
+                             or (qty > 1 and not re.search(r'整组|全部|所有', text))):
             raise rr.RoundError('交付缺少玩家明确接收人依据')
         return copy.deepcopy(proposed)
     raise rr.RoundError('未登记的正式行动；请先明确可执行范围')
@@ -278,30 +567,47 @@ def validate(root, request, files):
         reservation = request.get('audit', {}).get('reservation', {})
         try: checked_files[rr.FILES[0]] = base64.b64decode(reservation['before_memory'], validate=True)
         except (ValueError, KeyError, TypeError) as exc: raise rr.RoundError('预扣原文缺失') from exc
-    selection(root, checked_files, request.get('selection'), request['input'])
+    audit_obj = request.get('audit') if isinstance(request.get('audit'), dict) else {}
+    req_op = audit_obj.get('requested_operation') if 'requested_operation' in audit_obj else request.get('operation')
+    selection(root, checked_files, request.get('selection'), request['input'],
+              command=req_op, allow_handoff_drop=bool(request.get('handoff')))
     if modern:
-        decision(request['decision'])
+        decision(request['decision'], valid_locations=policy(root)['locations'])
     audit = request['audit']
     if not isinstance(audit, dict) or audit.get('required_reads_verified') is not True:
         raise rr.RoundError('缺少正式接受依据')
     proposed = operation(root, checked_files, request['operation'], request['input'], audit.get('origin') == 'player_action')
-    presence = rr._engine(root, root).parse_presence_from_memory(files[rr.FILES[0]].decode('utf-8'))
+    mem_text = files[rr.FILES[0]].decode('utf-8')
+    presence = rr._engine(root, root).parse_presence_from_memory(mem_text)
     location = presence['徐志北']['location']
-    allowed = {n for n in PEOPLE if presence[n]['location'] == location}
-    if proposed and proposed['code'] == 'move_player':
-        allowed = {n for n in PEOPLE if presence[n]['location'] == proposed['destination']}
+    eff_loc = proposed['destination'] if (proposed and proposed['code'] == 'move_player') else location
+    allowed = set(scene_cast(presence, mem_text, eff_loc))
     messages = request['messages']
     if not isinstance(messages, list) or not 1 <= len(messages) <= (1000 if modern else 12):
         raise rr.RoundError('剧情须为非空节点数组，传输最多1000节点；不作为正文篇幅预算')
+    allow_player_dlg = modern and load_story_prefs(root)['protagonist_style'] == 'faithful'
+    player_dlg_count = 0
     for m in messages:
         rr._keys(m, {'kind', 'speaker', 'text'}, 'message', {'kind', 'speaker', 'text'})
-        rr._text(m['text'], 'message.text', 800)
+        rr._text(m['text'], 'message.text', 4000)
         if m['kind'] not in ('dialogue', 'action', 'narration'):
             raise rr.RoundError('消息类型无效')
         if m['kind'] == 'narration':
             if m['speaker'] != '':
                 raise rr.RoundError('旁白不带说话人')
-        elif not isinstance(m['speaker'], str) or (m['speaker'] not in allowed and not (modern and m['kind'] == 'action' and m['speaker'] == '徐志北')):
+        elif not isinstance(m['speaker'], str):
+            raise rr.RoundError('角色不在场或模型代写玩家台词：'+m['kind']+' / '+str(m['speaker']))
+        elif m['speaker'] in allowed:
+            pass
+        elif modern and m['kind'] == 'action' and m['speaker'] == '徐志北':
+            pass
+        elif allow_player_dlg and m['kind'] == 'dialogue' and m['speaker'] == '徐志北':
+            player_dlg_count += 1
+            if player_dlg_count > sc.MAX_PLAYER_DIALOGUE_PER_TURN:
+                raise rr.RoundError(
+                    f'主角代写台词过多（单幕上限 {sc.MAX_PLAYER_DIALOGUE_PER_TURN} 句），请精简至贴合玩家意图的 1～2 句简短发言'
+                )
+        else:
             raise rr.RoundError('角色不在场或模型代写玩家台词：'+m['kind']+' / '+str(m['speaker']))
     if not isinstance(request['handoff'], str) or len(request['handoff']) > 300:
         raise rr.RoundError('待处理说明无效')
@@ -324,7 +630,8 @@ def settle(store, body, files, sequence, request_id):
             if raw is not None:
                 rr._atomic(stage / name, raw)
         engine = rr._engine(store.root, stage)
-        before_presence = engine.parse_presence_from_memory(files[rr.FILES[0]].decode('utf-8'))
+        before_mem = files[rr.FILES[0]].decode('utf-8')
+        before_presence = engine.parse_presence_from_memory(before_mem)
         display_files = dict(files)
         if body['schema_version'] == 3:
             import base64
@@ -332,11 +639,13 @@ def settle(store, body, files, sequence, request_id):
         before_world = view(store, display_files)
         op = body['operation']
         charged = body['schema_version'] == 3
-        settlement = None; runtime = None
+        settlement = None; runtime = None; scene_known_by = None
         if charged:
             parsed = sp.resolution(store.root, files, body)
             cost = parsed['cost']
             runtime, settlement = sp.apply_staged(store, engine, stage, body, files, parsed)
+            if isinstance(settlement, dict) and '_scene_known_by' in settlement:
+                scene_known_by = settlement.pop('_scene_known_by')
         else: cost = quote(store.root, files, op)
         if not charged and cost['status'] == 'active':
             memory_path = stage / rr.FILES[0]
@@ -346,7 +655,8 @@ def settle(store, body, files, sequence, request_id):
         if op and not charged:
             rr._engine_call(engine.apply_interaction_operation, op)
         after = {name: (stage / name).read_bytes() if (stage / name).is_file() else None for name in rr.FILES}
-        presence = engine.parse_presence_from_memory(after[rr.FILES[0]].decode('utf-8'))
+        after_mem = after[rr.FILES[0]].decode('utf-8')
+        presence = engine.parse_presence_from_memory(after_mem)
         data = json.loads(after['data.json'] or b'{}')
         count = data.get('interaction', {}).get('count', 0) + 1
         actions = data.get('interaction', {}).get('actions', 0) + bool(op)
@@ -362,10 +672,43 @@ def settle(store, body, files, sequence, request_id):
                                **({'speaker': m['speaker']} if m['kind'] == 'dialogue' else {}), 'text': m['text']}
                               for m in body['messages']]
         after['data.json'] = rr._json(data)
-        listeners = ['徐志北', *[n for n in PEOPLE if before_presence[n]['location'] == before_presence['徐志北']['location']]]
-        reply_listeners = ['徐志北', *[n for n in PEOPLE if presence[n]['location'] == presence['徐志北']['location']]]
+        # Keep P2 save_state.json / 四层记忆.json runtime & hashes synced atomically.
+        # For non-charged pure chat without state mutation, keep legacy .txt byte-identical.
+        mutated_world = bool(charged or op or cost.get('status') == 'active')
+        st_bundle, layers_bundle, _ = save_store.load_bundle(stage, after)
+        st_bundle['runtime']['last_sequence'] = sequence
+        if modern:
+            st_bundle['runtime']['last_segment_id'] = request_id
+        if charged and isinstance(runtime, dict):
+            for k in ('clock', 'memory_round', 'last_closed', 'phase', 'item_recovered', 'action_index', 'closed_by'):
+                if k in runtime:
+                    st_bundle['runtime'][k] = copy.deepcopy(runtime[k])
+        if isinstance(data.get('prologue'), dict):
+            st_bundle['runtime']['prologue'] = copy.deepcopy(data['prologue'])
+            live_mem = after[rr.FILES[0]].decode('utf-8') if after.get(rr.FILES[0]) else ''
+            live_wd = sp.derive_weekday(data, live_mem, st_bundle['runtime'].get('clock'))
+            if live_wd:
+                st_bundle['runtime']['weekday'] = live_wd
+        if mutated_world:
+            rendered = save_store.render_bundle_bytes(st_bundle, layers_bundle, data_dict=data)
+            for rel, raw_b in rendered.items():
+                if rel in after:
+                    after[rel] = raw_b
+        else:
+            st_bundle = save_store.normalize_state(st_bundle)
+            st_bundle['rendered_sha256'] = {
+                'memory_txt': save_store._sha256_bytes(after[rr.FILES[0]]),
+                'items_txt': save_store._sha256_bytes(after[rr.FILES[1]]),
+                'data_runtime': save_store._runtime_sig(data),
+            }
+            after[save_store.SAVE_STATE_PATH] = save_store._json_bytes(st_bundle)
+            after[save_store.MEMORY_LAYERS_PATH] = save_store._json_bytes(layers_bundle)
+        listeners = ['徐志北', *scene_cast(before_presence, before_mem, before_presence['徐志北']['location'])]
+        reply_listeners = ['徐志北', *scene_cast(presence, after_mem, presence['徐志北']['location'])]
         if charged and cost['kind']=='item':
             listeners = reply_listeners = ['徐志北']
+        elif scene_known_by is not None:
+            reply_listeners = list(scene_known_by)
         accepted = {'version': 1, 'id': request_id, 'sequence': sequence, 'count': count,
                     'input': body['input'], 'input_kind': 'action' if op else 'dialogue',
                     'messages': body['messages'], 'handoff': body['handoff'], 'operation': op,
@@ -374,12 +717,24 @@ def settle(store, body, files, sequence, request_id):
                     'location': before_presence['徐志北']['location'],
                     'after_location': presence['徐志北']['location'],
                     'created_at': time.time(), 'cost': cost, 'audit': body['audit']}
+        pb_obj = None
         if modern:
             accepted.update(version=2, decision=body['decision'], selection=body['selection'], before_world=before_world)
             if charged:
                 accepted.update(settlement=settlement, resolution=body['resolution'])
-            after[PLAYBACK] = rr._json({'version': 1, 'segment_id': request_id, 'revealed': 0, 'completed': False})
+            pb_obj = {'version': 1, 'segment_id': request_id, 'revealed': 0, 'completed': False}
+            after[PLAYBACK] = rr._json(pb_obj)
         after[ARCHIVE + '/' + f'{sequence:012d}.json'] = rr._json(accepted)
+        # Dual-write rolling recent 12 segments + playback into self-contained 存档/近期演播.json.
+        recent_path = store._path(rr.RECENT_PLAYBACK)
+        existing_recent = save_store.default_recent()
+        if recent_path.is_file():
+            try:
+                existing_recent = json.loads(recent_path.read_text(encoding='utf-8'))
+            except ValueError:
+                existing_recent = save_store.default_recent()
+        updated_recent = save_store.append_recent_segment(existing_recent, accepted, playback_state=pb_obj)
+        after[rr.RECENT_PLAYBACK] = rr._json(updated_recent)
         return after
     finally:
         shutil.rmtree(stage)
@@ -399,37 +754,84 @@ def _relevance(text, query):
     return sum(term in text for term in terms)
 
 
-def memory_context(root, memory, query, runtime):
+def _project_memory_header(header, *, cast=None, is_single=True):
+    """Strip redundant snapshot and bulky machine blocks from pre-L1 projection to stay permanently below context_chars//2."""
+    if not header:
+        return ''
+    text = re.sub(r'^#[^\n]*\n+', '', header)
+    text = re.sub(r'\n*【当前激活微状态】[\s\S]*?(?=\n={5,}|\n▶ 上回合历史快照|\n【|\Z)', '', text)
+    text = re.sub(r'\n*▶ 上回合历史快照[\s\S]*?(?=\n={5,}\n【当前持久化状态与BUFF】|\n【当前持久化状态与BUFF】|\Z)', '', text)
+    for anchor in ('【回合计数器】', '【商城与回响状态】', '【商业情报与杠杆状态】', '【世界导演状态】', '【回合生命周期】'):
+        text = re.sub(rf'\n*{re.escape(anchor)}[\s\S]*?(?=\n【|\Z)', '', text)
+    if not is_single:
+        # Foreground writer sanitization: hide raw 发现几率, offstage NPC coordinates, and host points/EXP.
+        text = re.sub(r'\s*\|\s*发现几率\s*\d+%?', '', text)
+        if cast is not None:
+            visible_who = set(cast) | {'徐志北'}
+            def _filter_presence(match):
+                kept = []
+                for line in match.group(1).splitlines():
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    who = stripped.split('：', 1)[0].strip()
+                    if who in visible_who:
+                        kept.append(line)
+                return '【人物所在】\n' + '\n'.join(kept) + ('\n' if kept else '')
+            text = re.sub(r'【人物所在】\n([\s\S]*?)(?=\n【|\n={5,}|\Z)', _filter_presence, text)
+        def _strip_host_points(match):
+            parts = [seg.strip() for seg in match.group(1).split('|') if not re.match(r'^(?:积分|经验值)\s+', seg.strip())]
+            return '[系统宿主] ' + ' | '.join(parts)
+        text = re.sub(r'^\[系统宿主\]\s*(.*)$', _strip_host_points, text, flags=re.M)
+    text = re.sub(r'(?:\n={5,}\s*){2,}', '\n==================================================\n', text)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text.strip()
+
+
+_LAYER_PRIORITY = {'L1': 4, 'L2': 3, 'L3': 2, 'L4': 1}
+
+
+def memory_context(root, memory, query, runtime, *, cast=None, is_single=True):
     """Select complete source entries; omitted entries remain addressable by exact ranges."""
     engine=rr._engine(Path(root),Path(root));layers=engine._parse_memory_layer_items(memory)
     limits=sp.memory_policy(root);budget=limits['context_chars']
     entries=[];cursor=memory.index('▲ 第一层：')
     for layer,items in layers.items():
-        for item in items:
+        for intra_idx, item in enumerate(items):
             ref=_source_ref(memory,item,cursor,layer)
             cursor=memory.index(item,cursor)+len(item)
-            entries.append((item,ref))
-    header=memory[:memory.index('▲ 第一层：')].strip()
+            entries.append((item,ref,intra_idx))
+    raw_header=memory[:memory.index('▲ 第一层：')].strip()
+    header=_project_memory_header(raw_header, cast=cast, is_single=is_single)
     chosen=[];used=0
-    # Current machine state is included once; a pathological legacy header is read explicitly.
+    # Compact projected machine state stays far below budget//2; only a pathological header falls back to explicit read.
     head=header if len(header)<=budget//2 else ''
     used=len(head)
-    ranked=sorted(enumerate(entries),key=lambda pair:(pair[1][1]['layer']=='L1',_relevance(pair[1][0],query),pair[0]),reverse=True)
-    for index,(item,ref) in ranked:
+    ranked=sorted(
+        enumerate(entries),
+        key=lambda pair:(
+            pair[1][1]['layer']=='L1',
+            _relevance(pair[1][0],query),
+            _LAYER_PRIORITY.get(pair[1][1]['layer'],0),
+            pair[1][2],
+        ),
+        reverse=True,
+    )
+    for index,(item,ref,_intra) in ranked:
         if used+len(item)+1<=budget:
             chosen.append(index);used+=len(item)+1
     selected=set(chosen)
     projected='\n'.join(([head] if head else [])+[entries[i][0] for i in sorted(selected)])
-    omitted=[ref for i,(_,ref) in enumerate(entries) if i not in selected]
+    omitted=[ref for i,(_,ref,_intra) in enumerate(entries) if i not in selected]
     index_refs=[entries[i][1] for i,_ in ranked if i not in selected][:limits['index_entries']]
     number=runtime['last_closed'] if runtime['phase']=='resting' and runtime['last_closed'] else runtime['memory_round']
-    current=next(((item,ref) for item,ref in entries if ref['layer']=='L1' and item.startswith('【'+str(number)+'】')),None)
+    current=next(((item,ref) for item,ref,_intra in entries if ref['layer']=='L1' and item.startswith('【'+str(number)+'】')),None)
     required=[];allowed=list(index_refs)
     def demand(ref):
         if ref not in allowed:allowed.append(ref)
         if ref not in required:required.append(ref)
-    if not head and header:
-        demand({'path':rr.FILES[0],'start_line':1,'end_line':memory[:memory.index('▲ 第一层：')].count('\n'),'characters':len(header),'layer':'state'})
+    if not head and raw_header:
+        demand({'path':rr.FILES[0],'start_line':1,'end_line':memory[:memory.index('▲ 第一层：')].count('\n'),'characters':len(raw_header),'layer':'state'})
     current_ref=None
     if current:
         item,current_ref=current
@@ -440,13 +842,13 @@ def memory_context(root, memory, query, runtime):
                                   ('l2_to_l3_summary','L2',layers['L2'] if len(layers['L2'])==10 else []),
                                   ('l3_to_l4_summary','L3',layers['L3'] if len(layers['L2'])==10 and len(layers['L3'])==10 else [])]:
             if source:
-                refs=[ref for item,ref in entries if ref['layer']==layer and item in source]
+                refs=[ref for item,ref,_intra in entries if ref['layer']==layer and item in source]
                 transfer_sources[key]=refs
                 for ref in refs:
                     if ref not in [entries[i][1] for i in selected]:demand(ref)
     return {'text':projected,'selected':[entries[i][1] for i in sorted(selected)],
-            'all_entries':[{'source':ref,'preview':item[:80]} for item,ref in entries],
-            'all_refs':[ref for _,ref in entries],
+            'all_entries':[{'source':ref,'preview':item[:80]} for item,ref,_intra in entries],
+            'all_refs':[ref for _,ref,_intra in entries],
             'omitted_count':len(omitted),'index':index_refs,'allowed':allowed,'required':required,
             'current':current_ref,'transfers':transfer_sources,'limits':limits}
 
@@ -497,6 +899,7 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
     helper = SceneService(story.root, story)
     files = {n: v.encode('utf-8') if v is not None else None for n, v in prepared['snapshot'].items()}
     state = view(story.store, files)
+    mem_text = (files[rr.FILES[0]] or b'').decode('utf-8')
     intent=travel_intent(story.root,text)
     if command is None and intent and intent['operation']['destination']!=state['location']:
         command=copy.deepcopy(intent['operation'])
@@ -506,52 +909,93 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
     effective = copy.deepcopy(state)
     if resolved and resolved['code'] == 'move_player':
         effective['location'] = resolved['destination']
-        effective['cast'] = [n for n in PEOPLE if state['presence'][n]['location'] == resolved['destination']]
+        effective['cast'] = scene_cast(state['presence'], mem_text, resolved['destination'])
     limits=sp.memory_policy(story.root)
-    candidates = []
-    archive = records(story.store)
-    for path in archive[-limits['history_turns']:]:
-        turn = rr.load_request(path.read_text(encoding='utf-8'))
+    all_rows = recent_rows(story.store, files)
+    visible_rows = []
+    visible_archive_paths = []
+    for pair in all_rows:
+        path, turn = pair
         input_visible = all(n in turn.get('input_known_by', turn.get('known_by', [])) for n in effective['cast'])
         reply_visible = all(n in turn.get('messages_known_by', turn.get('known_by', [])) for n in effective['cast'])
-        if input_visible or reply_visible:
-            safe = {k: turn[k] for k in ('id', 'input', 'input_kind', 'messages', 'handoff', 'operation', 'location', 'known_by')}
-            safe.update(input_known_by=turn.get('input_known_by',turn.get('known_by',[])),
-                        messages_known_by=turn.get('messages_known_by',turn.get('known_by',[])))
-            if not input_visible:
-                safe['input'] = ''
-            if not reply_visible:
-                safe.update(messages=[], handoff='', operation=None)
-            candidates.append((path,safe))
-    recent=bounded_history(candidates,limits)
-    history=[safe for _,safe in recent]
-    included={path for path,_ in recent}
-    omitted_archive=[str(p.relative_to(story.root)) for p in archive if p not in included]
-    required_history=[str(candidates[-1][0].relative_to(story.root))] if candidates and candidates[-1][0] not in included else []
+        if not (input_visible or reply_visible):
+            continue
+        if path is not None:
+            visible_archive_paths.append(path)
+        visible_rows.append((pair, input_visible, reply_visible))
+    candidates = []
+    for (path, turn), input_visible, reply_visible in visible_rows[-limits['history_turns']:]:
+        safe = {k: turn[k] for k in ('id', 'input', 'input_kind', 'messages', 'handoff', 'operation', 'location', 'known_by')}
+        safe.update(input_known_by=turn.get('input_known_by', turn.get('known_by', [])),
+                    messages_known_by=turn.get('messages_known_by', turn.get('known_by', [])))
+        if not input_visible:
+            safe['input'] = ''
+        if not reply_visible:
+            safe.update(messages=[], handoff='', operation=None)
+        seq_num = int(turn.get('sequence', 0)) if isinstance(turn.get('sequence'), int) else (int(path.stem) if path is not None else 0)
+        candidates.append(((path, seq_num), safe))
+    recent = bounded_history(candidates, limits)
+    history = [safe for _, safe in recent]
+    included = {meta[0] for meta, _ in recent if meta[0] is not None}
+    omitted_archive = [str(p.relative_to(story.root)) for p in visible_archive_paths if p not in included]
+    last_cand_path = candidates[-1][0][0] if candidates else None
+    required_history = [str(last_cand_path.relative_to(story.root))] if (last_cand_path is not None and last_cand_path not in included) else []
     refs = helper.references(text, history)
     if not any(r['name'] == '徐志北' for r in refs):
         refs.append({'name': '徐志北', 'matched_aliases': [], 'basis': 'host_sovereignty'})
     sources, characters, relationships = helper.sources(effective['cast'], refs)
     from relationship_query import RelationshipRegistry
     RelationshipRegistry(story.root).verify_view()
+    shop_cat_rel = sp.shop_catalog_path(story.root)
+    intel_cat_rel = sp.intel_catalog_path(story.root)
+    director_cat_rel = str(sp.director_config(story.root).get('catalog') or sp.DIRECTOR_CATALOG_DEFAULT).strip()
     names = [RULE, CONFIG, 'txt文件/提示词.md', 'txt文件/一键注入指南.txt', 'txt文件/全局执行法典.md',
              'txt文件/故事检索索引.md', 'txt文件/知识库/世界观类.json', 'txt文件/知识库/叙事判断.json',
              'txt文件/知识库/系统标签类.json', 'interaction_runtime.py', 'round_runtime.py', 'injection_core.py',
-             'relationship_query.py', *(['story_progression.py','txt文件/事件注册表.json'] if sp.enabled(story.root) else []), *rr.FILES]
-    sources.update({n: rr._digest(story.store._path(n).read_bytes()) for n in names})
-    for p,_ in recent:
-        sources[str(p.relative_to(story.root))] = rr._digest(p.read_bytes())
+             'relationship_query.py', *(['story_compiler.py'] if story.store._path('story_compiler.py').is_file() else []),
+             *([shop_cat_rel] if story.store._path(shop_cat_rel).is_file() else []),
+             *([intel_cat_rel] if story.store._path(intel_cat_rel).is_file() else []),
+             *([director_cat_rel] if story.store._path(director_cat_rel).is_file() else []),
+             *(['story_progression.py','txt文件/事件注册表.json'] if sp.enabled(story.root) else []), *rr.FILES]
+    sources.update({n: rr._digest(story.store._path(n).read_bytes()) for n in names if story.store._path(n).is_file()})
+    for (p, _seq), _ in recent:
+        if p is not None and p.is_file():
+            sources[str(p.relative_to(story.root))] = rr._digest(p.read_bytes())
     for path in required_history:
         sources[path] = rr._digest(story.store._path(path).read_bytes())
     relevant = []
     for filename in ('世界观类', '叙事判断', '系统标签类'):
-        for entry in json.loads((story.root / ('txt文件/知识库/' + filename + '.json')).read_text())['data']['entries']:
+        for entry in json.loads((story.root / ('txt文件/知识库/' + filename + '.json')).read_text(encoding='utf-8'))['data']['entries']:
+            if entry.get('enabled', True) is not True:
+                continue
             content = entry['content']
             if filename != '系统标签类' or any(k in content for k in ('※索引key※ sys.runtime_data', '※索引key※ sys.task', '※索引key※ sys.breakout')):
                 relevant.append({'source': 'txt文件/知识库/' + filename + '.json', 'body': content})
     memory = prepared['snapshot'][rr.FILES[0]]
     runtime=sp.state(story.root,files) if charged else {'memory_round':1,'last_closed':0,'phase':'ready'}
     projection=memory_context(story.root,memory,text,runtime)
+    is_action_turn = (not charged or preview_cost.get('kind') == 'action')
+    pending_echoes = sp.parse_shop_echo_block(memory)['echoes'] if is_action_turn else []
+    delivered_echo_ids = [e['id'] for e in pending_echoes]
+    prior_roll = None
+    try:
+        ctx_blob = story._blob(key, '.context.json')
+        if ctx_blob.is_file():
+            old_ctx = json.loads(ctx_blob.read_bytes())
+            if isinstance(old_ctx, dict) and isinstance(old_ctx.get('director_roll'), dict):
+                prior_roll = old_ctx['director_roll']
+    except Exception:
+        prior_roll = None
+    if prior_roll is not None:
+        director_roll = prior_roll
+    elif is_action_turn:
+        director_roll = sp.roll_director_beat(
+            story.root, effective, memory, runtime, state.get('weekday', '')
+        )
+    else:
+        dstate = sp.parse_director_block(memory)
+        st_cnt = (dstate['scene_turns'] + 1) if dstate['scene_location'] == effective['location'] else 1
+        director_roll = {'triggered': False, 'probability': 0.0, 'scene_turns_in_place': st_cnt}
     cache=sr.CACHE+'/'+hashlib.sha256(key.encode()).hexdigest()[:32]
     archive_index=cache+'/history-index.json'
     rr._atomic(story.store._path(archive_index),rr._json({'paths':omitted_archive}))
@@ -561,8 +1005,8 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
     sources[memory_index]=rr._digest(story.store._path(memory_index).read_bytes())
     # Legacy memories lack machine-readable knowledge scopes; preserve as player-only continuity.
     data = {'entry_mode': MODE, 'request_id': key, 'source_manifest': sources,
-            'rules': (story.root / RULE).read_text(),
-            'sovereignty': (story.root / 'txt文件/全局执行法典.md').read_text(),
+            'rules': (story.root / RULE).read_text(encoding='utf-8'),
+            'sovereignty': (story.root / 'txt文件/全局执行法典.md').read_text(encoding='utf-8'),
             'characters': characters, 'relationships': relationships, 'knowledge_rules': relevant,
             'scenario': {'location': effective['location'], 'cast': effective['cast'], 'presence': state['presence']},
             'operation_policy': {'locations': state['policy']['locations'],'location_aliases':location_aliases(story.root),
@@ -572,6 +1016,9 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
                 'memory_context':{'selected':projection['selected'],'omitted_count':projection['omitted_count'],
                     'index':projection['index'],'full_index':memory_index,'required_reads':projection['required'],'limits':limits,
                     'rule':'仅含完整源条目的预算内视图，不代表其余事实消失；旧记忆为玩家私有，不能传播NPC未知秘密。需旧事实时据精确行号补读。'}},
+            **({'milestone_echo': {'events': [{'kind': e['kind'], 'summary': e['summary']} for e in pending_echoes],
+                'rule': '一次性特定时刻微回响：仅允许在自然间隙或收束处用1句氛围/感官/内心轻顿带过，禁直呼任务/委托/商城/积分/系统词，禁扭转玩家意图，禁泄露给NPC。'}} if pending_echoes else {}),
+            **({'surprise_directive': sp.format_surprise_directive(director_roll)} if sp.format_surprise_directive(director_roll) else {}),
             'accepted_history': history, 'input': text, 'selection': selected,
              'accounting': ({'reservation': {k:v for k,v in reservation.items() if k!='before_memory'},
                   'runtime':sp.state(story.root,files),'instruction':'面板体力已预扣，原体力见quote.before；不据暂扣判断力竭。按resolution交实际事件与时间；程序决定最终不足5及强制休息。',
@@ -592,7 +1039,8 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
             'rule':'同回合只追加有长期价值的新fact，预计超600字符或旧条已超限时交完整compact；合并不是追加。旧事实在预算视图中只出现一次，未选入的必要原文按行号真实补读。L1/L2/L3容量3/10/10；转移单条上限见limits，不传播未知秘密。'}
         data['knowledge_rules'] = [{'source':'txt文件/知识库/'+name+'.json','body':e['content']}
             for name in ('世界观类','叙事判断','系统标签类')
-            for e in json.loads((story.root/('txt文件/知识库/'+name+'.json')).read_text())['data']['entries']]
+            for e in json.loads((story.root/('txt文件/知识库/'+name+'.json')).read_text(encoding='utf-8'))['data']['entries']
+            if e.get('enabled', True) is True]
     raw = encode_live_packet(data)
     relative = sr.CACHE + '/' + hashlib.sha256(key.encode()).hexdigest()[:32] + '/live.txt'
     rr._atomic(story.store._path(relative), raw)
@@ -612,14 +1060,21 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
                 'output_contract': contract, 'instruction': '先执行读取阶段：逐一照用packet.path和packet.read_ranges中的start_line/end_line调用read_file_part，读完每一段；header显示请求范围不代表正文已齐，核对实际返回的末行。需要时补齐截断正文，文件末尾空白不作为未读正文。再读required_memory_reads与required_history_reads，最后生成完整JSON；只允许reading_tools和本任务文件路径，grep_code只定位不计正文覆盖，禁止list_files/find_files或读取许可外文件；其余旧事实按本任务精确行号或归档索引补读。返回单个裸JSON，生成连贯剧情及decision中的A/B/C；无需演完一场戏，不写旧完整回合、L1或SYSTEM_LOG。'}
     if charged:
         envelope['instruction'] += ' 必须同时返回resolution并逐项遵循resolution_policy：普通付费action即使只澄清或未发生移动也必须交完整conditions对象，字段名称不改；SYSTEM才允许无条件。已预检的operation_context.requested直接对应玩家原文与登记别名，不再猜地点。只分类和提供依据，不计算成本/最终面板；免费休息为SYSTEM且实际休息推进，睡眠有正文起止，不以短休冒充整夜。判档/事件/事实/时间只按当前资料；不能把人物系统数值或玩家私有记忆写成NPC知情。'
+    last_seq = int(all_rows[-1][1].get('sequence', 0)) if all_rows else 0
+    recent_seqs = [meta[1] for meta, _ in recent]
     return {'protocol': 3, 'interaction_protocol': 3 if charged else 2, 'entry_mode': MODE, 'audit': sources,
             'packet': {**envelope['packet'], 'sha256': rr._digest(raw)},
             'allowed_archive': [*omitted_archive,archive_index,memory_index],
             'allowed_memory_reads':projection['all_refs']+projection['allowed'], 'required_memory_reads':projection['required'],
             'required_history_reads':required_history,
-            'command': resolved, 'cast': effective['cast'], 'selection': selected, 'previous_validation_error':previous_error,
+            'command': resolved, 'cast': effective['cast'], 'location': effective['location'],
+            'references': refs, 'last_committed_sequence': last_seq, 'recent_sequences': recent_seqs,
+            'archive_index': archive_index, 'memory_index': memory_index, 'omitted_archive': omitted_archive,
+            'selection': selected, 'previous_validation_error':previous_error,
             'interaction_scope': rr._digest(rr._json([effective['location'], effective['cast']])),
             'cost_preview': preview_cost,
+            'delivered_echo_ids': delivered_echo_ids,
+            'director_roll': director_roll,
             'reading_policy': {'version': sr.VERSION},
             'turns': [{'kind': 'user', 'content': json.dumps(envelope, ensure_ascii=False)}]}
 
@@ -710,6 +1165,207 @@ def material_delivery(story, key, job, chat_id, participant_id):
     return {'input_text': content, 'delivery': {k: record[k] for k in ('id', 'input_sha256')}}
 
 
+def material_delivery_v2(story, key, job, chat_id, participant_id, options=None):
+    """Freeze Zone 0/1 static prefixes and issue compact per-turn delta + optional settlement spec."""
+    opts = options if isinstance(options, dict) else {}
+    protocol_mode = opts.get('protocol_mode', 'dual_stream_v2')
+    if protocol_mode not in ('dual_stream_v2', 'single_prefix_v2'):
+        raise rr.RoundError('不支持的资料交付模式: ' + str(protocol_mode))
+    context = json.loads(story._blob(key, '.context.json').read_bytes())
+    if context.get('entry_mode') != MODE:
+        raise rr.RoundError('资料直送只用于正式互动')
+    story._source_check(context)
+    wanted = context['packet']
+    raw = story.store._path(wanted['path']).read_bytes()
+    if rr._digest(raw) != wanted['sha256']:
+        raise rr.ConflictError('本次资料包已经改变')
+    packet_data = json.loads(raw)
+    sources = [{'path': wanted['path'], 'source_sha256_at_result': rr._digest(raw),
+                'verified_lines': sorted(required_source_lines(raw, wanted['through_line']))}]
+    supplements = []
+    refs = list(context.get('required_memory_reads', []))
+    refs.extend({'path': path, 'start_line': 1,
+                 'end_line': len(story.store._path(path).read_bytes().decode().splitlines())}
+                for path in context.get('required_history_reads', []))
+    seen = set()
+    for ref in refs:
+        path, begin, end = ref['path'], ref['start_line'], ref['end_line']
+        if (path, begin, end) in seen:
+            continue
+        seen.add((path, begin, end))
+        source = story.store._path(path).read_bytes()
+        if context['audit'].get(path) != rr._digest(source):
+            raise rr.ConflictError('必要补读源未冻结或已经改变: ' + path)
+        lines = source.decode().splitlines()
+        if not 1 <= begin <= end <= len(lines):
+            raise rr.RoundError('必要补读源行号无效')
+        supplements.append({'path': path, 'start_line': begin, 'end_line': end,
+                            'body': '\n'.join(lines[begin-1:end])})
+        sources.append({'path': path, 'source_sha256_at_result': rr._digest(source),
+                        'verified_lines': list(range(begin, end+1))})
+
+    envelope = json.loads(context['turns'][0]['content'])
+    envelope.pop('instruction', None)
+    envelope['output_contract']['operation'] = ''
+    envelope['output_contract']['handoff'] = ''
+    resolution = envelope['output_contract'].get('resolution')
+    if resolution:
+        resolution['task'] = ''
+        resolution['sleep']['start'] = ''
+        if isinstance(resolution.get('conditions'), dict):
+            resolution['conditions']['npc'] = ''
+
+    files = story.store._files()
+    prompt_files = dict(files)
+    res_obj = (job or {}).get('reservation') if isinstance(job, dict) else None
+    if isinstance(res_obj, dict) and res_obj.get('status') == 'held' and res_obj.get('before_memory'):
+        import base64
+        try:
+            prompt_files[rr.FILES[0]] = base64.b64decode(res_obj['before_memory'], validate=True)
+            if res_obj.get('before_save_state') is not None:
+                prompt_files[save_store.SAVE_STATE_PATH] = base64.b64decode(res_obj['before_save_state'], validate=True)
+        except Exception:
+            prompt_files = dict(files)
+    memory_text = (prompt_files[rr.FILES[0]] or b'').decode('utf-8')
+    live_state = view(story.store, prompt_files)
+    bundle_state, _, _ = save_store.load_bundle(story.root, prompt_files)
+    scenario = packet_data.get('scenario', {})
+    effective_state = {
+        **live_state,
+        'location': scenario.get('location', live_state['location']),
+        'cast': scenario.get('cast', live_state['cast']),
+        'mechanics': copy.deepcopy(bundle_state.get('mechanics') or {}),
+    }
+    cast = effective_state['cast']
+    references = context.get('references', [])
+    text_input = packet_data.get('input', '')
+    protagonist_style = load_story_prefs(story.root)['protagonist_style']
+
+    zone0_global = sc.build_zone0_global(story.root, mode=protocol_mode, protagonist_style=protagonist_style)
+    zone1_scene = sc.build_zone1_scene(
+        story.root, effective_state, cast, references,
+        memory_text=memory_text, extra_text='', mode=protocol_mode,
+    )
+    zone0_sha = rr._digest(zone0_global.encode('utf-8'))
+    zone1_sha = rr._digest(zone1_scene.encode('utf-8'))
+
+    synced_z0 = str(opts.get('synced_zone0_sha256') or '')
+    synced_z1 = str(opts.get('synced_zone1_sha256') or '')
+    is_fresh = bool(opts.get('is_fresh_session', True))
+    last_seen_seq = opts.get('last_committed_sequence', 0)
+    if type(last_seen_seq) is not int or last_seen_seq < 0:
+        last_seen_seq = 0
+    include_full_anchor = (
+        is_fresh or synced_z0 != zone0_sha or synced_z1 != zone1_sha or last_seen_seq <= 0
+    )
+
+    history = packet_data.get('accepted_history', [])
+    recent_seqs = context.get('recent_sequences', [])
+    new_history_only = [
+        item for item, seq in zip(history, recent_seqs) if seq > last_seen_seq
+    ] if (not include_full_anchor and len(history) == len(recent_seqs)) else []
+
+    charged = sp.enabled(story.root)
+    runtime = (packet_data.get('accounting') or {}).get('runtime') or (
+        sp.state(story.root, prompt_files) if charged else {'memory_round': 1, 'last_closed': 0, 'phase': 'ready'}
+    )
+    projection = memory_context(
+        story.root, memory_text, text_input, runtime,
+        cast=cast, is_single=(protocol_mode == 'single_prefix_v2'),
+    )
+    is_action_turn = (not charged or (packet_data.get('cost_preview') or {}).get('kind') == 'action')
+    pending_echoes = sp.parse_shop_echo_block(memory_text)['echoes'] if is_action_turn else []
+    breakout_hint = sc.compile_breakout_hint(memory_text) if is_action_turn else None
+    intel_catalog = sp.load_intel_catalog(story.root, optional=True)
+    user_delta = sc.build_user_delta(
+        story.root, effective_state, projection, history, new_history_only,
+        text_input, packet_data.get('selection'), context.get('command'),
+        (packet_data.get('operation') or {}).get('input_evidence'),
+        packet_data.get('cost_preview'), runtime, memory_text,
+        previous_error=packet_data.get('previous_validation_error', ''),
+        include_full_anchor=include_full_anchor, mode=protocol_mode,
+        omitted_archive=context.get('omitted_archive', []),
+        archive_index=context.get('archive_index', ''),
+        memory_index=context.get('memory_index', ''),
+        required_sources=supplements,
+        output_contract=envelope['output_contract'],
+        resolution_policy=envelope.get('resolution_policy'),
+        operation_context=envelope.get('operation_context'),
+        pending_echoes=pending_echoes,
+        weekday=live_state.get('weekday', ''),
+        breakout_hint=breakout_hint,
+        intel_catalog=intel_catalog,
+        director_roll=context.get('director_roll'),
+        protagonist_style=protagonist_style,
+    )
+    total_bytes = len(zone0_global.encode('utf-8')) + len(zone1_scene.encode('utf-8')) + len(user_delta.encode('utf-8'))
+    if total_bytes > 2 * 1024 * 1024:
+        raise rr.RoundError('资料直送超过2MiB，停止生成，不截断正文')
+
+    settlement_spec = None
+    if protocol_mode == 'dual_stream_v2':
+        settlement_spec = sc.build_settlement_spec(
+            story.root, effective_state, projection, text_input, packet_data.get('selection'),
+            context.get('command'), (packet_data.get('operation') or {}).get('input_evidence'),
+            packet_data.get('cost_preview'), runtime, memory_text,
+            envelope.get('resolution_policy'), envelope['output_contract'],
+            envelope.get('operation_context'), required_sources=supplements,
+            intel_catalog=intel_catalog, director_roll=context.get('director_roll'),
+        )
+
+    record = {
+        'version': 2, 'kind': 'program_prefix_v2', 'protocol_mode': protocol_mode,
+        'id': secrets.token_hex(24), 'request_id': key,
+        'lease_sha256': rr._digest(job['lease'].encode()),
+        'context_sha256': rr._digest(story._blob(key, '.context.json').read_bytes()),
+        'zone0_sha256': zone0_sha, 'zone1_sha256': zone1_sha,
+        'input_sha256': rr._digest(user_delta.encode('utf-8')),
+        'settlement_system_sha256': settlement_spec['system_sha256'] if settlement_spec else '',
+        'chat_id': chat_id, 'participant_id': participant_id, 'sources': sources,
+    }
+    existing = story._blob(key, '.delivery.json')
+    if existing.is_file():
+        old = json.loads(existing.read_bytes())
+        if old.get('lease_sha256') == record['lease_sha256']:
+            if any(old.get(field) != record[field] for field in
+                   ('version', 'protocol_mode', 'request_id', 'context_sha256',
+                    'zone0_sha256', 'zone1_sha256', 'input_sha256', 'chat_id', 'participant_id', 'sources')):
+                raise rr.ConflictError('同一租约的资料或会话已经改变')
+            record = old
+    rr._atomic(existing, rr._json(record))
+    res_payload = {
+        'delivery_version': 2,
+        'protocol_mode': protocol_mode,
+        'protagonist_style': protagonist_style,
+        'zone0_global': zone0_global,
+        'zone0_sha256': zone0_sha,
+        'zone1_scene': zone1_scene,
+        'zone1_sha256': zone1_sha,
+        'input_text': user_delta,
+        'include_full_anchor': include_full_anchor,
+        'allowed_speakers': cast,
+        'last_committed_sequence': context.get('last_committed_sequence', 0),
+        'envelope': envelope,
+        'settlement_spec': settlement_spec,
+        'delivery': {
+            'id': record['id'],
+            'input_sha256': record['input_sha256'],
+            'zone0_sha256': zone0_sha,
+            'zone1_sha256': zone1_sha,
+        },
+    }
+    if protocol_mode == 'dual_stream_v2' and isinstance(job, dict) and job.get('resume_stage2'):
+        cp = load_stage1_checkpoint(story, key, job)
+        if cp is not None:
+            res_payload['stage1_checkpoint'] = {
+                'foreground_text': cp['foreground_text'],
+                'foreground_messages': cp['foreground_messages'],
+                'generation_ms': cp['generation_ms'],
+                'base_audit': cp['base_audit'],
+            }
+    return res_payload
+
+
 def verify_delivery(story, key, context, proof):
     delivered = proof.get('delivery')
     if delivered is None:
@@ -718,17 +1374,23 @@ def verify_delivery(story, key, context, proof):
     if not isinstance(delivered, dict) or not path.is_file():
         raise rr.RoundError('缺少本次程序交付记录')
     record = json.loads(path.read_bytes())
+    version = record.get('version')
     job = story._read()['jobs'].get(key, {})
-    if (context.get('entry_mode') != MODE or record.get('version') != 1 or record.get('request_id') != key
+    if (context.get('entry_mode') != MODE or version not in (1, 2) or record.get('request_id') != key
             or job.get('status') not in ('generating', 'validating')
             or (job.get('status') == 'generating' and job.get('lease_until', 0) < time.time())
             or not job.get('lease')
             or record.get('lease_sha256') != rr._digest(job['lease'].encode())
             or record.get('context_sha256') != rr._digest(story._blob(key, '.context.json').read_bytes())):
         raise rr.ConflictError('资料交付属于过期任务或租约')
-    if (set(delivered) != {'id', 'input_sha256', 'user_message_timestamp'}
+    expected_keys = {'id', 'input_sha256', 'user_message_timestamp'}
+    if version == 2:
+        expected_keys |= {'zone0_sha256', 'zone1_sha256'}
+    if (set(delivered) != expected_keys
             or delivered.get('id') != record.get('id')
             or delivered.get('input_sha256') != record.get('input_sha256')
+            or (version == 2 and (delivered.get('zone0_sha256') != record.get('zone0_sha256')
+                                  or delivered.get('zone1_sha256') != record.get('zone1_sha256')))
             or proof.get('chat_id') != record.get('chat_id')
             or proof.get('participant_id') != record.get('participant_id')):
         raise rr.RoundError('程序交付身份、内容或会话不符')
@@ -806,11 +1468,15 @@ def verify(story, key, proof, allow_missing=False):
         params = call.get('parameters', {})
         if not isinstance(params, dict) or not isinstance(params.get('path'), str):
             raise rr.RoundError('读取工具参数无效')
-        path = params['path']
+        path = params['path'].replace('\\', '/')
         for prefix in (proof.get('workspace'), str(story.root)):
-            if isinstance(prefix, str) and prefix and path.startswith(prefix.rstrip('/') + '/'):
-                path = path[len(prefix.rstrip('/')) + 1:]
-                break
+            if isinstance(prefix, str) and prefix:
+                norm_pref = prefix.replace('\\', '/').rstrip('/')
+                if path.startswith(norm_pref + '/'):
+                    path = path[len(norm_pref) + 1:]
+                    break
+        while path.startswith('./'):
+            path = path[2:]
         if path not in allowed:
             raise rr.RoundError('读取了非本任务资料：'+path)
         if path==rr.FILES[0]:
@@ -825,7 +1491,10 @@ def verify(story, key, proof, allow_missing=False):
         entry = {'name': call['name'], 'path': path, 'status': call.get('status')}
         if call.get('status') == 'success' and call['name'] in ('read_file','read_file_full','read_file_part'):
             source = story.store._path(path).read_bytes()
-            begin, end = params.get('start_line', 1), params.get('end_line', len(source.decode().splitlines()))
+            total_lines = len(source.decode().splitlines())
+            raw_b, raw_e = params.get('start_line'), params.get('end_line')
+            begin = 1 if raw_b in (None, '') else raw_b
+            end = total_lines if raw_e in (None, '') else raw_e
             try:
                 lines = sr.verified_lines(source, call.get('result_text', ''), int(begin), int(end))
             except (ValueError, TypeError) as exc:
@@ -853,33 +1522,391 @@ def verify(story, key, proof, allow_missing=False):
             targets.append(missing_read_target('history.'+str(index),path,source,missing))
             messages.append('最近剧情原文超过自动预算，须完整补读后再续写')
     if targets and not allow_missing:raise rr.RoundError('；'.join(messages))
+    delivery_audit = None
+    if delivered:
+        delivery_audit = {
+            'kind': delivered.get('kind', 'program_inline_v1'),
+            'id': delivered['id'],
+            'input_sha256': delivered['input_sha256'],
+            'user_message_timestamp': proof['delivery']['user_message_timestamp'],
+            'sources': delivered['sources'],
+        }
+        if delivered.get('version') == 2:
+            delivery_audit.update(
+                protocol_mode=delivered.get('protocol_mode'),
+                zone0_sha256=delivered.get('zone0_sha256'),
+                zone1_sha256=delivered.get('zone1_sha256'),
+            )
+    settlement_audit = proof.get('settlement_audit')
     return {'required_reads_verified': not targets, 'origin': 'operit_session', 'chat_id': proof['chat_id'],
             'verified_tools': verified, 'source_manifest': context['audit'],
-            **({'material_delivery': {'kind': 'program_inline_v1', 'id': delivered['id'],
-                'input_sha256': delivered['input_sha256'],
-                'user_message_timestamp': proof['delivery']['user_message_timestamp'],
-                'sources': delivered['sources']}} if delivered else {}),
+            **({'material_delivery': delivery_audit} if delivery_audit else {}),
+            **({'settlement_audit': settlement_audit} if isinstance(settlement_audit, dict) else {}),
             'snapshot_message_timestamp': stamp, 'packet_sha256': wanted['sha256'],
             'missing_keys':[item['key'] for item in targets],'read_targets':targets}
 
 
+def _normalize_fallback_decision(raw_fb, valid_locations, current_location, aliases=None):
+    if not isinstance(raw_fb, dict):
+        raise rr.RoundError('fallback_decision 必须是包含 prompt 与 options 的对象')
+    raw_prompt = raw_fb.get('prompt')
+    prompt_text = raw_prompt.strip() if isinstance(raw_prompt, str) and raw_prompt.strip() else sc._DEFAULT_DECISION_PROMPT
+    cleaned = {'prompt': prompt_text, 'options': []}
+    raw_opts = raw_fb.get('options')
+    if not isinstance(raw_opts, list):
+        raise rr.RoundError('fallback_decision.options 必须是包含 A/B/C 的数组')
+    for item in raw_opts:
+        if not isinstance(item, dict):
+            raise rr.RoundError('fallback_decision.options 每项必须是对象')
+        raw_id = item.get('id')
+        norm_item = {
+            'id': raw_id.strip().upper() if isinstance(raw_id, str) else raw_id,
+            'text': item.get('text').strip() if isinstance(item.get('text'), str) else item.get('text'),
+        }
+        op = item.get('operation')
+        if op not in (None, ''):
+            if isinstance(op, dict) and op.get('code') == 'move_player' and isinstance(op.get('destination'), str):
+                resolved_op = sc._resolve_option_move(op.get('destination'), valid_locations, aliases, current_location)
+                if resolved_op:
+                    norm_item['operation'] = resolved_op
+            else:
+                norm_item['operation'] = op
+        cleaned['options'].append(norm_item)
+    return decision(cleaned, valid_locations=valid_locations)
+
+
+_AUDIT_PLACEHOLDERS = frozenset({'同上', '见前文', '已读取', '通过', '无'})
+
+
+def _clean_single_line(value):
+    if not isinstance(value, str):
+        return ''
+    return re.sub(r'[\r\n]+', ' ', value).strip()
+
+
+def _autofill_settlement_audit_lines(settlement, context):
+    """Fill missing/placeholder non-core narrative audit strings in dual-stage Stage 2 output.
+    Never modifies gameplay-affecting fields (category, clock day/time, events, memory, conditions, etc.)."""
+    autofilled = []
+    sel = (context or {}).get('selection') or {}
+    opt_id = str(sel.get('option_id') or '').strip()
+
+    checks = settlement.get('checks')
+    if isinstance(checks, dict):
+        defaults = {
+            'intent': '按本幕玩家输入与所选意图核验推进。',
+            'knowledge': '已按在场人物与知情边界核验本幕正文。',
+            'action': '已按前台实际正文动作与对白完成结构化提取。',
+            'pace': '已按本幕自然节奏收束并承接段末抉择。',
+        }
+        for key, fallback in defaults.items():
+            cleaned = _clean_single_line(checks.get(key))
+            if not cleaned or cleaned in _AUDIT_PLACEHOLDERS:
+                checks[key] = fallback
+                autofilled.append(f'checks.{key}')
+            elif cleaned != checks.get(key):
+                checks[key] = cleaned
+
+    res = settlement.get('resolution')
+    if isinstance(res, dict):
+        cat = str(res.get('category') or '').strip()
+        raw_basis = _clean_single_line(res.get('basis'))
+        if not raw_basis or raw_basis in _AUDIT_PLACEHOLDERS:
+            if cat == 'SYSTEM':
+                res['basis'] = '按本幕系统免费操作事实结算。'
+            elif opt_id in ('A', 'B', 'C'):
+                res['basis'] = f'按玩家选定的固定{opt_id}档选项实际互动结算。'
+            elif cat in ('A', 'B', 'C'):
+                res['basis'] = f'按本幕玩家实际行为判定{cat}档结算。'
+            else:
+                res['basis'] = '按本幕前台实际互动事实结算。'
+            autofilled.append('resolution.basis')
+        elif raw_basis != res.get('basis'):
+            res['basis'] = raw_basis
+
+        clk = res.get('clock')
+        if isinstance(clk, dict):
+            raw_clk_basis = _clean_single_line(clk.get('basis'))
+            if not raw_clk_basis or raw_clk_basis in _AUDIT_PLACEHOLDERS:
+                day = clk.get('day')
+                tm = clk.get('time') or ''
+                clk['basis'] = f'本幕互动自然推进至第{day}天 {tm}'.strip()
+                autofilled.append('resolution.clock.basis')
+            elif raw_clk_basis != clk.get('basis'):
+                clk['basis'] = raw_clk_basis
+    return autofilled
+
+
+_FOREGROUND_NON_RETRYABLE_TAGS = (
+    '前台演播',
+    '红线拦截',
+    '角色不在场或代写玩家台词',
+    '角色不在场或模型代写玩家台词',
+    '主角代写台词过多',
+    '动作角色不在场',
+    '旁白不能携带说话人',
+    '旁白不带说话人',
+    'message.text',
+    '消息类型无效',
+    '剧情须为非空节点数组',
+)
+
+
+def is_settlement_retryable_error(msg):
+    """Return True if a dual-stage validation error belongs to Stage 2 settlement (or decision-only fallback),
+    meaning Stage 1 foreground prose is valid and does not need to be regenerated."""
+    text = str(msg or '')
+    if not text:
+        return False
+    if '可补充 fallback_decision' in text:
+        return True
+    return not any(tag in text for tag in _FOREGROUND_NON_RETRYABLE_TAGS)
+
+
+def stage1_checkpoint_path(story, key):
+    return story._blob(key, '.stage1.json')
+
+
+def clear_stage1_checkpoint(story, key):
+    try:
+        stage1_checkpoint_path(story, key).unlink(missing_ok=True)
+    except OSError:
+        pass
+
+
+def load_stage1_checkpoint(story, key, job):
+    """Return validated Stage 1 checkpoint matching (key, base_revision, save_epoch) or None."""
+    path = stage1_checkpoint_path(story, key)
+    if not path.is_file() or not isinstance(job, dict):
+        return None
+    try:
+        data = json.loads(path.read_bytes())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(data, dict) or data.get('version') != 1:
+        return None
+    if data.get('request_id') != key:
+        return None
+    if data.get('base_revision') != job.get('base_revision'):
+        return None
+    if str(data.get('save_epoch') or '') != str(job.get('save_epoch') or ''):
+        return None
+    fg_text = data.get('foreground_text')
+    base_audit = data.get('base_audit')
+    if not isinstance(fg_text, str) or not fg_text.strip() or not isinstance(base_audit, dict):
+        return None
+    return data
+
+
+def save_stage1_checkpoint(story, key, job, context, checkpoint):
+    """Validate foreground prose + Stage 1 receipt and persist checkpoint for Stage-2-only retry."""
+    if not isinstance(job, dict) or not isinstance(checkpoint, dict):
+        return False
+    fg_text = checkpoint.get('foreground_text')
+    base_audit = checkpoint.get('base_audit')
+    if not isinstance(fg_text, str) or not fg_text.strip() or len(fg_text.encode('utf-8')) > 2 * 1024 * 1024:
+        return False
+    if not isinstance(base_audit, dict) or base_audit.get('api') != 'Tools.Chat.sendMessageStreaming':
+        return False
+    outcome = base_audit.get('outcome')
+    if (not isinstance(outcome, dict) or outcome.get('type') != 'committed'
+            or outcome.get('status') != 'completed' or not isinstance(outcome.get('assistant'), dict)):
+        return False
+    stamp = outcome['assistant'].get('messageTimestamp')
+    user_ts = outcome.get('userMessageTimestamp')
+    if type(stamp) is not int or base_audit.get('snapshot_message_timestamp') != stamp:
+        return False
+    if type(user_ts) is not int or user_ts <= 0:
+        return False
+
+    try:
+        files = story.store._files()
+        mem_text = (files[rr.FILES[0]] or b'').decode('utf-8')
+        presence = rr._engine(story.root, story.root).parse_presence_from_memory(mem_text)
+        valid_locations = policy(story.root)['locations']
+        cur_loc = presence['徐志北']['location']
+        cmd = (context or {}).get('command')
+        candidate_locs = [cur_loc]
+        if isinstance(cmd, dict) and cmd.get('code') == 'move_player' and cmd.get('destination') in valid_locations:
+            dest = cmd['destination']
+            if dest not in candidate_locs:
+                candidate_locs.insert(0, dest)
+        protagonist_style = load_story_prefs(story.root)['protagonist_style']
+        bundle_state, _, _ = save_store.load_bundle(story.root, files)
+        secrets_unlocked = list((bundle_state.get('mechanics') or {}).get('secrets_unlocked', []))
+        parsed_fg = None
+        for loc in candidate_locs:
+            allowed_cast = scene_cast(presence, mem_text, loc)
+            try:
+                fg = sc.parse_stream_story(
+                    fg_text,
+                    allowed_speakers=allowed_cast,
+                    partial=False,
+                    valid_destinations=valid_locations,
+                    location_aliases=location_aliases(story.root),
+                    current_location=loc,
+                    allow_missing_decision=True,
+                    allow_player_dialogue=(protagonist_style == 'faithful'),
+                )
+                sc.guardrail_check(
+                    story.root, loc, allowed_cast, fg['messages'],
+                    memory_text=mem_text, secrets_unlocked=secrets_unlocked,
+                    allow_player_dialogue=(protagonist_style == 'faithful'),
+                )
+                parsed_fg = fg
+                break
+            except rr.RoundError:
+                continue
+        if parsed_fg is None:
+            return False
+    except Exception:
+        return False
+
+    raw_msgs = checkpoint.get('foreground_messages')
+    fg_msgs = raw_msgs if isinstance(raw_msgs, list) and raw_msgs else parsed_fg['messages']
+    gen_ms = checkpoint.get('generation_ms', 0)
+    if type(gen_ms) is not int or gen_ms < 0:
+        gen_ms = 0
+    sanitized_audit = copy.deepcopy(base_audit)
+    sanitized_audit.pop('settlement_audit', None)
+    record = {
+        'version': 1,
+        'request_id': key,
+        'base_revision': job.get('base_revision', ''),
+        'save_epoch': job.get('save_epoch', ''),
+        'foreground_text': fg_text,
+        'foreground_messages': fg_msgs,
+        'generation_ms': gen_ms,
+        'base_audit': sanitized_audit,
+        'saved_at': time.time(),
+    }
+    rr._atomic(stage1_checkpoint_path(story, key), rr._json(record))
+    return True
+
+
+def normalize_dual_stage(story, context, result):
+    """Merge dual-stage foreground script + background SUMMARY settlement into canonical result."""
+    if not isinstance(result, dict) or result.get('dual_stage_version') != 1:
+        return result, {}
+    rr._keys(result, {'dual_stage_version', 'foreground_text', 'settlement'}, '双阶段结果',
+             {'dual_stage_version', 'foreground_text', 'settlement'})
+    settlement = copy.deepcopy(result['settlement'])
+    if not isinstance(settlement, dict):
+        raise rr.RoundError('后台结算结果须为JSON对象')
+    charged = sp.enabled(story.root)
+    allowed_settle = {'operation', 'handoff', 'checks', 'quality_flags', 'fallback_decision'} | ({'resolution'} if charged else set())
+    req_settle = {'operation', 'handoff', 'checks'} | ({'resolution'} if charged else set())
+    rr._keys(settlement, allowed_settle, '后台结算结果', req_settle)
+    autofilled_audit = _autofill_settlement_audit_lines(settlement, context)
+    if context.get('command') and settlement.get('operation') != context['command']:
+        if settlement.get('operation') is not None or not isinstance(settlement.get('handoff'), str) or not settlement.get('handoff').strip():
+            raise rr.RoundError('后台结算未保留玩家明确操作；不能执行时须明确待处理且不提交操作')
+    files = story.store._files()
+    mem_text = files[rr.FILES[0]].decode('utf-8')
+    presence = rr._engine(story.root, story.root).parse_presence_from_memory(mem_text)
+    op = settlement.get('operation')
+    valid_locations = policy(story.root)['locations']
+    location = presence['徐志北']['location']
+    if isinstance(op, dict) and op.get('code') == 'move_player' and op.get('destination') in valid_locations:
+        location = op['destination']
+    allowed_cast = scene_cast(presence, mem_text, location)
+    protagonist_style = load_story_prefs(story.root)['protagonist_style']
+    fg = sc.parse_stream_story(
+        result['foreground_text'],
+        allowed_speakers=allowed_cast,
+        partial=False,
+        valid_destinations=valid_locations,
+        location_aliases=location_aliases(story.root),
+        current_location=location,
+        allow_missing_decision=True,
+        allow_player_dialogue=(protagonist_style == 'faithful'),
+    )
+    resolved_decision = fg['decision']
+    used_fallback_decision = False
+    if resolved_decision is None:
+        # Enforce redline guardrails on foreground prose BEFORE allowing any fallback_decision recovery.
+        bundle_state, _, _ = save_store.load_bundle(story.root, files)
+        secrets_unlocked = list((bundle_state.get('mechanics') or {}).get('secrets_unlocked', []))
+        sc.guardrail_check(
+            story.root, location, allowed_cast, fg['messages'],
+            memory_text=mem_text, secrets_unlocked=secrets_unlocked,
+            allow_player_dialogue=(protagonist_style == 'faithful'),
+        )
+        raw_fb = settlement.get('fallback_decision')
+        if raw_fb in (None, ''):
+            reason = fg.get('decision_missing_reason') or '未检测到完整抉择'
+            raise rr.RoundError(
+                f'前台演播缺少完整的 ---DECISION--- 与 A/B/C 三项抉择（{reason}），'
+                '后台结算可补充 fallback_decision 字段以完成本幕提交'
+            )
+        resolved_decision = _normalize_fallback_decision(
+            raw_fb, valid_locations, location, aliases=location_aliases(story.root)
+        )
+        used_fallback_decision = True
+    merged = {
+        'messages': fg['messages'],
+        'decision': resolved_decision,
+        'operation': settlement['operation'],
+        'handoff': settlement['handoff'],
+        'checks': settlement['checks'],
+    }
+    if charged:
+        merged['resolution'] = settlement['resolution']
+    extra = {'dual_stage': True}
+    if used_fallback_decision:
+        extra['decision_fallback'] = True
+    if autofilled_audit:
+        extra['audit_lines_autofilled'] = autofilled_audit
+    if 'quality_flags' in settlement:
+        qf = settlement['quality_flags']
+        if not isinstance(qf, list) or len(qf) > 16 or not all(isinstance(x, str) and len(x) <= 200 for x in qf):
+            raise rr.RoundError('quality_flags须为字符串数组')
+        extra['quality_flags'] = qf
+    return merged, extra
+
+
 def assemble(story, key, job, result, context, audit):
+    result, extra_audit = normalize_dual_stage(story, context, result)
     charged = sp.enabled(story.root)
     fields = {'messages','decision','operation','handoff','checks'} | ({'resolution'} if charged else set())
     rr._keys(result, fields, '互动结果', fields)
-    decision(result['decision'])
+    decision(result['decision'], valid_locations=policy(story.root)['locations'])
     rr._keys(result['checks'], {'intent', 'knowledge', 'action', 'pace'}, 'checks', {'intent', 'knowledge', 'action', 'pace'})
     for name, value in result['checks'].items():
         rr._audit_line(value, 'checks.' + name, reason=True)
     if context['command'] and result['operation'] != context['command']:
         if result['operation'] is not None or not isinstance(result['handoff'], str) or not result['handoff'].strip():
             raise rr.RoundError('模型不能变更玩家明确操作；不能执行时须明确待处理且不提交操作')
-    accepted_audit = {**audit, 'checks': result['checks']}
+    # Deterministic zero-cost red-line guardrail check (speaker sovereignty, info-gap secrets, residence lock).
+    files = story.store._files()
+    mem_text = files[rr.FILES[0]].decode('utf-8')
+    presence = rr._engine(story.root, story.root).parse_presence_from_memory(mem_text)
+    op = result.get('operation')
+    eff_loc = presence['徐志北']['location']
+    if isinstance(op, dict) and op.get('code') == 'move_player' and op.get('destination') in policy(story.root)['locations']:
+        eff_loc = op['destination']
+    eff_cast = scene_cast(presence, mem_text, eff_loc)
+    bundle_state, _, _ = save_store.load_bundle(story.root, files)
+    secrets_unlocked = list((bundle_state.get('mechanics') or {}).get('secrets_unlocked', []))
+    protagonist_style = load_story_prefs(story.root)['protagonist_style']
+    guard = sc.guardrail_check(
+        story.root, eff_loc, eff_cast, result['messages'],
+        memory_text=mem_text, secrets_unlocked=secrets_unlocked,
+        allow_player_dialogue=(protagonist_style == 'faithful'),
+    )
+    accepted_audit = {**audit, **extra_audit, 'checks': result['checks']}
+    if context.get('delivered_echo_ids'):
+        accepted_audit['delivered_echo_ids'] = list(context['delivered_echo_ids'])
+    if isinstance(context.get('director_roll'), dict):
+        accepted_audit['director_roll'] = copy.deepcopy(context['director_roll'])
+    if guard.get('warnings'):
+        accepted_audit['guardrail_warnings'] = guard['warnings']
     if charged:
         if not job.get('reservation') or job['reservation']['status']!='held':raise rr.ConflictError('预扣已结束，拒绝旧结果')
         accepted_audit['reservation'] = copy.deepcopy(job['reservation'])
     if context['command']:
         accepted_audit['origin'] = 'player_action'
+        accepted_audit['requested_operation'] = copy.deepcopy(context['command'])
     return {'schema_version': 3 if charged else 2, 'entry_mode': MODE, 'request_id': key,
             **({'resolution':result['resolution']} if charged else {}),
             'base_revision': job.get('working_revision', job['base_revision']), 'input': job['action'],

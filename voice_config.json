@@ -1,6 +1,7 @@
 {
     "__settings__": {
-        "fish_tts_model": "s2.1-pro"
+        "fish_tts_model": "s2.1-pro-free",
+        "voice_tier": "free"
     },
     "default": {
         "voice": "fish:fc46c64b5e274c97b7d207724f2020cf",
@@ -32,40 +33,43 @@
         "emotion": ""
     },
     "徐念薇": {
-        "voice": "fish:d85cc5525b464d18984afde086cb988f",
+        "voice": "fish:4adf7a16833c4fdbbf480dd3e5c96b3d",
         "voice_ids": [
             "42d8ffb0f1034a5c93ae6369d6af238c",
             "54e0e58a1bc94b36beb8bbcbf8cda603",
-            "d85cc5525b464d18984afde086cb988f"
+            "d85cc5525b464d18984afde086cb988f",
+            "4adf7a16833c4fdbbf480dd3e5c96b3d"
         ],
         "tts_model": "s2.1-pro-free",
-        "speed": 1.0,
-        "volume": 20,
-        "normalize_loudness": true,
-        "temperature": 0.72,
-        "top_p": 1,
+        "speed": 0.97,
+        "volume": 3.0,
+        "normalize_loudness": false,
+        "temperature": 0.58,
+        "top_p": 0.68,
         "latency": "normal",
         "chunk_length": 220,
         "min_chunk_length": 40,
-        "repetition_penalty": 1.31,
+        "repetition_penalty": 1.18,
         "condition_on_previous_chunks": true,
         "normalize": true,
-        "language": "",
+        "language": "zh-CN",
         "format": "mp3",
         "mp3_bitrate": 128,
         "opus_bitrate": -1000,
         "sample_rate": 44100,
         "max_new_tokens": 1024,
         "early_stop_threshold": 1.0,
-        "quality_guard": false,
+        "quality_guard": true,
         "pronunciation_dictionary_id": "",
         "pronunciation_dictionary_version": "",
         "emotion": ""
     },
     "旁白": {
-        "voice": "fish:ce2ea055eb1f4c1cb8bce347193d12c3",
+        "voice": "fish:ee0a2c89d5c04288a695e741a748b8a9",
         "voice_ids": [
-            "ce2ea055eb1f4c1cb8bce347193d12c3"
+            "ce2ea055eb1f4c1cb8bce347193d12c3",
+            "9927a47b9bd0490abaa81dd3b45dc0dc",
+            "ee0a2c89d5c04288a695e741a748b8a9"
         ],
         "tts_model": "s2.1-pro-free",
         "speed": 0.94,
@@ -86,7 +90,7 @@
         "sample_rate": 44100,
         "max_new_tokens": 1024,
         "early_stop_threshold": 1.0,
-        "quality_guard": false,
+        "quality_guard": true,
         "pronunciation_dictionary_id": "",
         "pronunciation_dictionary_version": "",
         "emotion": ""
@@ -97,38 +101,40 @@
             "0fbeafe1b0ed42d1877a27374aa469d9"
         ],
         "tts_model": "s2.1-pro-free",
-        "speed": 1.0,
-        "volume": 20,
-        "normalize_loudness": true,
-        "temperature": 0.72,
-        "top_p": 1,
-        "latency": "balanced",
-        "chunk_length": 220,
-        "min_chunk_length": 40,
-        "repetition_penalty": 1.35,
+        "speed": 0.96,
+        "volume": 0.0,
+        "normalize_loudness": false,
+        "temperature": 0.62,
+        "top_p": 0.72,
+        "latency": "normal",
+        "chunk_length": 240,
+        "min_chunk_length": 45,
+        "repetition_penalty": 1.18,
         "condition_on_previous_chunks": true,
         "normalize": true,
-        "language": "",
+        "language": "zh-CN",
         "format": "mp3",
-        "mp3_bitrate": 128,
+        "mp3_bitrate": 192,
         "opus_bitrate": -1000,
         "sample_rate": 44100,
         "max_new_tokens": 1024,
         "early_stop_threshold": 1.0,
-        "quality_guard": false,
+        "quality_guard": true,
         "pronunciation_dictionary_id": "",
         "pronunciation_dictionary_version": "",
         "emotion": ""
     },
     "苏婉青": {
-        "voice": "fish:b6d3e97c674c49ac9e15b1d3ab917abc",
+        "voice": "fish:0fc68ce9e49e40c986f743a3dc8103a6",
         "voice_ids": [
             "fc46c64b5e274c97b7d207724f2020cf",
-            "b6d3e97c674c49ac9e15b1d3ab917abc"
+            "b6d3e97c674c49ac9e15b1d3ab917abc",
+            "4adf7a16833c4fdbbf480dd3e5c96b3d",
+            "0fc68ce9e49e40c986f743a3dc8103a6"
         ],
         "tts_model": "s2.1-pro-free",
         "speed": 0.93,
-        "volume": 8.5,
+        "volume": 3.0,
         "normalize_loudness": false,
         "temperature": 0.68,
         "top_p": 0.76,
@@ -145,7 +151,7 @@
         "sample_rate": 44100,
         "max_new_tokens": 1024,
         "early_stop_threshold": 1.0,
-        "quality_guard": false,
+        "quality_guard": true,
         "pronunciation_dictionary_id": "",
         "pronunciation_dictionary_version": "",
         "emotion": ""

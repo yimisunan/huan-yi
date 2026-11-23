@@ -33,5 +33,67 @@ async function run(){
  const repair=JSON.parse(flow.calls[1].input.text);assert.equal(repair.entry_mode,'live_interaction');assert(repair.task_envelope.output_contract.resolution);assert.equal(repair.request_id,'request-1');assert.equal(repair.read_repair.read_targets[0].reads[0].start_line,2);assert(flow.calls[0].input.text.includes('原错误'));
  flow.maxChecks=9;flow.calls.length=0;vm.runInContext('checked=0',flow);await assert.rejects(vm.runInContext('executeSession(config,task,model,session)',flow),/仍缺/);assert.equal(flow.calls.length,2);
  console.log('PASS same-chat one repair, cumulative proof, full contract, error handoff, second missing stops');
+
+ // 2.1.2 Regression A: External chat deletion bypasses boundChatCache -> ensureSession recreates chatId -> liveSession forces isFresh=true and resets counters.
+ {
+  const b2={exports:{},console,setTimeout,clearTimeout,setInterval,clearInterval,
+   config:{workspacePath:'/fixture',endpoint:'http://127.0.0.1:5000',chatId:'',participantId:'',inFlight:null,outbox:null,dualStageEnabled:true,liveSessionPolicy:'continuous'},
+   ToolPkg:{ipc:{on(){}},callDependency:async(pkg,fn,args)=>{
+    if(fn==='character.get') return {id:args.id,marks:'local.story.operit_bridge:readonly',name:'同席互动·项目只读',characterSetting:'old',otherContentChat:'old',chatModelBindingMode:'FIXED_MODEL',chatProviderId:'p1',chatModelId:'m1',toolAccessConfig:{enabled:true,allowedBuiltinTools:['read_file','read_file_full','read_file_part','file_info','grep_code'],allowedPackages:[],allowedSkills:[],allowedMcpServers:[]}};
+    if(fn==='character.update') return {id:args.id,...args.changes};
+    if(fn==='chat.configuration.binding.read') return {selection:'card:card-1'};
+    return {id:'card-1'};
+   }},
+   PluginConfig:{flush:async()=>{}},
+   existingChats:new Set(['chat-1']),
+   createdSeq:1,
+  };
+  b2.Tools={
+   Chat:{
+    listChats:async({chat_ids})=>({chats:(chat_ids||[]).filter(id=>b2.existingChats.has(id)).map(id=>({id}))}),
+    agentStatus:async()=>({isIdle:true}),
+    createNew:async()=>{const id='chat-'+(++b2.createdSeq);b2.existingChats.add(id);return {chatId:id};},
+    updateTitle:async()=>{},
+    cancel:async()=>{},
+   },
+   SoftwareSettings:{exec:async()=>({success:true})},
+  };
+  vm.createContext(b2);vm.runInContext(source,b2);
+  b2.model={key:'p1:m1',provider_id:'p1',model_id:'m1'};
+  b2.task={request_id:'r1',save_epoch:'s1',interaction_scope:'loc|cast',service_epoch:'ep1',material_delivery_v2:1};
+  const s1=await vm.runInContext('liveSession(config,model,task)',b2);
+  assert.equal(s1.chatId,'chat-2');assert.equal(s1.isFresh,true);
+  // Populate boundChatCache + simulate 4 committed turns on chat-2
+  b2.config.liveSession.turnCount=4;b2.config.liveSession.lastCommittedSeq=12;b2.config.liveSession.observedChars=8888;
+  b2.task={...b2.task,request_id:'r2'};
+  const s2=await vm.runInContext('liveSession(config,model,task)',b2);
+  assert.equal(s2.chatId,'chat-2');assert.equal(s2.isFresh,false);
+  // Externally delete chat-2 in Operit while boundChatCache still holds it!
+  b2.existingChats.delete('chat-2');
+  b2.task={...b2.task,request_id:'r3'};
+  const s3=await vm.runInContext('liveSession(config,model,task)',b2);
+  assert.equal(s3.chatId,'chat-3','must create fresh chat when bound chat was externally deleted');
+  assert.equal(s3.isFresh,true,'external chat deletion must force isFresh=true');
+  assert.equal(b2.config.liveSession.turnCount,0);
+  assert.equal(b2.config.liveSession.lastCommittedSeq,0);
+  assert.equal(b2.config.liveSession.observedChars,0);
+  assert.equal(b2.config.liveSession.dirty,false);
+  assert.equal(b2.config.liveSession.resetReason,'外部窗口已重建');
+
+  // 2.1.2 Regression B: interruptedSession on v2 marks outbox.meta.isV2 and liveSession.dirty
+  b2.config.inFlight={request_id:'r-crash',lease:'lease-9',model_key:'p1:m1',entry_mode:'live_interaction',chat_id:'chat-3',return_chat_id:'',is_v2:true};
+  b2.config.outbox=null;
+  await vm.runInContext('interruptedSession(config)',b2);
+  assert.equal(b2.config.inFlight,null);
+  assert.equal(b2.config.outbox.meta.isV2,true);
+  assert.equal(b2.config.liveSession.dirty,true);
+
+  // 2.1.2 Regression C: syncServiceEpoch resets workerSeq on service_epoch change
+  vm.runInContext('workerSeq=42; syncServiceEpoch("ep-A"); syncServiceEpoch("ep-A");',b2);
+  assert.equal(vm.runInContext('workerSeq',b2),42);
+  vm.runInContext('syncServiceEpoch("ep-B");',b2);
+  assert.equal(vm.runInContext('workerSeq',b2),0);
+  console.log('PASS 2.1.2 external chat deletion -> fresh reset, v2 interruptedSession dirty/isV2, syncServiceEpoch workerSeq reset');
+ }
 }
 run().catch(e=>{console.error(e);process.exitCode=1;});

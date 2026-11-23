@@ -25,8 +25,8 @@ spec.loader.exec_module(cleaner)
 
 def fixture(folder, *, progression=False):
     folder = Path(folder)
-    names = ['injection_core.py', 'round_runtime.py', 'interaction_runtime.py', 'story_progression.py', 'story_reading.py', 'relationship_query.py',
-             'txt文件/事件注册表.json', 'txt文件/互动运行配置.json', 'txt文件/场景交流规范.md',
+    names = ['save_store.py', 'injection_core.py', 'round_runtime.py', 'interaction_runtime.py', 'story_progression.py', 'story_reading.py', 'relationship_query.py',
+             'txt文件/事件注册表.json', 'txt文件/互动运行配置.json', 'txt文件/系统商城目录.json', 'txt文件/场景交流规范.md',
              'txt文件/提示词.md', 'txt文件/全局执行法典.md', 'txt文件/一键注入指南.txt',
              'txt文件/故事检索索引.md', 'txt文件/关系称谓库.json', 'txt文件/关系称谓查询.jsonl',
              '存档清理器.py', '存档开局随机盲盒.py', *['txt文件/知识库/' + n + '.json' for n in ('角色类','世界观类','叙事判断','系统标签类')]]
@@ -83,7 +83,7 @@ class InteractionChecks(unittest.TestCase):
         first=self.store.submit(request);again=self.store.submit(request)
         self.assertEqual(first['state_version'],1);self.assertTrue(again['replayed'])
         after=self.store._files()
-        for name in rr.FILES[:3]:self.assertEqual(before[name],after[name])
+        for name in rr.FILES[:2]:self.assertEqual(before[name],after[name])
         self.assertEqual(json.loads(after['data.json'])['round'],0)
         self.assertEqual(len(ir.records(self.store)),1)
         self.assertEqual(StoryService(self.root).interaction_snapshot()['history'][0]['input'],'今天怎么样？')
@@ -111,8 +111,10 @@ class InteractionChecks(unittest.TestCase):
         engine.update_item_catalog(0,[{'name':'文具','type':'永久性','quantity':2,'target':'未使用','location':'徐志北'}])
         op={'code':'transfer_item','item_id':'ITEM-001','recipient':'沈知韫'}
         req=self.request(op=op);self.store.submit(req);self.assertTrue(self.store.submit(req)['replayed'])
-        item=ir.view(self.store)['items'][0]
-        self.assertEqual(item['quantity'],2);self.assertEqual(item['fields']['当前状态'],'已交付')
+        view_after=ir.view(self.store)
+        self.assertEqual(view_after['items'],[])
+        item=view_after['delivered_items'][0]
+        self.assertEqual(item['quantity'],2);self.assertEqual(item['status'],'已交付');self.assertEqual(item['target'],'沈知韫')
         with self.assertRaises(rr.RoundError):self.store.submit(self.request('twice',op))
         bad=dict(op,recipient='苏婉青')
         with self.assertRaises(rr.RoundError):self.store.submit(self.request('absent',bad))
@@ -127,11 +129,12 @@ class InteractionChecks(unittest.TestCase):
     def test_read_audit_covers_all_packet_lines_and_real_result_commits(self):
         task,context,body=self.job()
         bad=copy.deepcopy(body);bad['conversation_audit']['tools'][0]['result_text']='1| {'
-        with self.assertRaises(rr.RoundError):self.service.preflight('job',bad)
+        pre_bad=self.service.preflight('job',bad)
+        self.assertFalse(pre_bad['ready']);self.assertIn('packet',pre_bad['missing_keys'])
         self.assertTrue(self.service.preflight('job',body)['ready'])
         timed={**body,'timing':{'generation_ms':1234,'preflight_ms':25,'generation_passes':1}}
         self.assertEqual(self.service.result('job',timed)['task']['status'],'committed')
-        public=self.service.request('job')['task']
+        public=self.service.status('job')['task']
         self.assertEqual(public['timing']['generation_ms'],1234)
         self.assertEqual(public['timing']['preflight_ms'],25)
         self.assertEqual(public['timing']['generation_passes'],1)

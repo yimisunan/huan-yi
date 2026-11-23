@@ -1,9 +1,9 @@
 # 故事桥接
 
-当前源码维护入口为本目录的 main.js、tools.js 和 manifest.json；插件 ID 为 local.story.operit_bridge，当前版本 1.9.5，API 2.0.0。根目录运行 `python scene_chat_dev/build.py` 构建到 scene_chat_dev/artifacts/，再在 Operit 同 ID 导入才会更新已安装插件。
+当前源码维护入口为本目录的 `main.js`、`ui/settings.ui.js`、`tools.js` 和 `manifest.json`；插件 ID 为 `local.story.operit_bridge`，当前版本 **2.1.6**，API 2.0.0。根目录运行 `python scene_chat_dev/build.py` 构建到 `scene_chat_dev/artifacts/`，再在 Operit 同 ID 导入才会更新已安装插件。
 
-正式首页使用 live_interaction 路由和唯一 RoundStore 事务；scene_chat 是保留的独立实验入口。会话默认 continuous 持续沿用，不按字符累计自动换窗。连接面板可改 service_restart（Python服务重新启动后新建）、per_action（每个新行动新建，同编号重试沿用），也可空闲时手动重建；旧聊天保留。模型、工作区、存档改变时隔离会话。
+正式首页使用 `live_interaction` 路由与唯一 `RoundStore` 事务；`scene_chat` 是保留的独立实验入口。插件内置 Operit 2 原生 Compose DSL 设置界面（`ui/settings.ui.js`，挂载于 Operit 主侧边栏「插件」区与「工具箱」），并与网页端「连接与桥接」面板双端实时联动：可直接切换主模型模式（跟随功能槽 / 故事专属固定模型）、选择副模型功能槽、直接改绑所选 Operit 功能槽模型（`model function-set`）、切换双阶段流式/单阶段精简、副模型思考模式（`auto` 智能自适应 / `off` 常关 / `on` 常开）、会话策略及防漂移切窗轮数（2～30 轮），`/storybridge` 命令继续兼容。
 
-正式互动由程序按当前任务租约完整读取 packet 及必需记忆、历史原文，一次交付给正式会话；插件核对已保存用户消息，服务端核验独立交付凭据、来源指纹和消息回执，不把程序读取记作模型工具读取。每次行动及重试重新绑定交付；同租约同会话重复领取返回同一凭据，新租约拒绝旧凭据。超过 2 MiB 停止而不截断。旧工具读取路径与实验入口保留。插件重启后会按名称和专用标记复用已有角色卡，不重复创建；同名但非本插件创建的卡不自动覆盖。正式回复一次不是合法 JSON 时，在同一会话内只做一次格式纠正，不改动已拟定剧情。旧聊天和失败草稿不替代正式存档。读取不要求返回纯尾空白；真正缺正文时在同任务同租约内补读一次。付费条件契约按预扣 kind 生成并完整校验，移动依据由服务的地点别名解析统一提供。
+v2 协议（`program_prefix_v2`）由后端 `story_compiler.py` 将全局稳定规则（Zone 0）与当前场景在场人设/关系知情边界（Zone 1）冻结写入专用角色卡的 `characterSetting` 与 `otherContentChat`，仅在 SHA-256 变化时同步一次，每轮 user 仅传极小增量（delta），以最大化隐式前缀 KV 缓存命中；支持基于 `/api/story/worker/wait` 的 Long-Polling 秒级领单。默认双阶段模式（`dual_stream_v2`）中，主模型开启思考专注流式微幕剧场演播并通过 `/stream` 推送状态与预热音频，演播结束后由选定的 Operit 2 功能槽（默认 `SUMMARY`）经 `Tools.Chat.call(..., enableThinking)` 无状态完成后台结构化结算（未绑定时自动回退主功能槽；默认 `auto` 智能模式首轮极速免思考，校验未通过原地重试第 2～3 轮时自动启用思考并回传精准错误修复提示，不重跑前台），最终仍由服务端单一 `RoundStore` 事务原子落盘。旧 v1 程序交付路径与实验入口保持兼容。
 
-CommonJS JavaScript 是当前可维护源码；scene_chat_dev/types/ 保留宿主 API 类型。运行与维护的详细交接见 ../src/新窗口交接.md。
+CommonJS JavaScript 是当前可维护源码；`scene_chat_dev/types/` 保留宿主 API 类型。运行与维护的详细交接见 `../src/新窗口交接.md`。

@@ -5,6 +5,11 @@
 .backup/
 .round-runtime/
 .scene-chat/
+.sync-backup/
+.sync-state.json
+.github_sync_token
+.fish_api_key
+/.cache/fish_api_key.json
 __pycache__/
 *.py[cod]
 .env
@@ -59,4 +64,4 @@ dist/
 /scene_chat_dev/主窗口连续交互结构稿.md
 /scene_chat_dev/交流消耗与结算讨论记录.md
 /scene_chat_dev/artifacts/*
-!/scene_chat_dev/artifacts/故事桥接-continuous-1.9.5.toolpkg
+!/scene_chat_dev/artifacts/故事桥接-continuous-2.1.5.toolpkg

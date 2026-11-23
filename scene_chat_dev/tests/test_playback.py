@@ -113,5 +113,14 @@ class PlaybackChecks(unittest.TestCase):
   self.assertEqual(client.post('/api/story/live/progress',json=body).status_code,403)
   response=client.post('/api/story/live/progress',json=body,headers={'X-Story-Client':'1'})
   self.assertEqual(response.status_code,200);self.assertEqual(response.get_json()['playback']['revealed'],1)
+ def test_catchup_playback_allows_single_jump_without_bypassing_completion(self):
+  self.store.submit(self.request())
+  # catchup=True allows jumping from 0 -> 3 with completed=False in a single request
+  res=self.service.playback_progress({'save_epoch':self.service._save_epoch(),'segment_id':'segment-one','revealed':3,'completed':False,'catchup':True})
+  self.assertEqual(res['playback']['revealed'],3);self.assertFalse(res['playback']['completed'])
+  # catchup=True STILL cannot skip straight to completed=True while unrevealed
+  self.store.submit(self.request('segment-two',{'segment_id':'segment-one','option_id':'A'},'询问今天还有什么安排。')) if False else None
+  done=self.service.playback_progress({'save_epoch':self.service._save_epoch(),'segment_id':'segment-one','revealed':3,'completed':True})
+  self.assertTrue(done['playback']['completed'])
 
 if __name__=='__main__':unittest.main(verbosity=2)

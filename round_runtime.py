@@ -16,12 +16,15 @@ import time
 import types
 import uuid
 from contextlib import contextmanager
+import save_store
 
 FILES = (
     '存档/全局记忆库.txt', '存档/徐志北道具图鉴.txt',
-    '存档/次要NPC名册.txt', 'data.json',
+    '存档/save_state.json', '存档/四层记忆.json',
+    'data.json',
 )
 META = '.round-runtime/state.json'
+RECENT_PLAYBACK = save_store.RECENT_PLAYBACK_PATH
 PROLOGUE = '【系统隐藏标记：以上为新游戏序幕锚点，剧情从此刻正式开始计算】'
 OPTIONAL = {
     'npc_entries': [], 'item_entries': [], 'system_log': '', 'options_text': '',
@@ -114,14 +117,31 @@ def _keys(value, allowed, label, required=()):
         raise RoundError(label + ': 未知键=' + str(sorted(unknown)) + '; 缺键=' + str(sorted(missing)))
 
 
+_ENGINE_CODE_CACHE = {}
+_ENGINE_CACHE_GUARD = threading.Lock()
+
+
 def _engine(root, base):
     """Load trusted project code into an isolated namespace; never change live globals."""
+    source_path = root / 'injection_core.py'
+    reg_path = root / 'txt文件/事件注册表.json'
+    source = source_path.read_bytes()
+    try:
+        reg_bytes = reg_path.read_bytes()
+    except OSError as exc:
+        raise RoundError('事件注册表不可用: ' + str(exc)) from exc
+    cache_key = (hashlib.sha256(source).hexdigest(), hashlib.sha256(reg_bytes).hexdigest())
+    with _ENGINE_CACHE_GUARD:
+        code_obj = _ENGINE_CODE_CACHE.get(cache_key)
     module = types.ModuleType('_isolated_round_engine_' + uuid.uuid4().hex)
     module.__file__ = str(base / 'injection_core.py')
     module.__dict__['print'] = lambda *args, **kwargs: None
-    module.__dict__['_EVENT_REGISTRY_SOURCE'] = str(root / 'txt文件/事件注册表.json')
-    source = (root / 'injection_core.py').read_bytes()
-    exec(compile(source, str(root / 'injection_core.py'), 'exec'), module.__dict__)
+    module.__dict__['_EVENT_REGISTRY_SOURCE'] = str(reg_path)
+    if code_obj is not None:
+        exec(code_obj, module.__dict__)
+        return module
+    code_obj = compile(source, str(source_path), 'exec')
+    exec(code_obj, module.__dict__)
     try:
         registry = module._load_event_registry()
         index = {entry['id']: entry for entries in registry['groups'].values() for entry in entries}
@@ -136,6 +156,10 @@ def _engine(root, base):
                     raise ValueError('事件注册表缺少结算参数')
     except (ValueError, OSError) as exc:
         raise RoundError('事件注册表不可用: ' + str(exc)) from exc
+    with _ENGINE_CACHE_GUARD:
+        if len(_ENGINE_CODE_CACHE) >= 16:
+            _ENGINE_CODE_CACHE.clear()
+        _ENGINE_CODE_CACHE[cache_key] = code_obj
     return module
 
 
@@ -147,9 +171,11 @@ def _engine_call(function, *args, **kwargs):
 
 
 def _memory_state(engine, files):
-    if files[FILES[0]] is None:
+    if files.get(FILES[0]) is None and files.get(save_store.MEMORY_LAYERS_PATH) is None:
         raise RoundError('缺少全局记忆库；请先用项目开局工具初始化')
-    content = files[FILES[0]].decode('utf-8')
+    state_obj, layers_obj, _ = save_store.load_bundle(Path(engine.BASE_DIR), files)
+    content = (files[FILES[0]].decode('utf-8') if files.get(FILES[0]) is not None
+               else save_store.render_memory_txt(state_obj, layers_obj))
     layers = _engine_call(engine._parse_memory_layer_items, content)
     last = 0
     for label in ('L4', 'L3', 'L2', 'L1'):
@@ -158,8 +184,9 @@ def _memory_state(engine, files):
             if start <= last:
                 raise RoundError('记忆层回合范围重复或逆序: ' + label)
             last = end
-    prologue = (len(layers['L1']) == 1 and not any(layers[x] for x in ('L2', 'L3', 'L4'))
-                and layers['L1'][0].startswith('【1】') and PROLOGUE in layers['L1'][0])
+    has_only_l1_one = (len(layers['L1']) == 1 and not any(layers[x] for x in ('L2', 'L3', 'L4'))
+                       and layers['L1'][0].startswith('【1】'))
+    prologue = has_only_l1_one and (bool(layers_obj.get('prologue_active')) or PROLOGUE in layers['L1'][0])
     return content, layers, 0 if prologue else last
 
 
@@ -178,7 +205,12 @@ def _validate_event_fields(root, engine, body):
     registry = _event_registry(root, engine)
     for field, allowed in registry.items():
         events = body[field]
-        targets = set(engine.VIGILANCE_TARGETS) if field == 'vigilance_events' else set(engine.DEFAULT_PRESENCE) - {'徐志北'}
+        if field == 'vigilance_events':
+            targets = set(engine.VIGILANCE_TARGETS)
+        elif field == 'depravity_events':
+            targets = (set(engine.DEFAULT_PRESENCE) - {'徐志北'}) | {'徐承邺'}
+        else:
+            targets = set(engine.DEFAULT_PRESENCE) - {'徐志北'}
         if field == 'host_events':
             tagged = [('系统宿主', events)]
         else:
@@ -341,15 +373,20 @@ def _validate(root, request, files, allow_panel_override):
     attributes = {'积分', '经验值', '体力', '魅力', '商业嗅觉', '好感', '堕落', '欲望', '羞耻', '高潮', '内射', '怀孕', '被动'}
     for name, changes in body['panel_changes'].items():
         _keys(changes, attributes, 'panel_changes.' + name)
-        for attr, value in changes.items():
+        for attr, value in list(changes.items()):
             if attr == '怀孕':
                 if type(value) is not bool:
                     raise RoundError('怀孕覆写须为布尔值')
+            elif attr == '被动':
+                if isinstance(value, str) and re.fullmatch(r'Lv\.?[0-4]', value.strip()):
+                    changes[attr] = 'Lv.' + value.strip()[-1]
+                elif type(value) is int and 0 <= value <= 4:
+                    changes[attr] = 'Lv.' + str(value)
+                else:
+                    raise RoundError('被动覆写须为0-4整数或Lv.0~Lv.4')
             else:
                 _integer(value, 'panel_changes.' + name + '.' + attr)
     known = set(engine.DEFAULT_PRESENCE) | {'徐承邺'}
-    roster = (files[FILES[2]] or b'').decode('utf-8')
-    known.update(re.findall(r'^【NPC名称】：[ \t]*([^\s\r\n][^\r\n]*)', roster, re.M))
     if not isinstance(body['npc_entries'], list):
         raise RoundError('npc_entries必须是数组')
     for npc in body['npc_entries']:
@@ -373,7 +410,7 @@ def _validate(root, request, files, allow_panel_override):
         if kind not in {'header', 'narration', 'dialogue', 'craft_note'}:
             raise RoundError('未知节点类型: ' + str(kind))
         _keys(node, fields, 'node[' + str(index) + ']', fields)
-        text = _text(node['text'], 'node.text', 120 if kind in {'narration', 'craft_note'} else None)
+        text = _text(node['text'], 'node.text', 4000 if kind in {'narration', 'craft_note'} else None)
         if kind == 'header':
             stamp = re.sub(r'^\s*\[(居家|外出)\]\s*', '', text).strip()
             parts = [part.strip() for part in re.split('[,，]', stamp)]
@@ -416,7 +453,7 @@ def _validate(root, request, files, allow_panel_override):
             _text(entry, 'presence.' + key)
             if any(c in entry for c in '\r\n|｜'):
                 raise RoundError('人物所在字段不接受换行或分隔符')
-    _keys(deltas.get('new_buffs', {}), engine.DEFAULT_PRESENCE, 'new_buffs')
+    _keys(deltas.get('new_buffs', {}), ROUND_NPCS, 'new_buffs')
     for value in deltas.get('new_buffs', {}).values():
         _text(value, 'new_buffs')
     _keys(body['micro_state_changes'], ROUND_NPCS, 'micro_state_changes')
@@ -436,14 +473,19 @@ def _validate(root, request, files, allow_panel_override):
         raise RoundError('item_entries必须是数组')
     for item in body['item_entries']:
         _keys(item, {'id', 'name', 'type', 'desc', 'quantity', 'obtain_round', 'status', 'location',
-                     'target', 'duration', 'remaining', 'expire_rule', 'usage_record', 'remark', 'action'}, 'item_entries', {'name'})
+                     'target', 'duration', 'remaining', 'expire_rule', 'usage_record', 'remark',
+                     'system_effect', 'giftable', 'action'}, 'item_entries', {'name'})
         _text(item['name'], 'item.name')
         if item.get('action', 'add') not in {'add', 'update', 'consume', 'archive'}:
             raise RoundError('道具action非法')
         if 'quantity' in item:
             _integer(item['quantity'], 'item.quantity', 1)
-        if any(not isinstance(v, (str, int)) or isinstance(v, bool) for v in item.values()):
-            raise RoundError('道具字段须为文本或整数')
+        for k, v in item.items():
+            if k == 'giftable':
+                if not isinstance(v, (bool, str)):
+                    raise RoundError('道具giftable须为布尔或文本')
+            elif not isinstance(v, (str, int)) or isinstance(v, bool):
+                raise RoundError('道具字段须为文本或整数')
     task = body['task_issue']
     if task is not None:
         _keys(task, {'title', 'target', 'attr', 'value', 'tier', 'item_desc'}, 'task_issue',
@@ -458,9 +500,8 @@ def _validate(root, request, files, allow_panel_override):
             raise RoundError('记忆库缺少任务状态块')
         if task_state.get('current') and task_state['current'].get('status') == '进行中':
             raise RoundError('已有进行中任务，不接受新任务')
-    for entries, path in ((body['npc_entries'], FILES[2]), (body['item_entries'], FILES[1])):
-        if entries and files[path] is None:
-            raise RoundError('缺少待更新的存档文件: ' + path)
+    if body['item_entries'] and files.get(FILES[1]) is None and files.get(save_store.SAVE_STATE_PATH) is None:
+        raise RoundError('缺少待更新的存档文件: ' + FILES[1])
     _text(body['system_log'], 'system_log')
     _engine_call(engine.validate_system_log_scheme_a, body['system_log'])
     rounds = re.findall(r'^\s*ROUND\s*[:：]\s*(\d+)\s*$', body['system_log'], re.M)
@@ -484,6 +525,7 @@ def _validate(root, request, files, allow_panel_override):
 
 MICRO_STATES = ('momentary_ease', 'residual_tension', 'confusion_debt')
 ROUND_NPCS = ('沈知韫', '苏婉青', '徐念薇')
+CONDITION_NPCS = (*ROUND_NPCS, '徐承邺')
 BREAKOUT_LIMITS = {'破局_日常冗余': 5, '破局_模式重复': 3, '破局_社交淤积': 3, '破局_张力淤积': 2}
 LIFE_ANCHOR = '【回合生命周期】'
 GUARD_EVENT_ID = 'HOST_07'
@@ -500,8 +542,8 @@ def _round_conditions(value, body):
         if type(value[key]) is not bool:
             raise RoundError('round_conditions.' + key + '须为布尔值')
     _audit_line(value['scene'], 'round_conditions.scene')
-    if value['npc'] is not None and value['npc'] not in ROUND_NPCS:
-        raise RoundError('round_conditions.npc须为主NPC名或null')
+    if value['npc'] is not None and value['npc'] not in CONDITION_NPCS:
+        raise RoundError('round_conditions.npc须为已登记主要角色名或null')
     _integer(value['stress_signals'], 'round_conditions.stress_signals')
     triggers = value['breakout_triggered']
     if (not isinstance(triggers, list) or not all(isinstance(k, str) and k in BREAKOUT_LIMITS for k in triggers)
@@ -616,7 +658,7 @@ def _write_lifecycle(content, meta):
     return content[:index] + block + content[index:]
 
 
-def _derive_lifecycle(engine, body, content):
+def _derive_lifecycle(engine, body, content, *, active_cast=None):
     """Derive once in the disposable settlement, before any journal publication."""
     guard_tag = engine._event_tag(GUARD_EVENT_ID)
     exhaust_tag = engine._event_tag(EXHAUST_EVENT_ID)
@@ -637,11 +679,13 @@ def _derive_lifecycle(engine, body, content):
         notes.append('旧格式未提供round_conditions；未推断烈度或停滞，语义连续观测中断，旧绝对计数入口兼容。')
     states = _current_micro(content)
     transitions = {}
+    cast_set = set(active_cast) if active_cast is not None else None
     for name in ROUND_NPCS:
         old_entries = meta['micro'].get(name, {})
         new_entries = {}
         requested = body['micro_state_changes'].get(name, {})
         old_states = dict(states[name])
+        in_scene = (cast_set is None) or (name in cast_set)
         for key in MICRO_STATES:
             active = old_states[key]
             entry = old_entries.get(key)
@@ -654,7 +698,7 @@ def _derive_lifecycle(engine, body, content):
             elif requested.get(key) is True and not active:
                 active = True
                 entry = {'observed_round': current, 'origin': 'activated'}
-            if key == 'confusion_debt' and conditions:
+            if key == 'confusion_debt' and conditions and in_scene:
                 if conditions['intensity'] == 'C':
                     active = False
                 elif active and min(meta['ab_streak'], current - entry['observed_round']) >= 2:
@@ -662,7 +706,7 @@ def _derive_lifecycle(engine, body, content):
             states[name][key] = active
             if active:
                 new_entries[key] = entry
-        if conditions and conditions['intensity'] == 'C' and (old_states['confusion_debt'] or requested.get('confusion_debt') is True):
+        if in_scene and conditions and conditions['intensity'] == 'C' and (old_states['confusion_debt'] or requested.get('confusion_debt') is True):
             states[name]['confusion_debt'] = False
             new_entries.pop('confusion_debt', None)
             states[name]['residual_tension'] = True
@@ -698,9 +742,19 @@ def _derive_lifecycle(engine, body, content):
             breakout_evaluation[key] = {'candidate': updates[key], 'threshold': BREAKOUT_LIMITS[key],
                                         'threshold_reached': updates[key] >= BREAKOUT_LIMITS[key]}
             if key in c['breakout_triggered']:
-                # Trigger decisions and cooldown evidence remain model judgments.
                 updates[key] = 0
             meta['scopes'][key] = scope
+        # 冷却计数持久化与逐行动递减（修复原 冷却_破局全局 / 冷却_<key> 永不写入问题）
+        if counts.get('冷却_破局全局', 0) > 0:
+            updates['冷却_破局全局'] = max(0, counts.get('冷却_破局全局', 0) - 1)
+        for key in BREAKOUT_LIMITS:
+            ck = '冷却_' + key
+            if counts.get(ck, 0) > 0:
+                updates[ck] = max(0, counts.get(ck, 0) - 1)
+        if c['breakout_triggered']:
+            updates['冷却_破局全局'] = 2
+            for key in c['breakout_triggered']:
+                updates['冷却_' + key] = 8
         guard = counts.get('连续守护回合', 0) + 1 if c['intensity'] in ('A', 'B') else 0
         guard_due = guard >= 5
         updates['连续守护回合'] = 0 if guard_due else guard
@@ -717,6 +771,12 @@ def _derive_lifecycle(engine, body, content):
         notes.append('旧空耗全局计数无角色归属，保留原值；不用于任何NPC扣分。')
     for name in ROUND_NPCS:
         key = '空耗_连续未纾解_' + name
+        in_scene = (cast_set is None) or (name in cast_set)
+        if not in_scene:
+            updates[key] = counts.get(key, 0)
+            if exhaust_tag in result['ds_events'].get(name, []):
+                raise RoundError(name + '未在场，不得结算空耗惩罚')
+            continue
         line = re.search(r'^\[' + re.escape(name) + r'\]([^\n]*)', content, re.M)
         desire = re.search(r'欲望\s*(\d+)', line[1]) if line else None
         if desire is None:
@@ -727,8 +787,12 @@ def _derive_lifecycle(engine, body, content):
         if name in result['ds_events']:
             projected = _engine_call(engine.process_desire_stamina_system, {name: preview_tags}, engine.MEMORY_FILE).get(name)
         projected_desire = projected['欲望'] if projected else int(desire[1])
-        # The existing engine's clearance produces 35 desire; explicit clearance also ends a streak.
-        relieved = engine._event_tag('DS_17') in preview_tags or bool(projected and projected_desire <= 70)
+        # The existing engine's clearance produces 35 desire; explicit clearance or self-relief also ends a streak.
+        relieved = (
+            engine._event_tag('DS_17') in preview_tags
+            or engine._event_tag('DS_18') in preview_tags
+            or bool(projected and projected_desire <= 70)
+        )
         value = counts.get(key, 0) + 1 if projected_desire > 70 and not relieved else 0
         due = value >= 2
         updates[key] = 0 if due else value
@@ -785,6 +849,9 @@ def _atomic(path, data):
             tmp.unlink()
 
 
+_LOCK_DEPTH = threading.local()
+
+
 class RoundStore:
     """One writer per project, using POSIX record locks and a durable rollback/redo journal."""
     def __init__(self, root=None):
@@ -806,7 +873,20 @@ class RoundStore:
         import fcntl
         if not self.thread_lock.acquire(timeout=10):
             raise ConflictError('已有回合正在提交，请稍后重试')
+        depths = getattr(_LOCK_DEPTH, 'counts', None)
+        if depths is None:
+            depths = {}
+            _LOCK_DEPTH.counts = depths
+        key = str(self.root)
+        depth = depths.get(key, 0)
         try:
+            if depth > 0:
+                depths[key] = depth + 1
+                try:
+                    yield
+                finally:
+                    depths[key] = depth
+                return
             self.runtime.mkdir(parents=True, exist_ok=True)
             with self._path('.round-runtime/lock').open('a+b') as handle:
                 deadline = time.monotonic() + 10
@@ -818,10 +898,12 @@ class RoundStore:
                         if time.monotonic() >= deadline:
                             raise ConflictError('已有其他进程正在提交')
                         time.sleep(0.05)
+                depths[key] = 1
                 try:
                     self._recover()
                     yield
                 finally:
+                    depths.pop(key, None)
                     fcntl.lockf(handle, fcntl.LOCK_UN)
         finally:
             self.thread_lock.release()
@@ -832,7 +914,43 @@ class RoundStore:
     def _ledger(self):
         path = self._path(META)
         if not path.exists():
-            return {'version': 1, 'sequence': 0, 'receipts': {}}
+            recovered_seq = 0
+            try:
+                ss_path = self._path(save_store.SAVE_STATE_PATH)
+                if ss_path.is_file():
+                    ss_obj = json.loads(ss_path.read_bytes())
+                    rt_seq = (ss_obj.get('runtime') or {}).get('last_sequence')
+                    if type(rt_seq) is int and rt_seq > recovered_seq:
+                        recovered_seq = rt_seq
+            except Exception:
+                pass
+            try:
+                data_path = self._path('data.json')
+                if data_path.is_file():
+                    data_obj = json.loads(data_path.read_bytes())
+                    for cand in (data_obj.get('state_version'), (data_obj.get('interaction') or {}).get('last_sequence')):
+                        if type(cand) is int and cand > recovered_seq:
+                            recovered_seq = cand
+            except Exception:
+                pass
+            try:
+                rp_path = self._path(RECENT_PLAYBACK)
+                if rp_path.is_file():
+                    rp_obj = json.loads(rp_path.read_bytes())
+                    for seg in (rp_obj.get('segments') or []):
+                        cand = seg.get('sequence') if isinstance(seg, dict) else None
+                        if type(cand) is int and cand > recovered_seq:
+                            recovered_seq = cand
+            except Exception:
+                pass
+            inter_dir = self._path('.round-runtime/interaction')
+            if inter_dir.is_dir():
+                for item in inter_dir.glob('*.json'):
+                    if re.fullmatch(r'\d{12}', item.stem):
+                        cand = int(item.stem)
+                        if cand > recovered_seq:
+                            recovered_seq = cand
+            return {'version': 1, 'sequence': recovered_seq, 'receipts': {}}
         try:
             value = json.loads(path.read_bytes(), object_pairs_hook=_pairs)
             if value['version'] != 1 or not isinstance(value['receipts'], dict) or type(value['sequence']) is not int:
@@ -867,7 +985,7 @@ class RoundStore:
                     raise ValueError('journal file set')
                 values = {}
                 for name in before:
-                    if name not in set(FILES) | {META} and not re.fullmatch(r'(?:日志/Round_\d+_[0-9a-f]{16}\.txt|\.round-runtime/interaction/(?:\d{12}|playback)\.json|\.round-runtime/story/tasks\.json)', name):
+                    if name not in set(FILES) | {META} and not re.fullmatch(r'(?:日志/Round_\d+_[0-9a-f]{16}\.txt|\.round-runtime/interaction/(?:\d{12}|playback)\.json|\.round-runtime/story/tasks\.json|存档/近期演播\.json)', name):
                         raise ValueError('journal path')
                     for version in (before, after):
                         if version[name] is not None:
@@ -879,7 +997,7 @@ class RoundStore:
                 _fsync_dir(journal.parent)
             except Exception as exc:
                 raise RecoveryError('未完成事务尚未恢复，记录已保留；请修复存储/权限后运行recover') from exc
-        for relative in (*FILES, META, '.round-runtime/journal.json'):
+        for relative in (*FILES, RECENT_PLAYBACK, META, '.round-runtime/journal.json'):
             target = self._path(relative)
             for leftover in target.parent.glob('.' + target.name + '.round-tmp-*'):
                 if leftover.is_file() and not leftover.is_symlink():
@@ -938,11 +1056,21 @@ class RoundStore:
             if data.get('round') != body['current_round'] or not data.get('storyNodes'):
                 raise RoundError('结算后的回合或正文快照无效')
             prior_data = json.loads(files['data.json'] or b'{}')
-            if 'interaction' in prior_data:
-                data['interaction'] = prior_data['interaction']
+            for keep_key in ('interaction', 'story_runtime', 'prologue', 'last_settlement'):
+                if keep_key in prior_data and keep_key not in data:
+                    data[keep_key] = prior_data[keep_key]
             data['state_version'] = sequence
             data['request_id'] = request_id
             after['data.json'] = _json(data)
+            # Sync P2 JSON single-source-of-truth with settled stage files & re-render views.
+            st_obj, ly_obj, _ = save_store.load_bundle(stage, after)
+            st_obj['micro_states'] = copy.deepcopy(micro)
+            st_obj['counters'] = copy.deepcopy(counters)
+            st_obj['lifecycle'] = copy.deepcopy(lifecycle)
+            st_obj['runtime']['last_sequence'] = max(int(st_obj['runtime'].get('last_sequence') or 0), sequence)
+            ly_obj['prologue_active'] = False
+            rendered = save_store.render_bundle_bytes(st_obj, ly_obj, data_dict=data)
+            after.update(rendered)
             _, _, end_round = _memory_state(engine, after)
             if end_round != body['current_round']:
                 raise RoundError('结算后的记忆回合与正文不一致')
@@ -979,6 +1107,16 @@ class RoundStore:
         after = self._files()
         after[META] = _json(self._ledger())
         after['.round-runtime/interaction/playback.json'] = _json(value)
+        rp_path = self._path(RECENT_PLAYBACK)
+        recent = save_store.default_recent()
+        if rp_path.is_file():
+            try:
+                parsed = json.loads(rp_path.read_bytes())
+                if isinstance(parsed, dict):
+                    recent = parsed
+            except ValueError:
+                pass
+        after[RECENT_PLAYBACK] = _json(save_store.update_recent_playback(recent, value))
         self._commit_files(after)
 
     def _check_source_baseline(self, baseline):
@@ -1014,16 +1152,18 @@ class RoundStore:
             definition_baseline = {rel: _digest(self._path(rel).read_bytes()) for rel in
                                    ('injection_core.py', 'txt文件/事件注册表.json')}
             self._check_source_baseline(_source_baseline)
-            import interaction_runtime as ir
-            if request.get('schema_version') == 3 and request.get('entry_mode') == ir.MODE:
-                import story_progression as sp
-                tasks = load_request(self._path(sp.TASKS).read_text())
-                task = tasks['jobs'].get(request_id)
-                if (not task or task['status'] != 'validating' or task.get('working_revision') != request.get('base_revision')
-                        or task.get('reservation') != request.get('audit', {}).get('reservation')
-                        or task['reservation']['status'] != 'held'):
-                    raise ConflictError('预扣或任务已终止，拒绝迟到结果')
-            continuous = request.get('entry_mode') == ir.MODE
+            continuous = request.get('entry_mode') == 'live_interaction'
+            ir = None
+            if continuous:
+                import interaction_runtime as ir
+                if request.get('schema_version') == 3:
+                    import story_progression as sp
+                    tasks = load_request(self._path(sp.TASKS).read_text())
+                    task = tasks['jobs'].get(request_id)
+                    if (not task or task['status'] != 'validating' or task.get('working_revision') != request.get('base_revision')
+                            or task.get('reservation') != request.get('audit', {}).get('reservation')
+                            or task['reservation']['status'] != 'held'):
+                        raise ConflictError('预扣或任务已终止，拒绝迟到结果')
             body = ir.validate(self.root, request, files) if continuous else _validate(self.root, request, files, allow_panel_override)
             sequence = ledger['sequence'] + 1
             after = ir.settle(self, body, files, sequence, request_id) if continuous else self._settle(body, files, sequence, request_id)

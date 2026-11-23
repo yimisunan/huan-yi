@@ -1,24 +1,65 @@
 {
-  "round": 0,
-  "sceneTitle": "徐家主宅",
-  "storyNodes": [],
+  "interaction": {
+    "actions": 0,
+    "count": 1,
+    "last_sequence": 1,
+    "segment_id": "prologue-49ae0065ff989240c9764c2bfbf2408a"
+  },
+  "options_text": "",
   "presence": {
-    "沈知韫": {
-      "location": "公司",
-      "reason": "工作日上班中"
-    },
-    "徐念薇": {
-      "location": "大学",
-      "reason": "工作日在大学"
-    },
-    "苏婉青": {
-      "location": "市中心顶层公寓",
+    "徐志北": {
+      "location": "徐家主宅",
       "reason": "常住"
     },
-    "徐志北": {
-      "location": "市中心顶层公寓",
-      "reason": "到访"
+    "徐念薇": {
+      "location": "徐家主宅",
+      "reason": "周末在家"
+    },
+    "沈知韫": {
+      "location": "徐家主宅",
+      "reason": "常住"
+    },
+    "苏婉青": {
+      "location": "徐家主宅",
+      "reason": "周日家庭午餐窗"
     }
   },
-  "state_version": 0
+  "prologue": {
+    "request_id": "reset-20261124_020101_98bb459dfe814e6a8a7688564c4623d5",
+    "scenario_id": "zhiyun_sunday_noon",
+    "title": "周日午间 · 主宅餐厅 · 家庭",
+    "weekday": "周日"
+  },
+  "request_id": "prologue-49ae0065ff989240c9764c2bfbf2408a",
+  "round": 1,
+  "sceneTitle": "徐家主宅",
+  "state_version": 1,
+  "storyNodes": [
+    {
+      "text": "周日十一时五十分，徐家主宅餐厅。家庭午餐尚未开席，长桌上茶具温热。沈知韫着淡紫色缎面薄纱居家服居中，徐念薇着浅蓝色泡泡袖居家裙坐在较远一侧，苏婉青一身浅黄短裙配白开衫外出装依周日惯例到宅，手边放着伴手礼；徐志北站在桌旁，席间礼貌与暗流并存。",
+      "type": "narration"
+    },
+    {
+      "text": "她扫过一圈餐桌，目光在苏婉青手边的伴手礼和念薇略远一格的座椅间掠过，自己拉开主位座椅。",
+      "type": "narration"
+    },
+    {
+      "speaker": "沈知韫",
+      "text": "[warm but guarded] 都到齐了，先落座吧。厨房那边还要一会儿，志北坐妈手边。",
+      "type": "dialogue"
+    }
+  ],
+  "story_runtime": {
+    "action_index": 0,
+    "clock": {
+      "day": 1,
+      "time": "11:50"
+    },
+    "closed_by": "",
+    "item_recovered": 0,
+    "last_closed": 0,
+    "memory_round": 1,
+    "phase": "ready",
+    "version": 1
+  }
 }

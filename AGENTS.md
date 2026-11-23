@@ -3,46 +3,47 @@
 > 本文件是 Operit 工作区根规则文件，由平台自动注入系统提示词。
 > 定位：**导航索引 + 最高红线速览**。所有规则的完整条文与单一事实来源在下方对应文件，禁止在本文件双源维护（见法典「禁止双源维护」条款）。
 >
-> **入口路由**：收到 `entry_mode=live_interaction` 时，执行正式首页剧情演播：按本次packet真实读取并推演，messages/decision/operation/handoff/checks/resolution经同一RoundStore事务接受，演播完成后才消费当前抉择；规范权威源为 `txt文件/场景交流规范.md`，运行参数为 `txt文件/互动运行配置.json`。`entry_mode=scene_chat`保留独立实验且不写正式事实。正式段末decision依场景规范，实验不强制选项；二者不执行下列旧完整回合长篇契约，其余故事入口执行完整回合规则。
+> **入口路由**：收到 `entry_mode=live_interaction` 时，执行正式首页剧情演播：按本次packet或程序前缀（`dual_stream_v2` / `single_prefix_v2`）真实读取并推演，messages/decision/operation/handoff/checks/resolution经同一RoundStore事务接受，演播完成后才消费当前抉择；规范权威源为 `txt文件/场景交流规范.md`，运行参数为 `txt文件/互动运行配置.json`。`entry_mode=scene_chat`保留独立实验且不写正式事实。正式段末decision依场景规范，实验不强制选项；二者不执行下列旧完整回合长篇契约，其余故事入口执行完整回合规则。
 
 **AI 每回合必读**（运行时最高锚点）：
-> 1. 物理读顺序：`存档/全局记忆库.txt` → `txt文件/一键注入指南.txt` → `txt文件/全局执行法典.md` 卷零；三者未读完不得开写 `STORY_NODES`。
+> 1. 物理读顺序：`存档/全局记忆库.txt` → `txt文件/一键注入指南.txt` → `txt文件/全局执行法典.md` 卷零；三者未读完不得开写 `STORY_NODES`（正式互动 `v2` 程序前缀已冻结交付时按前缀协议直接推演，不重复重读）。
 > 2. 资料来源按入口判定：网页桥接每轮按入口协议取得本次正文：正式互动的程序资料交付见 `txt文件/场景交流规范.md`；其他桥接按 `reading_policy`、`reading_directory` 与 `txt文件/故事检索索引.md` 真实读取本次正文提取件或等价原源，核验来源与覆盖；手动入口按世界书常驻/命中与物理补偿规则读取。不得虚构已注入。
-> 3. 输出与提交：按 `txt文件/提示词.md`「入口判定」分清故事生成、模式控制与维护；成功桥接回合交裸 JSON，手动故事交调用 `execute_injection` 的 Python，由固定执行器校验提交，AI 不手写存档或配置。
+> 3. 输出与提交：按 `txt文件/提示词.md`「入口判定」分清故事生成、模式控制与维护；双阶段前台演播（`dual_stream_v2` Stage 1）严格逐行输出 `[N]` / `[A:角色名]` / `[D:在场角色名]` + `---DECISION---`（严禁 JSON 或代码块），双阶段后台结算（Stage 2）与单阶段桥接交裸 JSON，手动故事交调用 `execute_injection` 的 Python，由固定执行器校验提交，AI 不手写存档或配置。
 
 ## 1. 项目定位
 
 深渊天平引擎 · 互动叙事项目（移动端本地运行，Pydroid3 + 本地 HTTP 服务器）。
 
-- 引擎：`injection_core.py`（注入执行与回滚校验）、`main_template.html`（前端渲染）、`语音运行.py` + `voice_config.json`（语音）
-- 动态记忆：`存档/全局记忆库.txt`（人物所在/四层记忆）、`存档/徐志北道具图鉴.txt`、`存档/次要NPC名册.txt`
-- 运行时状态：`data.json`（旧回合/当前场景/正式交流计数与展示快照）；正式交流原文与知情范围由同一事务维护在 `.round-runtime/interaction/`，仅可按本次packet允许路径补读。
+- 引擎：`injection_core.py`（注入执行与回滚校验）、`save_store.py`（P2 自包含存档存储与单向视图渲染）、`main_template.html`（前端渲染）、`语音运行.py` + `voice_config.json`（语音）
+- 存档真相层（`存档/` 自包含）：`存档/save_state.json`（全量机器状态与确定性机制计数）、`存档/四层记忆.json`（L1–L4 结构化记忆与序幕/知情元数据）、`存档/近期演播.json`（滚动最新 12 幕原文与演播进度）；`存档/全局记忆库.txt` 与 `存档/徐志北道具图鉴.txt` 为由 `save_store` 单向自动渲染的人类/手动只读视图（`存档/次要NPC名册.txt` 已移除，偶发配角由四层记忆与活体导演线头自然承载）。
+- 运行时状态：`data.json`（前端展示快照，可由 `存档/` 无损重建）；全量本地事务与归档维护在 `.round-runtime/interaction/`，缺失时自动从 `存档/近期演播.json` 恢复。
 
 **三类文件角色差**（避免误改）：
 
-- `data.json` = 运行时快照，`injection_core.execute_injection` 每回合覆写，AI 不手写。
-- `存档/*.txt` = 累积事实层，AI 只交增量（`l1_new_round` / `presence` 等），Python 排序落盘。
+- `data.json` = 派生运行时快照，`RoundStore` 每回合覆写，AI 不手写。
+- `存档/` = 自包含累积事实层（JSON 为唯一机器真相，`.txt` 为单向自动渲染视图），AI 只交增量，由引擎原子落盘。
 - `.backup/` = 引擎自动保留的回滚点，AI 不动。
 
 ## 2. 规则文件与知识库主索引
 
-「注入方式」中的世界书仅适用于手动入口；网页桥接的知识库条目按索引从本次key提取件或原始本地JSON取得；提取件由原源逐字生成，必须真实读取正文且经程序核验，缓存不能手工维护。读取顺序与审计以 `txt文件/提示词.md` 和本轮 `reading_policy` 为准。
+「注入方式」中的世界书仅适用于手动入口；网页桥接的知识库条目按索引从本次key提取件、程序冻结前缀或原始本地JSON取得；提取件由原源逐字生成，必须真实读取正文且经程序核验，缓存不能手工维护。读取顺序与审计以 `txt文件/提示词.md` 和本轮 `reading_policy` 为准。
 
 | 规则条目 | 权威来源 | 注入方式 |
 |---|---|---|
-| 正式连续互动 / 当前操作与未定参数 | `txt文件/场景交流规范.md`、`txt文件/互动运行配置.json` | 本次packet工具读取或程序正文交付（详见规范） |
+| 正式连续互动 / 当前操作与运行配置 | `txt文件/场景交流规范.md`、`txt文件/互动运行配置.json` | 本次packet工具读取或程序正文交付（详见规范） |
 | 冷启动 / SYSTEM_LOG 模板 / 每回合读取协议 / 输出封装 | `txt文件/提示词.md` | workspace 物理读 |
-| 卷零红线（宿主主权 / 主体感 / 括号硬输入 / V1-A～D / 反噬） | `txt文件/全局执行法典.md` | workspace 物理读 |
+| 卷零红线（宿主主权 / 主体感 / 括号硬输入 / V1-A～D / 反噬） | `txt文件/全局执行法典.md` | workspace 物理读 / Zone 0 冻结 |
 | 节点 JSON / 字数硬顶 / MEMORY 四层 / EVENTS / Python 调用契约 / 字符串定界与转义 | `txt文件/一键注入指南.txt` | workspace 物理读 |
 | key 路由表 / 触发条件 / 物理补偿 | `txt文件/故事检索索引.md` | workspace 物理读 |
-| 叙事节奏 / 一场戏 / 镜头净化（`narrative.pace`） | `txt文件/知识库/叙事判断.json` | 世界书注入 |
-| 对话声学 / Fish 标签 / 偏角 / 亲属自称锁（`narrative.dialogue_tts`） | `txt文件/知识库/叙事判断.json` | 世界书注入 |
-| 世界观 / 信息差 / OPTIONS 命名 / 驻地看望窗（`lore.*`） | `txt文件/知识库/世界观类.json` | 世界书注入 |
-| 角色设定 / 性格气质 / 情境应对 / 语言指纹 / Fish 专属底色（`char.*`） | `txt文件/知识库/角色类.json` | 世界书注入；未命中走物理补偿 |
-| 系统标签 SHAME / DEPRAVITY / DS / AFFECTION / PREGNANCY / HOST / breakout / runtime（`sys.*`） | `txt文件/知识库/系统标签类.json` | 世界书注入 |
-| 动态记忆 / 人物所在 / L1-L4 层 | `存档/全局记忆库.txt` | workspace 物理读（每回合首个） |
-| 道具图鉴（永久道具 / 临时倒计时） | `存档/徐志北道具图鉴.txt` | workspace 物理读（用道具 / 查仓库） |
-| 次要 NPC 名册 | `存档/次要NPC名册.txt` | workspace 物理读（新配角登场） |
+| 事件标签与参数唯一注册源 / 活体世界变故 / 商城 / 商业情报 | `txt文件/事件注册表.json`、`txt文件/世界变故库.json`、`txt文件/系统商城目录.json`、`txt文件/商业情报目录.json` | 引擎与编译器确定性加载 |
+| 关系事实 / 知情隔离 / 称谓候选查询 | `txt文件/关系称谓库.json`、`txt文件/关系称谓查询.jsonl` | Zone 1 编译注入 / 按需查询 |
+| 叙事节奏 / 戏核推进 / 去AI味 / 被发现裁决 / 亲密场技法（`narrative.pace`、`narrative.vigilance`、`narrative.intimate`） | `txt文件/知识库/叙事判断.json` | 世界书 / Zone 0–2 按态注入 |
+| 对话声学 / Fish 标签 / 偏角 / 潜台词注音 / 亲属自称锁（`narrative.dialogue_tts`） | `txt文件/知识库/叙事判断.json` | 世界书 / Zone 0 冻结 |
+| 世界观 / 信息差 / OPTIONS 命名 / 驻地看望窗（`lore.*`） | `txt文件/知识库/世界观类.json` | 世界书 / Zone 0 冻结 |
+| 角色设定 / 性格气质 / 情境应对 / 语言指纹 / Fish 专属底色（`char.*`） | `txt文件/知识库/角色类.json` | 世界书 / Zone 1 按场注入 |
+| 系统标签 SHAME / DEPRAVITY / DS / AFFECTION / PREGNANCY / VIGILANCE / HOST / breakout / runtime / task（`sys.*`） | `txt文件/知识库/系统标签类.json` | 世界书 / Stage 2 结算注入 |
+| 动态记忆 / 人物所在 / L1-L4 层 | `存档/全局记忆库.txt`（由 `存档/save_state.json` + `存档/四层记忆.json` 单向渲染） | workspace 物理读（每回合首个） |
+| 道具图鉴（活跃 / 已交付 / 历史） | `存档/徐志北道具图鉴.txt`（由 `存档/save_state.json` 单向渲染） | workspace 物理读（用道具 / 查仓库） |
 | 运行时快照（当前回合 / 场景标题 / STORY_NODES / presence） | `data.json` | 引擎覆写，AI 不手写 |
 | 全局技能（去AI味 / 界面设计 / 品牌 / 计划等） | Operit skill 区（`/storage/emulated/0/Download/Operit/skills/`） | Operit 加载 |
 | 去AI味技能（`qu-ai-wei`） | Operit 技能区 | 按 §4 路由调用 |
@@ -53,21 +54,25 @@
 execute_injection(current_round, story_nodes, memory_deltas, panel_changes,
                   npc_entries=None, item_entries=None, system_log="",
                   options_text="", micro_state_changes=None,
-                  shame_events=None, depravity_events=None, ds_events=None,
-                  affection_events=None, host_events=None, presence_changes=None)
+                  counter_updates=None, shame_events=None, depravity_events=None,
+                  ds_events=None, affection_events=None, host_events=None,
+                  presence_changes=None, vigilance_events=None, task_issue=None,
+                  *, _allow_direct=False)
 ```
 
 ## 3. 最高红线（速览）
 
-> 以下 7 条为速览锚点，非完整条文；运行时以「→」所指权威来源为唯一事实来源，若与本节表述冲突以原文为准。
+> 以下 9 条为速览锚点，非完整条文；运行时以「→」所指权威来源为唯一事实来源，若与本节表述冲突以原文为准。
 
 1. **宿主主权（轨A）**：禁止换意图、禁止未授权反派滤镜、禁止代打关键行动、禁止未授权动机发明。→ `txt文件/全局执行法典.md` 卷零 §1
 2. **主体感（轨B）**：宿主是故事里有血有肉的人；禁止把宿主写成纯摄像机/遥控器；轨A 不得吞掉轨B。→ `txt文件/全局执行法典.md` 卷零 §2
 3. **括号 = 硬输入**：宿主括号内容必须在正文显形。→ `txt文件/全局执行法典.md` 卷零 §3
-4. **权限与契约分层**：叙事权限与数据合法性分别执行。→ `txt文件/提示词.md`「认知优先级与唯一来源」
-5. **字符串定界与转义**：按当前入口正确序列化 Python 或 JSON 字符串。→ `txt文件/一键注入指南.txt`「字符串定界与转义」
-6. **禁止双源维护**：改规则只改原始文件；本文件只做索引，不复制条文。
-7. **AI 不直接改存档**：剧情回合只提交当前入口要求的数据或注入脚本，由固定执行器校验写入；桥接不执行命令、不写文件。禁止绕过执行器手写 `存档/`、`data.json` 或语音配置。→ `txt文件/提示词.md`「入口判定」/「输出前最小检查」
+4. **主角主权发言与永久静音锁**：徐志北永久静音（绝不触发 TTS、严禁 Fish 声学标签），严禁输出场外角色对白。默认「忠实演绎」（`protagonist_style=faithful`）下，开场须用 1～2 句 `[A:徐志北]`/`[N]` 具身落位，中段保持自然微反应，且允许最多 2～3 句严格贴合玩家原意图的简短 `[D:徐志北]`（单句 ≤40 字、严禁越权新增承诺/决策或升级档位）；切换「仅动作感官」（`silent`）时严禁输出 `[D:徐志北]`。→ `txt文件/场景交流规范.md` / `txt文件/知识库/角色类.json`
+5. **`[D:角色名]` 纯台词锁（禁混入旁白动作）**：`[D:角色名]` 内**只写角色说出口的纯台词**（及句首/句中英文 `[Fish tag]`、`｛表层台词｜真实潜台词｝`），**严禁加外层引号 `“...”`**，**严禁在 `[D:...]` 内夹带“她端起杯子抿了一口：”等动作或神态旁白**；一切动作神态必须独立写为 `[A:角色名]`（且 `[A:...]` 禁写 Fish 声学标签）。→ `txt文件/知识库/叙事判断.json`（`narrative.dialogue_tts`）
+6. **权限与契约分层（含 A/B 禁打 C 烈度）**：叙事权限与数据合法性分别执行；固定 A/B 选项回合严禁打任何 `C烈度_*` 标签，`memory.compact` 严禁带 `【回合号】` 前缀或换行。→ `txt文件/提示词.md` / `txt文件/场景交流规范.md`
+7. **字符串定界与转义**：按当前入口正确序列化 Python 或 JSON 字符串。→ `txt文件/一键注入指南.txt`「字符串定界与转义」
+8. **禁止双源维护**：改规则只改原始文件；本文件只做索引，不复制条文。
+9. **AI 不直接改存档**：剧情回合只提交当前入口要求的数据或注入脚本，由固定执行器校验写入；桥接不执行命令、不写文件。禁止绕过执行器手写 `存档/`、`data.json` 或语音配置。→ `txt文件/提示词.md`「入口判定」/「输出前最小检查」
 
 ## 4. 去AI味技能路由
 
@@ -89,7 +94,7 @@ execute_injection(current_round, story_nodes, memory_deltas, panel_changes,
 - **物理修改统一走 `into`**：修改任何工作区文件前必须调用全局技能 `into`（`/storage/emulated/0/Download/Operit/skills/into/SKILL.md`）。工具检索优先级、预检、集中备份、原子写入、验证预算及严格模式细则均以 `into` 为唯一来源，不在本文件双源维护。
 - **重大迭代分工**：规则/引擎/知识库/前端/存档的结构性改动优先按已加载的 `iter-revise` 定界与分组执行，`into` 负责物理事务。已明确授权的范围一次确认后完成；只有范围变化、外部并发、阻塞或宿主要求逐项放行时再暂停。
 - **版本与正文政策**：正文采用原文修正，不在原文打版本补丁、版本标签或迁移注记；规则新增直接写入权威文件正文。
-- **说明书与修订日志（仅主程序维护按需纳入）**：`开发者功能/开发者说明书/开发者说明书.md`（摘要）与 `开发者功能/修订日志/`（详情）仅用于记录**主程序内容**维护（规则/契约、核心引擎、前端模板、知识库结构），辅助工具与技能维护一律不记录。**默认不主动写入，仅在宿主明确指定后才纳入**；主程序内容修改完成后，只需在汇报末尾顺便询问一句「是否需要纳入开发者说明书与修订日志？」。
+- **说明书与修订日志（仅主程序维护按需纳入）**：`开发者说明/`（工程文档）与 `开发者功能/修订日志/`（变更归档）仅用于记录**主程序内容**维护（规则/契约、核心引擎、前端模板、知识库结构），辅助工具与技能维护一律不记录。**默认不主动写入，仅在宿主明确指定后才纳入**；主程序内容修改完成后，只需在汇报末尾顺便询问一句「是否需要纳入开发者说明与修订日志？」。
 
 ## 6. 非数据源目录与写入边界
 
@@ -97,6 +102,7 @@ execute_injection(current_round, story_nodes, memory_deltas, panel_changes,
 
 以下目录仅供开发/回滚/导出/日志/运行用途，**不是** AI 运行时数据源；未经宿主本回合显式点名，AI 不得读取其中文件作为规则、设定或续写依据：
 
+- `.git/`：根目录 Git 仓库元数据（版本历史、分支、索引与远程配置），严禁 AI 读取、修改、覆盖或删除。
 - `.backup/`：引擎自动生成的回滚点，只由 `injection_core.py` 写入。
 - `.into-backup/`：`into` 技能专用事务备份目录，AI 不作为数据源读取。
 - `Operit世界书导出/`：世界书导出快照，权威世界书以工作区注入版本为准。
@@ -105,10 +111,12 @@ execute_injection(current_round, story_nodes, memory_deltas, panel_changes,
 - `日志/`：运行日志。
 - `vosi/`：离线语音资源。
 - `语音仓库/`：语音运行生成物，默认只验证，不作为源文件或设定维护。
-- `开发者功能/`：历史修改记录与开发指导遗留（另见 `txt文件/故事检索索引.md` 顶部约束）；其中 `开发者功能/Operit-main/` 仅为参考副本，修改不会生效。
-- 辅助脚本 `存档开局随机盲盒.py`、`存档清理器.py`、`xuxiix.py`：手动运行的存档维护工具，AI 不主动调用、不改写。
+- `开发者说明/`：项目完整工程架构、协议规范与开发维护手册（含 `世界书关键字配置.txt`），仅供人类与维护代理阅读，**不是 AI 剧情运行时数据源**（另见 `txt文件/故事检索索引.md` 顶部约束）。
+- `开发者功能/`：历史修订归档与独立开发/验收工具（另见 `txt文件/故事检索索引.md` 顶部约束）；其中 `开发者功能/Operit-main/` 仅为参考副本，修改不会生效。
+- 辅助脚本 `存档开局随机盲盒.py`、`存档清理器.py`、`一键同步GitHub.py`：手动运行的存档与同步维护工具，AI 不主动调用、不改写。
 
-### 6.2 写入边界（与红线 §3 第 7 条呼应）
+### 6.2 写入边界（与红线 §3 第 9 条呼应）
 
+- **禁止改动目录（严禁 AI 写入、覆盖或删除）**：根目录 `.git/`（Git 仓库元数据）。
 - **只读运行生成物（AI 不手写）**：`data.json`（`injection_core.execute_injection` 每回合覆写的运行时快照）、`voice_config.json`（`语音运行.py` 维护）、`.round-runtime/`（含 `.round-runtime/interaction/`，引擎事务运行时状态，仅可按本次 packet 允许路径补读）、`语音仓库/`。
 - **敏感引擎与前端（未经宿主明确点名不修改，改动按 `into` L2 处理）**：`injection_core.py`、`main_template.html`、`voice_manager.html`、`语音运行.py`。

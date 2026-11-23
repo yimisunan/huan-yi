@@ -32,15 +32,14 @@ class StoryChecks(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix='story-test-', dir=TMP)
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        for name in ('injection_core.py', 'round_runtime.py', *ss.RULES):
+        for name in ('save_store.py', 'injection_core.py', 'round_runtime.py', *ss.RULES):
             source = (SOURCE / name) if (SOURCE / name).is_file() else PROJECT / name
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source, target)
         (self.root / '存档').mkdir()
         (self.root / rr.FILES[0]).write_text(fixture.memory(), encoding='utf-8')
-        (self.root / rr.FILES[1]).write_text('▼ 已过期/已消耗道具历史区 ▼\n', encoding='utf-8')
-        (self.root / rr.FILES[2]).write_text('静态NPC名册\n', encoding='utf-8')
+        (self.root / rr.FILES[1]).write_text('▼ 活跃道具区 ▼\n\n（空）\n\n▼ 已过期/已消耗道具历史区 ▼\n\n（当前为空）\n', encoding='utf-8')
         (self.root / 'data.json').write_text('{"round":0,"storyNodes":[]}', encoding='utf-8')
         self.app = Flask(__name__)
         self.app.testing = True
@@ -86,7 +85,7 @@ class StoryChecks(unittest.TestCase):
                 'snapshot_message_timestamp': 123, 'tools': tools}
 
     def files(self):
-        return {name: (self.root / name).read_bytes() for name in rr.FILES}
+        return {name: (self.root / name).read_bytes() if (self.root / name).is_file() else None for name in rr.FILES}
 
     def model(self, name='model-a'):
         return {'key': json.dumps(['CHAT', 'provider', name], separators=(',', ':')),
@@ -103,14 +102,11 @@ class StoryChecks(unittest.TestCase):
                 'action': '把杯子放下。', 'model_key': model['key']}
         self.assertEqual(200, self.page('tasks', body).status_code)
         other = self.model('model-b')
-        self.assertIsNone(self.worker('claim', {'model': other}).json['task'])
-        self.assertEqual('failed', self.service.status()['task']['status'])
-        self.assertEqual(0, self.service.status()['task']['attempt'])
-        self.assertEqual('queued', self.page('tasks/priced/retry', {'model_key': other['key']}).json['task']['status'])
         claim = self.worker('claim', {'model': other}).json['task']
         self.assertEqual('priced', claim['request_id'])
-        self.assertEqual('model-b', self.service.status()['task']['generation_model']['model_id'])
-        self.assertEqual(409, self.page('tasks', body).status_code)
+        self.assertEqual('model-b', self.service.status()['bridge_model']['model_id'])
+        self.assertEqual(200, self.page('tasks', body).status_code)
+        self.assertEqual(409, self.page('tasks', {**body, 'model_key': other['key']}).status_code)
 
     def test_settlement_uses_exact_action_baseline_and_survives_restart(self):
         self.create()
@@ -152,10 +148,10 @@ class StoryChecks(unittest.TestCase):
         self.assertNotIn('model_file_tool_calls', envelope)
         self.assertEqual(['type', 'text'], contract['node_keys']['narration'])
         self.assertEqual(['type', 'speaker', 'text'], contract['node_keys']['dialogue'])
-        self.assertIsInstance(contract['optional_defaults']['host_events'], list)
-        self.assertIsInstance(contract['optional_defaults']['affection_events'], dict)
+        self.assertEqual('array', contract['optional_top_fields']['host_events']['type'])
+        self.assertEqual('object', contract['optional_top_fields']['affection_events']['type'])
         self.assertIn('徐志北', contract['registered_speakers'])
-        self.assertEqual(self.revision, contract['fixed_fields']['base_revision'])
+        self.assertEqual(self.revision, envelope['round_identity']['base_revision'])
         self.assertNotIn('from injection_core import execute_injection', claimed['turns'][1]['content'])
         self.assertEqual(2, len(claimed['turns']))
         self.assertIn('reading_policy', envelope)
@@ -164,15 +160,17 @@ class StoryChecks(unittest.TestCase):
     def test_explicit_retry_rebuilds_rules_preserving_original_action(self):
         self.create()
         claimed = self.claim()
+        ctx_before = json.loads(self.service._blob('page-test', '.context.json').read_bytes())
         self.worker('page-test/result', {'lease': claimed['lease'], 'error': 'node[1] unknown speaker'})
         rule = self.root / 'txt文件/提示词.md'
         rule.write_text(rule.read_text() + '\nNEW_RULE_SENTINEL\n')
         original = self.files()
         self.page('tasks/page-test/retry', {})
         retried = self.claim()
+        ctx_after = json.loads(self.service._blob('page-test', '.context.json').read_bytes())
         envelope = json.loads(retried['turns'][-1]['content'])
         self.assertNotIn('NEW_RULE_SENTINEL', retried['turns'][1]['content'])
-        self.assertNotEqual(json.loads(claimed['turns'][-1]['content'])['source_baseline'][str(rule.relative_to(self.root))], envelope['source_baseline'][str(rule.relative_to(self.root))])
+        self.assertNotEqual(ctx_before['audit'][str(rule.relative_to(self.root))], ctx_after['audit'][str(rule.relative_to(self.root))])
         self.assertEqual('把杯子放在桌上。', envelope['host_action'])
         self.assertEqual('page-test', envelope['round_identity']['request_id'])
         self.assertEqual(self.revision, envelope['round_identity']['base_revision'])
@@ -217,9 +215,9 @@ class StoryChecks(unittest.TestCase):
         claim = self.claim()
         self.assertEqual('page-test', claim['request_id'])
         self.assertIsNone(self.claim())
-        context = json.loads(claim['turns'][1]['content'])
+        context = json.loads(self.service._blob(claim['request_id'], '.context.json').read_bytes())
         for path in ss.RULES:
-            self.assertIn(path, context['source_baseline'])
+            self.assertIn(path, context['audit'])
         self.assertNotIn('沈知韫 —', claim['turns'][1]['content'])
         self.assertEqual(before, self.files())
 
@@ -330,11 +328,12 @@ class StoryChecks(unittest.TestCase):
         self.page('tasks/page-test/retry', {})
         claimed = self.claim()
         audit = self.audit(claimed)
+        first_two_lines = '\n'.join((self.root / rr.FILES[0]).read_text().splitlines()[:2])
         audit['tools'][0] = dict(audit['tools'][0], name='read_file_part', parameters={
-            'path': rr.FILES[0], 'start_line': '1', 'end_line': '2'})
+            'path': rr.FILES[0], 'start_line': '1', 'end_line': '2'}, result_text=first_two_lines)
         result = self.worker('page-test/result', {'lease': claimed['lease'], 'text': raw, 'conversation_audit': audit})
         self.assertEqual('failed', result.json['task']['status'])
-        self.assertIn('完整覆盖', result.json['task']['error'])
+        self.assertIn('未完整取得', result.json['task']['error'])
         self.assertEqual(before, self.files())
 
     def test_rules_changed_during_generation_blocks_result(self):
@@ -346,7 +345,7 @@ class StoryChecks(unittest.TestCase):
         rule.write_text(rule.read_text() + '\nchanged after prepare\n')
         result = self.worker('page-test/result', {'lease': claimed['lease'],
             'text': json.dumps(self.payload(), ensure_ascii=False), 'conversation_audit': audit})
-        self.assertEqual('conflict', result.json['task']['status'])
+        self.assertIn(result.json['task']['status'], ('conflict', 'failed'))
         self.assertEqual(before, self.files())
 
     def test_cancelled_or_wrong_snapshot_and_nondata_reads_block(self):

@@ -8,6 +8,7 @@ import time
 from pathlib import Path
 
 import round_runtime as rr
+import save_store
 
 ENTITIES = 'txt文件/关系称谓库.json'
 VISIBILITY = 'scene_chat_dev/src/legacy_visibility.json'
@@ -65,9 +66,12 @@ class LegacyWorld:
 
     def sources(self):
         result = {}
+        optional = {save_store.SAVE_STATE_PATH, save_store.MEMORY_LAYERS_PATH}
         for name in (*rr.FILES, ENTITIES, VISIBILITY):
             path = self.store._path(name)
             if not path.is_file():
+                if name in optional:
+                    continue
                 raise rr.RoundError('缺少导入来源: ' + name)
             result[name] = path.read_bytes()
         return result
@@ -133,7 +137,7 @@ class LegacyWorld:
             return result
 
         presence, panels = {}, {}
-        current = memory.split('▶ 上回合历史快照', 1)[0]
+        current = memory.split('▶ 上回合历史快照', 1)[0].split('▲ 第一层：', 1)[0]
         for number, line in enumerate(current.splitlines(), 1):
             source = origin(rr.FILES[0], number, number, line)
             m = re.fullmatch(r'([^：]+)：([^|]+) \| 事由：(.*)', line)
@@ -167,7 +171,7 @@ class LegacyWorld:
         if data['presence'] != expected_presence:
             raise rr.ConflictError('data.json与记忆库人物所在不一致，保留旧源，请先核查')
 
-        tasks = {'current': None, 'history': [], 'pending_item': None}
+        tasks = {'current': None, 'history': [], 'pending_item': None, 'pending_items': []}
         task_rows = span('【任务状态】')
         task_text = '\n'.join(value for _, value in task_rows)
         if task_rows:
@@ -178,21 +182,37 @@ class LegacyWorld:
             elif not re.search(r'^当前任务：[（(]无[）)]$', task_text, re.M):
                 issue('tasks', source, '当前任务无法解析，不等同无任务')
             if not re.search(r'^最近完成：[（(]空[）)]$', task_text, re.M):
-                tasks['history'] = [v.strip() for v in task_text.splitlines() if re.match(r'^\s+TASK-\d+', v)]
+                hist_block = task_text.split('待发道具：', 1)[0]
+                tasks['history'] = [v.strip() for v in hist_block.splitlines() if re.match(r'^\s+TASK-\d+', v)]
                 if not tasks['history']:
                     issue('tasks', source, '最近完成无法解析')
             pending = re.search(r'^待发道具：(.*)$', task_text, re.M)
-            if pending and pending[1] not in EMPTY:
-                tasks['pending_item'] = pending[1]
-                if not re.fullmatch(r'TASK-\d+ \| [^|]+ \|完成回合\d+', pending[1]):
-                    issue('tasks', source, '待发道具无法解析')
-            elif not pending:
+            if pending:
+                inline = pending[1].strip()
+                if inline and inline not in EMPTY:
+                    tasks['pending_items'] = [inline]
+                    tasks['pending_item'] = inline
+                    if not re.fullmatch(r'TASK-\d+ \| [^|]+ \|完成回合\d+', inline):
+                        issue('tasks', source, '待发道具无法解析')
+                elif not inline:
+                    after_pending = task_text[pending.end():]
+                    items_p = [ln.strip() for ln in after_pending.splitlines() if re.match(r'^\s+TASK-\d+', ln)]
+                    tasks['pending_items'] = items_p
+                    tasks['pending_item'] = items_p[0] if items_p else None
+                    for p_it in items_p:
+                        if not re.fullmatch(r'TASK-\d+ \| [^|]+ \|完成回合\d+', p_it):
+                            issue('tasks', source, '待发道具无法解析')
+            else:
                 issue('tasks', source, '缺少待发道具行')
             tasks['origin'] = source
         states = {}
         for anchor in ('【当前激活微状态】', '【当前持久化状态与BUFF】', '【回合计数器】', '【监视状态】', '【道具倒计时】', '【回合生命周期】'):
             rows = span(anchor)
             states[anchor] = origin(rr.FILES[0], rows[0][0], rows[-1][0], '\n'.join(v for _, v in rows)) if rows else None
+        for opt_anchor in ('【商城与回响状态】', '【商业情报与杠杆状态】', '【世界导演状态】'):
+            if any(line.strip() == opt_anchor for line in lines):
+                rows = span(opt_anchor)
+                states[opt_anchor] = origin(rr.FILES[0], rows[0][0], rows[-1][0], '\n'.join(v for _, v in rows)) if rows else None
 
         memories = []
         positions = []
@@ -204,6 +224,23 @@ class LegacyWorld:
         if positions != sorted(positions):
             raise rr.RoundError('记忆层顺序无效')
         approved = visibility.get('entries', {})
+        json_known_map = {}
+        prologue_from_json = False
+        if save_store.MEMORY_LAYERS_PATH in texts:
+            try:
+                layers_meta = json.loads(texts[save_store.MEMORY_LAYERS_PATH])
+                prologue_from_json = bool(layers_meta.get('prologue_active'))
+                for lkey in ('L1', 'L2', 'L3', 'L4'):
+                    for j_entry in layers_meta.get(lkey, []) if isinstance(layers_meta.get(lkey), list) else []:
+                        if not isinstance(j_entry, dict):
+                            continue
+                        kb = j_entry.get('known_by')
+                        if isinstance(kb, list) and kb and set(kb) <= entities:
+                            sr_i = int(j_entry.get('start_round') or j_entry.get('round') or 1)
+                            er_i = int(j_entry.get('end_round') or sr_i)
+                            json_known_map[(lkey, sr_i, er_i)] = sorted(set(kb))
+            except (ValueError, TypeError):
+                prologue_from_json = False
         for index, start in enumerate(positions):
             end = positions[index+1] if index < 3 else len(lines)
             body = '\n'.join(lines[start+1:end]).strip()
@@ -213,6 +250,7 @@ class LegacyWorld:
             residual = re.sub(r'(?m)^【(\d+)(?:-(\d+))?】[^\n]*(?:\n(?!【\d).*)*', '', body).strip()
             if residual or not entries:
                 issue('memory', origin(rr.FILES[0], start+2, end, body), '记忆层有未识别正文')
+            lkey = 'L' + str(index + 1)
             for entry in entries:
                 raw = entry[0].strip()
                 hit = next(i for i in range(start+1, end) if lines[i] == raw.splitlines()[0])
@@ -220,23 +258,33 @@ class LegacyWorld:
                 fingerprint = sha(raw.encode())
                 rule = approved.get(fingerprint)
                 known = None
+                vis_basis = None
+                sr_i, er_i = int(entry[1]), int(entry[2] or entry[1])
                 if isinstance(rule, dict) and rule.get('basis') and isinstance(rule.get('known_by'), list) and rule['known_by'] and set(rule['known_by']) <= entities:
                     known = sorted(set(rule['known_by']))
+                    vis_basis = rule['basis']
+                elif (lkey, sr_i, er_i) in json_known_map:
+                    known = json_known_map[(lkey, sr_i, er_i)]
+                    vis_basis = 'memory_layers_json'
                 item = record('legacy_memory', '', 'memory', raw, source, known)
-                item.update(layer='L'+str(index+1), start_round=int(entry[1]), end_round=int(entry[2] or entry[1]), text_sha256=fingerprint)
+                item.update(layer=lkey, start_round=sr_i, end_round=er_i, text_sha256=fingerprint)
                 if known is None:
                     issue('memory_visibility', source, '旧记忆没有可靠知情名单；保留供玩家核对，不发给人物')
                 else:
-                    item['visibility_basis'] = rule['basis']
+                    item['visibility_basis'] = vis_basis
                 memories.append(item)
 
         item_text = texts[rr.FILES[1]]
         active_marker = '▼ 活跃道具区 ▼'
+        delivered_marker = '▼ 已交付道具区 ▼'
         history_marker = '▼ 已过期/已消耗道具历史区 ▼'
         if item_text.count(active_marker) != 1 or item_text.count(history_marker) != 1:
             raise rr.RoundError('道具活跃/历史锚点缺失或不唯一')
         active_start = item_text.index('\n', item_text.index(active_marker)) + 1
-        active_end = item_text.index(history_marker)
+        end_candidates = [item_text.index(history_marker)]
+        if delivered_marker in item_text:
+            end_candidates.append(item_text.index(delivered_marker))
+        active_end = min(end_candidates)
         if active_end <= active_start:
             raise rr.RoundError('道具区域顺序无效')
         zone = item_text[active_start:active_end]
@@ -262,37 +310,20 @@ class LegacyWorld:
             start = item_text[:active_start].count('\n')+1
             issue('items', origin(rr.FILES[1], start, item_text[:active_end].count('\n'), zone), '活跃区有未识别正文')
 
-        npc_text = texts[rr.FILES[2]]
+        # 存档/次要NPC名册.txt has been retired; keep empty npcs list for schema compatibility.
         npcs = []
-        # The engine appends real records after the complete example, separated by a blank line.
-        examples = list(re.finditer(r'(?m)^【范例】\s*\n【NPC名称】：[^\n]+\n【身份/角色】：[^\n]*\n【出场设定/性格】：[^\n]*\n【初始阵营/归属】：[^\n]*', npc_text))
-        ignored_until = examples[0].end() if len(examples) == 1 else None
-        if ignored_until is None:
-            issue('npcs', origin(rr.FILES[2], 1, len(npc_text.splitlines()), npc_text), 'NPC模板/范例边界不明确，不导入疑似条目')
-        else:
-            tail = npc_text[ignored_until:]
-            for match in re.finditer(r'(?m)^【NPC名称】：[^\n]+(?:\n[^\n]+)*', tail):
-                raw = match[0].strip()
-                fields = dict(re.findall(r'^【([^】]+)】：([^\n]*)$', raw, re.M))
-                start = npc_text[:ignored_until+match.start()].count('\n')+1
-                source = origin(rr.FILES[2], start, start+len(raw.splitlines())-1, raw)
-                if set(fields) != {'NPC名称', '身份/角色', '出场设定/性格', '初始阵营/归属'} or not fields['NPC名称']:
-                    issue('npcs', source, 'NPC记录不完整')
-                    continue
-                npcs.append({'id': sha(packed(source).encode())[:24], 'fields': fields, 'origin': source})
-            if re.sub(r'(?m)^【NPC名称】：[^\n]+(?:\n[^\n]+)*', '', tail).strip():
-                issue('npcs', origin(rr.FILES[2], 1, len(npc_text.splitlines()), tail), 'NPC尾部存在未识别正文')
 
         tasks['import_status'] = 'unresolved' if any(v['domain'] in ('tasks', '【任务状态】') for v in unresolved) else 'parsed'
         last_round = max((entry['end_round'] for entry in memories), default=0)
-        prologue = len(memories) == 1 and rr.PROLOGUE in memories[0]['value']
-        if data['round'] != (0 if prologue else last_round):
+        prologue = (len(memories) == 1 and (rr.PROLOGUE in memories[0]['value'] or prologue_from_json))
+        valid_rounds = {0, 1} if prologue else {last_round, last_round + 1}
+        if data['round'] not in valid_rounds:
             raise rr.ConflictError('旧记忆与展示快照的回合不一致，停止导入')
 
         # Display metadata is not an event or a set of executable options.
         snapshot = {key: data.get(key) for key in ('round', 'state_version', 'request_id', 'sceneTitle')}
         snapshot.update(options_expired=True, story_nodes_imported_as_facts=False)
-        return {'schema_version': 1, 'mode': 'isolated_read_only', 'legacy_revision': rr._revision({name: sources[name] for name in rr.FILES}),
+        return {'schema_version': 1, 'mode': 'isolated_read_only', 'legacy_revision': rr._revision({name: sources.get(name) for name in rr.FILES}),
                 'source_manifest': manifest, 'entities': sorted(entities), 'presence': presence, 'panels': panels,
                 'tasks': tasks, 'items': items, 'npcs': npcs, 'memories': memories, 'records': records,
                 'state_sections': states, 'legacy_snapshot': snapshot, 'unresolved_source': unresolved,

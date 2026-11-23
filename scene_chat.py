@@ -62,8 +62,9 @@ class SceneService:
             db.close()
 
     def baseline(self):
-        return digest(b''.join((str(p) + ':' + digest(p.read_bytes())).encode()
-            for p in sorted((self.root / '存档').glob('*.txt'))))
+        save_dir = self.root / '存档'
+        files = sorted(list(save_dir.glob('*.txt')) + list(save_dir.glob('*.json')), key=lambda x: str(x))
+        return digest(b''.join((str(p) + ':' + digest(p.read_bytes())).encode() for p in files))
 
     def references(self, text, history):
         rows = [json.loads(line) for line in (self.root/'txt文件/关系称谓查询.jsonl').read_text().splitlines()]
@@ -223,7 +224,10 @@ class SceneService:
                 'sources': sources, 'through_line': len(raw.decode().splitlines())}
             db.execute('INSERT INTO jobs VALUES(?,?,?,?,?,?,?,?,?,?)',
                 (key, sid, scene['revision'], text, 'queued', None, None, json.dumps(data), None, None))
-            return {'task': self.public(db.execute('SELECT * FROM jobs WHERE id=?', (key,)).fetchone())}
+            res = {'task': self.public(db.execute('SELECT * FROM jobs WHERE id=?', (key,)).fetchone())}
+        if getattr(self.story, 'hub', None):
+            self.story.hub.publish('scene_task', {'id': key, 'status': 'queued'}, wake_worker=True)
+        return res
 
     def expire(self, db):
         db.execute("UPDATE jobs SET status='interrupted',lease=NULL,error='连接中断；请显式重试原请求' WHERE status='generating' AND expires<?", (time.time(),))
@@ -244,6 +248,8 @@ class SceneService:
             if db.execute("SELECT 1 FROM jobs WHERE status IN ('queued','generating')").fetchone():
                 raise rr.ConflictError('已有在途请求')
             db.execute("UPDATE jobs SET status='queued',lease=NULL,error=NULL WHERE id=?", (key,))
+        if getattr(self.story, 'hub', None):
+            self.story.hub.publish('scene_task', {'id': key, 'status': 'queued'}, wake_worker=True)
         return self.snapshot(row['scene'])
 
     def claim(self):

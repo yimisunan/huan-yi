@@ -3,15 +3,16 @@
     const TTS_TIMEOUT_MS = 65000;
     const fishDefaults = Object.freeze({
         speed: 1, volume: 0, normalize_loudness: true,
-        temperature: 0.72, top_p: 0.75,
-        latency: 'normal', chunk_length: 220, min_chunk_length: 40,
+        temperature: 0.68, top_p: 0.75,
+        latency: 'balanced', chunk_length: 180, min_chunk_length: 40,
         repetition_penalty: 1.18, condition_on_previous_chunks: true,
-        normalize: true, language: '', format: 'mp3',
+        normalize: true, language: 'zh-CN', format: 'mp3',
         mp3_bitrate: 128, opus_bitrate: -1000, sample_rate: 44100,
         max_new_tokens: 1024, early_stop_threshold: 1.0,
-        quality_guard: false,
+        quality_guard: true,
         pronunciation_dictionary_id: '', pronunciation_dictionary_version: ''
     });
+    const VOICE_CLIENT_HEADER = Object.freeze({ 'X-Voice-Client': '1' });
     const FORMAT_RATES = Object.freeze({
         mp3: [32000, 44100],
         opus: [48000],
@@ -36,7 +37,7 @@
         return pattern.test(s) ? s : '';
     }
     function normalizeFish(cfg = {}) {
-        const chunk = Math.round(number(cfg.chunk_length, 220, 100, 300));
+        const chunk = Math.round(number(cfg.chunk_length, 180, 100, 300));
         const fmt = ['mp3', 'opus', 'wav'].includes(cfg.format) ? cfg.format : 'mp3';
         const mp3Rate = [64, 128, 192].includes(Number(cfg.mp3_bitrate)) ? Number(cfg.mp3_bitrate) : 128;
         const opusRate = [-1000, 24000, 32000, 48000, 64000].includes(Number(cfg.opus_bitrate)) ? Number(cfg.opus_bitrate) : -1000;
@@ -47,33 +48,34 @@
             speed: +number(cfg.speed, 1, 0.5, 2).toFixed(2),
             volume: +number(cfg.volume, 0, -20, 20).toFixed(1),
             normalize_loudness: flag(cfg.normalize_loudness, true),
-            temperature: +number(cfg.temperature, 0.72, 0, 1).toFixed(2),
+            temperature: +number(cfg.temperature, 0.68, 0, 1).toFixed(2),
             top_p: +number(cfg.top_p, 0.75, 0, 1).toFixed(2),
-            latency: ['low', 'normal', 'balanced'].includes(cfg.latency) ? cfg.latency : 'normal',
+            latency: ['low', 'normal', 'balanced'].includes(cfg.latency) ? cfg.latency : 'balanced',
             chunk_length: chunk,
             min_chunk_length: Math.min(chunk, Math.round(number(cfg.min_chunk_length, 40, 0, 100))),
             repetition_penalty: +number(cfg.repetition_penalty, 1.18, 1, 2).toFixed(2),
             condition_on_previous_chunks: flag(cfg.condition_on_previous_chunks, true),
             normalize: flag(cfg.normalize, true),
-            language: cleanToken(cfg.language, /^[A-Za-z0-9_-]{1,35}$/, 35),
+            language: cfg.language === undefined || cfg.language === null ? fishDefaults.language : cleanToken(cfg.language, /^[A-Za-z0-9_-]{1,35}$/, 35),
             format: fmt,
             mp3_bitrate: mp3Rate,
             opus_bitrate: opusRate,
             sample_rate: sampleRate,
             max_new_tokens: Math.round(number(cfg.max_new_tokens, 1024, 128, 4096)),
             early_stop_threshold: +number(cfg.early_stop_threshold, 1.0, 0, 1).toFixed(2),
-            quality_guard: flag(cfg.quality_guard, false),
+            quality_guard: flag(cfg.quality_guard, true),
             pronunciation_dictionary_id: cleanToken(cfg.pronunciation_dictionary_id, /^[A-Za-z0-9._:-]{1,128}$/, 128),
             pronunciation_dictionary_version: cleanToken(cfg.pronunciation_dictionary_version, /^[A-Za-z0-9._:-]{1,64}$/, 64)
         };
     }
-    function buildPayload(text, cfg = {}, settings = {}, emotion = '') {
+    function buildPayload(text, cfg = {}, settings = {}, emotion = '', speaker = '') {
         const voice = cfg.voice || 'fish:';
         const body = { text, voice, emotion };
+        if (speaker) body.speaker = String(speaker);
         if (voice.startsWith('edge:')) {
             Object.assign(body, { rate: cfg.rate || '-8%', pitch: cfg.pitch || '-4Hz', volume: cfg.volume || '+0%', emotion: '' });
         } else {
-            Object.assign(body, normalizeFish(cfg), { tts_model: cfg.tts_model || settings.fish_tts_model || 's2.1-pro' });
+            Object.assign(body, normalizeFish(cfg), { tts_model: cfg.tts_model || settings.fish_tts_model || 's2.1-pro-free' });
         }
         return body;
     }
@@ -89,12 +91,33 @@
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeoutMs);
         try {
-            const response = await checkedResponse(await fetch(url, { ...options, signal: controller.signal }));
+            const headers = { ...VOICE_CLIENT_HEADER, ...(options.headers || {}) };
+            const response = await checkedResponse(await fetch(url, { ...options, headers, signal: controller.signal }));
             return await response.json();
         } catch (error) {
             if (controller.signal.aborted) throw new Error('连接等待超时，请检查服务后重试。');
             throw error;
         } finally { clearTimeout(timer); }
+    }
+    function getFishKeyStatus() {
+        return requestJson('/api/fish_key?t=' + Date.now(), { cache: 'no-store' }, 8000);
+    }
+    function saveFishKey(apiKey, verify = false) {
+        return requestJson('/api/fish_key', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ api_key: String(apiKey || '').trim(), verify: !!verify })
+        }, verify ? 15000 : 8000);
+    }
+    function clearFishKey() {
+        return requestJson('/api/fish_key', { method: 'DELETE' }, 8000);
+    }
+    function setVoiceTier(tier) {
+        return requestJson('/api/voice_tier', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ tier: String(tier || 'free') })
+        }, 10000);
     }
     function cancel(channel) {
         const job = channels.get(channel);
@@ -108,7 +131,7 @@
         const timer = setTimeout(() => { job.timedOut = true; job.controller.abort(); }, timeoutMs);
         try {
             const response = await checkedResponse(await fetch('/api/tts', {
-                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                method: 'POST', headers: { 'Content-Type': 'application/json', ...VOICE_CLIENT_HEADER },
                 body: JSON.stringify(payload), signal: job.controller.signal
             }));
             if (!(response.headers.get('content-type') || '').startsWith('audio/')) throw new Error('服务没有返回可播放的音频。');
@@ -168,7 +191,7 @@
         const done = (async () => {
             try {
                 const response = await checkedResponse(await fetch('/api/tts', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    method: 'POST', headers: { 'Content-Type': 'application/json', ...VOICE_CLIENT_HEADER },
                     body: JSON.stringify({ ...payload, stream: true }), signal: controller.signal
                 }));
                 if (!(response.headers.get('content-type') || '').startsWith('audio/') || !response.body) throw new Error('没有可播放的音频流。');
@@ -235,6 +258,22 @@
             this.entries.clear(); this.bytes = 0; this.pinned = null;
         }
     }
+    function prefetchBatch(items) {
+        if (!Array.isArray(items) || !items.length) return Promise.resolve({ scheduled: 0 });
+        const clean = items.slice(0, 6).filter(it => it && typeof it.text === 'string' && it.text.trim()).map(it => ({
+            text: it.text,
+            speaker: it.speaker || '',
+            voice: it.voice || ''
+        }));
+        if (!clean.length) return Promise.resolve({ scheduled: 0 });
+        return fetch('/api/tts/prefetch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...VOICE_CLIENT_HEADER },
+            body: JSON.stringify({ items: clean })
+        }).then(r => (r.ok ? r.json().catch(() => ({ scheduled: clean.length })) : { scheduled: 0 })).catch(() => ({ scheduled: 0 }));
+    }
+
     global.VoiceClient = Object.freeze({ TTS_TIMEOUT_MS, fishDefaults, normalizeFish, buildPayload,
-        requestJson, requestAudio, requestStream, cancel, cancelAll, AudioUrlStore });
+        requestJson, requestAudio, requestStream, prefetchBatch, cancel, cancelAll, AudioUrlStore,
+        getFishKeyStatus, saveFishKey, clearFishKey, setVoiceTier });
 })(typeof window === 'undefined' ? globalThis : window);

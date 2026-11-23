@@ -1,166 +1,6 @@
 # -*- coding: utf-8 -*-
 """停止本地服务后初始化新档；--preview只读，--backup留旧档，--recover恢复中断。"""
 
-INITIAL_GLOBAL_MEMORY = """===========================================
-               ⚠️ 板块三⚠️全局记忆库
-==========================================
-【实时面板快照】
-▶ 当前最新数值
-[系统宿主] 积分 0 | 经验值 0 | 体力 100 | 魅力 70 | 商业嗅觉 0
-[沈知韫] 好感 95 | 堕落 0 | 欲望 0 | 羞耻 100 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0
-[徐念薇] 好感 30 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 65 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0
-[苏婉青] 好感 40 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0
-[徐承邺] 堕落 0
-
-【人物所在】
-沈知韫：徐家主宅 | 事由：常住
-徐念薇：大学 | 事由：工作日在大学
-苏婉青：市中心顶层公寓 | 事由：常住
-徐志北：徐家主宅 | 事由：常住
-
-【当前激活微状态】
-
-▶ 苏婉青
-  momentary_ease: false
-  residual_tension: false
-  confusion_debt: false
-
-▶ 沈知韫
-  momentary_ease: false | residual_tension: false | confusion_debt: false
-
-▶ 徐念薇
-  momentary_ease: false | residual_tension: false | confusion_debt: false
-
-==================================================
-
-▶ 上回合历史快照
-[系统宿主] 积分 0 | 经验值 0 | 体力 100 | 魅力 70 | 商业嗅觉 0
-[沈知韫] 好感 95 | 堕落 0 | 欲望 0 | 羞耻 100 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0
-[徐念薇] 好感 30 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 65 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0
-[苏婉青] 好感 40 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 100 | 高潮 0% | 内射 0次 | 怀孕 False | 被动 Lv.0
-[徐承邺] 堕落 0
-
-【人物所在】
-沈知韫：徐家主宅 | 事由：常住
-徐念薇：大学 | 事由：工作日在大学
-苏婉青：市中心顶层公寓 | 事由：常住
-徐志北：徐家主宅 | 事由：常住
-
-
-==================================================
-【当前持久化状态与BUFF】
-▶ 沈知韫
-  - 无
-▶ 苏婉青
-  - 无
-▶ 徐念薇
-  - 无
-
-==================================================
-【回合计数器】
-  破局_日常冗余: 0
-  破局_模式重复: 0
-  破局_社交淤积: 0
-  破局_张力淤积: 0
-  空耗_连续未纾解: 0
-  连续守护回合: 0
-
-【监视状态】
-徐承邺位置：外地
-徐承邺_沈知韫：警惕 0 | 发现 0 | 发现几率 0
-徐承邺_苏婉青：警惕 0 | 发现 0 | 发现几率 0
-徐承邺_徐念薇：警惕 0 | 发现 0 | 发现几率 0
-徐承邺_徐志北：警惕 0 | 发现 0 | 发现几率 0
-
-【任务状态】
-当前任务：（无）
-最近完成：（空）
-待发道具：（无）
-
-【道具倒计时】
-（空）
-
-▲ 第一层：【即时运存区】
-（空）
-
-▲ 第二层：【回想运存区】
-（空）
-
-▲ 第三层：【近期事实缓存区】
-（空）
-
-▲ 第四层：【深渊纪元浓缩区】
-（空）
-"""
-
-INITIAL_NPC_ROSTER = """===========================================
-               ⚠️ 板块四⚠️次要NPC名册（只读图鉴）
-==========================================
-【定位与优先级】
-1. 本文件为【静态设定集】，在所有文件中的读取优先级【最低】。
-2. 仅当宿主指令中引入了全新设定的配角，或剧情提及该角色且AI遗忘其设定时，AI才需查阅或通过注入脚本更新本册。
-3. 严禁将本文件用作“状态记录仪”！NPC 的动态状态（如被收买、已死亡、被揭穿等）全部作为【核心剧情】浓缩记录在《全局记忆库》的四层记忆中。本图鉴内的状态更新仅在发生根本性阵营倒戈时才允许极低频更新。
-
-【NPC记录模板格式】（仅当首次登场时生成静态设定）
-【NPC名称】：
-【身份/角色】：
-【出场设定/性格】：
-【初始阵营/归属】：
-
-【范例】
-【NPC名称】：林秘书
-【身份/角色】：徐承邺的私人秘书兼情报眼线
-【出场设定/性格】：谨慎精明，了解大量公司内幕
-【初始阵营/归属】：绝对忠诚于徐承邺
-"""
-
-INITIAL_ITEM_CATALOG = """===========================================
-          ⚠️ 板块五⚠️徐志北道具图鉴 V2.0
-===========================================
-
-【AI读取规则】
-1. 本文件唯一权威来源。涉及道具的剧情、数值、状态必须以此为准，禁止凭记忆推测。
-2. 仅读取 ▼活跃道具区▼ 内的条目作为当前有效道具。
-3. 禁止把 ▼格式模板区▼ 和 ▼已过期历史区▼ 里的内容当作已拥有道具。
-4. 永久性道具：位置不得擅自改变，除非宿主明确指令移动。
-5. 临时性道具：时效归零后效果立即完全终止，禁止任何「过期仍有效」的描写。
-6. 本文件由 injection_core.py 的 update_item_catalog() 维护，AI禁止直接修改。
-7. 正式互动的有效付费剧情行动结算一次时效；点按、失败、纯道具、启动和休息不扣时效，单位依《txt文件/互动运行配置.json》。
-8. 临时道具剩余回合数以《存档/全局记忆库.txt》【道具倒计时】区块为准（引擎每回合自动结算并覆写本文件【剩余时效】）；AI 只经 ITEM_ENTRIES 交增量，禁止逐回合手写剩余时效。
-
-==================================================
-▼ 活跃道具区 ▼（AI每回合读取此区域，以下为当前实际持有的全部道具）
-==================================================
-
-（新游戏初始仓库为空，兑换道具后由注入逻辑写入此区域）
-
-==================================================
-▼ 已过期/已消耗道具历史区 ▼（仅供回溯，禁止当作可用道具）
-==================================================
-
-（当前为空）
-
-==================================================
-▼ 格式模板区 ▼（仅供 injection_core.py 写入新道具时参考，AI禁止读取此区域内容作为道具）
-==================================================
-
-【道具名称】：
-【道具ID】：（引擎自动生成，如 ITEM-001）
-【类型】：永久性 / 临时性 / 临时性（消耗品）
-【描述】：
-【数量】：（缺省1；同名同ID堆叠累加）
-【获得回合】：
-【当前状态】：仓库中 / 已使用 / 已部署
-【位置】：（永久性必填，临时性填「无」）
-【使用对象】：（临时性必填，未使用填「未使用」）
-【时效】：（临时性必填，填数字回合，例：12；仅「临时性+数字回合」进入倒计时区块）
-【剩余时效】：（引擎每回合自动覆写真实回合数，例：11回合；归零自动移入历史区）
-【过期规则】：
-【使用记录】：
-【备注】：
-【系统效果】：（登记宿主体力恢复时为host_stamina:正整数；未登记不能猜效果）
-"""
-
 import argparse
 from contextlib import contextmanager
 from datetime import datetime
@@ -176,14 +16,40 @@ import sys
 import uuid
 
 DEFAULT_ROOT = Path(__file__).resolve().parent
+if str(DEFAULT_ROOT) not in sys.path:
+    sys.path.insert(0, str(DEFAULT_ROOT))
+import save_store
+
 TX = '.round-runtime/reset-journal.json'
 EPOCH = '.round-runtime/save-epoch.json'
 BACKUPS = '.round-runtime/reset-backups'
-TEMPLATES = {
-    '存档/全局记忆库.txt': INITIAL_GLOBAL_MEMORY,
-    '存档/次要NPC名册.txt': INITIAL_NPC_ROSTER,
-    '存档/徐志北道具图鉴.txt': INITIAL_ITEM_CATALOG,
-}
+MAX_RESET_BACKUPS = 10
+LEGACY_RETIRED_ROSTER = '存档/次要NPC名册.txt'
+
+
+def _initial_templates():
+    init_data = {
+        'round': 0,
+        'sceneTitle': '徐家主宅',
+        'storyNodes': [],
+        'presence': {
+            '沈知韫': {'location': '徐家主宅', 'reason': '常住'},
+            '徐念薇': {'location': '大学', 'reason': '工作日在大学'},
+            '苏婉青': {'location': '市中心顶层公寓', 'reason': '常住'},
+            '徐志北': {'location': '徐家主宅', 'reason': '常住'},
+        },
+        'state_version': 0,
+    }
+    state = save_store.default_state()
+    layers = save_store.default_layers('', prologue_active=False)
+    recent = save_store.default_recent()
+    raw_map = save_store.render_bundle_bytes(state, layers, recent, data_dict=init_data)
+    return {k: v.decode('utf-8') for k, v in raw_map.items()}
+
+
+TEMPLATES = _initial_templates()
+INITIAL_GLOBAL_MEMORY = TEMPLATES[save_store.RENDERED_MEMORY_PATH]
+INITIAL_ITEM_CATALOG = TEMPLATES[save_store.RENDERED_ITEMS_PATH]
 
 
 def project_root(root):
@@ -232,10 +98,15 @@ def inventory(root, relative):
 def plan_reset(root):
     root = project_root(root)
     paths = list(TEMPLATES) + ['data.json', '.round-runtime/state.json', '.round-runtime/journal.json', EPOCH]
+    if safe(root, LEGACY_RETIRED_ROSTER).exists():
+        paths.append(LEGACY_RETIRED_ROSTER)
     story = safe(root, '.round-runtime/story')
     if story.exists():
         for child in sorted(story.iterdir()):
-            if child.name == 'tasks.json' or re.fullmatch(r'[0-9a-f]{64}\.(?:context\.json|result\.txt|read-audit\.json|assembled\.json)', child.name):
+            if child.name == 'tasks.json' or re.fullmatch(
+                r'[0-9a-f]{64}\.(?:context\.json|result\.txt|read-audit\.json|assembled\.json|delivery\.json)',
+                child.name,
+            ):
                 paths.append(str(child.relative_to(root)))
     runtime = safe(root, '.round-runtime')
     if runtime.exists():
@@ -318,19 +189,26 @@ def remove(path):
     sync_dir(path.parent)
 
 
+def _fsync_file(path):
+    try:
+        with Path(path).open('rb') as handle:
+            os.fsync(handle.fileno())
+    except OSError as exc:
+        if exc.errno not in {errno.EINVAL, errno.ENOTSUP, errno.EBADF, errno.EACCES}:
+            raise
+
+
 def copy_saved(source, target):
     target.parent.mkdir(parents=True, exist_ok=True)
     if source.is_dir():
         shutil.copytree(source, target)
         for parent, _, files in os.walk(target):
             for name in files:
-                with (Path(parent)/name).open('rb') as handle:
-                    os.fsync(handle.fileno())
+                _fsync_file(Path(parent) / name)
             sync_dir(parent)
     else:
         shutil.copy2(source, target)
-        with target.open('rb') as handle:
-            os.fsync(handle.fileno())
+        _fsync_file(target)
     sync_dir(target.parent)
 
 
@@ -349,9 +227,9 @@ def read_record(root):
         raise RuntimeError('清理恢复清单无效')
     for index, item in enumerate(entries):
         rel = item['path']
-        allowed = rel in (*TEMPLATES, 'data.json', '.round-runtime/state.json', '.round-runtime/journal.json', EPOCH,
+        allowed = rel in (*TEMPLATES, LEGACY_RETIRED_ROSTER, 'data.json', '.round-runtime/state.json', '.round-runtime/journal.json', EPOCH,
                           '.round-runtime/story/tasks.json', 'txt文件/.story-reading', '.round-runtime/interaction', '.scene-chat')
-        allowed = allowed or bool(re.fullmatch(r'\.round-runtime/story/[0-9a-f]{64}\.(?:context\.json|result\.txt|read-audit\.json|assembled\.json)', rel))
+        allowed = allowed or bool(re.fullmatch(r'\.round-runtime/story/[0-9a-f]{64}\.(?:context\.json|result\.txt|read-audit\.json|assembled\.json|delivery\.json)', rel))
         allowed = allowed or bool(re.fullmatch(r'\.round-runtime/work-[^/]+', rel))
         if not allowed:
             raise RuntimeError('恢复清单越出允许范围')
@@ -361,6 +239,25 @@ def read_record(root):
             if inventory(root, saved) != item['before']:
                 raise RuntimeError('恢复副本校验失败：' + rel)
     return record
+
+
+def prune_backups(root, keep=MAX_RESET_BACKUPS):
+    backups_dir = safe(root, BACKUPS)
+    if not backups_dir.is_dir():
+        return
+    dirs = sorted(
+        (p for p in backups_dir.iterdir() if p.is_dir() and not p.is_symlink()
+         and re.fullmatch(r'\d{8}_\d{6}_[0-9a-f]{32}', p.name)),
+        key=lambda p: p.name,
+    )
+    if len(dirs) <= keep:
+        return
+    for old in dirs[:-keep]:
+        try:
+            shutil.rmtree(old)
+        except OSError:
+            pass
+    sync_dir(backups_dir)
 
 
 def finish_record(root, record):
@@ -373,6 +270,8 @@ def finish_record(root, record):
         except OSError:
             print('清理已完成，但工作副本未能删除：' + str(backup))
             return str(backup)
+    else:
+        prune_backups(root)
     return str(backup) if record['keep_backup'] else None
 
 
@@ -426,17 +325,22 @@ def _reset_files(root, keep_backup=False, request_id=None):
     backup = safe(root, BACKUPS + '/' + ident)
     backup.mkdir(parents=True)
     record = {'version': 1, 'id': ident, 'phase': 'prepared', 'keep_backup': bool(keep_backup), 'entries': entries}
-    for index, item in enumerate(entries):
-        if item['before'] is not None:
-            saved_rel = BACKUPS + '/' + ident + '/slot-' + str(index)
-            copy_saved(safe(root, item['path']), safe(root, saved_rel))
-            if inventory(root, saved_rel) != item['before']:
-                raise RuntimeError('备份不完整，未开始清理')
-    for item in entries:
-        if inventory(root, item['path']) != item['before']:
-            raise RuntimeError('备份期间文件已变化，未开始清理')
-    write_json(backup/'manifest.json', record)
-    write_json(safe(root, TX), record)
+    try:
+        for index, item in enumerate(entries):
+            if item['before'] is not None:
+                saved_rel = BACKUPS + '/' + ident + '/slot-' + str(index)
+                copy_saved(safe(root, item['path']), safe(root, saved_rel))
+                if inventory(root, saved_rel) != item['before']:
+                    raise RuntimeError('备份不完整，未开始清理')
+        for item in entries:
+            if inventory(root, item['path']) != item['before']:
+                raise RuntimeError('备份期间文件已变化，未开始清理')
+        write_json(backup/'manifest.json', record)
+        write_json(safe(root, TX), record)
+    except BaseException:
+        if not safe(root, TX).exists():
+            shutil.rmtree(backup, ignore_errors=True)
+        raise
     try:
         for item in entries:
             path = safe(root, item['path'])
@@ -444,7 +348,14 @@ def _reset_files(root, keep_backup=False, request_id=None):
                 atomic(path, TEMPLATES[item['path']].encode('utf-8'))
             elif item['path'] == 'data.json':
                 write_json(path, {'round': 0, 'sceneTitle': '徐家主宅',
-                                  'storyNodes': [], 'presence': {}, 'state_version': 0})
+                                  'storyNodes': [],
+                                  'presence': {
+                                      '沈知韫': {'location': '徐家主宅', 'reason': '常住'},
+                                      '徐念薇': {'location': '大学', 'reason': '工作日在大学'},
+                                      '苏婉青': {'location': '市中心顶层公寓', 'reason': '常住'},
+                                      '徐志北': {'location': '徐家主宅', 'reason': '常住'},
+                                  },
+                                  'state_version': 0})
             elif item['path'] == EPOCH:
                 write_json(path, {'version': 1, 'epoch': uuid.uuid4().hex, 'request_id': request_id})
             elif path.exists():
@@ -459,13 +370,13 @@ def _reset_files(root, keep_backup=False, request_id=None):
         if initial_data.get('round') != 0 or initial_data.get('storyNodes') != []:
             raise RuntimeError('新档起始快照无效')
         configuration = safe(root,'txt文件/互动运行配置.json')
-        if configuration.is_file() and json.loads(configuration.read_text()).get('resource',{}).get('scheme')=='fixed_tiers':
+        if configuration.is_file() and json.loads(configuration.read_text(encoding='utf-8')).get('resource',{}).get('scheme')=='fixed_tiers':
             import importlib.util
             spec = importlib.util.spec_from_file_location('_registered_opening', root/'存档开局随机盲盒.py')
             opening = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(opening)
             opening.initialize_prologue(root, request_id or 'reset-'+ident)
-            data = json.loads(safe(root,'data.json').read_text())
+            data = json.loads(safe(root,'data.json').read_text(encoding='utf-8'))
             if not data.get('prologue') or not data.get('interaction',{}).get('segment_id'):
                 raise RuntimeError('新档序幕未完整写入')
         record['phase'] = 'committed'

@@ -10,6 +10,9 @@ RESOLVER = 'relationship_query.py'
 OCCASIONS = ('formal', 'relaxed', 'business')
 
 
+ELDER_ROLES = frozenset({'mother', 'adoptive_mother', 'mother_in_law', 'father'})
+
+
 class RelationshipError(ValueError):
     pass
 
@@ -111,7 +114,11 @@ class RelationshipRegistry:
         if not isinstance(d['title_rules'], list):
             self._fail('身份称谓规则无效')
         for item in d['title_rules']:
-            if (not isinstance(item, dict) or set(item) != {'speaker', 'listener', 'fact', 'forms'}
+            keys = set(item) if isinstance(item, dict) else set()
+            target = item.get('target', 'self') if isinstance(item, dict) else None
+            if (not isinstance(item, dict)
+                    or not ({'speaker', 'listener', 'fact', 'forms'} <= keys <= {'speaker', 'listener', 'fact', 'forms', 'target'})
+                    or target not in {'self', 'address'}
                     or item['speaker'] not in entities or item['listener'] not in entities or item['fact'] not in d['facts']
                     or not isinstance(item['forms'], dict) or set(item['forms']) != set(OCCASIONS)
                     or any(not isinstance(v, list) or any(not isinstance(s, str) or not s for s in v) for v in item['forms'].values())):
@@ -156,14 +163,21 @@ class RelationshipRegistry:
                 result[key]['sources'] = sorted(set(result[key]['sources'] + form['sources']))
         return list(result.values())
 
-    def _neutral(self, person, mode):
+    def _neutral(self, person, mode, include_short=True):
+        entity = self.data['entities'][person]
         ref = '#/entities/' + person + '/short'
+        allow_short = include_short and not (mode == 'self' and entity['status'] == 'category')
         if mode == 'self':
-            return [self._form('我', 'pronoun', '#/selection'),
-                    self._form(self.data['entities'][person]['short'], 'name', ref),
-                    self._form('', 'omit', '#/selection')]
-        return [self._form(self.data['entities'][person]['short'], 'name', ref),
-                self._form('你', 'pronoun', '#/selection'), self._form('', 'omit', '#/selection')]
+            items = [self._form('我', 'pronoun', '#/selection')]
+            if allow_short:
+                items.append(self._form(entity['short'], 'name', ref))
+            items.append(self._form('', 'omit', '#/selection'))
+            return items
+        items = []
+        if allow_short:
+            items.append(self._form(entity['short'], 'name', ref))
+        items.extend([self._form('你', 'pronoun', '#/selection'), self._form('', 'omit', '#/selection')])
+        return items
 
     def query(self, speaker, listeners, occasion):
         self._entity(speaker, speaking=True)
@@ -181,7 +195,7 @@ class RelationshipRegistry:
         people = [speaker, *listeners]
         groups, targets, facts = [], [], {}
         for listener in listeners:
-            own, address, relations = self._neutral(speaker, 'self'), self._neutral(listener, 'address'), []
+            matched_roles = []
             for key, item in self.data['facts'].items():
                 if set((speaker, listener)) != {item['subject'], item['object']} or not self._visible(item, people):
                     continue
@@ -189,6 +203,13 @@ class RelationshipRegistry:
                 if not roles:
                     continue
                 sr, lr = roles if speaker == item['subject'] else list(reversed(roles))
+                matched_roles.append((key, item, sr, lr))
+            speaker_is_elder = any(sr in ELDER_ROLES for _, _, sr, _ in matched_roles)
+            listener_is_elder = any(lr in ELDER_ROLES for _, _, _, lr in matched_roles)
+            own = self._neutral(speaker, 'self', include_short=not speaker_is_elder)
+            address = self._neutral(listener, 'address', include_short=not listener_is_elder)
+            relations = []
+            for key, item, sr, lr in matched_roles:
                 facts[key] = self._fact(key, item)
                 relations.append({'speaker_role': self.data['roles'][sr]['label'],
                                   'listener_role': self.data['roles'][lr]['label'], 'fact': '#/facts/' + key})
@@ -200,8 +221,9 @@ class RelationshipRegistry:
                     item = self.data['facts'][rule['fact']]
                     if self._visible(item, people):
                         facts[rule['fact']] = self._fact(rule['fact'], item)
-                        own.extend(self._form(term, 'title', '#/facts/' + rule['fact'], '#/title_rules/' + str(i))
-                                   for term in rule['forms'][occasion])
+                        bucket = address if rule.get('target', 'self') == 'address' else own
+                        bucket.extend(self._form(term, 'title', '#/facts/' + rule['fact'], '#/title_rules/' + str(i))
+                                      for term in rule['forms'][occasion])
             groups.append(self._merge(own))
             targets.append({'listener': listener, 'relations': relations, 'address_candidates': self._merge(address)})
         if groups:

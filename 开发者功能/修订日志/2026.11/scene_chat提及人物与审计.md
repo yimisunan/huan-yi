@@ -1,1 +1,0 @@
-来源、修改范围、验证与回滚见scene_chat_dev/logs/step_6.md及step_6_baseline.json。

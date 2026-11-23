@@ -9,9 +9,10 @@ import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
-from flask import abort, jsonify, request
+from flask import Response, abort, jsonify, request, stream_with_context
 from werkzeug.exceptions import HTTPException
 import round_runtime as rr
+import save_store
 import relationship_query as rq
 import story_reading as sr
 import interaction_runtime as ir
@@ -32,14 +33,106 @@ REQUIRED_READS = (rr.FILES[0], RULES[0], RULES[1], RULES[2], RULES[3], 'data.jso
 REQUIRED_BROWSE = ('txt文件', 'txt文件/知识库', '存档')
 
 
+class _EventHub:
+    """In-memory pub/sub for instant worker Long-Polling and browser SSE notifications."""
+
+    def __init__(self, max_events=96):
+        self._cond = threading.Condition()
+        self._max_events = max_events
+        self.seq = 0
+        self.worker_seq = 0
+        self._events = []
+
+    def publish(self, event_type, payload=None, wake_worker=False):
+        with self._cond:
+            self.seq += 1
+            if wake_worker:
+                self.worker_seq += 1
+            self._events.append((self.seq, event_type, payload if payload is not None else {}))
+            if len(self._events) > self._max_events:
+                self._events = self._events[-self._max_events:]
+            self._cond.notify_all()
+            return self.seq
+
+    def wait_worker(self, since_seq, timeout=25.0):
+        deadline = time.monotonic() + max(0.2, min(float(timeout), 25.0))
+        with self._cond:
+            while self.worker_seq <= since_seq:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self._cond.wait(remaining)
+            return self.worker_seq
+
+    def wait_client(self, since_seq, timeout=15.0):
+        deadline = time.monotonic() + max(0.2, min(float(timeout), 20.0))
+        with self._cond:
+            while self.seq <= since_seq:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    break
+                self._cond.wait(remaining)
+            missed = [item for item in self._events if item[0] > since_seq]
+            return missed, self.seq
+
+
 class StoryService:
-    def __init__(self, root):
+    def __init__(self, root, *, tts_prewarmer=None):
         self.store = rr.RoundStore(root)
         self.root = self.store.root
         self.directory = self.store._path('.round-runtime/story')
         self.start_lock = threading.Lock()
         self.started = False
         self.service_epoch = secrets.token_hex(16)
+        self.hub = _EventHub()
+        self._stream_lock = threading.Lock()
+        self._stream_preview = {}
+        self._tts_prewarmer = tts_prewarmer
+        self._prewarmed_keys = set()
+
+    def _trigger_tts_prewarm(self, messages, *, dedup_prefix=''):
+        fn = self._tts_prewarmer
+        if not callable(fn) or not messages:
+            return
+        candidates = []
+        for idx, m in enumerate(messages):
+            if not isinstance(m, dict):
+                continue
+            kind = m.get('kind')
+            speaker = m.get('speaker', '')
+            text = (m.get('text') or '').strip()
+            if not text:
+                continue
+            if kind == 'narration':
+                voice_who = '旁白'
+            elif kind == 'dialogue' and speaker in ('沈知韫', '苏婉青', '徐念薇'):
+                voice_who = speaker
+            elif kind == 'action' and speaker in ('沈知韫', '苏婉青', '徐念薇'):
+                voice_who = '旁白'
+            else:
+                continue
+            sig = f'{dedup_prefix}:{voice_who}:{hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]}'
+            with self._stream_lock:
+                if sig in self._prewarmed_keys:
+                    continue
+                if len(self._prewarmed_keys) > 256:
+                    self._prewarmed_keys.clear()
+                self._prewarmed_keys.add(sig)
+            candidates.append({'speaker': voice_who, 'text': text})
+            if len(candidates) >= 3:
+                break
+        if candidates:
+            try:
+                fn(candidates)
+            except Exception:
+                pass
+
+    def _clear_preview(self, key=None):
+        with self._stream_lock:
+            if key is None:
+                self._stream_preview.clear()
+            else:
+                self._stream_preview.pop(key, None)
 
     def _path(self, name):
         return self.store._path('.round-runtime/story/' + name)
@@ -110,62 +203,273 @@ class StoryService:
                 if key not in {'lease', 'lease_until', 'before_panel', 'reservation', 'settlement', 'generation_model', 'created_at', 'claimed_at', 'returned_at', 'validation_started_at', 'committed_at', 'timing'}}
         timing = job.get('timing') or {}
         if isinstance(timing, dict):
-            safe_timing = {key: timing[key] for key in ('queue_ms', 'generation_ms', 'preflight_ms', 'acceptance_ms', 'generation_passes', 'model_id') if key in timing}
+            safe_timing = {key: timing[key] for key in ('queue_ms', 'generation_ms', 'settlement_ms', 'preflight_ms', 'acceptance_ms', 'generation_passes', 'settlement_passes', 'model_id', 'settlement_model_id') if key in timing}
             if safe_timing:
                 value['timing'] = safe_timing
         if job.get('reservation'):
             value['reservation'] = {'status':job['reservation']['status'], 'quote':job['reservation']['quote']}
         return value
 
+    def _expected_plugin_version(self):
+        manifest_path = self.root / 'scene_chat_dev/local.story.operit_bridge/manifest.json'
+        try:
+            st = manifest_path.stat()
+        except OSError:
+            return ''
+        cached = getattr(self, '_plugin_ver_cache', None)
+        if cached and cached[0] == st.st_mtime_ns and cached[1] == st.st_size:
+            return cached[2]
+        try:
+            ver = str(json.loads(manifest_path.read_text(encoding='utf-8')).get('version') or '').strip()
+        except Exception:
+            ver = ''
+        self._plugin_ver_cache = (st.st_mtime_ns, st.st_size, ver)
+        return ver
+
     def _bridge_view(self, state):
         now = time.time()
         monitor = state.get('bridge_monitor')
+        expected_ver = self._expected_plugin_version()
         command = dict(state['bridge_control']) if state.get('bridge_control') else None
         if command and command['status'] == 'requested' and now - command['issued_at'] > 120:
             command['status'] = 'expired'
         if not monitor:
             connected = now - state.get('bridge_seen', 0) < 45
             return {'control_supported': True, 'present': connected, 'phase': 'legacy' if connected else 'offline',
-                    'running': connected, 'busy': False, 'last_error': '', 'control': command}
+                    'running': connected, 'busy': False, 'last_error': '',
+                    'expected_plugin_version': expected_ver, 'control': command}
         present = now - monitor['received_at'] < 15
+        extra = {}
+        for opt_key in (
+            'dual_stage', 'primary_model_mode', 'primary_function_type',
+            'settlement_function_type', 'settlement_model', 'settlement_fallback',
+            'settlement_thinking', 'settlement_thinking_mode', 'available_models', 'function_bindings',
+        ):
+            if opt_key in monitor:
+                extra[opt_key] = monitor[opt_key]
+        if 'settlement_thinking_mode' not in extra and 'settlement_thinking' in extra:
+            extra['settlement_thinking_mode'] = 'on' if extra['settlement_thinking'] else 'off'
         return {'control_supported': True, 'present': present,
                 **{key: monitor[key] for key in ('running', 'busy', 'last_error', 'plugin_version')},
-                'session': monitor.get('session'),
+                'expected_plugin_version': expected_ver,
+                'session': monitor.get('session'), **extra,
                 'phase': monitor['phase'] if present else 'offline', 'control': command}
 
     def bridge_control(self, body):
         self.start()
-        rr._keys(body, {'action','session_policy'}, '桥接控制', {'action'})
-        if body['action'] not in ('start','stop','reset_session','session_policy'):
+        allowed_keys = {
+            'action', 'session_policy', 'dual_stage', 'settlement_function_type',
+            'settlement_thinking', 'settlement_thinking_mode', 'primary_model_mode', 'primary_function_type',
+            'primary_provider_id', 'primary_model_id',
+            'slot', 'provider_id', 'model_id', 'use_as_settlement', 'max_turns',
+        }
+        rr._keys(body, allowed_keys, '桥接控制', {'action'})
+        action = body['action']
+        valid_actions = (
+            'start', 'stop', 'reset_session', 'session_policy', 'dual_stage',
+            'settlement_slot', 'settlement_thinking', 'primary_model',
+            'bind_function_slot', 'max_turns',
+        )
+        if action not in valid_actions:
             raise rr.RoundError('桥接控制操作无效')
-        if body['action']=='session_policy' and body.get('session_policy') not in ('continuous','service_restart','per_action'):
-            raise rr.RoundError('会话方式无效')
-        if body['action']!='session_policy' and 'session_policy' in body:raise rr.RoundError('仅会话设置接收session_policy')
+        payload = {}
+        if action == 'session_policy':
+            if body.get('session_policy') not in ('continuous', 'service_restart', 'per_action'):
+                raise rr.RoundError('会话方式无效')
+            payload['session_policy'] = body['session_policy']
+        elif 'session_policy' in body:
+            raise rr.RoundError('仅会话设置接收session_policy')
+
+        if action == 'dual_stage':
+            if type(body.get('dual_stage')) is not bool:
+                raise rr.RoundError('双阶段模式开关须为布尔值')
+            payload['dual_stage'] = body['dual_stage']
+        elif 'dual_stage' in body:
+            raise rr.RoundError('仅双阶段控制接收dual_stage')
+
+        if action == 'settlement_slot':
+            slot = body.get('settlement_function_type')
+            if not isinstance(slot, str) or not re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', slot):
+                raise rr.RoundError('后台结算模型槽名称无效')
+            payload['settlement_function_type'] = slot
+            if 'settlement_thinking_mode' in body:
+                mode_val = body['settlement_thinking_mode']
+                if mode_val not in ('auto', 'off', 'on'):
+                    raise rr.RoundError('副模型思考模式须为 auto/off/on')
+                payload['settlement_thinking_mode'] = mode_val
+                payload['settlement_thinking'] = (mode_val == 'on')
+            elif 'settlement_thinking' in body:
+                if type(body['settlement_thinking']) is not bool:
+                    raise rr.RoundError('副模型思考开关须为布尔值')
+                payload['settlement_thinking'] = body['settlement_thinking']
+                payload['settlement_thinking_mode'] = 'on' if body['settlement_thinking'] else 'off'
+        elif 'settlement_function_type' in body:
+            raise rr.RoundError('仅结算槽设置接收settlement_function_type')
+
+        if action == 'settlement_thinking':
+            if 'settlement_thinking_mode' in body:
+                mode_val = body['settlement_thinking_mode']
+                if mode_val not in ('auto', 'off', 'on'):
+                    raise rr.RoundError('副模型思考模式须为 auto/off/on')
+                payload['settlement_thinking_mode'] = mode_val
+                payload['settlement_thinking'] = (mode_val == 'on')
+            else:
+                if type(body.get('settlement_thinking')) is not bool:
+                    raise rr.RoundError('副模型思考开关须为布尔值')
+                payload['settlement_thinking'] = body['settlement_thinking']
+                payload['settlement_thinking_mode'] = 'on' if body['settlement_thinking'] else 'off'
+        elif action != 'settlement_slot' and ('settlement_thinking' in body or 'settlement_thinking_mode' in body):
+            raise rr.RoundError('仅副模型设置接收settlement_thinking')
+
+        if action == 'primary_model':
+            mode = body.get('primary_model_mode')
+            if mode not in ('slot', 'fixed'):
+                raise rr.RoundError('主模型模式须为slot或fixed')
+            payload['primary_model_mode'] = mode
+            if mode == 'slot':
+                slot = body.get('primary_function_type', 'CHAT')
+                if not isinstance(slot, str) or not re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', slot):
+                    raise rr.RoundError('主模型功能槽名称无效')
+                payload['primary_function_type'] = slot
+            else:
+                prov = body.get('primary_provider_id')
+                mod = body.get('primary_model_id')
+                if not isinstance(prov, str) or not prov.strip() or len(prov) > 256:
+                    raise rr.RoundError('主模型服务商标识无效')
+                if not isinstance(mod, str) or not mod.strip() or len(mod) > 256:
+                    raise rr.RoundError('主模型标识无效')
+                payload['primary_provider_id'] = prov.strip()
+                payload['primary_model_id'] = mod.strip()
+        elif any(k in body for k in ('primary_model_mode', 'primary_function_type', 'primary_provider_id', 'primary_model_id')):
+            raise rr.RoundError('仅主模型设置接收主模型参数')
+
+        if action == 'bind_function_slot':
+            slot = body.get('slot')
+            prov = body.get('provider_id')
+            mod = body.get('model_id')
+            if not isinstance(slot, str) or not re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', slot):
+                raise rr.RoundError('目标功能槽名称无效')
+            if not isinstance(prov, str) or not prov.strip() or len(prov) > 256:
+                raise rr.RoundError('目标服务商标识无效')
+            if not isinstance(mod, str) or not mod.strip() or len(mod) > 256:
+                raise rr.RoundError('目标模型标识无效')
+            payload['slot'] = slot
+            payload['provider_id'] = prov.strip()
+            payload['model_id'] = mod.strip()
+            if 'use_as_settlement' in body:
+                if type(body['use_as_settlement']) is not bool:
+                    raise rr.RoundError('use_as_settlement须为布尔值')
+                payload['use_as_settlement'] = body['use_as_settlement']
+        elif any(k in body for k in ('slot', 'provider_id', 'model_id', 'use_as_settlement')):
+            raise rr.RoundError('仅功能槽绑定操作接收slot/provider_id/model_id')
+
+        if action == 'max_turns':
+            turns = body.get('max_turns')
+            if type(turns) is not int or turns < 2 or turns > 30:
+                raise rr.RoundError('自动切窗轮数须为2～30之间的整数')
+            payload['max_turns'] = turns
+        elif 'max_turns' in body:
+            raise rr.RoundError('仅切窗设置接收max_turns')
+
+        # Ensure no unexpected leftover keys for actions without extra fields.
+        if set(body.keys()) - {'action', *payload.keys()}:
+            raise rr.RoundError('桥接控制包含不支持的参数组合')
+
+        idle_only_actions = (
+            'reset_session', 'session_policy', 'dual_stage', 'settlement_slot',
+            'settlement_thinking', 'primary_model', 'bind_function_slot', 'max_turns',
+        )
         with self.store._locked():
             state = self._read()
-            if body['action'] in ('reset_session','session_policy') and any(j['status'] in ACTIVE or j['status'] in ('preparing','refund_pending') for j in state['jobs'].values()):
-                raise rr.ConflictError('请等待当前行动结束后调整会话')
+            if action in idle_only_actions and any(
+                    j['status'] in ACTIVE or j['status'] in ('preparing', 'refund_pending') for j in state['jobs'].values()):
+                raise rr.ConflictError('请等待当前行动结束后调整会话或模型配置')
             previous = state.get('bridge_control')
-            if not (previous and previous['action'] == body['action'] and previous.get('session_policy')==body.get('session_policy') and previous['status'] == 'requested'
-                    and time.time() - previous['issued_at'] <= 120):
-                state['bridge_control'] = {'id': secrets.token_hex(16), 'action': body['action'],
+            prev_payload = {k: v for k, v in previous.items() if k not in ('id', 'action', 'issued_at', 'status', 'completed_at', 'error')} if isinstance(previous, dict) else None
+            same_cmd = (previous and previous['action'] == action
+                        and prev_payload == payload
+                        and previous['status'] == 'requested'
+                        and time.time() - previous['issued_at'] <= 120)
+            if not same_cmd:
+                state['bridge_control'] = {
+                    'id': secrets.token_hex(16), 'action': action,
                     'issued_at': time.time(), 'status': 'requested',
-                    **({'session_policy':body['session_policy']} if body['action']=='session_policy' else {})}
+                    **payload,
+                }
                 self._write(state)
-            return self._status(state)
+            result = self._status(state)
+        self.hub.publish('bridge_control', {'action': action}, wake_worker=True)
+        return result
 
     def worker_control(self, body):
         self.start()
         rr._keys(body, {'runtime', 'ack_id', 'ack_error'}, '桥接状态', {'runtime'})
         runtime = body['runtime']
         fields = {'phase', 'running', 'busy', 'last_error', 'plugin_version', 'model'}
-        rr._keys(runtime, fields | {'session'}, 'runtime', fields)
+        opt_fields = {
+            'session', 'dual_stage', 'primary_model_mode', 'primary_function_type',
+            'settlement_function_type', 'settlement_model', 'settlement_fallback',
+            'settlement_thinking', 'settlement_thinking_mode', 'available_models', 'function_bindings',
+        }
+        rr._keys(runtime, fields | opt_fields, 'runtime', fields)
         if runtime.get('session') is not None:
-            session=runtime['session'];sf={'policy','chat_id','generation','reset_reason'}
-            rr._keys(session,sf,'session',sf)
-            if session['policy'] not in ('continuous','service_restart','per_action') or type(session['generation']) is not int or session['generation']<0:
+            session = runtime['session']
+            sf = {'policy', 'chat_id', 'generation', 'reset_reason'}
+            sf_opt = {'turn_count', 'max_turns'}
+            rr._keys(session, sf | sf_opt, 'session', sf)
+            if session['policy'] not in ('continuous', 'service_restart', 'per_action') or type(session['generation']) is not int or session['generation'] < 0:
                 raise rr.RoundError('桥接会话状态无效')
-            if any(not isinstance(session[k],str) or len(session[k])>200 for k in ('chat_id','reset_reason')):raise rr.RoundError('桥接会话标识无效')
+            if any(not isinstance(session[k], str) or len(session[k]) > 200 for k in ('chat_id', 'reset_reason')):
+                raise rr.RoundError('桥接会话标识无效')
+            for k in ('turn_count', 'max_turns'):
+                if k in session and (type(session[k]) is not int or session[k] < 0):
+                    raise rr.RoundError('桥接会话计数无效')
+        if 'dual_stage' in runtime and type(runtime['dual_stage']) is not bool:
+            raise rr.RoundError('双阶段状态须为布尔值')
+        if 'settlement_fallback' in runtime and type(runtime['settlement_fallback']) is not bool:
+            raise rr.RoundError('后台结算回退标记须为布尔值')
+        if 'settlement_thinking' in runtime and type(runtime['settlement_thinking']) is not bool:
+            raise rr.RoundError('副模型思考标记须为布尔值')
+        if 'settlement_thinking_mode' in runtime and runtime['settlement_thinking_mode'] not in ('auto', 'off', 'on'):
+            raise rr.RoundError('副模型思考模式无效')
+        if 'primary_model_mode' in runtime and runtime['primary_model_mode'] not in ('slot', 'fixed'):
+            raise rr.RoundError('主模型模式无效')
+        if 'primary_function_type' in runtime:
+            pft = runtime['primary_function_type']
+            if not isinstance(pft, str) or not re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', pft):
+                raise rr.RoundError('主模型槽位标识无效')
+        if 'settlement_function_type' in runtime:
+            sft = runtime['settlement_function_type']
+            if not isinstance(sft, str) or not re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', sft):
+                raise rr.RoundError('后台结算槽位标识无效')
+        clean_available_models = None
+        if 'available_models' in runtime:
+            raw_models = runtime['available_models']
+            if not isinstance(raw_models, list) or len(raw_models) > 120:
+                raise rr.RoundError('可用模型列表无效')
+            clean_available_models = []
+            for item in raw_models:
+                if not isinstance(item, dict):
+                    raise rr.RoundError('可用模型项无效')
+                rr._keys(item, {'provider_id', 'provider_name', 'model_id'}, '可用模型项', {'provider_id', 'provider_name', 'model_id'})
+                if any(not isinstance(item[k], str) or not item[k] or len(item[k]) > 256 for k in ('provider_id', 'provider_name', 'model_id')):
+                    raise rr.RoundError('可用模型字段无效')
+                clean_available_models.append({k: item[k] for k in ('provider_id', 'provider_name', 'model_id')})
+        clean_function_bindings = None
+        if 'function_bindings' in runtime:
+            raw_bindings = runtime['function_bindings']
+            if not isinstance(raw_bindings, list) or len(raw_bindings) > 32:
+                raise rr.RoundError('功能槽绑定列表无效')
+            clean_function_bindings = []
+            for item in raw_bindings:
+                if not isinstance(item, dict):
+                    raise rr.RoundError('功能槽绑定项无效')
+                rr._keys(item, {'function_type', 'provider_id', 'provider_name', 'model_id'}, '功能槽绑定项', {'function_type', 'provider_id', 'provider_name', 'model_id'})
+                if not isinstance(item['function_type'], str) or not re.fullmatch(r'[A-Z][A-Z0-9_]{0,63}', item['function_type']):
+                    raise rr.RoundError('功能槽名称无效')
+                if any(not isinstance(item[k], str) or len(item[k]) > 256 for k in ('provider_id', 'provider_name', 'model_id')):
+                    raise rr.RoundError('功能槽模型字段无效')
+                clean_function_bindings.append({k: item[k] for k in ('function_type', 'provider_id', 'provider_name', 'model_id')})
         if runtime['phase'] not in ('ready', 'paused', 'starting', 'generating', 'error'):
             raise rr.RoundError('桥接运行阶段无效')
         if type(runtime['running']) is not bool or type(runtime['busy']) is not bool:
@@ -179,21 +483,41 @@ class StoryService:
         if not isinstance(body.get('ack_error', ''), str) or len(body.get('ack_error', '')) > 500:
             raise rr.RoundError('桥接控制错误回执无效')
         model = self._model(runtime['model'])
+        settlement_model = self._model(runtime.get('settlement_model')) if runtime.get('settlement_model') is not None else None
+        changed = False
         with self.store._locked():
             state = self._read()
-            state['bridge_monitor'] = {**runtime, 'model': model, 'received_at': time.time()}
+            prev = state.get('bridge_monitor') or {}
+            clean_runtime = {**runtime, 'model': model}
+            if 'settlement_model' in runtime:
+                clean_runtime['settlement_model'] = settlement_model
+            if clean_available_models is not None:
+                clean_runtime['available_models'] = clean_available_models
+            if clean_function_bindings is not None:
+                clean_runtime['function_bindings'] = clean_function_bindings
+            changed = any(prev.get(k) != clean_runtime.get(k) for k in (
+                'phase', 'running', 'busy', 'last_error', 'plugin_version', 'model',
+                'session', 'dual_stage', 'primary_model_mode', 'primary_function_type',
+                'settlement_function_type', 'settlement_model', 'settlement_fallback',
+                'settlement_thinking', 'settlement_thinking_mode', 'available_models', 'function_bindings',
+            ))
+            state['bridge_monitor'] = {**clean_runtime, 'received_at': time.time()}
             state['bridge_model'] = model
             command = state.get('bridge_control')
             if command and command['id'] == body.get('ack_id') and command['status'] == 'requested':
                 command.update(status='failed' if body.get('ack_error') else 'applied', completed_at=time.time())
                 if body.get('ack_error'):
                     command['error'] = body['ack_error']
+                changed = True
             if runtime['running'] and runtime['phase'] in ('ready', 'generating') and not runtime['last_error']:
                 state['bridge_seen'] = time.time()
             self._write(state)
             pending = self._bridge_view(state)['control']
-            return {'command': pending if pending and pending['status'] == 'requested' else None,
-                    'story_protocol': STORY_PROTOCOL}
+            response = {'command': pending if pending and pending['status'] == 'requested' else None,
+                        'story_protocol': STORY_PROTOCOL, 'service_epoch': self.service_epoch}
+        if changed:
+            self.hub.publish('bridge_state', {'phase': runtime['phase'], 'running': runtime['running']})
+        return response
 
     def _status(self, state):
         bridge = self._bridge_view(state)
@@ -201,7 +525,8 @@ class StoryService:
         return {'task': self._public(state['jobs'].get(state['latest'])),
                 'bridge_connected': bool(connected), 'bridge': bridge,
                 'reading_preflight': 1, 'live_reading_revision': 2, 'action_contract_revision':1,
-                'material_delivery_revision': 1,
+                'material_delivery_revision': 1, 'material_delivery_v2': 1,
+                'dual_stage_protocol': 1, 'worker_wait_supported': True, 'sse_supported': True,
                 'service_epoch':self.service_epoch,
                 'story_protocol': STORY_PROTOCOL, 'bridge_model': state.get('bridge_model'),
                 'save_epoch': self._save_epoch(), 'interaction_protocol': 3 if sp.enabled(self.root) else 2}
@@ -224,7 +549,19 @@ class StoryService:
             state = self._read()
             self._expire(state)
             raw = files.get('data.json')
-            data = json.loads(raw) if raw else {'round': 0, 'storyNodes': []}
+            if raw:
+                data = json.loads(raw)
+            else:
+                st, _, _ = save_store.load_bundle(self.root, files)
+                rt = st.get('runtime') or {}
+                data = {
+                    'round': rt.get('memory_round', 0),
+                    'storyNodes': [],
+                    'presence': st.get('presence', {}),
+                    'sceneTitle': (st.get('presence', {}).get('徐志北') or {}).get('location', '徐家主宅'),
+                    'story_runtime': {k: rt[k] for k in ('clock', 'memory_round', 'last_closed', 'phase', 'item_recovered', 'action_index', 'closed_by') if k in rt},
+                    **({'prologue': rt['prologue']} if rt.get('prologue') else {}),
+                }
             revision = rr._revision(files)
             job = state['jobs'].get(state['latest'])
             settlement = None
@@ -244,30 +581,37 @@ class StoryService:
         rr._keys(body, {'request_id', 'save_epoch', 'confirm'}, 'new_game', {'request_id', 'save_epoch', 'confirm'})
         if body['confirm'] != 'new_game' or not isinstance(body['request_id'], str) or not re.fullmatch(r'[A-Za-z0-9-]{1,100}', body['request_id']):
             raise rr.RoundError('新档确认信息无效')
-        with self.store._locked():
-            epoch = self._save_epoch()
-            ep = self.store._path('.round-runtime/save-epoch.json')
-            if ep.exists() and json.loads(ep.read_bytes()).get('request_id') == body['request_id']:
-                return {'status': 'reset', 'save_epoch': epoch, 'replayed': True}
-            if epoch != body['save_epoch']:
-                raise rr.ConflictError('当前存档已改变，请刷新后重新确认新档')
-            state = self._read()
-            self._expire(state)
-            experimental = getattr(self, 'experimental', None)
-            if experimental is not None:
-                with experimental.lock, experimental.db() as db:
-                    experimental.expire(db)
-                    if db.execute("SELECT 1 FROM jobs WHERE status IN ('queued','generating')").fetchone():
-                        raise rr.ConflictError('实验入口仍有请求在处理，请结束后再开新档')
-            if any(j['status'] in ACTIVE for j in state['jobs'].values()) or self._bridge_view(state).get('busy'):
-                raise rr.ConflictError('仍有行动在处理，请等待完成并暂停桥接后再开新档')
-            import importlib.util
-            spec = importlib.util.spec_from_file_location('_game_cleaner', self.root / '存档清理器.py')
-            cleaner = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(cleaner)
-            cleaner._reset_files(self.root, keep_backup=True, request_id=body['request_id'])
-            data = json.loads(self.store._files()['data.json'] or b'{}')
-            return {'status': 'reset', 'save_epoch': self._save_epoch(), 'replayed': False, 'prologue':data.get('prologue')}
+        experimental = getattr(self, 'experimental', None)
+        from contextlib import nullcontext
+        exp_ctx = experimental.lock if experimental is not None else nullcontext()
+        with exp_ctx:
+            with self.store._locked():
+                epoch = self._save_epoch()
+                ep = self.store._path('.round-runtime/save-epoch.json')
+                if ep.exists() and json.loads(ep.read_bytes()).get('request_id') == body['request_id']:
+                    return {'status': 'reset', 'save_epoch': epoch, 'replayed': True}
+                if epoch != body['save_epoch']:
+                    raise rr.ConflictError('当前存档已改变，请刷新后重新确认新档')
+                state = self._read()
+                self._expire(state)
+                if experimental is not None:
+                    with experimental.db() as db:
+                        experimental.expire(db)
+                        if db.execute("SELECT 1 FROM jobs WHERE status IN ('queued','generating')").fetchone():
+                            raise rr.ConflictError('实验入口仍有请求在处理，请结束后再开新档')
+                blocking_statuses = ACTIVE - {'refund_pending'}
+                if any(j['status'] in blocking_statuses for j in state['jobs'].values()) or self._bridge_view(state).get('busy'):
+                    raise rr.ConflictError('仍有行动在处理，请等待完成并暂停桥接后再开新档')
+                import importlib.util
+                spec = importlib.util.spec_from_file_location('_game_cleaner', self.root / '存档清理器.py')
+                cleaner = importlib.util.module_from_spec(spec)
+                spec.loader.exec_module(cleaner)
+                cleaner._reset_files(self.root, keep_backup=True, request_id=body['request_id'])
+                data = json.loads(self.store._files()['data.json'] or b'{}')
+                self._clear_preview()
+                result = {'status': 'reset', 'save_epoch': self._save_epoch(), 'replayed': False, 'prologue':data.get('prologue')}
+        self.hub.publish('save_reset', {'save_epoch': result['save_epoch']})
+        return result
 
     def interaction_snapshot(self, before=None):
         self.start()
@@ -277,17 +621,16 @@ class StoryService:
             files = self.store._files()
             current = ir.segment(self.root, files)
             progress = ir.playback(self.root, current)
-            paths = ir.records(self.store)
+            rows = ir.recent_rows(self.store, files)
             if before is not None:
                 try:
                     boundary = int(before)
                 except (TypeError, ValueError) as exc:
                     raise rr.RoundError('历史游标无效') from exc
-                paths = [p for p in paths if int(p.stem) < boundary]
-            selected = paths[-60:]
+                rows = [pair for pair in rows if int(pair[1].get('sequence', 0)) < boundary]
+            selected = rows[-60:]
             history = []
-            for p in selected:
-                value = rr.load_request(p.read_text(encoding='utf-8'))
+            for _p, value in selected:
                 public = {k: v for k, v in value.items() if k not in ('audit', 'before_world', 'resolution')}
                 if current and value['id'] == current['id'] and not progress['completed']:
                     public['messages'] = public['messages'][:progress['revealed']]
@@ -295,31 +638,117 @@ class StoryService:
                     public.pop('decision', None)
                     public.pop('settlement', None)
                 history.append(public)
-            world = current['before_world'] if current and not progress['completed'] else ir.view(self.store, files)
+            world = current['before_world'] if (current and not progress['completed'] and current.get('before_world')) else ir.view(self.store, files)
             settlement = current.get('settlement') if current and progress['completed'] else None
+            latest_job = state['jobs'].get(state['latest'])
+            preview = None
+            if latest_job and latest_job.get('status') in ('generating', 'validating'):
+                with self._stream_lock:
+                    raw_preview = self._stream_preview.get(latest_job['request_id'])
+                    if raw_preview:
+                        preview = dict(raw_preview)
             return {'world': world, 'settlement':settlement, 'playback': progress, 'history': history,
-                    'has_older': len(paths) > len(selected),
+                    'has_older': len(rows) > len(selected), 'stream_preview': preview,
+                    'preferences': ir.load_story_prefs(self.root),
                     'revision': rr._revision(files), 'state_version': self.store._ledger()['sequence'],
                     **self._status(state)}
 
+    def update_preferences(self, body):
+        self.start()
+        with self.store._locked():
+            prefs = ir.save_story_prefs(self.root, body)
+        self.hub.publish('preferences_updated', prefs)
+        return {'preferences': prefs}
+
     def playback_progress(self, body):
         self.start()
-        rr._keys(body, {'save_epoch', 'segment_id', 'revealed', 'completed'}, 'playback', {'save_epoch', 'segment_id', 'revealed', 'completed'})
+        rr._keys(body, {'save_epoch', 'segment_id', 'revealed', 'completed', 'catchup'}, 'playback',
+                 {'save_epoch', 'segment_id', 'revealed', 'completed'})
+        catchup = bool(body.get('catchup', False))
+        if 'catchup' in body and type(body['catchup']) is not bool:
+            raise rr.RoundError('演播追平标记须为布尔值')
         with self.store._locked():
             if body['save_epoch'] != self._save_epoch():
                 raise rr.ConflictError('已切换新档，旧演播进度无效')
             row = ir.segment(self.root, self.store._files())
             if not row or row['id'] != body['segment_id']:
                 raise rr.ConflictError('本段已更新，旧演播进度无效')
-            ir.update_playback(self.store, row, body['revealed'], body['completed'])
+            ir.update_playback(self.store, row, body['revealed'], body['completed'], allow_catchup=catchup)
         return self.interaction_snapshot()
+
+    def shop_view(self):
+        self.start()
+        with self.store._locked():
+            files = self.store._files()
+            memory = (files[rr.FILES[0]] or b'').decode('utf-8')
+            engine = rr._engine(self.root, self.root)
+            points = engine._read_attr_value(memory, '系统宿主', '积分')
+            shop_state = sp.parse_shop_echo_block(memory)
+            catalog = sp.load_shop_catalog(self.root, optional=True)
+            row = ir.segment(self.root, files)
+            prog = ir.playback(self.root, row)
+            state = self._read()
+            self._expire(state)
+            busy = any(j['status'] in ACTIVE for j in state['jobs'].values())
+            can_transact = (not busy) and (row is None or prog['completed'])
+            items = []
+            for item in catalog['items']:
+                bought = shop_state['redeemed'].get(item['id'], 0)
+                cap = item['max_per_save']
+                remaining = None if cap is None else max(0, cap - bought)
+                items.append({
+                    **item,
+                    'redeemed_count': bought,
+                    'remaining': remaining,
+                    'sold_out': cap is not None and bought >= cap,
+                    'affordable': (points or 0) >= item['price'],
+                })
+            return {
+                'version': catalog['version'],
+                'tiers': catalog['tiers'],
+                'items': items,
+                'points': points if points is not None else 0,
+                'recent': shop_state['recent'],
+                'can_transact': can_transact,
+                'busy': busy,
+                'revision': rr._revision(files),
+                'save_epoch': self._save_epoch(),
+            }
+
+    def redeem_shop(self, body):
+        result = sp.redeem_shop_item(self, body)
+        self.hub.publish('committed', {'request_id': result['receipt']['request_id'], 'kind': 'shop_redeem'})
+        return {**result, 'snapshot': self.interaction_snapshot()}
+
+    def claim_task_reward(self, body):
+        result = sp.claim_task_reward(self, body)
+        self.hub.publish('committed', {'request_id': result['receipt']['request_id'], 'kind': 'task_claim'})
+        return {**result, 'snapshot': self.interaction_snapshot()}
+
+    def upgrade_passive(self, body):
+        result = sp.upgrade_passive_skill(self, body)
+        self.hub.publish('committed', {'request_id': result['receipt']['request_id'], 'kind': 'passive_upgrade'})
+        return {**result, 'snapshot': self.interaction_snapshot()}
+
+    def acquire_intel(self, body):
+        result = sp.acquire_intel(self, body)
+        self.hub.publish('committed', {'request_id': result['receipt']['request_id'], 'kind': 'intel_acquire'})
+        return {**result, 'snapshot': self.interaction_snapshot()}
+
+    def toggle_leverage(self, body):
+        result = sp.toggle_business_leverage(self, body)
+        self.hub.publish('committed', {'request_id': result['receipt']['request_id'], 'kind': 'business_leverage'})
+        return {**result, 'snapshot': self.interaction_snapshot()}
 
     def _context(self, prepared, request_id, action, previous_error="", entry_mode=None, command=None, selected=None):
         if entry_mode == ir.MODE:
             return ir.packet(self, prepared, request_id, action, command, previous_error, selected)
         audit = {}
         for name in (*RULES, *rr.FILES):
-            raw = self.store._path(name).read_bytes()
+            path = self.store._path(name)
+            if not path.is_file():
+                continue
+            raw = path.read_bytes()
             audit[name] = hashlib.sha256(raw).hexdigest()
         try:
             relationship_rows = rq.RelationshipRegistry(self.root).verify_view()
@@ -349,8 +778,6 @@ class StoryService:
         node_keys = rr.load_request(match.group(1))
         engine = rr._engine(self.root, self.root)
         known = set(engine.DEFAULT_PRESENCE) | {'徐承邺'}
-        known.update(rr.re.findall(r'^【NPC名称】：[ \t]*([^\s\r\n][^\r\n]*)',
-                                  prepared['snapshot'][rr.FILES[2]] or '', rr.re.M))
         output_contract = {
             'fixed_fields': identity,
             'required_top_keys': sorted(rr.REQUIRED | {'system_log', 'options_text'}),
@@ -413,7 +840,7 @@ class StoryService:
         policy = {'required_reads': required, 'required_browse': list(REQUIRED_BROWSE),
                    'version': sr.VERSION, 'required_keys': sorted(key for key, item in bundle['entries'].items() if item.get('always_required')), 'first_read_order': [item['path'] for item in required[:3]],
                   'canonical_roots': ['txt文件', '存档'],
-                  'excluded_roots': ['开发者功能', '.backup', '.operit', '.round-runtime',
+                  'excluded_roots': ['开发者说明', '开发者功能', '.backup', '.operit', '.round-runtime',
                                      'Operit世界书导出', '日志', '__pycache__', 'vosi', '语音仓库'],
                   'relationship_queries': {'path': rq.VIEW, 'header_line': 1,
                        'key_lines': {row['key']: line for line, row in enumerate(relationship_rows[1:], 2)},
@@ -460,7 +887,7 @@ class StoryService:
             raise rr.RoundError('工具读取越出项目工作区')
         relative = path.as_posix()
         first = path.parts[0] if path.parts else ''
-        if (first in {'开发者功能', '.backup', '.operit', '.round-runtime', 'Operit世界书导出',
+        if (first in {'开发者说明', '开发者功能', '.backup', '.operit', '.round-runtime', 'Operit世界书导出',
                       '日志', '__pycache__', 'vosi', '语音仓库'}
                 or any('.into-backup-' in part for part in path.parts)):
             raise rr.RoundError('工具读取了非运行数据源: ' + relative)
@@ -631,7 +1058,7 @@ class StoryService:
         coverage = self._read_coverage(records)
         available, fingerprints = {}, {}
         mapped = {rr.FILES[0]: 'state.memory', RULES[0]: 'contract.inject',
-                  RULES[1]: 'gate.V1', rr.FILES[1]: 'item.catalog', rr.FILES[2]: 'npc.minor',
+                  RULES[1]: 'gate.V1', rr.FILES[1]: 'item.catalog',
                   'txt文件/事件注册表.json': 'contract.events'}
         for relative, reached in coverage.items():
             path = self.store._path(relative)
@@ -760,7 +1187,13 @@ class StoryService:
 
     def create(self, body):
         if isinstance(body,dict) and body.get('entry_mode')==ir.MODE and sp.enabled(self.root):
-            return sp.create(self,body)
+            res = sp.create(self,body)
+            task = (res or {}).get('task') or {}
+            status = task.get('status')
+            self.hub.publish('committed' if status == 'committed' else 'task_state',
+                             {'request_id': task.get('request_id'), 'status': status},
+                             wake_worker=(status == 'queued'))
+            return res
         self.start()
         if (not isinstance(body, dict) or not {'request_id', 'base_revision', 'action'} <= set(body)
                 or set(body) - {'request_id', 'base_revision', 'action', 'model_key', 'entry_mode', 'operation', 'save_epoch', 'selection'}):
@@ -818,14 +1251,20 @@ class StoryService:
             state['jobs'][key] = job
             state['latest'] = key
             self._write(state)
-            return {'task': self._public(job)}
+            pub = {'task': self._public(job)}
+        self.hub.publish('task_state', {'request_id': key, 'status': 'queued'}, wake_worker=True)
+        return pub
 
     def retry(self, key, body=None):
         self.start()
         with self.store._locked():
             existing=self._read()['jobs'].get(key)
         if existing and existing.get('reservation'):
-            return sp.retry(self,key,body or {})
+            res = sp.retry(self,key,body or {})
+            task = (res or {}).get('task') or {}
+            self.hub.publish('task_state', {'request_id': task.get('request_id'), 'status': task.get('status')},
+                             wake_worker=(task.get('status') == 'queued'))
+            return res
         model_key = self._model_key(body or {})
         with self.store._locked():
             state = self._read()
@@ -868,7 +1307,9 @@ class StoryService:
             job.update(status='queued', error='', lease=None, cost_preview=context.get('cost_preview'))
             state['latest'] = key
             self._write(state)
-            return {'task': self._public(job)}
+            pub = {'task': self._public(job)}
+        self.hub.publish('task_state', {'request_id': key, 'status': 'queued'}, wake_worker=True)
+        return pub
 
     def bridge_info(self):
         with self.store._locked():
@@ -883,6 +1324,42 @@ class StoryService:
             abort(403)
         if not hmac.compare_digest(str(token), str(json.loads(path.read_bytes())['token'])):
             abort(403)
+
+    def _pending_flags(self):
+        has_task = False
+        has_control = False
+        with self.store._locked():
+            state = self._read()
+            self._expire(state)
+            job = state['jobs'].get(state['latest'])
+            if job and job.get('status') == 'queued':
+                has_task = True
+            cmd = self._bridge_view(state).get('control')
+            if cmd and cmd.get('status') == 'requested':
+                has_control = True
+        if not has_task:
+            experimental = getattr(self, 'experimental', None)
+            if experimental is not None:
+                with experimental.lock, experimental.db() as db:
+                    experimental.expire(db)
+                    if db.execute("SELECT 1 FROM jobs WHERE status='queued' LIMIT 1").fetchone():
+                        has_task = True
+        return has_task, has_control
+
+    def worker_wait(self, since_seq=0, timeout=25.0):
+        self.start()
+        has_task, has_control = self._pending_flags()
+        if has_task or has_control:
+            seq = self.hub.worker_seq
+            reason = 'task' if has_task else 'control'
+            return {'wake': True, 'reason': reason, 'seq': seq, 'worker_seq': seq,
+                    'has_task': has_task, 'has_control': has_control, 'service_epoch': self.service_epoch}
+        seq = self.hub.wait_worker(since_seq, timeout=timeout)
+        has_task, has_control = self._pending_flags()
+        wake = has_task or has_control or seq > since_seq
+        reason = 'task' if has_task else ('control' if has_control else ('event' if seq > since_seq else 'timeout'))
+        return {'wake': wake, 'reason': reason, 'seq': seq, 'worker_seq': seq,
+                'has_task': has_task, 'has_control': has_control, 'service_epoch': self.service_epoch}
 
     def claim(self, body=None):
         self.start()
@@ -921,17 +1398,23 @@ class StoryService:
             job.update(status='generating', lease=secrets.token_urlsafe(24),
                        lease_until=time.time() + LEASE_SECONDS, attempt=job['attempt'] + 1)
             self._write(state)
-            return {'task': {'request_id': job['request_id'], 'lease': job['lease'],
+            self._clear_preview(job['request_id'])
+            claimed = {'task': {'request_id': job['request_id'], 'lease': job['lease'],
                              'turns': context['turns'], 'model_key': model['key'] if model else None,
                               'previous_validation_error':context.get('previous_validation_error',''),
                               'service_epoch':self.service_epoch,'attempt':job['attempt'],'live_reading_revision':2,'action_contract_revision':1,
                               'material_delivery_revision': 1 if job.get('entry_mode') == ir.MODE else 0,
+                              'material_delivery_v2': 1 if job.get('entry_mode') == ir.MODE else 0,
+                              'dual_stage_protocol': 1 if job.get('entry_mode') == ir.MODE else 0,
+                              'resume_stage2': bool(job.get('resume_stage2')),
                               'entry_mode': job.get('entry_mode'), 'save_epoch': self._save_epoch(),
                               'interaction_scope': context.get('interaction_scope'),
                               'packet_bytes': self.store._path(context['packet']['path']).stat().st_size if context.get('packet') else 0,
                               'story_protocol': STORY_PROTOCOL, 'reading_preflight': 1,
                               'round_identity': {'schema_version': 1, **{field: job[field] for field in
                                   ('request_id', 'base_revision', 'current_round')}}}}
+        self.hub.publish('task_state', {'request_id': job['request_id'], 'status': 'generating'})
+        return claimed
 
     def _leased(self, state, key, lease):
         job = state['jobs'].get(key)
@@ -943,12 +1426,15 @@ class StoryService:
                 sp.refund(self,state,job,'interrupted','生成租约已过期，预扣已返还。')
             else: job.update(status='interrupted', lease=None, error='生成连接已过期，可重试')
             self._write(state)
+            self._clear_preview(key)
             raise rr.ConflictError('生成租约已过期，结果未写入')
         return job
 
     def material(self, key, body):
         self.start()
-        rr._keys(body, {'lease', 'chat_id', 'participant_id'}, '程序资料交付',
+        opt_keys = {'delivery_version', 'protocol_mode', 'synced_zone0_sha256',
+                    'synced_zone1_sha256', 'last_committed_sequence', 'is_fresh_session'}
+        rr._keys(body, {'lease', 'chat_id', 'participant_id'} | opt_keys, '程序资料交付',
                  {'lease', 'chat_id', 'participant_id'})
         for field in ('chat_id', 'participant_id'):
             if not isinstance(body[field], str) or not 1 <= len(body[field]) <= 200:
@@ -958,7 +1444,65 @@ class StoryService:
             job = self._leased(state, key, body['lease'])
             if job['status'] != 'generating' or job.get('entry_mode') != ir.MODE:
                 raise rr.ConflictError('仅生成中的正式任务可领取资料')
+            if body.get('delivery_version') == 2:
+                return ir.material_delivery_v2(self, key, job, body['chat_id'], body['participant_id'], options=body)
             return ir.material_delivery(self, key, job, body['chat_id'], body['participant_id'])
+
+    def stream_chunk(self, key, body):
+        """Accept transient in-memory streaming preview nodes; never persists to RoundStore."""
+        self.start()
+        rr._keys(body, {'lease', 'stage', 'messages', 'revision'}, '流式预览', {'lease', 'stage'})
+        stage = body['stage']
+        if stage not in ('thinking', 'streaming', 'settling', 'settling_retry'):
+            raise rr.RoundError('流式阶段无效')
+        revision = body.get('revision', 0)
+        if type(revision) is not int or revision < 0:
+            raise rr.RoundError('流式版本号无效')
+        raw_msgs = body.get('messages', [])
+        if not isinstance(raw_msgs, list) or len(raw_msgs) > 1000:
+            raise rr.RoundError('流式消息列表无效')
+        with self.store._locked():
+            state = self._read()
+            job = self._leased(state, key, body['lease'])
+            if job['status'] != 'generating' or job.get('entry_mode') != ir.MODE:
+                raise rr.ConflictError('仅生成中的正式任务可推送流式预览')
+            context = json.loads(self._blob(key, '.context.json').read_bytes())
+            allowed_cast = set(context.get('cast', []))
+            allow_player_dlg = ir.load_story_prefs(self.root)['protagonist_style'] == 'faithful'
+        clean_msgs = []
+        player_dlg_seen = 0
+        for m in raw_msgs:
+            if not isinstance(m, dict):
+                continue
+            kind, speaker, text = m.get('kind'), m.get('speaker', ''), m.get('text', '')
+            if kind not in ('dialogue', 'action', 'narration') or not isinstance(speaker, str) or not isinstance(text, str):
+                continue
+            text = ir.sc.strip_preview_decision_leak(text.strip())
+            if not text or len(text) > 4000:
+                continue
+            if kind == 'narration':
+                speaker = ''
+            elif kind == 'dialogue':
+                if speaker == '徐志北':
+                    if not allow_player_dlg or player_dlg_seen >= ir.sc.MAX_PLAYER_DIALOGUE_PER_TURN:
+                        continue
+                    player_dlg_seen += 1
+                elif speaker not in allowed_cast:
+                    continue
+            elif kind == 'action' and speaker not in (allowed_cast | {'徐志北'}):
+                continue
+            clean_msgs.append({'kind': kind, 'speaker': speaker, 'text': text})
+        preview = {'request_id': key, 'stage': stage, 'messages': clean_msgs,
+                   'revision': revision, 'updated_at': time.time()}
+        with self._stream_lock:
+            old = self._stream_preview.get(key)
+            if old and revision < old.get('revision', 0):
+                return {'ok': True, 'ignored': True}
+            self._stream_preview[key] = preview
+        self.hub.publish('story_stream', preview)
+        if clean_msgs and stage in ('streaming', 'settling'):
+            self._trigger_tts_prewarm(clean_msgs[:5], dedup_prefix=key)
+        return {'ok': True, 'count': len(clean_msgs)}
 
     def heartbeat(self, key, lease):
         with self.store._locked():
@@ -1024,7 +1568,7 @@ class StoryService:
         bundle = context['reading_bundle']['entries']
         queries = context['reading_policy']['relationship_queries']
         originals = {'state.memory': rr.FILES[0], 'gate.V1': RULES[1],
-                     'item.catalog': rr.FILES[1], 'npc.minor': rr.FILES[2],
+                     'item.catalog': rr.FILES[1],
                      'contract.events': 'txt文件/事件注册表.json'}
         for item in missing:
             if item in bundle:
@@ -1047,12 +1591,19 @@ class StoryService:
     def result(self, key, body):
         self.start()
         timing_update = body.get('timing', {})
-        allowed_timing = {'generation_ms', 'preflight_ms', 'generation_passes'}
+        int_timing = {'generation_ms', 'settlement_ms', 'preflight_ms', 'generation_passes', 'settlement_passes'}
+        str_timing = {'settlement_model_id'}
+        allowed_timing = int_timing | str_timing
         if (not isinstance(timing_update, dict) or set(timing_update) - allowed_timing
                 or any(type(timing_update.get(k)) is not int or not 0 <= timing_update[k] <= 3600000
-                       for k in allowed_timing if k in timing_update)
-                or ('generation_passes' in timing_update and not 1 <= timing_update['generation_passes'] <= 2)):
+                       for k in int_timing if k in timing_update)
+                or ('generation_passes' in timing_update and not 0 <= timing_update['generation_passes'] <= 2)
+                or ('settlement_passes' in timing_update and not 1 <= timing_update['settlement_passes'] <= 4)
+                or any(not isinstance(timing_update.get(k), str) or len(timing_update[k]) > 256
+                       for k in str_timing if k in timing_update)):
             raise rr.RoundError('耗时统计字段无效')
+        allow_settlement_retry = bool(body.get('allow_settlement_retry'))
+        stage1_fallback = None
         with self.store._locked():
             state = self._read()
             job = self._leased(state, key, body.get('lease'))
@@ -1063,11 +1614,25 @@ class StoryService:
             if body.get('error') and job['status'] == 'validating':
                 raise rr.ConflictError('已有待提交结果，不能替换为错误')
             if body.get('error'):
+                saved_cp = False
+                if job.get('entry_mode') == ir.MODE and isinstance(body.get('stage1_checkpoint'), dict):
+                    try:
+                        context = json.loads(self._blob(key, '.context.json').read_bytes())
+                        saved_cp = ir.save_stage1_checkpoint(self, key, job, context, body['stage1_checkpoint'])
+                    except Exception:
+                        saved_cp = False
+                if not saved_cp:
+                    ir.clear_stage1_checkpoint(self, key)
+                job['has_stage1_checkpoint'] = bool(saved_cp)
+                job['resume_stage2'] = False
                 if job.get('reservation'):
                     sp.refund(self,state,job,'failed','模型生成失败，预扣已返还：'+str(body['error'])[:500])
                 else: job.update(status='failed', error='模型生成失败：' + str(body['error'])[:500], lease=None)
                 self._write(state)
-                return {'task': self._public(job)}
+                self._clear_preview(key)
+                pub = {'task': self._public(job)}
+                self.hub.publish('task_state', {'request_id': key, 'status': job['status']})
+                return pub
             text = body.get('text')
             if not isinstance(text, str) or len(text.encode('utf-8')) > 4 * 1024 * 1024:
                 raise rr.RoundError('模型结果须为4MiB内的JSON文本')
@@ -1082,31 +1647,101 @@ class StoryService:
                 try:
                     audit = self._verify_audit(key, body.get('conversation_audit'))
                 except rr.RoundError as exc:
+                    ir.clear_stage1_checkpoint(self, key)
+                    job['has_stage1_checkpoint'] = False
+                    job['resume_stage2'] = False
                     if job.get('reservation'):
                         sp.refund(self,state,job,'conflict' if isinstance(exc,rr.ConflictError) else 'failed','读取校验未通过，预扣已返还：'+str(exc))
                     else: job.update(status='conflict' if isinstance(exc, rr.ConflictError) else 'failed',
                                error='读取校验未通过：' + str(exc), lease=None)
                     self._write(state)
-                    return {'task': self._public(job)}
+                    self._clear_preview(key)
+                    pub = {'task': self._public(job)}
+                    self.hub.publish('task_state', {'request_id': key, 'status': job['status']})
+                    return pub
+                parsed_dual = None
+                if job.get('entry_mode') == ir.MODE:
+                    try:
+                        maybe_parsed = rr.load_request(text)
+                        if isinstance(maybe_parsed, dict) and maybe_parsed.get('dual_stage_version') == 1:
+                            parsed_dual = maybe_parsed
+                    except rr.RoundError:
+                        parsed_dual = None
+                if allow_settlement_retry and job.get('entry_mode') == ir.MODE:
+                    context = json.loads(self._blob(key, '.context.json').read_bytes())
+                    try:
+                        parsed = parsed_dual if parsed_dual is not None else rr.load_request(text)
+                        if isinstance(parsed, dict) and parsed.get('dual_stage_version') == 1:
+                            payload = ir.assemble(self, key, job, parsed, context, audit)
+                            ir.validate(self.root, payload, self.store._files())
+                    except rr.ConflictError:
+                        raise
+                    except rr.RoundError as exc:
+                        msg = str(exc)
+                        # Settlement-layer errors (or foreground missing ONLY the decision block after
+                        # passing prose & redline guardrails) are safely retryable without re-running foreground.
+                        if ir.is_settlement_retryable_error(msg):
+                            return {'retryable_settlement': True, 'error': msg, 'task': self._public(job)}
+                if parsed_dual is not None and isinstance(body.get('conversation_audit'), dict):
+                    stage1_fallback = {
+                        'foreground_text': parsed_dual.get('foreground_text', ''),
+                        'generation_ms': timing_update.get('generation_ms', 0) if isinstance(timing_update, dict) else 0,
+                        'base_audit': body.get('conversation_audit'),
+                    }
                 rr._atomic(self._blob(key, '.read-audit.json'), rr._json(audit))
                 rr._atomic(self._blob(key, '.result.txt'), text.encode('utf-8'))
                 job.update(status='validating', error='')
                 self._write(state)
-        return self._finish(key)
+        return self._finish(key, stage1_fallback=stage1_fallback)
 
-    def _finish(self, key):
+    def _finish(self, key, stage1_fallback=None):
         with self.store._locked():
             existing=self._read()['jobs'][key]
         if existing.get('reservation'):
             sp.finish(self,key)
+            committed_msgs = []
             with self.store._locked():
                 state = self._read()
                 current = state['jobs'][key]
-                if current['status'] == 'committed' and current.get('returned_at'):
-                    current.setdefault('timing', {})['acceptance_ms'] = max(0, round((time.time() - current['returned_at']) * 1000))
-                    current['committed_at'] = time.time()
+                if current['status'] == 'committed':
+                    ir.clear_stage1_checkpoint(self, key)
+                    current['has_stage1_checkpoint'] = False
+                    current['resume_stage2'] = False
+                    if current.get('returned_at'):
+                        current.setdefault('timing', {})['acceptance_ms'] = max(0, round((time.time() - current['returned_at']) * 1000))
+                        current['committed_at'] = time.time()
                     self._write(state)
-                return {'task': self._public(current)}
+                    try:
+                        seg = ir.segment(self.root, self.store._files())
+                        if seg and seg.get('messages'):
+                            committed_msgs = seg['messages'][:5]
+                    except Exception:
+                        committed_msgs = []
+                elif current['status'] == 'failed':
+                    saved_cp = False
+                    if stage1_fallback and ir.is_settlement_retryable_error(current.get('error', '')):
+                        try:
+                            context = json.loads(self._blob(key, '.context.json').read_bytes())
+                            saved_cp = ir.save_stage1_checkpoint(self, key, current, context, stage1_fallback)
+                        except Exception:
+                            saved_cp = False
+                    if not saved_cp:
+                        ir.clear_stage1_checkpoint(self, key)
+                    current['has_stage1_checkpoint'] = bool(saved_cp)
+                    current['resume_stage2'] = False
+                    self._write(state)
+                elif current['status'] == 'conflict':
+                    ir.clear_stage1_checkpoint(self, key)
+                    current['has_stage1_checkpoint'] = False
+                    current['resume_stage2'] = False
+                    self._write(state)
+                pub = {'task': self._public(current)}
+            self._clear_preview(key)
+            if committed_msgs:
+                self._trigger_tts_prewarm(committed_msgs, dedup_prefix=key)
+            self.hub.publish('committed' if current['status'] == 'committed' else 'task_state',
+                             {'request_id': key, 'status': current['status']})
+            return pub
         with self.store._locked():
             state = self._read()
             job = dict(state['jobs'][key])
@@ -1126,6 +1761,7 @@ class StoryService:
         except rr.RoundError as exc:
             receipt, status, error = None, 'failed', '回合校验未通过：' + str(exc)
         # Storage failures leave the saved result in validating for replay after recovery.
+        committed_msgs = []
         with self.store._locked():
             state = self._read()
             current = state['jobs'][key]
@@ -1135,11 +1771,24 @@ class StoryService:
                     current.setdefault('timing', {})['acceptance_ms'] = max(0, round((time.time() - current['returned_at']) * 1000))
                     current['committed_at'] = time.time()
                 self._write(state)
-            return {'task': self._public(current)}
+            if current['status'] == 'committed':
+                try:
+                    seg = ir.segment(self.root, self.store._files())
+                    if seg and seg.get('messages'):
+                        committed_msgs = seg['messages'][:5]
+                except Exception:
+                    committed_msgs = []
+            pub = {'task': self._public(current)}
+        self._clear_preview(key)
+        if committed_msgs:
+            self._trigger_tts_prewarm(committed_msgs, dedup_prefix=key)
+        self.hub.publish('committed' if current['status'] == 'committed' else 'task_state',
+                         {'request_id': key, 'status': current['status']})
+        return pub
 
 
-def register_story_routes(app, root):
-    service = StoryService(root)
+def register_story_routes(app, root, *, tts_prewarmer=None):
+    service = StoryService(root, tts_prewarmer=tts_prewarmer)
     app.extensions['story_service'] = service
 
     @app.before_request
@@ -1186,6 +1835,12 @@ def register_story_routes(app, root):
     def story_error(exc):
         return jsonify(error=str(exc)), 409 if isinstance(exc, rr.ConflictError) else 400
 
+    @app.errorhandler(500)
+    def story_internal_error(exc):
+        if not request.path.startswith('/api/story/'):
+            return exc
+        return jsonify(error='本地故事服务内部异常，请检查日志后重试。', status=500), 500
+
     def body():
         value = rr.load_request(request.get_data(as_text=True))
         if not isinstance(value, dict):
@@ -1196,6 +1851,10 @@ def register_story_routes(app, root):
     def snapshot():
         return jsonify(service.snapshot())
 
+    @app.post('/api/story/preferences')
+    def story_preferences():
+        return jsonify(service.update_preferences(body()))
+
     @app.post('/api/story/new-game')
     def new_game():
         return jsonify(service.new_game(body()))
@@ -1203,6 +1862,32 @@ def register_story_routes(app, root):
     @app.get('/api/story/live')
     def interaction_snapshot():
         return jsonify(service.interaction_snapshot(request.args.get('before')))
+
+    @app.get('/api/story/stream')
+    def story_sse_stream():
+        try:
+            start_seq = int(request.args.get('since', service.hub.seq))
+        except (TypeError, ValueError):
+            start_seq = service.hub.seq
+
+        @stream_with_context
+        def generate():
+            seq = start_seq
+            yield f'event: ready\ndata: {json.dumps({"seq": seq}, ensure_ascii=False)}\n\n'
+            try:
+                while True:
+                    missed, seq = service.hub.wait_client(seq, timeout=15.0)
+                    if not missed:
+                        yield ': keepalive\n\n'
+                        continue
+                    for item_seq, event_type, payload in missed:
+                        data = json.dumps(payload, ensure_ascii=False, separators=(',', ':'))
+                        yield f'id: {item_seq}\nevent: {event_type}\ndata: {data}\n\n'
+            except GeneratorExit:
+                return
+
+        headers = {'Cache-Control': 'no-store', 'X-Accel-Buffering': 'no', 'Connection': 'keep-alive'}
+        return Response(generate(), mimetype='text/event-stream', headers=headers)
 
     @app.post('/api/story/live/progress')
     def playback_progress():
@@ -1222,11 +1907,38 @@ def register_story_routes(app, root):
 
     @app.post('/api/story/tasks/<key>/cancel')
     def cancel_task(key):
-        return jsonify(sp.cancel(service,key))
+        res = sp.cancel(service, key)
+        service._clear_preview(key)
+        service.hub.publish('task_state', {'request_id': key, 'status': 'cancelled'})
+        return jsonify(res)
 
     @app.post('/api/story/tasks/<key>/retry')
     def retry(key):
         return jsonify(service.retry(key, body()))
+
+    @app.get('/api/story/shop')
+    def shop():
+        return jsonify(service.shop_view())
+
+    @app.post('/api/story/shop/redeem')
+    def shop_redeem():
+        return jsonify(service.redeem_shop(body()))
+
+    @app.post('/api/story/task/claim')
+    def task_claim():
+        return jsonify(service.claim_task_reward(body()))
+
+    @app.post('/api/story/passive/upgrade')
+    def passive_upgrade():
+        return jsonify(service.upgrade_passive(body()))
+
+    @app.post('/api/story/intel/acquire')
+    def intel_acquire():
+        return jsonify(service.acquire_intel(body()))
+
+    @app.post('/api/story/intel/leverage')
+    def intel_leverage():
+        return jsonify(service.toggle_leverage(body()))
 
     @app.get('/api/story/bridge-info')
     def bridge_info():
@@ -1240,6 +1952,18 @@ def register_story_routes(app, root):
     def worker_control():
         return jsonify(service.worker_control(body()))
 
+    @app.get('/api/story/worker/wait')
+    def worker_wait():
+        try:
+            since = int(request.args.get('since', 0))
+        except (TypeError, ValueError):
+            since = 0
+        try:
+            timeout = float(request.args.get('timeout', 25.0))
+        except (TypeError, ValueError):
+            timeout = 25.0
+        return jsonify(service.worker_wait(since_seq=since, timeout=timeout))
+
     @app.post('/api/story/worker/claim')
     def claim():
         return jsonify(service.claim(body()))
@@ -1247,6 +1971,10 @@ def register_story_routes(app, root):
     @app.post('/api/story/worker/<key>/material')
     def material(key):
         return jsonify(service.material(key, body()))
+
+    @app.post('/api/story/worker/<key>/stream')
+    def stream_chunk(key):
+        return jsonify(service.stream_chunk(key, body()))
 
     @app.post('/api/story/worker/<key>/heartbeat')
     def heartbeat(key):

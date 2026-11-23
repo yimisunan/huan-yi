@@ -63,11 +63,25 @@
         "tag": "C烈度_深度",
         "parameters": {
           "base_delta_01": 4,
-          "base_delta_02": 3
+          "base_delta_02": 3,
+          "cur_aff_03": 60,
+          "cur_shame_04": 40,
+          "violation_drop_05": 0,
+          "violation_drop_06": 7,
+          "cur_aff_07": 30,
+          "violation_drop_08": 9,
+          "violation_drop_09": 16
         },
         "parameter_usage": {
           "base_delta_01": "base_delta 扣减",
-          "base_delta_02": "base_delta 扣减"
+          "base_delta_02": "base_delta 扣减",
+          "cur_aff_03": "cur_aff 比较阈值",
+          "cur_shame_04": "cur_shame 比较阈值",
+          "violation_drop_05": "violation_drop 扣减",
+          "violation_drop_06": "violation_drop 扣减",
+          "cur_aff_07": "cur_aff 比较阈值",
+          "violation_drop_08": "violation_drop 扣减",
+          "violation_drop_09": "violation_drop 扣减"
         },
         "description": "C烈度_深度；触发条件见对应sys条目，数值不由模型计算。",
         "pattern": null,
@@ -179,12 +193,14 @@
         "id": "SHAME_10",
         "tag": "确诊怀孕",
         "parameters": {
-          "computed_shame_changes_char_name_01": 0
+          "base_delta_01": 30,
+          "shame_cap_02": 35
         },
         "parameter_usage": {
-          "computed_shame_changes_char_name_01": "computed_shame_changes[char_name] 赋值/条件值"
+          "base_delta_01": "base_delta 扣减",
+          "shame_cap_02": "computed_shame_changes[char_name] 上限夹紧值"
         },
-        "description": "确诊怀孕；触发条件见对应sys条目，数值不由模型计算。",
+        "description": "确诊怀孕；羞耻大幅扣减并永久压制上限至35，保留背德隐瞒张力，数值不由模型计算。",
         "pattern": null,
         "shared_parameters": []
       },
@@ -279,6 +295,34 @@
         "description": "生理_危险期；触发条件见对应sys条目，数值不由模型计算。",
         "pattern": null,
         "shared_parameters": []
+      },
+      {
+        "id": "SHAME_19",
+        "tag": "心理破冰_暧昧试探",
+        "parameters": {
+          "cur_shame_01": 75,
+          "base_delta_02": 2
+        },
+        "parameter_usage": {
+          "cur_shame_01": "cur_shame 比较阈值",
+          "base_delta_02": "base_delta 扣减"
+        },
+        "description": "心理破冰_暧昧试探；高羞耻期(>75)近距擦边或言语双关破冰，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "SHAME_20",
+        "tag": "意外撞破_私密自渎",
+        "parameters": {
+          "base_delta_01": 6
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 扣减"
+        },
+        "description": "意外撞破_私密自渎；当场撞见角色暗中自慰或抓获未干自渎痕迹，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
       }
     ],
     "depravity_events": [
@@ -365,6 +409,58 @@
         "description": "主动破锁_90阶梯；触发条件见对应sys条目，数值不由模型计算。",
         "pattern": null,
         "shared_parameters": []
+      },
+      {
+        "id": "DEPRAVITY_07",
+        "tag": "堕落_背德共谋",
+        "parameters": {
+          "base_delta_01": 2
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 增加"
+        },
+        "description": "堕落_背德共谋；共同隐瞒越界事实或私下达成背德约定，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DEPRAVITY_08",
+        "tag": "堕落_防线失守",
+        "parameters": {
+          "base_delta_01": 3
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 增加"
+        },
+        "description": "堕落_防线失守；越界接触中由抗拒转为被动承受或合理化配合，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DEPRAVITY_09",
+        "tag": "堕落_绝顶蚀刻",
+        "parameters": {
+          "base_delta_01": 4
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 增加"
+        },
+        "description": "堕落_绝顶蚀刻；越界情境下达至高潮绝顶时的生理蚀刻，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DEPRAVITY_10",
+        "tag": "堕落_私密自渎",
+        "parameters": {
+          "base_delta_01": 3
+        },
+        "parameter_usage": {
+          "base_delta_01": "base_delta 增加"
+        },
+        "description": "堕落_私密自渎；因高欲望、体液锁定或撤离压力在独处时暗中自慰纾解，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
       }
     ],
     "ds_events": [
@@ -424,10 +520,12 @@
         "id": "DS_05",
         "tag": "场景切换_欲望回落",
         "parameters": {
-          "new_des_01": 15
+          "new_des_01": 15,
+          "new_org_02": 30
         },
         "parameter_usage": {
-          "new_des_01": "new_des 扣减"
+          "new_des_01": "new_des 扣减",
+          "new_org_02": "new_org 扣减"
         },
         "description": "场景切换_欲望回落；触发条件见对应sys条目，数值不由模型计算。",
         "pattern": null,
@@ -587,9 +685,26 @@
           "new_org_01": "new_org 比较阈值",
           "new_org_02": "new_org 赋值/条件值",
           "new_des_03": "new_des 赋值/条件值",
-          "new_sta_04": "new_sta 增加"
+          "new_sta_04": "new_sta 扣减"
         },
         "description": "触发高潮_绝顶清算；触发条件见对应sys条目，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "DS_18",
+        "tag": "自慰_暗中纾解",
+        "parameters": {
+          "new_org_01": 0,
+          "new_des_02": 40,
+          "new_sta_03": 8
+        },
+        "parameter_usage": {
+          "new_org_01": "new_org 赋值/条件值",
+          "new_des_02": "new_des 赋值/条件值",
+          "new_sta_03": "new_sta 扣减"
+        },
+        "description": "自慰_暗中纾解；角色通过私密自慰释放高潮、回落欲望并消耗少量体力，数值不由模型计算。",
         "pattern": null,
         "shared_parameters": []
       }
@@ -723,6 +838,36 @@
         "shared_parameters": [
           "AFFECTION_08"
         ]
+      },
+      {
+        "id": "AFFECTION_10",
+        "tag": "情感共振_深度交心",
+        "parameters": {
+          "cur_aff_01": 85,
+          "new_aff_02": 2,
+          "new_aff_03": 1
+        },
+        "parameter_usage": {
+          "cur_aff_01": "cur_aff 比较阈值",
+          "new_aff_02": "new_aff 增加",
+          "new_aff_03": "new_aff 增加"
+        },
+        "description": "情感共振_深度交心；中高好感段真诚倾诉或情感共鸣，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "AFFECTION_11",
+        "tag": "危机并肩_实质破局",
+        "parameters": {
+          "new_aff_01": 3
+        },
+        "parameter_usage": {
+          "new_aff_01": "new_aff 增加"
+        },
+        "description": "危机并肩_实质破局；协助化解商业、画展或查岗实质危机，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
       }
     ],
     "host_events": [

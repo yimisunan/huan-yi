@@ -149,6 +149,18 @@ def build_bundle(root, task_id):
     specs = specifications(root)
     nonce = uuid.uuid4().hex
     directory = CACHE + '/' + nonce
+    cache_root = _path(root, CACHE)
+    if cache_root.is_dir():
+        try:
+            subdirs = sorted(
+                [p for p in cache_root.iterdir() if p.is_dir() and p.name != nonce],
+                key=lambda p: p.stat().st_mtime,
+            )
+            import shutil
+            for old_dir in subdirs[:-16]:
+                shutil.rmtree(old_dir, ignore_errors=True)
+        except OSError:
+            pass
     mapping = {}
     for key, spec in specs.items():
         rel = directory + '/' + key + '.txt'
@@ -191,6 +203,9 @@ def verified_lines(raw, result_text, begin=1, end=None):
     end = min(end if end is not None else len(lines), len(lines))
     if begin < 1 or end < begin:
         raise ReadingError('读取回执范围无效')
+    expected = '\n'.join(lines[begin-1:end])
+    if result_text == expected or result_text == expected + '\n':
+        return list(range(begin, end+1))
     # Operit actual tools display `  1| text`; raw exact text is accepted for direct file adapters.
     # The file adapter can stop inside its final displayed line. A clipped
     # prefix is not a verified line; later reads must supply that whole line.
@@ -198,9 +213,9 @@ def verified_lines(raw, result_text, begin=1, end=None):
     payload = result_text[:clipped.start()].splitlines() if clipped else result_text.splitlines()
     numbered = []
     for position, line in enumerate(payload):
-        match = re.match(r'^\s*(\d+)\| (.*)$', line)
+        match = re.match(r'^\s*(\d+)\|(?: (.*)|)$', line)
         if match:
-            numbered.append((position, int(match.group(1)), match.group(2)))
+            numbered.append((position, int(match.group(1)), match.group(2) or ''))
     if numbered:
         found = set()
         previous = begin - 1
@@ -216,9 +231,6 @@ def verified_lines(raw, result_text, begin=1, end=None):
                 raise ReadingError('读取回执正文或行号与当前文件不符')
             found.add(number)
         return sorted(found)
-    expected = '\n'.join(lines[begin-1:end])
-    if result_text == expected or result_text == expected + '\n':
-        return list(range(begin, end+1))
     raise ReadingError('读取回执没有可核验的实际正文')
 
 
@@ -251,23 +263,31 @@ def check_required(policy, records):
     # The first three sources must complete before progressing, including interleaved partial reads.
     steps = policy['required_reads'][:3]
     cursor, seen = 0, {}
+    def _step_allowed(s):
+        alt = s.get('source_alternative')
+        return {s['path']} | ({alt['path']} if alt else set())
     for record in records:
         if record.get('status') != 'success' or record.get('name') not in READ_TOOLS:
             continue
         if cursor >= len(steps):
             break
-        step = steps[cursor]
-        alt = step.get('source_alternative')
-        allowed = {step['path']} | ({alt['path']} if alt else set())
+        allowed = _step_allowed(steps[cursor])
+        for prev_step in steps[:cursor]:
+            allowed |= _step_allowed(prev_step)
         if record['path'] not in allowed:
             raise ReadingError('前三份正文未按记忆库、指南、法典完成顺序读取')
         seen.setdefault(record['path'], []).extend((n,n) for n in record.get('verified_lines', []))
-        done = _covers(seen.get(step['path'], []), 1, step['through_line'])
-        if not done and alt:
-            done = all(_covers(seen.get(alt['path'], []), a, b) for a, b in alt['ranges'])
-        if done:
-            cursor += 1
-    if cursor != 3:
+        while cursor < len(steps):
+            step = steps[cursor]
+            alt = step.get('source_alternative')
+            done = _covers(seen.get(step['path'], []), 1, step['through_line'])
+            if not done and alt:
+                done = all(_covers(seen.get(alt['path'], []), a, b) for a, b in alt['ranges'])
+            if done:
+                cursor += 1
+            else:
+                break
+    if cursor != len(steps):
         raise ReadingError('前三份必读正文未完成')
 
 

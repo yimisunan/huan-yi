@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "toolpkg_id": "local.story.operit_bridge",
-  "version": "1.9.5",
+  "version": "2.1.6",
   "api_version": "2.0.0",
   "main": "main.js",
   "display_name": {
@@ -9,8 +9,8 @@
     "en": "Story bridge"
   },
   "description": {
-    "zh": "网页启动/暂停与连接诊断，固定指令管理故事桥接，正式会话按需读取并提交回合。",
-    "en": "Generate structured rounds for the local story page."
+    "zh": "双阶段流式剧情演播与后台结算、前缀冻结KV缓存、原生设置界面及双端主/副模型联动配置。",
+    "en": "Dual-stage streaming story bridge with native settings UI and dual-synced primary/settlement model controls."
   },
   "enabled_by_default": true,
   "installation_scope": "device",

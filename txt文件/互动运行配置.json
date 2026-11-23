@@ -58,6 +58,55 @@
     "家中": "徐家主宅",
     "主宅": "徐家主宅",
     "徐家": "徐家主宅",
-    "公寓": "市中心顶层公寓"
+    "公寓": "市中心顶层公寓",
+    "画室": "工作室",
+    "校外画室": "工作室",
+    "念薇画室": "工作室"
+  },
+  "shop": {
+    "status": "active",
+    "catalog": "txt文件/系统商城目录.json",
+    "cost_stamina": 0
+  },
+  "intel": {
+    "status": "active",
+    "catalog": "txt文件/商业情报目录.json",
+    "leverage_min_biz": 60,
+    "cost_stamina": 0
+  },
+  "passive": {
+    "status": "active",
+    "cost_stamina": 0,
+    "costs": {
+      "1": 20,
+      "2": 50,
+      "3": 200,
+      "4": 800
+    }
+  },
+  "director": {
+    "status": "active",
+    "catalog": "txt文件/世界变故库.json",
+    "base_prob": 0.08,
+    "max_prob": 0.85,
+    "stagnation_curve": [0.0, 0.07, 0.16, 0.28, 0.44, 0.62],
+    "global_cooldown": 1,
+    "soft_cooldown_penalty": 0.25,
+    "tier_weights": {
+      "tier1": 50,
+      "tier2": 38,
+      "tier3": 12,
+      "tier4": 22
+    },
+    "scene_exit_threshold": 3,
+    "track_weights": {
+      "thread_spark": 45,
+      "offstage_clock": 30,
+      "preset_beat": 25
+    },
+    "max_active_threads": 5,
+    "max_thread_age": 12,
+    "channel_cooldown_window": 4,
+    "clock_tick_interval": 3
   }
 }

@@ -6,6 +6,7 @@ import copy
 import hashlib
 import io
 import json
+import sys
 import tempfile
 import threading
 import time
@@ -13,6 +14,8 @@ import types
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 SOURCE = ROOT / '语音运行.py'
 module = types.ModuleType('voice_service_verification')
 module.__file__ = str(SOURCE)
@@ -25,13 +28,16 @@ class VoiceServiceChecks(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix='voice-check-', dir=ROOT / '开发者功能' / '开发者工具')
         self.directory = Path(self.temp.name)
         self.old_config = module.CONFIG_FILE
+        self.old_disk_cache = module.TTS_DISK_CACHE_DIR
         module.CONFIG_FILE = str(self.directory / 'voice_config.json')
+        module.TTS_DISK_CACHE_DIR = str(self.directory / 'tts_audio')
         self.config = copy.deepcopy(module.default_config)
         Path(module.CONFIG_FILE).write_text(json.dumps(self.config, ensure_ascii=False), encoding='utf-8')
         with module.TTS_STATE_LOCK:
             module.TTS_CACHE.clear()
             module.TTS_INFLIGHT.clear()
             module.TTS_CACHE_BYTES = 0
+        module._record_fish_ok()
         self.client = module.app.test_client()
         self.network = patch.object(module.requests, 'post', side_effect=AssertionError('禁止真实网络请求'))
         self.network.start()
@@ -39,6 +45,8 @@ class VoiceServiceChecks(unittest.TestCase):
     def tearDown(self):
         self.network.stop()
         module.CONFIG_FILE = self.old_config
+        module.TTS_DISK_CACHE_DIR = self.old_disk_cache
+        module._record_fish_ok()
         self.temp.cleanup()
 
     def test_import_and_read_are_readonly(self):
@@ -58,14 +66,15 @@ class VoiceServiceChecks(unittest.TestCase):
         for damaged in [b'{invalid', b'[]', b'{}', b'{"__settings__": 123}']:
             path.write_bytes(damaged)
             self.assertEqual(self.client.get('/api/config').status_code, 503)
-            self.assertEqual(self.client.post('/api/config', json=self.config).status_code, 409)
+            self.assertEqual(self.client.post('/api/config', json=self.config).status_code, 403)
+            self.assertEqual(self.client.post('/api/config', json=self.config, headers={'X-Voice-Client': '1'}).status_code, 409)
             self.assertEqual(path.read_bytes(), damaged)
 
     def test_atomic_failure_preserves_original_and_cleans_temp(self):
         path = Path(module.CONFIG_FILE)
         original = path.read_bytes()
         with patch.object(module.os, 'replace', side_effect=OSError('simulated full storage')):
-            result = self.client.post('/api/config', json=self.config)
+            result = self.client.post('/api/config', json=self.config, headers={'X-Voice-Client': '1'})
         self.assertEqual(result.status_code, 503)
         self.assertEqual(path.read_bytes(), original)
         self.assertEqual(list(self.directory.glob('*.tmp')), [])
@@ -73,12 +82,12 @@ class VoiceServiceChecks(unittest.TestCase):
     def test_save_validates_and_preserves_future_fields(self):
         original = Path(module.CONFIG_FILE).read_bytes()
         for invalid in [None, {}, [], {'旁白': None}, {'__settings__': {}}]:
-            self.assertEqual(self.client.post('/api/config', json=invalid).status_code, 400)
+            self.assertEqual(self.client.post('/api/config', json=invalid, headers={'X-Voice-Client': '1'}).status_code, 400)
             self.assertEqual(Path(module.CONFIG_FILE).read_bytes(), original)
         self.config['__settings__']['future_setting'] = 'keep'
         self.config['旁白']['future_parameter'] = {'value': 4}
         self.config['旁白']['emotion'] = 'angry'
-        result = self.client.post('/api/config', json=self.config)
+        result = self.client.post('/api/config', json=self.config, headers={'X-Voice-Client': '1'})
         self.assertEqual(result.status_code, 200)
         saved = json.loads(Path(module.CONFIG_FILE).read_text(encoding='utf-8'))
         self.assertEqual(saved['旁白']['emotion'], '')
@@ -93,7 +102,7 @@ class VoiceServiceChecks(unittest.TestCase):
 
     def test_http_cache_reuses_only_matching_parameters(self):
         calls = []
-        def fake_fish(payload, model):
+        def fake_fish(payload, model, **_kwargs):
             calls.append((payload, model))
             return b'ID3-audio'
         request = {'text': '[whispers] 测试文字', 'voice': 'fish:test', 'tts_model': 's2.1-pro-free'}
@@ -104,6 +113,8 @@ class VoiceServiceChecks(unittest.TestCase):
                 self.assertEqual(result.data, b'ID3-audio')
             self.assertEqual(len(calls), 1)
             self.assertEqual(calls[0][0]['text'], request['text'])
+            self.assertEqual(calls[0][0]['latency'], 'balanced')
+            self.assertEqual(calls[0][0]['chunk_length'], 180)
             self.client.post('/api/tts', json={**request, 'speed': 1.2})
             self.assertEqual(len(calls), 2)
             self.client.post('/api/tts', json={**request, 'tts_model': 's2.1-pro'})
@@ -140,6 +151,50 @@ class VoiceServiceChecks(unittest.TestCase):
                 module._cached_tts(key, lambda: b'1234')
             self.assertLessEqual(module.TTS_CACHE_BYTES, 8)
             self.assertLessEqual(len(module.TTS_CACHE), 2)
+
+    def test_disk_cache_prefetch_and_429_cooldown(self):
+        # 1. Disk cache hit survives full memory cache clear.
+        calls = []
+        done = threading.Event()
+        def fake_fish(payload, model, **_kwargs):
+            calls.append(payload['text'])
+            done.set()
+            return b'ID3-disk-cached'
+        with patch.object(module, '_fish_audio', side_effect=fake_fish):
+            r1 = self.client.post('/api/tts', json={'text': '磁盘缓存测试', 'speaker': '沈知韫'})
+            self.assertEqual(r1.status_code, 200)
+            self.assertEqual(len(calls), 1)
+            with module.TTS_STATE_LOCK:
+                module.TTS_CACHE.clear()
+                module.TTS_CACHE_BYTES = 0
+            r2 = self.client.post('/api/tts', json={'text': '磁盘缓存测试', 'speaker': '沈知韫'})
+            self.assertEqual(r2.status_code, 200)
+            self.assertEqual(r2.data, b'ID3-disk-cached')
+            self.assertEqual(len(calls), 1, 'Disk LRU cache must satisfy request without re-calling Fish')
+
+            # 2. /api/tts/prefetch enforces X-Voice-Client CSRF and warms cache with identical key.
+            self.assertEqual(self.client.post('/api/tts/prefetch', json={'items': []}).status_code, 403)
+            done.clear()
+            pf = self.client.post('/api/tts/prefetch', headers={'X-Voice-Client': '1'}, json={
+                'items': [{'text': '预热这一句', 'speaker': '沈知韫'}]
+            })
+            self.assertEqual(pf.status_code, 202)
+            self.assertEqual(pf.get_json()['scheduled'], 1)
+            self.assertTrue(done.wait(2.0), 'Background prefetch thread should synthesize item')
+            time.sleep(0.05)
+            r3 = self.client.post('/api/tts', json={'text': '预热这一句', 'speaker': '沈知韫'})
+            self.assertEqual(r3.status_code, 200)
+            self.assertEqual(len(calls), 2, 'Live /api/tts must hit exact prewarmed cache key')
+
+            # 3. 429 cooldown pauses background prewarm cleanly.
+            module._record_fish_429()
+            self.assertTrue(module._in_fish_429_cooldown())
+            pf_cool = self.client.post('/api/tts/prefetch', headers={'X-Voice-Client': '1'}, json={
+                'items': [{'text': '冷却期间不预热', 'speaker': '沈知韫'}]
+            })
+            self.assertEqual(pf_cool.status_code, 202)
+            self.assertEqual(pf_cool.get_json()['scheduled'], 0)
+            self.assertTrue(pf_cool.get_json()['cooldown'])
 
     def test_edge_tags_and_fish_failures(self):
         with patch.object(module, '_edge_audio', return_value=b'edge-audio') as edge:

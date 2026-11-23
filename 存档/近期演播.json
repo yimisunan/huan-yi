@@ -1,0 +1,82 @@
+{
+  "playback": {
+    "completed": false,
+    "revealed": 0,
+    "segment_id": "prologue-49ae0065ff989240c9764c2bfbf2408a",
+    "version": 1
+  },
+  "segments": [
+    {
+      "after_location": "徐家主宅",
+      "cost": {
+        "kind": "prologue",
+        "status": "active",
+        "total": 0
+      },
+      "count": 1,
+      "created_at": 0,
+      "decision": {
+        "options": [
+          {
+            "id": "A",
+            "text": "顺势在母亲身旁落座，聊起大哥外地项目风声，暗中观察三人的神色"
+          },
+          {
+            "id": "B",
+            "text": "先替母亲与二姐斟好热茶，转手把温热茶盏递给略显拘谨的苏婉青"
+          },
+          {
+            "id": "C",
+            "text": "趁开席前的空当，当众挑起主宅与公司近期的安排，试探各自的口风"
+          }
+        ],
+        "prompt": "此刻，你准备怎么回应？"
+      },
+      "handoff": "",
+      "id": "prologue-49ae0065ff989240c9764c2bfbf2408a",
+      "input": "",
+      "input_kind": "system",
+      "input_known_by": [
+        "徐志北"
+      ],
+      "known_by": [
+        "徐志北",
+        "沈知韫",
+        "苏婉青",
+        "徐念薇"
+      ],
+      "location": "徐家主宅",
+      "messages": [
+        {
+          "kind": "narration",
+          "speaker": "",
+          "text": "周日十一时五十分，徐家主宅餐厅。家庭午餐尚未开席，长桌上茶具温热。沈知韫着淡紫色缎面薄纱居家服居中，徐念薇着浅蓝色泡泡袖居家裙坐在较远一侧，苏婉青一身浅黄短裙配白开衫外出装依周日惯例到宅，手边放着伴手礼；徐志北站在桌旁，席间礼貌与暗流并存。"
+        },
+        {
+          "kind": "action",
+          "speaker": "沈知韫",
+          "text": "她扫过一圈餐桌，目光在苏婉青手边的伴手礼和念薇略远一格的座椅间掠过，自己拉开主位座椅。"
+        },
+        {
+          "kind": "dialogue",
+          "speaker": "沈知韫",
+          "text": "[warm but guarded] 都到齐了，先落座吧。厨房那边还要一会儿，志北坐妈手边。"
+        }
+      ],
+      "messages_known_by": [
+        "徐志北",
+        "沈知韫",
+        "苏婉青",
+        "徐念薇"
+      ],
+      "operation": null,
+      "selection": {
+        "option_id": "BEGIN",
+        "segment_id": ""
+      },
+      "sequence": 1,
+      "version": 2
+    }
+  ],
+  "version": 1
+}

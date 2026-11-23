@@ -83,6 +83,61 @@ async function run() {
     assert.equal(vm.runInContext('isDirty()', manager), true);
     assert.match(element('manager-status').textContent, /存储不可写/);
     console.log('PASS manager: local config renders while remote pending; failed save remains dirty');
+
+    const sentHeaders = [];
+    const csrfCtx = makeContext((url, options = {}) => {
+        sentHeaders.push({ url, method: options.method || 'GET', headers: options.headers || {}, body: options.body || '' });
+        if (url === '/api/fish_key' && options.method === 'POST') return Promise.resolve(response({ ok: true, configured: true, masked: 'sk-****1234' }));
+        if (url === '/api/fish_key' && options.method === 'DELETE') return Promise.resolve(response({ ok: true, configured: false }));
+        if (url === '/api/voice_tier' && options.method === 'POST') return Promise.resolve(response({ ok: true, voice_tier: 'pro' }));
+        return Promise.resolve(response({ configured: false }));
+    });
+    const defaultPayload = csrfCtx.client.buildPayload('测试文本', { voice: 'fish:abc' }, {}, '', '沈知韫');
+    assert.equal(defaultPayload.tts_model, 's2.1-pro-free');
+    assert.equal(defaultPayload.speaker, '沈知韫');
+    assert.equal(defaultPayload.language, 'zh-CN');
+    assert.equal(defaultPayload.latency, 'balanced');
+    assert.equal(defaultPayload.chunk_length, 180);
+    assert.equal(defaultPayload.quality_guard, true);
+    await csrfCtx.client.saveFishKey('test-key-12345678', false);
+    await csrfCtx.client.setVoiceTier('pro');
+    await csrfCtx.client.prefetchBatch([{ text: '预热测试', speaker: '沈知韫' }]);
+    await csrfCtx.client.clearFishKey();
+    assert.ok(sentHeaders.some(r => r.url === '/api/tts/prefetch' && r.headers['X-Voice-Client'] === '1'), 'prefetchBatch must hit /api/tts/prefetch with X-Voice-Client');
+    assert.ok(sentHeaders.every(r => r.headers['X-Voice-Client'] === '1'), 'X-Voice-Client header required on all key/tier/prefetch calls');
+    console.log('PASS voice_client: s2.1-pro-free + balanced/180 default, prefetchBatch, speaker passthrough, key/tier APIs & X-Voice-Client');
+
+    const storySource = fs.readFileSync(path.join(root, 'story_client.js'), 'utf8');
+    const stripFn = storySource.match(/function stripVoiceTags\([\s\S]*?\n  \}/)[0];
+    const allowBlock = storySource.match(/const VOICED_SPEAKERS = [\s\S]*?function resolveVoiceSpeaker\([\s\S]*?\n  \}/)[0];
+    const whisperFn = storySource.match(/function isWhisperLine\([\s\S]*?\n  \}/)[0];
+    const storyCtx = vm.createContext({});
+    vm.runInContext(stripFn + '\n' + allowBlock + '\n' + whisperFn, storyCtx);
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'narration', speaker: '', text: '雨停了。' }), '旁白');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'dialogue', speaker: '沈知韫', text: '过来。' }), '沈知韫');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'dialogue', speaker: '苏婉青', text: '先坐吧。' }), '苏婉青');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'dialogue', speaker: '徐念薇', text: '进来。' }), '徐念薇');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'action', speaker: '沈知韫', text: '她放下笔。' }), '旁白');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'dialogue', speaker: '徐志北', text: '怎么了？' }), '');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'action', speaker: '徐志北', text: '他走近一步。' }), '');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'dialogue', speaker: '徐承邺', text: '妈！' }), '');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'action', speaker: '徐承邺', text: '他推开门。' }), '');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'dialogue', speaker: '顾律师', text: '沈董您好。' }), '');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'action', speaker: '主宅管家', text: '他轻敲房门。' }), '');
+    assert.equal(
+        storyCtx.stripVoiceTags('沈知<|phoneme_start|>yun4<|phoneme_end|>韫[low restrained voice]<whisper>低声</whisper><chinese>问好</chinese>'),
+        '沈知韫低声问好'
+    );
+    assert.equal(storyCtx.isWhisperLine('<whisper>别出声</whisper>'), true);
+    assert.equal(storyCtx.isWhisperLine('[低声] 过来'), true);
+    assert.equal(storyCtx.isWhisperLine('普通对话'), false);
+    assert.match(storySource, /name === '苏婉青' && loc === '市中心顶层公寓'/);
+    assert.match(storySource, /name === '沈知韫' \|\| name === '徐念薇'.*loc === '徐家主宅'/);
+    assert.match(storySource, /3:\s*'目击锁定'.*4:\s*'实锤'/);
+    assert.match(storySource, /=== '徐家主宅'/);
+    const mainHtml = fs.readFileSync(path.join(root, 'main_template.html'), 'utf8');
+    assert.equal((mainHtml.match(/<\/html>/gi) || []).length, 1, 'main_template.html should have exactly one closing </html>');
+    console.log('PASS story_client & main_template: 4-speaker allowlist, stripVoiceTags, isHome lock, discLabels 0..4, HTML integrity');
     console.log('All frontend checks passed; external requests: 0');
 }
 run().catch(error => { console.error(error.stack); process.exitCode = 1; });

@@ -40,12 +40,12 @@ SYSTEM_LOG完整模板见`txt文件/提示词.md`；本文件只规定注入调�
   check/apply的文件参数写“-”时，从标准输入读取。CLI成功退出码0、失败1；输出为JSON的ok/result或ok/error/code。
 
 【prepare】返回schema_version、base_revision、current_round、memory_layers、summary_sources与snapshot。
-  - base_revision是四个事实文件的SHA-256组合版本：全局记忆库、道具图鉴、次要NPC名册、data.json。
-  - current_round由记忆层最新回合计算；空档从1开始，唯一带序幕隐藏标记的【1】可由正式第1回合接替。
+  - base_revision是核心事实文件的SHA-256组合版本：全局记忆库.txt、徐志北道具图鉴.txt、save_state.json、四层记忆.json、data.json。
+  - current_round由记忆层最新回合计算；空档从1开始，唯一序幕锚点【1】（四层记忆.json prologue_active=true 或旧序幕隐藏标记）可由正式第1回合接替。
   - summary_sources列出需要压缩的真实旧条目；不由AI重新猜测来源范围。
-  - snapshot是持有同一进程锁期间读取的四文件文本快照。
+  - snapshot是持有同一进程锁期间读取的事实文件文本快照。
 
-【网页简化语义结果】output_contract.result_format=story_semantics_v1时，仅必填story_nodes、memory_deltas、options_text、model_audit；既有事件/状态/NPC/道具/任务字段可按需提交。model_audit字段和语义依据唯一见《提示词.md》；程序从任务上下文补schema_version/request_id/base_revision/current_round、panel_changes={}和合法可选空容器，从真实审计生成完整system_log。显式固定字段必须类型和值一致，非空面板、混用system_log、缺少语义或未读取必需key仍拒绝。模型不抄来源指纹、调用次数和记忆层数。
+【网页简化语义结果】output_contract.result_format=story_semantics_v1时，仅必填story_nodes、memory_deltas、options_text、model_audit；既有事件/状态/道具/任务字段可按需提交。model_audit字段和语义依据唯一见《提示词.md》；程序从任务上下文补schema_version/request_id/base_revision/current_round、panel_changes={}和合法可选空容器，从真实审计生成完整system_log。显式固定字段必须类型和值一致，非空面板、混用system_log、缺少语义或未读取必需key仍拒绝。模型不抄来源指纹、调用次数和记忆层数。
 服务端保存原始结果、已核验读取记录和确定性组装结果，交完整请求给固定执行器；重启恢复复用已保存组装结果，显式重试重新核验。简化语义格式仅属于正式会话桥接，不可直接传CLI或RoundStore。完整旧JSON和Python调用保持兼容。
 
 【完整回合JSON · 固定执行器/CLI及旧桥接兼容】顶层必填：
@@ -61,7 +61,7 @@ SYSTEM_LOG完整模板见`txt文件/提示词.md`；本文件只规定注入调�
 其余可选键及默认值：npc_entries=[]、item_entries=[]、micro_state_changes={}、shame_events={}、depravity_events={}、ds_events={}、affection_events={}、host_events=[]、presence_changes={}、counter_updates={}、vigilance_events={}、task_issue=null。
   - JSON使用true/false/null，禁止Python的True/False/None、代码块、注释、重复键与NaN/Infinity。
   - 未知顶层键、未知节点键/类型、未登记说话人、未知/重复事件标签一律拒绝。
-  - narration与craft_note按去空白字符数检查120硬顶；L1硬顶280；header为可选服饰前缀加日期、周几、地点、HH:MM四段；新NPC须在npc_entries建档。
+  - narration与craft_note按去空白字符数仅作4000字符传输防呆保护；L1硬顶280；header为可选服饰前缀加日期、周几、地点、HH:MM四段；npc_entries保留兼容空操作（存档/次要NPC名册.txt已移除，偶发配角直接记入四层记忆）。
   - presence移动必须包含location和reason；同一回合多个presence入口内容冲突时拒绝。
   - 人工明确要求覆写面板时，Python调用端显式传allow_panel_override=True，或CLI加--allow-panel-override；此开关不是AI回合JSON字段。
 
@@ -110,10 +110,10 @@ SYSTEM_LOG完整模板见`txt文件/提示词.md`；本文件只规定注入调�
 ==================================================
 
 【强制】每回合 STORY_NODES 的第 1 个节点必须是 header（场景切换回合亦然）。
-【text 合法示例】：[居家] 7月21日, 周二, 三楼私人画室, 01:17；[外出] 7月21日, 周二, 市中心顶层公寓电梯厅, 15:30
+【text 合法示例】：[居家] 7月21日, 周二, 徐家主宅二楼书房, 23:17；[外出] 7月21日, 周二, 工作室, 18:30
 【text 非法示例】：
-  ❌ [7月21日, 周二, 三楼私人画室, 01:17] 你退开半步。   ← 戳与正文黏连
-  ❌ [7月21日, 周二, 三楼私人画室, 01:17]               ← 不要给场景戳整体加方括号（仅允许最前方服饰前缀[居家]/[外出]）
+  ❌ [7月21日, 周二, 徐家主宅二楼书房, 23:17] 你退开半步。   ← 戳与正文黏连
+  ❌ [7月21日, 周二, 徐家主宅二楼书房, 23:17]               ← 不要给场景戳整体加方括号（仅允许最前方服饰前缀[居家]/[外出]）
   ❌ 你退开半步。                                         ← header 里禁止剧情句
 
 【字段顺序铁律】：可选服饰前缀 + 日期, 周几, 地点, 时间（四段，中文逗号或英文逗号均可）
@@ -150,12 +150,11 @@ SYSTEM_LOG完整模板见`txt文件/提示词.md`；本文件只规定注入调�
   ❌ 在提示词/法典重复粘贴 presence 键名模板（改模板只改本指南）
 
 ==================================================
-🛑 【旁白字数硬顶——契约数字（判断见 narrative.pace）】
+🛑 【旁白字数与传输保护——契约数字（判断见 narrative.pace）】
 ==================================================
 
-【长度口径与硬顶】按单个节点 text 去空白后的 Unicode 字符数计算。narration 与 craft_note 单条均不得超过120字符；固定执行器超限直接拒绝，不会先自动拆分。AI须在输出前按语义边界分段。
-【界面阈值】去空白≤40进入贴身模式，只影响前端皮肤，不是生成长度要求。
-【写作判断】主段/短段长度、段内句长、回合有效正文预算、节拍规划与去水检验统一见 `知识库/叙事判断.json` 的 `narrative.pace`。这些是叙事判断，不新增字段；对白句长另见 `narrative.dialogue_tts`，不得把旁白句长尺度套到台词。
+【长度口径与传输保护】本项目已转为以文字沉浸交互为主的界面，不再以早年立绘框限制旁白/对白长度。按单个节点 text 去空白后的 Unicode 字符数计算，narration 与 craft_note 仅保留 4000 字符传输防呆保护上限，不再设 120 字硬顶。AI 应按叙事节奏与自然段落自由展开。
+【写作判断】戏核推进、镜头呼吸、去AI味与亲密场技法统一见 `知识库/叙事判断.json`（`narrative.pace` / `narrative.dialogue_tts` / `narrative.intimate`）。
 
 ==================================================
 🛑 【narration 字符串禁词——契约速查】
@@ -174,6 +173,7 @@ SYSTEM_LOG完整模板见`txt文件/提示词.md`；本文件只规定注入调�
 2. 模型与音色由语音配置和请求路由决定，不是 story_nodes 字段。旁白默认配置为 s2.1-pro-free；人物台词以各角色 tts_model 为先、全局设置为后，不能仅凭全局选项认定已切换模型。旁白零标签是本项目的写作选择。
 3. 前端显示层隐藏方括号标签，Fish 请求仍保留文本内标签。显式选择 edge: 音色时，后端才剥除标签；Fish 失败不会自动切换 Edge。显示隐藏不是旁白误写标签的免责条件。
 4. 标点与对白标签句法统一见 `narrative.dialogue_tts`，本节只维护旁白限制与实际传输边界。
+5. **禁代写玩家台词与 `[D:角色名]` 纯台词锁**：徐志北永久静音，严禁输出 `speaker: "徐志北"`（或 `[D:徐志北]`）的对白节点，玩家选项中的提问/追问须以 `[A:徐志北]` 或 `narration` 间接动作承接；`dialogue` / `[D:角色名]` 内只写开口说出的纯台词（及可选英文 Fish 声学标签、`｛表层台词｜真实潜台词｝`），严禁加外层双引号 `“...”` 或混入“她端起杯子抿了一口：”等第三人称动作旁白。
 
 ==================================================
 【字符串定界与转义】
@@ -190,7 +190,7 @@ SYSTEM_LOG完整模板见`txt文件/提示词.md`；本文件只规定注入调�
 【定位】craft_note 是可选的导演评论音轨，不属于故事正文，不推进剧情。
 【默认状态】除非宿主明确要求「写作分析」「技法点评」「复盘本回合写法」等内容，否则本回合不要生成 craft_note；不得为了增加节点数或字数添加旁注。
 【启用条件】宿主明确要求后，才可生成；每条依附于紧邻上方的 narration 或 dialogue 节点，解释「为什么这样写」，不解释「接下来发生什么」。
-【节制令 · 契约数字】：每回合最多3条，每条≤120字，且不超过所注释节点长度的50%；引用原文词汇用「」包裹。
+【节制令 · 契约数字】：每回合最多3条，每条≤4000字符（建议简练），且不超过所注释节点长度的50%；引用原文词汇用「」包裹。
 【硬禁】craft_note 不得代替括号正文、宿主主体感、动作、感官、对白或场景冻结点；这些内容必须落在正式 narration/dialogue 节点中。
 
 【生成位置】仅在宿主明确要求时紧跟所注释节点之后。默认正文示例不放 craft_note：
@@ -244,7 +244,7 @@ Python负责排序、推流和盖戳；AI只提供当回合增量，并按后续
      ⑤ 关系/权力/信息差是否出现不可逆变化  
      ⑥ **场景冻结点**：回合结束时人物仍在做什么、距离与门窗状态——下一回合从这里开机
    - **合法示例**：  
-     `周五深夜约二十二时四十一分，徐家主宅二楼书房冷气过足，并购合同摊半桌、签字笔横页眉旁，门半掩；在场沈知韫与徐志北。沈知韫香槟色真丝居家、裸足蜷深色地毯，指节因久握笔发白；抬头唤志北，问怎么还不睡，自称妈妈称看完这几页就歇，话落笔仍捏着，另有揉眉心。室内真丝与纸墨干燥气味。终点：二人仍在书房，合同未收。`
+     `周五深夜约二十二时四十一分，徐家主宅二楼书房冷气过足，并购合同摊半桌、签字笔横页眉旁，门半掩；在场沈知韫与徐志北。沈知韫穿着淡紫色细肩带缎面居家服与薄纱开衫、裸足蜷在深色地毯上，指节因久握笔发白；抬头唤志北，问怎么还不睡，自称妈妈称看完这几页就歇，话落笔仍捏着，另有揉眉心。室内真丝与纸墨干燥气味。终点：二人仍在书房，合同未收。`
    - 即使本回合「很闲」，L1 仍写清闲的物理终点（人在哪、有无对话），供下回合衔接；是否升级到 L2 再按价值筛选。
 
 2. **L2 `l1_to_l2_condensed`（有用压缩 · 最常用降维）**
@@ -273,7 +273,7 @@ Python负责排序、推流和盖戳；AI只提供当回合增量，并按后续
 ==================================================
 
 🛑 绝对红线：AI 严禁在 PANEL_CHANGES 中自行心算或推理任何 NPC 的数值（包括：好感/堕落/欲望/羞耻/体力/高潮/怀孕）！
-你只需在下方的五类事件入口（SHAME_EVENTS、DEPRAVITY_EVENTS、DS_EVENTS、AFFECTION_EVENTS、HOST_EVENTS）中，为目标角色或宿主填入当回合触发的语义标签（如 `["C烈度_轻度", "首次"]`）。
+你只需在下方的六类事件入口（SHAME_EVENTS、DEPRAVITY_EVENTS、DS_EVENTS、AFFECTION_EVENTS、HOST_EVENTS、VIGILANCE_EVENTS）中，为目标角色或宿主填入当回合触发的语义标签（如 `["C烈度_轻度", "首次"]`）。
 后端的 Python 引擎会自动根据《全局执行法典》完成所有的乘数放大、极值死锁、自动扣减与跨模块联动，并精准覆写入全局记忆库！
 
 ==================================================
@@ -282,17 +282,17 @@ Python负责排序、推流和盖戳；AI只提供当回合增量，并按后续
 唯一维护源为txt文件/事件注册表.json；本表与对应sys.*参数表由程序生成。未知、重复、错拼、错误容器或模板未实填均拒绝。通用乘数/边界/跨模块顺序仍由引擎执行；参数名及用途仅供核对，模型不手算。A/B不提交羞耻事件；事件须来自本回已发生事实。
 
 【注册表生成表开始】
-【SHAME_EVENTS】C烈度_轻度 / C烈度_中度 / C烈度_深度 / C烈度_重度 / 外射_体表面部 / 内射_常规 / 内射_首次核爆 / 死亡查岗_抗拒期 / 无意识被侵_苏醒发现 / 确诊怀孕 / 无意识锁定 / 事件死寂锁定 / 解离保护 / 耻感反弹_苏醒 / 同质化免疫_回合2 / 同质化免疫_回合3 / 首次 / 生理_危险期
+【SHAME_EVENTS】C烈度_轻度 / C烈度_中度 / C烈度_深度 / C烈度_重度 / 外射_体表面部 / 内射_常规 / 内射_首次核爆 / 死亡查岗_抗拒期 / 无意识被侵_苏醒发现 / 确诊怀孕 / 无意识锁定 / 事件死寂锁定 / 解离保护 / 耻感反弹_苏醒 / 同质化免疫_回合2 / 同质化免疫_回合3 / 首次 / 生理_危险期 / 心理破冰_暧昧试探 / 意外撞破_私密自渎
 - C烈度_轻度：base_delta_01=2（base_delta 扣减）；cur_aff_02=60（cur_aff 比较阈值）；cur_shame_03=70（cur_shame 比较阈值）；violation_drop_04=0（violation_drop 扣减）；violation_drop_05=1（violation_drop 扣减）；cur_aff_06=30（cur_aff 比较阈值）；violation_drop_07=2（violation_drop 扣减）；violation_drop_08=4（violation_drop 扣减）
 - C烈度_中度：base_delta_01=3（base_delta 扣减）；base_delta_02=2（base_delta 扣减）；cur_aff_03=60（cur_aff 比较阈值）；cur_shame_04=50（cur_shame 比较阈值）；violation_drop_05=0（violation_drop 扣减）；violation_drop_06=4（violation_drop 扣减）；cur_aff_07=30（cur_aff 比较阈值）；violation_drop_08=4（violation_drop 扣减）；violation_drop_09=12（violation_drop 扣减）
-- C烈度_深度：base_delta_01=4（base_delta 扣减）；base_delta_02=3（base_delta 扣减）
+- C烈度_深度：base_delta_01=4（base_delta 扣减）；base_delta_02=3（base_delta 扣减）；cur_aff_03=60（cur_aff 比较阈值）；cur_shame_04=40（cur_shame 比较阈值）；violation_drop_05=0（violation_drop 扣减）；violation_drop_06=7（violation_drop 扣减）；cur_aff_07=30（cur_aff 比较阈值）；violation_drop_08=9（violation_drop 扣减）；violation_drop_09=16（violation_drop 扣减）
 - C烈度_重度：base_delta_01=6（base_delta 扣减）；base_delta_02=4（base_delta 扣减）；cur_aff_03=60（cur_aff 比较阈值）；cur_shame_04=30（cur_shame 比较阈值）；violation_drop_05=0（violation_drop 扣减）；violation_drop_06=10（violation_drop 扣减）；cur_aff_07=30（cur_aff 比较阈值）；violation_drop_08=15（violation_drop 扣减）；violation_drop_09=20（violation_drop 扣减）；violation_drop_10=0（violation_drop 比较阈值）
 - 外射_体表面部：base_delta_01=3（base_delta 扣减）
 - 内射_常规：base_delta_01=4（base_delta 扣减）
 - 内射_首次核爆：base_delta_01=10（base_delta 扣减）
 - 死亡查岗_抗拒期：base_delta_01=10（base_delta 扣减）；vig_target_02=3（vig['目标'][target]['发现'] 比较阈值）；vig_target_03=0（vig['目标'][target]['警惕'] 赋值/条件值）；vig_target_04=10（vig['目标'][target]['警惕'] 赋值/条件值）
 - 无意识被侵_苏醒发现：base_delta_01=8（base_delta 扣减）
-- 确诊怀孕：computed_shame_changes_char_name_01=0（computed_shame_changes[char_name] 赋值/条件值）
+- 确诊怀孕：base_delta_01=30（base_delta 扣减）；shame_cap_02=35（computed_shame_changes[char_name] 上限夹紧值）
 - 无意识锁定：条件/修饰标签；按既有通用规则处理
 - 事件死寂锁定：条件/修饰标签；按既有通用规则处理
 - 解离保护：条件/修饰标签；按既有通用规则处理
@@ -301,25 +301,31 @@ Python负责排序、推流和盖戳；AI只提供当回合增量，并按后续
 - 同质化免疫_回合3：base_delta_01=0（base_delta 赋值/条件值）
 - 首次：条件/修饰标签；按既有通用规则处理
 - 生理_危险期：prob_01=2（prob 赋值/条件值）
+- 心理破冰_暧昧试探：cur_shame_01=75（cur_shame 比较阈值）；base_delta_02=2（base_delta 扣减）
+- 意外撞破_私密自渎：base_delta_01=6（base_delta 扣减）
 【注册表生成表结束】
 
 【注册表生成表开始】
-【DEPRAVITY_EVENTS】被迫吞咽精液 / 死亡查岗_沉沦期 / 内射_首次核爆 / 主动破锁_30阶梯 / 主动破锁_60阶梯 / 主动破锁_90阶梯
+【DEPRAVITY_EVENTS】被迫吞咽精液 / 死亡查岗_沉沦期 / 内射_首次核爆 / 主动破锁_30阶梯 / 主动破锁_60阶梯 / 主动破锁_90阶梯 / 堕落_背德共谋 / 堕落_防线失守 / 堕落_绝顶蚀刻 / 堕落_私密自渎
 - 被迫吞咽精液：base_delta_01=5（base_delta 增加）
 - 死亡查岗_沉沦期：base_delta_01=10（base_delta 增加）
 - 内射_首次核爆：base_delta_01=15（base_delta 增加）
 - 主动破锁_30阶梯：base_delta_01=5（base_delta 增加）；unlocked_threshold_02=30（unlocked_threshold 赋值/条件值）
 - 主动破锁_60阶梯：base_delta_01=5（base_delta 增加）；unlocked_threshold_02=60（unlocked_threshold 赋值/条件值）
 - 主动破锁_90阶梯：base_delta_01=5（base_delta 增加）；unlocked_threshold_02=90（unlocked_threshold 赋值/条件值）
+- 堕落_背德共谋：base_delta_01=2（base_delta 增加）
+- 堕落_防线失守：base_delta_01=3（base_delta 增加）
+- 堕落_绝顶蚀刻：base_delta_01=4（base_delta 增加）
+- 堕落_私密自渎：base_delta_01=3（base_delta 增加）
 【注册表生成表结束】
 
 【注册表生成表开始】
-【DS_EVENTS】刺激_视觉 / 刺激_嗅觉 / 刺激_听觉 / 刺激_物理 / 场景切换_欲望回落 / 临界突破_魅力压迫 / 临界突破_心理羞辱 / 消耗_轻微焦虑 / 消耗_日常劳作 / 消耗_剧烈抗拒 / 状态_空耗惩罚 / 恢复_小憩 / 恢复_安稳睡眠 / 高潮_轻度累积 / 高潮_中度累积 / 高潮_重度累积 / 触发高潮_绝顶清算
+【DS_EVENTS】刺激_视觉 / 刺激_嗅觉 / 刺激_听觉 / 刺激_物理 / 场景切换_欲望回落 / 临界突破_魅力压迫 / 临界突破_心理羞辱 / 消耗_轻微焦虑 / 消耗_日常劳作 / 消耗_剧烈抗拒 / 状态_空耗惩罚 / 恢复_小憩 / 恢复_安稳睡眠 / 高潮_轻度累积 / 高潮_中度累积 / 高潮_重度累积 / 触发高潮_绝顶清算 / 自慰_暗中纾解
 - 刺激_视觉：sensory_visual_01=3（sensory_visual 赋值/条件值）
 - 刺激_嗅觉：sensory_smell_01=2（sensory_smell 赋值/条件值）
 - 刺激_听觉：sensory_audio_01=1（sensory_audio 赋值/条件值）
 - 刺激_物理：new_des_01=10（new_des 增加）
-- 场景切换_欲望回落：new_des_01=15（new_des 扣减）
+- 场景切换_欲望回落：new_des_01=15（new_des 扣减）；new_org_02=30（new_org 扣减）
 - 临界突破_魅力压迫：new_des_01=100（new_des 赋值/条件值）
 - 临界突破_心理羞辱：共享临界突破_魅力压迫的参数（同源引用）
 - 消耗_轻微焦虑：new_sta_01=2（new_sta 扣减）
@@ -331,11 +337,12 @@ Python负责排序、推流和盖戳；AI只提供当回合增量，并按后续
 - 高潮_轻度累积：new_org_01=15（new_org 增加）
 - 高潮_中度累积：new_org_01=30（new_org 增加）
 - 高潮_重度累积：new_org_01=50（new_org 增加）
-- 触发高潮_绝顶清算：new_org_01=100（new_org 比较阈值）；new_org_02=0（new_org 赋值/条件值）；new_des_03=35（new_des 赋值/条件值）；new_sta_04=15（new_sta 增加）
+- 触发高潮_绝顶清算：new_org_01=100（new_org 比较阈值）；new_org_02=0（new_org 赋值/条件值）；new_des_03=35（new_des 赋值/条件值）；new_sta_04=15（new_sta 扣减）
+- 自慰_暗中纾解：new_org_01=0（new_org 赋值/条件值）；new_des_02=40（new_des 赋值/条件值）；new_sta_03=8（new_sta 扣减）
 【注册表生成表结束】
 
 【注册表生成表开始】
-【AFFECTION_EVENTS】阻止侵犯_成功 / 暴力下流_雪崩 / 基础安抚 / 深度操控_首次 / 深度操控_重复 / 社交微幅回馈 / 暴跌回升_恢复中 / 苏婉青_真相揭露 / 苏婉青_温柔侵蚀
+【AFFECTION_EVENTS】阻止侵犯_成功 / 暴力下流_雪崩 / 基础安抚 / 深度操控_首次 / 深度操控_重复 / 社交微幅回馈 / 暴跌回升_恢复中 / 苏婉青_真相揭露 / 苏婉青_温柔侵蚀 / 情感共振_深度交心 / 危机并肩_实质破局
 - 阻止侵犯_成功：new_aff_01=5（new_aff 扣减）
 - 暴力下流_雪崩：new_aff_01=20（new_aff 扣减）
 - 基础安抚：cur_aff_01=50（cur_aff 比较阈值）；new_aff_02=1（new_aff 增加）；new_aff_03=0（new_aff 增加）
@@ -345,6 +352,8 @@ Python负责排序、推流和盖戳；AI只提供当回合增量，并按后续
 - 暴跌回升_恢复中：new_aff_01=2（new_aff 增加）
 - 苏婉青_真相揭露：cur_aff_01=85（cur_aff 比较阈值）；cap_02=95（cap 赋值/条件值）
 - 苏婉青_温柔侵蚀：共享苏婉青_真相揭露的参数（同源引用）
+- 情感共振_深度交心：cur_aff_01=85（cur_aff 比较阈值）；new_aff_02=2（new_aff 增加）；new_aff_03=1（new_aff 增加）
+- 危机并肩_实质破局：new_aff_01=3（new_aff 增加）
 【注册表生成表结束】
 
 【注册表生成表开始】
@@ -383,11 +392,11 @@ Python负责排序、推流和盖戳；AI只提供当回合增量，并按后续
 【叙事类·后端无结算】（仅剧情语义；写入事件入口会被严格校验拒绝）受孕 / 假孕 / 真孕 / 体液残留 / 幻嗅
 
 【职责三区·标签名不变，仅责任边界】
-① AI可打（五类事件入口）：上述 SHAME/DEPRAVITY/DS/AFFECTION/HOST 列表全部。其中「确诊怀孕」仅当后端受孕暗骰命中（面板怀孕=True）后 AI 方可打，用于羞耻清零与受孕叙事落地；未命中禁止打。
-② 后端生成状态（AI 只读不写，禁止手填 PANEL_CHANGES）：怀孕（面板字段，引擎覆写）。
+① AI可打（六类事件入口）：上述 SHAME/DEPRAVITY/DS/AFFECTION/HOST/VIGILANCE 中非自动派生标签。其中「确诊怀孕」（`SHAME_10`）仅当角色已处于受孕潜伏期、面板已 `怀孕=True` 或当轮命中内射暗骰时才生效（否则由后端守卫拦截；潜伏到期自动转正时同步扣羞耻 -30 并锁顶 ≤35）。
+② 后端确定性派生与拦截（AI 无需手打，不手填 PANEL_CHANGES）：`怀孕`（面板字段，引擎覆写）、`首次`、`同质化免疫_回合2/3`、`状态_空耗惩罚`、`生理_危险期`（10 日生理周期由后端据天数确定性判定）。
 ③ 叙事语义（不打任何事件入口，误打会拒绝）：受孕 / 假孕 / 真孕 / 体液残留 / 幻嗅。
 
-【BUFF】持续_体液锁定：由后端自动挂载/检测，AI 不手动打。
+【BUFF】持续_体液锁定：由后端在命中 `内射_常规`/`内射_首次核爆` 时自动挂载/检测（三段阶梯欲望锁底 85/72/58，跨夜自动衰减 6 回合），AI 不手动打。
 ==================================================
 【监视状态块契约（徐承邺警惕机制）】
 ==================================================
@@ -396,7 +405,7 @@ Python负责排序、推流和盖戳；AI只提供当回合增量，并按后续
 【监视状态】
 徐承邺位置：外地
 徐承邺_沈知韫：警惕 0 | 发现 0 | 发现几率 0（四目标同格式；初始警惕=0，存档清理器预置）
-- 位置值域：徐家住宅 / 市中心顶层公寓 / 外地（徐承邺本人位置）。
+- 位置值域：徐家主宅 / 市中心顶层公寓 / 外地（兼容旧存档「徐家住宅」）（徐承邺本人位置）。
 - 目标行只含三字段（警惕/发现/发现几率），不携带目标位置；目标自身位置走 presence + lore.驻地。
 - 发现程度：0无察/1怀疑/2线索/3目击锁定/4实锤；>=3 不可逆。
 - 发现几率仅供 AI 判断剧情（>=70 直接判被发现），前端不显示。
@@ -412,8 +421,8 @@ Python负责排序、推流和盖戳；AI只提供当回合增量，并按后续
 - memory_deltas.round_conditions：新桥接必填，手动新脚本同样提供。对象七键齐全：intensity="A"/"B"/"C"（本回已发生行为烈度，不能从未来选项推断）、effective_progress=布尔、scene=单行地点、npc=沈知韫/苏婉青/徐念薇或null、action_changed=布尔、stress_signals=本回该NPC已发生应激信号次数（非负整数）、breakout_triggered=本回实际破局所对应的四计数键数组。无破局用[]；停滞、推进、意图和是否插入仍由模型依据事实判断。
 - counter_updates：通常{}。四破局计数与连续守护由上述语义条件递增/归零；空耗_连续未纾解_角色名由程序按各NPC本回DS投影独立计数。程序管理键仅允许等值断言，冲突拒绝；自定义非管理键仍可保存非负整数。完整旧JSON/Python缺round_conditions时保留四破局/守护绝对值入口并记录兼容提示，不推断缺失的烈度；全局空耗_连续未纾解无角色归属，仅保留旧值，不用于扣分。
 - micro_state_changes：对象，三位主NPC名→{momentary_ease/residual_tension/confusion_debt: true或false}。本回结算末激活；momentary_ease/residual_tension在下一成功回合末自动false；confusion_debt最多保留两个成功回合快照，激活后连续两次A/B观测清除，C观测当回清除并转residual_tension。显式false立即退出；重复true不刷新，省略不续期，到期优先，重新进入须经过false快照。旧true无期限首次成功观测保留并记明来源，从该次观测向后计时，不伪造历史时间。期限与scope保存在记忆库【回合生命周期】，模型不手写；失败、试算、取消、重试不重复计数。派生状态/事件和兼容提示写入实际结算日志。
-- npc_entries：数组，仅新配角首次登记或根本阵营转换时写；对象仅name/identity/setting/faction，name必填，文本单行。动态变化进记忆。对白speaker须来自现有名册或本回npc_entries，不用“角色名”等占位。
-- item_entries：数组，通常[]；新增/重大变更/消耗/归档才写。合法键id/name/type/desc/quantity/obtain_round/status/location/target/duration/remaining/expire_rule/usage_record/remark/action，name必填；文本或整数，quantity≥1。action为add/update/consume/archive。新道具默认省略id，由已有_next_item_id分配；更新/消耗复用已有id或name；add同名同ID堆叠，update数量直写，consume减1归零转历史，archive移历史。desc/remark无空行。仅临时性且duration数字的道具由后端逐回扣时效，AI不逐回维护remaining。
+- npc_entries：历史兼容空操作字段（`存档/次要NPC名册.txt` 已移除），始终留空[]，不再单独写名册；偶发配角动态直接记入四层记忆。对白speaker须来自剧情已出场角色，不用“角色名”等占位。
+- item_entries：数组，通常[]；新增/重大变更/消耗/归档才写。合法键id/name/type/desc/quantity/obtain_round/status/location/target/duration/remaining/expire_rule/usage_record/remark/action/system_effect/giftable，name必填；文本或整数，quantity≥1，giftable为布尔。action为add/update/consume/archive。新道具默认省略id，由已有_next_item_id分配；更新/消耗复用已有id或name；add同名同ID堆叠，update数量直写，consume减1归零转历史，archive移历史。desc/remark无空行。仅临时性且duration数字的道具由后端逐回扣时效，AI不逐回维护remaining。
 - task_issue：通常null；新任务才用对象title/target/attr/value/tier/item_desc，六键齐全。系统宿主属性限积分/经验值/商业嗅觉/体力，沈知韫/徐念薇/苏婉青仅好感；value正整数且高于当前值，tier仅small/medium/large。任务id由已有_next_task_id分配，模型不提交id或猜序号。同时最多一个进行中任务。奖励固定15/8、40/25、80/50积分/经验并附道具。剧情先独立完成，任务只事后判定，不因奖励扭转宿主行动；见已完成后才续接，待发道具用item_entries交增量。
 - panel_changes固定{}；人物移动标准入口为memory_deltas.presence，不再同时抄顶层presence_changes。
 - options_text：字符串，每项独占一行：[A. 日常互动]：实际可选内容，后接B、C；必须是中文冒号或英文冒号，不能用竖线。不把选项/系统结算节点塞进story_nodes，执行器会追加选项节点。
@@ -422,7 +431,7 @@ Python负责排序、推流和盖戳；AI只提供当回合增量，并按后续
 【桥接输出前自检】
 1. 仅一个JSON对象，键唯一，无注释/尾逗号/代码围栏，布尔与空值用true/false/null。
 2. 身份原样，节点依类型逐个对照键白名单；narration/craft_note禁speaker，不合并两节点对象。
-3. header首项且四段纯场景戳；旁白每条≤120；L1按150～220留足余量，无手写回合标记。
+3. header首项且四段纯场景戳；旁白每条≤4000（自由展开）；L1按150～220留足余量，无手写回合标记。
 4. 事件容器、合法标签、角色登记和presence移动事由逐项核对；仅已发生且满足条件的事实才有事件，不为奖励凑标签。
 5. summary_sources非空才压缩对应真实旧条目；审计如实，正文和选项分开；previous_validation_error只用于修正，不能改宿主行动。
 
@@ -452,7 +461,7 @@ OPTIONS = """
 
 # 🛑 【注入契约自检】（叙事判断自检见 narrative.pace / 卷零，此处只验脚本）
 # - 每个节点 text 键仅一次；字符串定界与转义合法；header 可选[居家]/[外出]前缀 + 四段纯戳
-# - narration：每条去空白≤120字符，无面板/机制词；段长、回合预算与去水判断只按 narrative.pace 自检
+# - narration：每条去空白≤4000字符（仅传输防呆），无面板/机制词；段长、回合预算与去水判断只按 narrative.pace 自检
 # - craft_note 默认不生成；仅宿主明确要求写作分析/技法评论时使用
 # - dialogue text 只含纯台词+声学标签；身体语言已拆入紧邻 narration（禁止混写叙述）
 # - presence 格式合法；MEMORY L1 无三栏标题/无机制词
@@ -468,10 +477,10 @@ OPTIONS = """
 #   craft_note：type+text；条数硬顶见上文
 #   text 键仅一次；第1节点 header
 STORY_NODES = [
-    {"type": "header", "text": "[居家] 7月21日, 周二, 三楼私人画室, 01:17"},
-    {"type": "narration", "text": "鞋底在木地板上压出很轻的一声，你沿着墙边把距离让开半步，直到补光灯的光圈够不着鞋尖；松节油的气味被门缝里的风吹淡，凳脚在地面上轻轻一响，她脚趾扣住横档又松开，肩背随呼吸起伏了一次，视线仍停在画布边缘。"},
+    {"type": "header", "text": "[外出] 7月21日, 周二, 工作室, 18:17"},
+    {"type": "narration", "text": "鞋底在木地板上压出很轻的一声，你沿着墙边把距离让开半步，直到补光灯的光圈够不着鞋尖；松节油的气味被门缝里的风吹淡，凳脚在地面上轻轻一响，她指尖压住画框边沿停了半拍，肩背随呼吸起伏了一次，视线仍停在画布边缘。"},
     {"type": "dialogue", "speaker": "角色名", "text": "[near whisper, trembling] 实际说出的台词..."},
-    {"type": "narration", "text": "她脚趾扣着凳横档，松开时脚背仍绷着，视线没有抬起来。"}
+    {"type": "narration", "text": "她把蘸着松节油的画笔搁回瓷碟边缘，脚尖轻点着凳横档，没有回头看你。"}
 ]
 
 # ==================== 混合异步记忆引擎 ====================
@@ -541,7 +550,7 @@ TASK_ISSUE = None  # 或如下格式（生成新任务时）：
 
 # ==================== 面板与深度数值 ====================
 # 🛑 数值覆写边界：
-# NPC与宿主的核心数值由五类事件标签和后台引擎计算。
+# NPC与宿主的核心数值由六类事件标签和后台引擎计算。
 # AI 严禁在这里做算术题！99% 的情况下，PANEL_CHANGES 必须为空 {}！
 # 只有当宿主明确要求强制改数值时，才填写并由调用端显式传allow_panel_override=True；普通调用遇到非空PANEL_CHANGES会拒绝提交。
 PANEL_CHANGES = {}
@@ -599,16 +608,14 @@ AFFECTION_EVENTS = {
 }
 
 NPC_ENTRIES = [
-    # 🛑 绝对红线：次要NPC文件优先级极低，严禁在此频繁更新NPC动态状态！NPC的动态（收买/死亡）全部交给四层记忆库！
-    # 仅当【全新配角首次登场】或【发生根本性阵营转换】时才填入此处！平时必须留空 []！
-    # 键名：name / identity / setting / faction
+    # 历史兼容空操作字段：原次要NPC名册已移除，配角动态统一交给四层记忆库，此处固定留空 []。
 ]
 ITEM_ENTRIES = [
 # 🛑 平时回合必须留空 []！
 # 仅当【新买道具】/【道具状态重大变更】/【使用消耗】/【手动归档】时填入。
-# 键名死线：id(可省，引擎自动分配ITEM-NNN) / name / type / desc / obtain_round / status / location / target / duration / remaining(引擎覆写) / expire_rule / usage_record / remark / quantity(缺省1) / action
+# 键名死线：id(可省，引擎自动分配ITEM-NNN) / name / type / desc / obtain_round / status / location / target / duration / remaining(引擎覆写) / expire_rule / usage_record / remark / quantity(缺省1) / action / system_effect / giftable
 # action：add(缺省，同名同ID堆叠累加) / update(quantity直写不累加) / consume(quantity-1，归零自动移历史区「已消耗」) / archive(手动移历史区「已归档」)
-# 倒计时：仅「type含临时性 + duration为数字回合」进入《存档/全局记忆库.txt》【道具倒计时】区块；引擎每回合自动-1，归零自动归档「已过期」；AI 不逐回合维护剩余时效。
+# 倒计时：仅「type含临时性 + duration为数字回合」单源维护在 save_state.json 的 items.active 并自动渲染至《存档/全局记忆库.txt》【道具倒计时】区块；引擎每回合自动-1，归零自动归档「已过期」；AI 不逐回合维护剩余时效。
 # desc / remark 禁止含空行（多行描述请用空格或 / 连接）。
 ]
 

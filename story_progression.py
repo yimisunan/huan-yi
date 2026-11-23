@@ -4,11 +4,91 @@ import copy
 import json
 from pathlib import Path
 import re
+import secrets
+import shutil
+import tempfile
+import time
 import round_runtime as rr
+import save_store
 
 COSTS = {'A': 5, 'B': 10, 'C': 15}
 TASKS = '.round-runtime/story/tasks.json'
 PURE_ITEM = re.compile(r'\s*使用恢复道具\s*[：:]?\s*(ITEM-\d+)\s*[。！!]?\s*')
+SHOP_ANCHOR = '【商城与回响状态】'
+SHOP_CATALOG_DEFAULT = 'txt文件/系统商城目录.json'
+SHOP_RECENT_LIMIT = 8
+SHOP_ECHO_LIMIT = 4
+SHOP_TIER_RANGES = {'low': (1, 10), 'mid': (11, 50), 'high': (100, 999999)}
+SHOP_FORBIDDEN_DURATION_RE = re.compile(
+    r'(?:延长|冻结|缩短|设定|暂停|修改|刷新|重置|清除).{0,6}(?:持续时间|状态时间|时效|倒计时|冷却|体液锁定|BUFF)'
+)
+INTEL_ANCHOR = '【商业情报与杠杆状态】'
+INTEL_CATALOG_DEFAULT = 'txt文件/商业情报目录.json'
+DIRECTOR_ANCHOR = '【世界导演状态】'
+DIRECTOR_CATALOG_DEFAULT = 'txt文件/世界变故库.json'
+DIRECTOR_SEED_LIMIT = 3
+DIRECTOR_DEFAULTS = {
+    'status': 'active',
+    'catalog': DIRECTOR_CATALOG_DEFAULT,
+    'base_prob': 0.08,
+    'max_prob': 0.85,
+    'stagnation_curve': [0.0, 0.07, 0.16, 0.28, 0.44, 0.62],
+    'global_cooldown': 1,
+    'soft_cooldown_penalty': 0.25,
+    'tier_weights': {'tier1': 50, 'tier2': 38, 'tier3': 12, 'tier4': 22},
+    'scene_exit_threshold': 3,
+    'track_weights': {'thread_spark': 45, 'offstage_clock': 30, 'preset_beat': 25},
+    'max_active_threads': 5,
+    'max_thread_age': 12,
+    'channel_cooldown_window': 4,
+    'clock_tick_interval': 3,
+}
+DIRECTOR_VALID_PEOPLE = ('沈知韫', '徐念薇', '苏婉青', '徐承邺', '徐志北')
+DIRECTOR_DEFAULT_CHANNELS = {
+    'phone_msg': '手机来电/微信/推送消息',
+    'door_visit': '敲门/突然来访/门外闯入',
+    'object_trace': '物件遗落/票据/衣着痕迹/随身小物',
+    'sensory_slip': '气味/余温/声响/神态走神',
+    'third_party': '管家/同事/邻里/第三方转述',
+    'schedule_clash': '行程变卦/时间压缩/设备故障/天气突变',
+    'conversation_twist': '口误/旧话重提/试探反问/话题转折',
+    'offstage_ripple': '跨城信物/场外暗流余波',
+}
+WEEKDAYS = ('周一', '周二', '周三', '周四', '周五', '周六', '周日')
+PASSIVE_TARGETS = ('沈知韫', '苏婉青', '徐念薇')
+PASSIVE_LEVELS = (
+    {'level': 0, 'tag': 'Lv.0', 'name': '凡人体质', 'cost': 0, 'effect': '无被动增益；越界面临正常防御或反击'},
+    {'level': 1, 'tag': 'Lv.1', 'name': '洞察之瞳', 'cost': 20, 'effect': '精准捕捉目标生理伪装、心虚停顿与微小动摇'},
+    {'level': 2, 'tag': 'Lv.2', 'name': '认知欺诈滤镜', 'cost': 50, 'effect': 'C烈度越界好感惩罚减半（可与商业杠杆叠加）；目标潜意识优先合理化宿主行为'},
+    {'level': 3, 'tag': 'Lv.3', 'name': '疲劳诱导', 'cost': 200, 'effect': '精准触发焦虑锚点；目标焦虑/劳作/剧烈抗拒体力消耗翻倍'},
+    {'level': 4, 'tag': 'Lv.4', 'name': '防线支配', 'cost': 800, 'effect': '全景测绘；精准命中最脆弱节点（遗嘱焦虑/背德恐惧等）'},
+)
+
+
+def passive_levels(root):
+    """Load passive upgrade EXP costs dynamically from txt文件/互动运行配置.json."""
+    levels = [dict(x) for x in PASSIVE_LEVELS]
+    cfg_path = Path(root) / 'txt文件/互动运行配置.json'
+    if cfg_path.is_file():
+        try:
+            raw = rr.load_request(cfg_path.read_text(encoding='utf-8'))
+            costs = (raw.get('passive') or {}).get('costs') or {}
+            if isinstance(costs, dict):
+                for item in levels:
+                    key = str(item['level'])
+                    if key in costs and isinstance(costs[key], int) and costs[key] >= 0:
+                        item['cost'] = costs[key]
+        except Exception:
+            pass
+    return levels
+_FISH_TAG_RE = re.compile(r"\[[^\]\r\n]{1,80}\]")
+_DRAMA3_EVIDENCE_RE = re.compile(
+    r"</?(?:whisper|emphasis|soft|fast|slow|stress|forceful|chinese|english|japanese|korean|cantonese|french|german|spanish)>",
+    flags=re.I,
+)
+_PHONEME_EVIDENCE_RE = re.compile(r"<\|phoneme_start\|>[^<\r\n]{1,40}<\|phoneme_end\|>|<\|[^|\r\n]{1,40}\|>")
+_SUBTEXT_RUBY_RE = re.compile(r"[｛{]([^｜|}\r\n]+)[｜|]([^｝}\r\n]+)[｝}]")
+ACTIVE_JOB_STATUSES = {'preparing', 'queued', 'generating', 'validating', 'refund_pending'}
 
 
 MEMORY_DEFAULTS = {'fact_chars':160, 'round_chars':600, 'l2_chars':240, 'l3_chars':600,
@@ -16,8 +96,1434 @@ MEMORY_DEFAULTS = {'fact_chars':160, 'round_chars':600, 'l2_chars':240, 'l3_char
                    'history_chars':12000, 'index_entries':24}
 
 
+def _clean_single_line(text):
+    return re.sub(r'[\r\n|]+', ' ', str(text or '')).strip()
+
+
+def _norm_evidence_text(text, subtext_mode=None):
+    raw = str(text or '')
+    if subtext_mode == 'surface':
+        raw = _SUBTEXT_RUBY_RE.sub(r'\1', raw)
+    elif subtext_mode == 'subtext':
+        raw = _SUBTEXT_RUBY_RE.sub(r'\2', raw)
+    stripped = _FISH_TAG_RE.sub('', raw)
+    stripped = _DRAMA3_EVIDENCE_RE.sub('', stripped)
+    stripped = _PHONEME_EVIDENCE_RE.sub('', stripped)
+    return re.sub(r'\s+', ' ', stripped).strip()
+
+
+def _evidence_matches(evidence, texts):
+    if not isinstance(evidence, str) or not evidence.strip():
+        return False
+    if evidence in texts:
+        return True
+    for mode in (None, 'surface', 'subtext'):
+        ne = _norm_evidence_text(evidence, mode)
+        if len(ne) >= 2 and (
+            ne in _norm_evidence_text(texts, mode)
+            or ne in _norm_evidence_text(texts, 'surface')
+            or ne in _norm_evidence_text(texts, 'subtext')
+        ):
+            return True
+    return False
+
+
+def parse_shop_echo_block(content):
+    """Parse 【商城与回响状态】 from 全局记忆库.txt; missing block defaults cleanly to empty."""
+    state_out = {'redeemed': {}, 'recent': [], 'echoes': []}
+    if not content or SHOP_ANCHOR not in content:
+        return state_out
+    m = re.search(rf'(?m)({re.escape(SHOP_ANCHOR)}.*?)(?=\n【|\n▲ 第一层：|\Z)', content, re.S)
+    if not m:
+        return state_out
+    block = m.group(1)
+    rm = re.search(r'^已兑统计：([^\n]+)', block, re.M)
+    if rm and rm.group(1).strip() not in ('（无）', '(无)', '无', ''):
+        for seg in rm.group(1).split('|'):
+            pm = re.fullmatch(r'\s*(SHOP-\d+)[×x*](\d+)\s*', seg)
+            if pm:
+                state_out['redeemed'][pm.group(1)] = int(pm.group(2))
+    rec_m = re.search(r'^最近兑换：\n((?: [^\n]+\n?)*)', block, re.M)
+    if rec_m and rec_m.group(1).strip():
+        state_out['recent'] = [ln.strip() for ln in rec_m.group(1).splitlines() if ln.strip()][:SHOP_RECENT_LIMIT]
+    echo_m = re.search(r'^待播回响：\n((?: [^\n]+\n?)*)', block, re.M)
+    if echo_m and echo_m.group(1).strip():
+        for ln in echo_m.group(1).splitlines():
+            raw = ln.strip()
+            if not raw:
+                continue
+            parts = [p.strip() for p in raw.split('|', 2)]
+            if len(parts) == 3 and parts[0] and parts[1] and parts[2]:
+                state_out['echoes'].append({
+                    'id': f'{parts[0]}:{parts[1]}',
+                    'kind': parts[0],
+                    'ref': parts[1],
+                    'summary': parts[2],
+                })
+    state_out['echoes'] = state_out['echoes'][-SHOP_ECHO_LIMIT:]
+    return state_out
+
+
+def write_shop_echo_block(content, shop_state):
+    """Write 【商城与回响状态】 cleanly into pre-L1 region without disturbing adjacent blocks."""
+    redeemed = shop_state.get('redeemed') or {}
+    recent = [ln.strip() for ln in (shop_state.get('recent') or []) if str(ln).strip()][:SHOP_RECENT_LIMIT]
+    echoes = list(shop_state.get('echoes') or [])[-SHOP_ECHO_LIMIT:]
+    lines = [SHOP_ANCHOR]
+    if redeemed:
+        parts = [f'{k}×{int(v)}' for k, v in sorted(redeemed.items()) if int(v) > 0]
+        lines.append('已兑统计：' + (' | '.join(parts) if parts else '（无）'))
+    else:
+        lines.append('已兑统计：（无）')
+    if recent:
+        lines.append('最近兑换：')
+        for row in recent:
+            lines.append(' ' + row.replace('\n', ' ').strip())
+    else:
+        lines.append('最近兑换：（无）')
+    if echoes:
+        lines.append('待播回响：')
+        for item in echoes:
+            kind = _clean_single_line(item.get('kind'))
+            ref = _clean_single_line(item.get('ref'))
+            summary = _clean_single_line(item.get('summary'))
+            if kind and ref and summary:
+                lines.append(f' {kind} | {ref} | {summary}')
+    else:
+        lines.append('待播回响：（无）')
+    block = '\n'.join(lines) + '\n'
+    m = re.search(rf'(?m)({re.escape(SHOP_ANCHOR)}.*?)(?=\n【|\n▲ 第一层：|\Z)', content, re.S)
+    if m:
+        return content[:m.start(1)] + block + content[m.end(1):]
+    for anchor in ('【回合生命周期】', '▲ 第一层：'):
+        idx = content.find(anchor)
+        if idx != -1:
+            prefix = content[:idx]
+            sep = '' if prefix.endswith('\n\n') else ('\n' if prefix.endswith('\n') else '\n\n')
+            return prefix + sep + block + '\n' + content[idx:]
+    return content.rstrip('\n') + '\n\n' + block
+
+
+def append_echo(content, kind, ref, summary):
+    shop_state = parse_shop_echo_block(content)
+    k = _clean_single_line(kind)
+    r = _clean_single_line(ref)
+    s = _clean_single_line(summary)
+    if not k or not r or not s:
+        return content
+    eid = f'{k}:{r}'
+    echoes = [e for e in shop_state['echoes'] if e['id'] != eid]
+    echoes.append({'id': eid, 'kind': k, 'ref': r, 'summary': s})
+    shop_state['echoes'] = echoes[-SHOP_ECHO_LIMIT:]
+    return write_shop_echo_block(content, shop_state)
+
+
+def consume_echoes(content, consumed_ids):
+    if not consumed_ids:
+        return content
+    wanted = set(consumed_ids)
+    shop_state = parse_shop_echo_block(content)
+    kept = [e for e in shop_state['echoes'] if e['id'] not in wanted]
+    if len(kept) == len(shop_state['echoes']):
+        return content
+    shop_state['echoes'] = kept
+    return write_shop_echo_block(content, shop_state)
+
+
+def shop_catalog_path(root):
+    cfg_path = Path(root) / 'txt文件/互动运行配置.json'
+    if cfg_path.is_file():
+        cfg = rr.load_request(cfg_path.read_text(encoding='utf-8'))
+        shop_cfg = cfg.get('shop')
+        if isinstance(shop_cfg, dict) and isinstance(shop_cfg.get('catalog'), str) and shop_cfg['catalog'].strip():
+            return shop_cfg['catalog'].strip()
+    return SHOP_CATALOG_DEFAULT
+
+
+def load_shop_catalog(root, optional=False):
+    """Load and strictly validate the authoritative deterministic shop catalog."""
+    rel = shop_catalog_path(root)
+    path = Path(root) / rel
+    if not path.is_file():
+        if optional:
+            return {'version': 1, 'tiers': {}, 'items': [], 'source': rel}
+        raise rr.RoundError('缺少权威系统商城目录：' + rel)
+    raw = rr.load_request(path.read_text(encoding='utf-8'))
+    rr._keys(raw, {'version', 'tiers', 'items'}, '系统商城目录', {'version', 'items'})
+    if raw.get('version') != 1 or not isinstance(raw.get('items'), list):
+        raise rr.RoundError('系统商城目录版本或结构无效')
+    seen_ids = set()
+    seen_names = set()
+    required_item = {'id', 'name', 'tier', 'price', 'type', 'desc', 'duration', 'expire_rule', 'system_effect', 'giftable', 'max_per_save'}
+    normalized = []
+    for entry in raw['items']:
+        rr._keys(entry, required_item, '商城商品', required_item)
+        sid = entry['id']
+        if not isinstance(sid, str) or not re.fullmatch(r'SHOP-\d+', sid) or sid in seen_ids:
+            raise rr.RoundError('商城商品ID无效或重复: ' + str(sid))
+        seen_ids.add(sid)
+        name = rr._text(entry['name'], 'shop.name', 60).strip()
+        if name in seen_names:
+            raise rr.RoundError('商城商品名称重复: ' + name)
+        seen_names.add(name)
+        tier = entry['tier']
+        if tier not in SHOP_TIER_RANGES:
+            raise rr.RoundError('商城商品档位非法: ' + str(tier))
+        price = entry['price']
+        rr._integer(price, 'shop.price', 1)
+        lo, hi = SHOP_TIER_RANGES[tier]
+        if not lo <= price <= hi:
+            raise rr.RoundError(f'商城商品 {sid} 价格 {price} 与档位 {tier}({lo}~{hi}) 不符')
+        item_type = rr._text(entry['type'], 'shop.type', 40).strip()
+        desc = rr._text(entry['desc'], 'shop.desc', 240).strip()
+        duration = rr._text(entry['duration'], 'shop.duration', 20).strip()
+        expire_rule = rr._text(entry['expire_rule'], 'shop.expire_rule', 80).strip()
+        eff = entry['system_effect']
+        if not isinstance(eff, str) or (eff and not re.fullmatch(r'host_stamina:[1-9]\d{0,3}', eff)):
+            raise rr.RoundError('商城商品系统效果未登记: ' + str(eff))
+        if type(entry['giftable']) is not bool:
+            raise rr.RoundError('商城商品giftable须为布尔值')
+        cap = entry['max_per_save']
+        if cap is not None:
+            rr._integer(cap, 'shop.max_per_save', 1)
+        for field_text in (name, desc, expire_rule):
+            if SHOP_FORBIDDEN_DURATION_RE.search(field_text):
+                raise rr.RoundError('商城商品违反红线（禁止修改状态持续时间）: ' + sid)
+        normalized.append({
+            'id': sid, 'name': name, 'tier': tier, 'price': price, 'type': item_type,
+            'desc': desc, 'duration': duration, 'expire_rule': expire_rule,
+            'system_effect': eff, 'giftable': entry['giftable'], 'max_per_save': cap,
+        })
+    tiers = raw.get('tiers') if isinstance(raw.get('tiers'), dict) else {}
+    return {'version': 1, 'tiers': copy.deepcopy(tiers), 'items': normalized, 'source': rel}
+
+
+def intel_catalog_path(root):
+    cfg_path = Path(root) / 'txt文件/互动运行配置.json'
+    if cfg_path.is_file():
+        cfg = rr.load_request(cfg_path.read_text(encoding='utf-8'))
+        intel_cfg = cfg.get('intel')
+        if isinstance(intel_cfg, dict) and isinstance(intel_cfg.get('catalog'), str) and intel_cfg['catalog'].strip():
+            return intel_cfg['catalog'].strip()
+    return INTEL_CATALOG_DEFAULT
+
+
+def load_intel_catalog(root, optional=False):
+    """Load and validate authoritative commercial intel catalog."""
+    rel = intel_catalog_path(root)
+    path = Path(root) / rel
+    if not path.is_file():
+        if optional:
+            return {'version': 1, 'leverage_min_biz': 60, 'items': [], 'source': rel}
+        raise rr.RoundError('缺少权威商业情报目录：' + rel)
+    raw = rr.load_request(path.read_text(encoding='utf-8'))
+    rr._keys(raw, {'version', 'leverage_min_biz', 'items'}, '商业情报目录', {'version', 'items'})
+    if raw.get('version') != 1 or not isinstance(raw.get('items'), list):
+        raise rr.RoundError('商业情报目录版本或结构无效')
+    leverage_min = int(raw.get('leverage_min_biz', 60))
+    seen_ids = set()
+    items = []
+    req = {'id', 'name', 'min_biz', 'min_su_ab_contacts', 'desc', 'effect_summary', 'effects'}
+    for entry in raw['items']:
+        rr._keys(entry, req, '商业情报条目', req)
+        iid = entry['id']
+        if not isinstance(iid, str) or not re.fullmatch(r'INTEL-\d+', iid) or iid in seen_ids:
+            raise rr.RoundError('商业情报ID无效或重复: ' + str(iid))
+        seen_ids.add(iid)
+        items.append({
+            'id': iid,
+            'name': rr._text(entry['name'], 'intel.name', 60).strip(),
+            'min_biz': int(entry['min_biz']),
+            'min_su_ab_contacts': int(entry['min_su_ab_contacts']),
+            'desc': rr._text(entry['desc'], 'intel.desc', 240).strip(),
+            'effect_summary': rr._text(entry['effect_summary'], 'intel.effect_summary', 240).strip(),
+            'effects': copy.deepcopy(entry['effects']),
+        })
+    return {'version': 1, 'leverage_min_biz': leverage_min, 'items': items, 'source': rel}
+
+
+def parse_intel_block(content):
+    """Parse 【商业情报与杠杆状态】 from 全局记忆库.txt; missing block defaults cleanly."""
+    out = {'held': [], 'consumed': [], 'su_ab_contacts': 0, 'leverage_armed': ''}
+    if not content or INTEL_ANCHOR not in content:
+        return out
+    m = re.search(rf'(?m)({re.escape(INTEL_ANCHOR)}.*?)(?=\n【|\n▲ 第一层：|\Z)', content, re.S)
+    if not m:
+        return out
+    block = m.group(1)
+    hm = re.search(r'^持有情报：([^\n]+)', block, re.M)
+    if hm and hm.group(1).strip() not in ('（无）', '(无)', '无', ''):
+        out['held'] = list(dict.fromkeys(re.findall(r'INTEL-\d+', hm.group(1))))
+    cm = re.search(r'^已耗情报：([^\n]+)', block, re.M)
+    if cm and cm.group(1).strip() not in ('（无）', '(无)', '无', ''):
+        out['consumed'] = list(dict.fromkeys(re.findall(r'INTEL-\d+', cm.group(1))))
+    sm = re.search(r'^苏婉青AB接触：\s*(\d+)', block, re.M)
+    if sm:
+        out['su_ab_contacts'] = int(sm.group(1))
+    lm = re.search(r'^商业杠杆预备：([^\n]+)', block, re.M)
+    if lm:
+        im = re.search(r'INTEL-\d+', lm.group(1))
+        if im and im.group(0) in out['held']:
+            out['leverage_armed'] = im.group(0)
+    return out
+
+
+def write_intel_block(content, intel_state, catalog=None):
+    """Write 【商业情报与杠杆状态】 cleanly into pre-L1 region after 【商城与回响状态】."""
+    name_map = {it['id']: it['name'] for it in (catalog or {}).get('items', [])}
+    held = list(dict.fromkeys(intel_state.get('held') or []))
+    consumed = list(dict.fromkeys(x for x in (intel_state.get('consumed') or []) if x not in held))
+    su_ab = max(0, int(intel_state.get('su_ab_contacts') or 0))
+    armed = str(intel_state.get('leverage_armed') or '')
+    if armed not in held:
+        armed = ''
+    def fmt_id(iid):
+        return f'{iid}({name_map[iid]})' if iid in name_map else iid
+    lines = [
+        INTEL_ANCHOR,
+        '持有情报：' + (' | '.join(fmt_id(i) for i in held) if held else '（无）'),
+        '已耗情报：' + (' | '.join(fmt_id(i) for i in consumed) if consumed else '（无）'),
+        f'苏婉青AB接触：{su_ab}',
+        f'商业杠杆预备：已预备({fmt_id(armed)})' if armed else '商业杠杆预备：未启用',
+    ]
+    block = '\n'.join(lines) + '\n'
+    m = re.search(rf'(?m)({re.escape(INTEL_ANCHOR)}.*?)(?=\n【|\n▲ 第一层：|\Z)', content, re.S)
+    if m:
+        return content[:m.start(1)] + block + content[m.end(1):]
+    for anchor in ('【回合生命周期】', '▲ 第一层：'):
+        idx = content.find(anchor)
+        if idx != -1:
+            prefix = content[:idx]
+            sep = '' if prefix.endswith('\n\n') else ('\n' if prefix.endswith('\n') else '\n\n')
+            return prefix + sep + block + '\n' + content[idx:]
+    return content.rstrip('\n') + '\n\n' + block
+
+
+def director_config(root):
+    cfg = copy.deepcopy(DIRECTOR_DEFAULTS)
+    cfg_path = Path(root) / 'txt文件/互动运行配置.json'
+    if cfg_path.is_file():
+        raw = rr.load_request(cfg_path.read_text(encoding='utf-8'))
+        d = raw.get('director')
+        if isinstance(d, dict):
+            for k, v in d.items():
+                if k in cfg:
+                    cfg[k] = copy.deepcopy(v)
+    return cfg
+
+
+def load_world_beats(root, optional=True):
+    cfg = director_config(root)
+    rel = str(cfg.get('catalog') or DIRECTOR_CATALOG_DEFAULT).strip()
+    path = Path(root) / rel
+    if not path.is_file():
+        if optional:
+            return {
+                'version': 1, 'beats': [], 'channels': dict(DIRECTOR_DEFAULT_CHANNELS),
+                'spark_matrix': {}, 'offstage_clocks': {}, 'source': rel,
+            }
+        raise rr.RoundError('缺少世界变故库：' + rel)
+    raw = rr.load_request(path.read_text(encoding='utf-8'))
+    beats = raw.get('beats')
+    if not isinstance(beats, list):
+        raise rr.RoundError('世界变故库结构无效')
+    channels = raw.get('channels') if isinstance(raw.get('channels'), dict) else dict(DIRECTOR_DEFAULT_CHANNELS)
+    spark_matrix = raw.get('spark_matrix') if isinstance(raw.get('spark_matrix'), dict) else {}
+    offstage_clocks = raw.get('offstage_clocks') if isinstance(raw.get('offstage_clocks'), dict) else {}
+    return {
+        'version': int(raw.get('version', 1)),
+        'beats': beats,
+        'channels': channels,
+        'spark_matrix': spark_matrix,
+        'offstage_clocks': offstage_clocks,
+        'source': rel,
+    }
+
+
+def _default_director_state():
+    return {
+        'calm_streak': 0,
+        'global_cooldown': 0,
+        'turns_since_beat': 99,
+        'scene_location': '',
+        'scene_turns': 0,
+        'clock_tick_acc': 0,
+        'last_time_slot': '',
+        'event_cooldowns': {},
+        'consumed_once': [],
+        'pending_seeds': [],
+        'active_threads': [],
+        'next_thread_seq': 1,
+        'offstage_clocks': {},
+        'recent_channels': [],
+    }
+
+
+def parse_director_block(content):
+    """Parse 【世界导演状态】 compact JSON from 全局记忆库.txt; missing block or legacy v1 fields default cleanly."""
+    out = _default_director_state()
+    if not content or DIRECTOR_ANCHOR not in content:
+        return out
+    m = re.search(rf'(?m)^{re.escape(DIRECTOR_ANCHOR)}[ \t]*\n([^\n]+)', content)
+    if not m:
+        return out
+    try:
+        raw = json.loads(m.group(1).strip())
+    except ValueError:
+        return out
+    if not isinstance(raw, dict):
+        return out
+    for int_k in ('calm_streak', 'global_cooldown', 'turns_since_beat', 'scene_turns', 'clock_tick_acc'):
+        val = raw.get(int_k)
+        if type(val) is int and val >= 0:
+            out[int_k] = val
+    if isinstance(raw.get('scene_location'), str):
+        out['scene_location'] = raw['scene_location']
+    if raw.get('last_time_slot') in ('', 'morning', 'afternoon', 'evening', 'night'):
+        out['last_time_slot'] = raw['last_time_slot']
+    if isinstance(raw.get('event_cooldowns'), dict):
+        out['event_cooldowns'] = {
+            str(k): int(v) for k, v in raw['event_cooldowns'].items()
+            if isinstance(k, str) and type(v) is int and v > 0
+        }
+    if isinstance(raw.get('consumed_once'), list):
+        out['consumed_once'] = list(dict.fromkeys(str(x) for x in raw['consumed_once'] if isinstance(x, str) and x))
+    if isinstance(raw.get('pending_seeds'), list):
+        seeds = []
+        for s in raw['pending_seeds']:
+            if isinstance(s, dict) and isinstance(s.get('seed_id'), str) and s['seed_id']:
+                seeds.append({
+                    'seed_id': s['seed_id'],
+                    'summary': str(s.get('summary') or '')[:120],
+                    'age': int(s.get('age') or 0) if type(s.get('age', 0)) is int else 0,
+                })
+        out['pending_seeds'] = seeds[-DIRECTOR_SEED_LIMIT:]
+    max_seq = 0
+    if isinstance(raw.get('active_threads'), list):
+        threads = []
+        seen_ids = set()
+        for t in raw['active_threads']:
+            if not isinstance(t, dict):
+                continue
+            tid = str(t.get('id') or '').strip()
+            topic = _clean_single_line(t.get('topic') or '')[:60]
+            if not tid or not topic or tid in seen_ids:
+                continue
+            seen_ids.add(tid)
+            who_raw = t.get('who') if isinstance(t.get('who'), list) else []
+            who = [str(w).strip() for w in who_raw if isinstance(w, str) and str(w).strip() in DIRECTOR_VALID_PEOPLE]
+            tension = 'hard' if t.get('tension') == 'hard' else 'soft'
+            age = t.get('age') if type(t.get('age')) is int and t.get('age') >= 0 else 0
+            touches = t.get('touches') if type(t.get('touches')) is int and t.get('touches') >= 0 else 0
+            threads.append({
+                'id': tid, 'who': who, 'topic': topic,
+                'tension': tension, 'age': age, 'touches': touches,
+            })
+            tm = re.fullmatch(r'TH-(\d+)', tid)
+            if tm:
+                max_seq = max(max_seq, int(tm.group(1)))
+        out['active_threads'] = threads[-8:]
+    seq_val = raw.get('next_thread_seq')
+    if type(seq_val) is int and seq_val >= 1:
+        out['next_thread_seq'] = max(seq_val, max_seq + 1)
+    else:
+        out['next_thread_seq'] = max(1, max_seq + 1)
+    if isinstance(raw.get('offstage_clocks'), dict):
+        clocks = {}
+        for cid, cst in raw['offstage_clocks'].items():
+            if not isinstance(cid, str) or not cid or not isinstance(cst, dict):
+                continue
+            p_val = cst.get('p') if type(cst.get('p')) is int and cst.get('p') >= 0 else 0
+            ph_val = cst.get('ph') if type(cst.get('ph')) is int and cst.get('ph') >= 0 else 0
+            so_val = bool(cst.get('so'))
+            cd_val = cst.get('cd') if type(cst.get('cd')) is int and cst.get('cd') >= 0 else 0
+            clocks[cid] = {'p': p_val, 'ph': ph_val, 'so': so_val, 'cd': cd_val}
+        out['offstage_clocks'] = clocks
+    if isinstance(raw.get('recent_channels'), list):
+        out['recent_channels'] = [str(c).strip() for c in raw['recent_channels'] if isinstance(c, str) and c.strip()][-8:]
+    return out
+
+
+def write_director_block(content, dstate):
+    """Write 【世界导演状态】 cleanly into pre-L1 region before 【回合生命周期】 or ▲ 第一层：."""
+    clean = _default_director_state()
+    clean.update({
+        'calm_streak': max(0, int(dstate.get('calm_streak', 0))),
+        'global_cooldown': max(0, int(dstate.get('global_cooldown', 0))),
+        'turns_since_beat': max(0, int(dstate.get('turns_since_beat', 99))),
+        'scene_location': str(dstate.get('scene_location') or ''),
+        'scene_turns': max(0, int(dstate.get('scene_turns', 0))),
+        'clock_tick_acc': max(0, int(dstate.get('clock_tick_acc', 0))),
+        'last_time_slot': str(dstate.get('last_time_slot') or '') if dstate.get('last_time_slot') in ('', 'morning', 'afternoon', 'evening', 'night') else '',
+        'event_cooldowns': {k: int(v) for k, v in (dstate.get('event_cooldowns') or {}).items() if int(v) > 0},
+        'consumed_once': list(dict.fromkeys(str(x) for x in (dstate.get('consumed_once') or []) if x)),
+        'pending_seeds': list(dstate.get('pending_seeds') or [])[-DIRECTOR_SEED_LIMIT:],
+        'active_threads': list(dstate.get('active_threads') or [])[-8:],
+        'next_thread_seq': max(1, int(dstate.get('next_thread_seq', 1))),
+        'offstage_clocks': {
+            str(k): {
+                'p': max(0, int(v.get('p', 0))),
+                'ph': max(0, int(v.get('ph', 0))),
+                'so': bool(v.get('so', False)),
+                'cd': max(0, int(v.get('cd', 0))),
+            }
+            for k, v in (dstate.get('offstage_clocks') or {}).items()
+            if isinstance(k, str) and k and isinstance(v, dict)
+        },
+        'recent_channels': [str(c) for c in (dstate.get('recent_channels') or []) if isinstance(c, str) and c][-8:],
+    })
+    encoded = json.dumps(clean, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+    block = DIRECTOR_ANCHOR + '\n' + encoded + '\n'
+    m = re.search(rf'(?m)({re.escape(DIRECTOR_ANCHOR)}[ \t]*\n[^\n]*\n?)', content)
+    if m:
+        return content[:m.start(1)] + block + content[m.end(1):]
+    for anchor in ('【回合生命周期】', '▲ 第一层：'):
+        idx = content.find(anchor)
+        if idx != -1:
+            prefix = content[:idx]
+            sep = '' if prefix.endswith('\n\n') else ('\n' if prefix.endswith('\n') else '\n\n')
+            return prefix + sep + block + '\n' + content[idx:]
+    return content.rstrip('\n') + '\n\n' + block
+
+
+def _clock_time_slot(clock):
+    if not isinstance(clock, dict) or not isinstance(clock.get('time'), str) or ':' not in clock['time']:
+        return 'morning'
+    try:
+        hour = int(clock['time'].split(':', 1)[0])
+    except ValueError:
+        return 'morning'
+    if 6 <= hour < 12:
+        return 'morning'
+    if 12 <= hour < 18:
+        return 'afternoon'
+    if 18 <= hour < 23:
+        return 'evening'
+    return 'night'
+
+
+def _is_boundary_window(clock, weekday):
+    if not isinstance(clock, dict) or not isinstance(clock.get('time'), str) or ':' not in clock['time']:
+        return False
+    try:
+        h, m = map(int, clock['time'].split(':', 1))
+    except ValueError:
+        return False
+    hhmm = h * 60 + m
+    is_workday = weekday in ('周一', '周二', '周三', '周四', '周五')
+    if is_workday and (945 <= hhmm <= 980 or 1005 <= hhmm <= 1040):
+        return True  # 沈知韫下班交界 / 徐念薇转工作室交界
+    if (weekday in ('周二', '周五') and 930 <= hhmm <= 1110) or (weekday == '周日' and 600 <= hhmm <= 900):
+        return True  # 苏婉青请安窗
+    if hhmm >= 1380 or hhmm < 120:
+        return True  # 深夜 23:00-02:00
+    return False
+
+
+def _weighted_choice(weighted_items, gen):
+    total = sum(max(0.0, float(w)) for _, w in weighted_items)
+    if total <= 0.0:
+        return weighted_items[0][0]
+    pick = gen.random() * total
+    acc = 0.0
+    for item, w in weighted_items:
+        acc += max(0.0, float(w))
+        if pick <= acc:
+            return item
+    return weighted_items[-1][0]
+
+
+def _extract_latest_l1_snippet(memory_text):
+    if not memory_text or '▲ 第一层：' not in memory_text:
+        return ''
+    body = memory_text.split('▲ 第一层：', 1)[1].split('▲ 第二层：', 1)[0]
+    lines = [ln.strip() for ln in body.splitlines() if ln.strip() and not ln.strip().startswith('【即时运存区】')]
+    for ln in reversed(lines):
+        if ln in ('（空）', '无', '- 无') or ln.startswith('【系统隐藏标记：'):
+            continue
+        cleaned = save_store.strip_prologue_marker(ln)
+        cleaned = re.sub(r'^[•\-\*]+\s*', '', cleaned)
+        cleaned = re.sub(r'^【\d+】(?:[^｜|]*[｜|]\s*)?', '', cleaned).strip()
+        if len(cleaned) >= 6:
+            return cleaned[:46]
+    return ''
+
+
+def _thread_topic_similar(a, b):
+    sa = re.sub(r'[\s，。！？、：；“”"\'（）()\[\]]+', '', str(a or ''))
+    sb = re.sub(r'[\s，。！？、：；“”"\'（）()\[\]]+', '', str(b or ''))
+    if not sa or not sb:
+        return False
+    if sa in sb or sb in sa:
+        return True
+    if len(sa) < 3 or len(sb) < 3:
+        return sa == sb
+    ga = {sa[i:i + 2] for i in range(len(sa) - 1)}
+    gb = {sb[i:i + 2] for i in range(len(sb) - 1)}
+    inter = len(ga & gb)
+    union = len(ga | gb)
+    return bool(union and (inter / union) >= 0.55)
+
+
+def _sanitize_director_echo(raw, catalog, dstate, is_action):
+    """Fault-tolerant whitelist sanitizer for optional resolution.director_echo; never raises RoundError."""
+    if not is_action or raw in (None, '') or not isinstance(raw, dict):
+        return None
+    out = {}
+    channels_map = (catalog or {}).get('channels') or DIRECTOR_DEFAULT_CHANNELS
+    clocks_cfg = (catalog or {}).get('offstage_clocks') or {}
+    active_ids = {t['id'] for t in (dstate or {}).get('active_threads', []) if isinstance(t, dict) and t.get('id')}
+
+    nt = raw.get('new_thread')
+    if isinstance(nt, dict):
+        topic = _clean_single_line(nt.get('topic') or '')[:48]
+        if len(topic) >= 4 and topic not in ('无', '暂无', '（空）', '空', 'none', 'null'):
+            who_raw = nt.get('who')
+            if isinstance(who_raw, str):
+                who_raw = [who_raw]
+            who = []
+            if isinstance(who_raw, list):
+                for w in who_raw:
+                    ws = str(w).strip()
+                    if ws in DIRECTOR_VALID_PEOPLE and ws not in who:
+                        who.append(ws)
+            tension = 'hard' if nt.get('tension') == 'hard' else 'soft'
+            out['new_thread'] = {'who': who, 'topic': topic, 'tension': tension}
+
+    ct = raw.get('close_thread')
+    closed = []
+    if isinstance(ct, str) and ct.strip() in active_ids:
+        closed.append(ct.strip())
+    elif isinstance(ct, list):
+        for item in ct:
+            if isinstance(item, str) and item.strip() in active_ids and item.strip() not in closed:
+                closed.append(item.strip())
+    if closed:
+        out['close_thread'] = closed
+
+    cn = raw.get('clock_nudges')
+    if isinstance(cn, dict):
+        nudges = {}
+        for cid, delta in cn.items():
+            if cid in clocks_cfg and type(delta) is int and delta != 0:
+                nudges[cid] = 1 if delta > 0 else -1
+        if nudges:
+            out['clock_nudges'] = nudges
+
+    uc = raw.get('used_channel')
+    if isinstance(uc, str) and uc.strip() in channels_map:
+        out['used_channel'] = uc.strip()
+
+    return out or None
+
+
+def build_director_settlement_context(root, memory_text, director_roll=None):
+    """Build compact read-only Living Director snapshot for Stage 2 SUMMARY user_context."""
+    catalog = load_world_beats(root, optional=True)
+    dstate = parse_director_block(memory_text)
+    channels_map = catalog.get('channels') or DIRECTOR_DEFAULT_CHANNELS
+    clocks_cfg = catalog.get('offstage_clocks') or {}
+    clocks_view = {}
+    for cid, meta in clocks_cfg.items():
+        st = dstate['offstage_clocks'].get(cid) or {'p': 0, 'ph': 0, 'so': False, 'cd': 0}
+        phases = meta.get('phases') or []
+        label = phases[st['ph'] % len(phases)]['label'] if phases else cid
+        clocks_view[cid] = {
+            'owner': meta.get('owner', ''),
+            'label': label,
+            'p': st['p'],
+            'max': int(meta.get('max_segments', 4)),
+        }
+    return {
+        'active_threads': [
+            {'id': t['id'], 'who': t['who'], 'topic': t['topic']}
+            for t in dstate['active_threads']
+        ],
+        'offstage_clocks': clocks_view,
+        'channels_enum': list(channels_map.keys()),
+        'triggered_this_turn': bool(isinstance(director_roll, dict) and director_roll.get('triggered')),
+    }
+
+
+def format_surprise_directive(director_roll, catalog=None):
+    """Unified Stage 1 Zone 2 / packet formatter for all three Living Director v2 modes + legacy v1 rolls."""
+    if not isinstance(director_roll, dict) or not director_roll.get('triggered'):
+        return None
+    mode = director_roll.get('mode') or 'preset_beat'
+    banned = [str(x) for x in (director_roll.get('banned_channels') or []) if isinstance(x, str) and x]
+    if mode == 'thread_spark':
+        sd = {
+            'mode': 'thread_spark',
+            'tier': director_roll.get('tier', 'tier1'),
+            'move_style': f"{'硬动作' if director_roll.get('move_kind') == 'hard' else '软动作'}·{director_roll.get('move_name', '')}",
+            'move_guide': director_roll.get('move_guide', ''),
+            'anchor': director_roll.get('anchor', ''),
+            'spark_pair': director_roll.get('spark_pair', ''),
+            'rule': '将锚点与双词意象火花自然融合成真实生活细节或局部变故（软动作留出试探博弈余地，硬动作令既有压力落地）；严禁使用banned_channels所列近期媒介套路，禁提系统/随机/概率/导演词，禁替主角做决定，禁让场外人物瞬移发言，严守K01知情边界。',
+        }
+        if banned:
+            sd['banned_channels'] = banned
+        return sd
+    if mode == 'offstage_clock':
+        in_scene = bool(director_roll.get('owner_in_scene'))
+        sd = {
+            'mode': 'offstage_clock',
+            'tier': director_roll.get('tier', 'tier2'),
+            'clock_stage': f"{'硬落地' if director_roll.get('clock_stage') == 'hard' else '软预兆'}({director_roll.get('clock_progress_label', '')})",
+            'clock_owner': director_roll.get('clock_owner', ''),
+            'owner_in_scene': in_scene,
+            'clock_theme': director_roll.get('clock_phase_label', ''),
+            'clock_event': director_roll.get('clock_event', ''),
+            'rule': (
+                '场外暗流蓄力后的自然浮现：'
+                + ('' if in_scene else '该角色当前不在场，严禁让其现身或输出[D:姓名]台词，只能经由物件/旁人转述/旁白间接呈现；')
+                + '严禁使用banned_channels所列近期媒介套路，禁提系统/暗钟/导演词，禁替主角做决定；'
+                + str(director_roll.get('k01_guard') or '严守K01知情边界。')
+            ),
+        }
+        if banned:
+            sd['banned_channels'] = banned
+        return sd
+    # Default: Track 3 curated preset_beat (also 100% compatible with legacy v1 frozen rolls)
+    is_erotic = director_roll.get('category') == 'erotic_accident'
+    sd = {
+        'mode': 'preset_beat',
+        'tier': director_roll.get('tier', 'tier1'),
+        'objective_event': director_roll.get('objective_event', ''),
+        'rule': (
+            '本幕真实突发的香艳/私密意外：细腻刻画视觉、气味、体温与角色的羞耻慌乱或生理失控反应，在关键分歧点戛然而止并把进退选择权交给段末decision；禁提系统/随机/概率/导演词，禁替主角做决定，严守K01知情边界。'
+            if is_erotic else
+            '本幕真实发生的客观外部变数：自然织入剧情并触发人物反应；禁提系统/随机/概率/导演词，禁替主角做决定，严守K01知情边界。'
+        ),
+    }
+    if is_erotic:
+        sd['category'] = 'erotic_accident'
+    if director_roll.get('linked_seed'):
+        sd['linked_foreshadowing'] = director_roll['linked_seed']
+    if banned:
+        sd['banned_channels'] = banned
+    return sd
+
+
+def _parse_director_heroine_stats(memory_text, counters):
+    stats = {}
+    mem_str = memory_text or ''
+    for name in ('沈知韫', '苏婉青', '徐念薇'):
+        m = re.search(r'^\[' + re.escape(name) + r'\]([^\n]*)', mem_str, re.M)
+        line = m.group(1) if m else ''
+        def _val(attr, default):
+            am = re.search(rf'{attr}\s*(-?\d+)', line)
+            return int(am.group(1)) if am else default
+        lock_m = re.search(
+            rf'▶\s*{re.escape(name)}\s*\n(?:(?!▶).)*?\[持续_体液锁定\](?:\s*剩余时效:\s*(\d+)回合)?',
+            mem_str,
+            re.DOTALL,
+        )
+        has_fluid_lock = ('[持续_体液锁定]' in line) or bool(
+            lock_m and (lock_m.group(1) is None or int(lock_m.group(1)) > 0)
+        )
+        stats[name] = {
+            'aff': _val('好感', 50),
+            'sha': _val('羞耻', 95),
+            'des': _val('欲望', 0),
+            'dep': _val('堕落', 0),
+            'sta': _val('体力', 80),
+            'fluid_lock': has_fluid_lock,
+            'unrelieved': int((counters or {}).get(f'空耗_连续未纾解_{name}', 0)),
+        }
+    return stats
+
+
+def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
+    """Run one Living Director v2 Entropy RNG + Three-Track Salience roll. Freeze once per request_id."""
+    cfg = director_config(root)
+    dstate = parse_director_block(memory_text)
+    location = (state or {}).get('location', '')
+    cast = list((state or {}).get('cast', []))
+    scene_turns = (dstate['scene_turns'] + 1) if dstate['scene_location'] == location else 1
+    if cfg.get('status') != 'active':
+        return {'triggered': False, 'probability': 0.0, 'scene_turns_in_place': scene_turns}
+
+    catalog = load_world_beats(root, optional=True)
+    channels_map = catalog.get('channels') or DIRECTOR_DEFAULT_CHANNELS
+    clocks_cfg = catalog.get('offstage_clocks') or {}
+    spark_cfg = catalog.get('spark_matrix') or {}
+
+    # 1. Dynamic probability calculation (Entropy curve + tension + context + mature seeds + ready clocks)
+    base = float(cfg.get('base_prob', 0.08))
+    curve = cfg.get('stagnation_curve') or [0.0, 0.07, 0.16, 0.28, 0.44, 0.62]
+    k = min(max(0, int(dstate['calm_streak'])), len(curve) - 1)
+    p_stag = float(curve[k])
+    try:
+        counters = rr._counters(memory_text or '')
+    except Exception:
+        counters = {}
+    if any(int(counters.get(bk, 0)) >= lim for bk, lim in rr.BREAKOUT_LIMITS.items()):
+        p_stag += 0.25
+
+    char_stats = _parse_director_heroine_stats(memory_text, counters)
+    cooldowns = dstate['event_cooldowns']
+    erotic_cd = int(cooldowns.get('__EROTIC_CATEGORY__', 0))
+
+    p_tension = 0.0
+    max_vig = 0
+    for vm in re.finditer(r'^徐承邺_[^\n：:]+[：:]\s*警惕\s*(\d+)', memory_text or '', re.M):
+        max_vig = max(max_vig, int(vm.group(1)))
+    p_tension += min(0.24, (max_vig // 20) * 0.06)
+    try:
+        micro_map = rr._current_micro(memory_text or '')
+    except Exception:
+        micro_map = {}
+    if any((micro_map.get(n) or {}).get('residual_tension') or (micro_map.get(n) or {}).get('confusion_debt') for n in cast):
+        p_tension += 0.08
+    host_biz = 0
+    bm = re.search(r'\[系统宿主\][^\n]*?商业嗅觉\s*(-?\d+)', memory_text or '')
+    if bm:
+        host_biz = int(bm.group(1))
+    if location == '徐家主宅' and '苏婉青' in cast:
+        su_st = char_stats.get('苏婉青') or {'aff': 40, 'sha': 99}
+        if su_st['aff'] < 70 or su_st['sha'] > 80:
+            p_tension += 0.10
+    if erotic_cd <= 0 and location in ('徐家主宅', '市中心顶层公寓', '工作室', '公司'):
+        for cname in cast:
+            cst = char_stats.get(cname)
+            if cst and (cst['des'] >= 55 or cst['fluid_lock'] or cst['unrelieved'] >= 1 or (cst['aff'] >= 60 and cst['sha'] <= 82)):
+                p_tension += 0.10
+                break
+    if host_biz >= 10:
+        istate = parse_intel_block(memory_text or '')
+        icat = load_intel_catalog(root, optional=True)
+        if any(it['id'] not in istate['held'] and it['id'] not in istate['consumed'] and host_biz >= it['min_biz']
+               for it in icat.get('items', [])):
+            p_tension += 0.08
+    p_tension = min(0.35, p_tension)
+
+    clock = (runtime or {}).get('clock')
+    p_context = 0.10 if _is_boundary_window(clock, weekday) else 0.0
+    seeds = dstate['pending_seeds']
+    mature_seed_ids = {s['seed_id'] for s in seeds if s.get('age', 0) >= 2}
+    all_seed_ids = {s['seed_id'] for s in seeds}
+    p_seed = 0.12 if mature_seed_ids else 0.0
+
+    # Inspect ready offstage clocks (3/4 soft omen or 4/4 hard landing)
+    ready_clocks = []
+    has_hard_clock = False
+    for cid, meta in clocks_cfg.items():
+        cst = dstate['offstage_clocks'].get(cid) or {'p': 0, 'ph': 0, 'so': False, 'cd': 0}
+        if cst['cd'] > 0:
+            continue
+        max_seg = max(2, int(meta.get('max_segments', 4)))
+        soft_at = max(1, min(max_seg - 1, int(meta.get('soft_at', max_seg - 1))))
+        if cst['p'] >= max_seg:
+            has_hard_clock = True
+            ready_clocks.append((cid, meta, cst, 'hard', 3.0))
+        elif cst['p'] >= soft_at and not cst['so']:
+            ready_clocks.append((cid, meta, cst, 'soft', 1.2))
+    p_clock = 0.10 if has_hard_clock else (0.06 if ready_clocks else 0.0)
+
+    if dstate['global_cooldown'] > 0:
+        prob = 0.0
+    else:
+        penalty = float(cfg.get('soft_cooldown_penalty', 0.25)) if dstate['turns_since_beat'] <= 2 else 0.0
+        prob = max(0.0, min(float(cfg.get('max_prob', 0.85)),
+                            base + p_stag + p_tension + p_context + p_seed + p_clock - penalty))
+
+    gen = rng if rng is not None else secrets.SystemRandom()
+    if prob <= 0.0 or gen.random() >= prob:
+        return {'triggered': False, 'probability': round(prob, 4), 'scene_turns_in_place': scene_turns}
+
+    # 2. Prepare shared anti-cliché channel banlist & track weights
+    chan_win = max(1, int(cfg.get('channel_cooldown_window', 4)))
+    recent_channels = list(dstate['recent_channels'][-chan_win:])
+    recent_channel_set = set(recent_channels)
+    banned_labels = [channels_map[c] for c in recent_channels if c in channels_map]
+    track_cfg = cfg.get('track_weights') or {'thread_spark': 45, 'offstage_clock': 30, 'preset_beat': 25}
+    tier_weights = cfg.get('tier_weights') or {'tier1': 50, 'tier2': 38, 'tier3': 12}
+
+    # 3. Build candidate pools for the three tracks
+    track_pool = []
+
+    # --- Track 1: Living Threads × Combinatorial Spark Matrix (Mythic GME + PbtA) ---
+    actions = spark_cfg.get('actions') or []
+    textures = spark_cfg.get('textures') or []
+    moves_cfg = spark_cfg.get('moves') or {}
+    soft_moves = moves_cfg.get('soft') or []
+    hard_moves = moves_cfg.get('hard') or []
+    w_t1_base = float(track_cfg.get('thread_spark', 45))
+    if w_t1_base > 0 and actions and textures and (soft_moves or hard_moves):
+        threads = dstate['active_threads']
+        if threads:
+            t_weight = w_t1_base
+            if any(any(w in cast for w in t['who']) for t in threads):
+                t_weight *= 1.25
+            track_pool.append(('thread_spark', t_weight))
+        else:
+            # Early-game fallback anchor (latest L1 / held item / scene atmosphere) with moderated weight
+            track_pool.append(('thread_spark', min(w_t1_base, 20.0)))
+
+    # --- Track 2: Offstage Character Progress Clocks (Blades in the Dark) ---
+    w_t2_base = float(track_cfg.get('offstage_clock', 30))
+    if w_t2_base > 0 and ready_clocks:
+        t2_mult = 2.4 if has_hard_clock else 1.6
+        track_pool.append(('offstage_clock', w_t2_base * t2_mult))
+
+    # --- Track 3: Curated Preset Pivotal Storylets (Salience + Channel Cooldown) ---
+    slot = _clock_time_slot(clock)
+    consumed = set(dstate['consumed_once'])
+    thread_people = {w for t in dstate['active_threads'] for w in t.get('who', [])}
+    preset_candidates = []
+    has_mature_seed_beat = False
+    has_erotic_beat = False
+    for beat in catalog.get('beats', []):
+        bid = beat.get('id', '')
+        if not bid or bid in consumed or cooldowns.get(bid, 0) > 0:
+            continue
+        is_erotic_beat = beat.get('category') == 'erotic_accident'
+        if is_erotic_beat and erotic_cd > 0:
+            continue
+        locs = beat.get('locations') or []
+        if locs and location not in locs:
+            continue
+        req_cast = beat.get('required_cast') or []
+        if any(c not in cast for c in req_cast):
+            continue
+        slots = beat.get('time_slots') or ['any']
+        if 'any' not in slots and slot not in slots:
+            continue
+        if max_vig < int(beat.get('min_vigilance', 0)) or host_biz < int(beat.get('min_biz', 0)):
+            continue
+        # Physiological & relationship gates (used by four-tier erotic accidents)
+        min_aff = int(beat.get('min_affection', 0))
+        max_sha = int(beat.get('max_shame', 100))
+        min_des = int(beat.get('min_desire', 0))
+        min_dep = int(beat.get('min_depravity', 0))
+        req_unrel = bool(beat.get('requires_unrelieved', False))
+        gate_Target_names = [c for c in req_cast if c in char_stats]
+        if (min_aff > 0 or max_sha < 100 or min_des > 0 or min_dep > 0 or req_unrel):
+            if not gate_Target_names:
+                continue
+            gate_ok = True
+            for cname in gate_Target_names:
+                cst = char_stats[cname]
+                if cst['aff'] < min_aff or cst['sha'] > max_sha or cst['des'] < min_des or cst['dep'] < min_dep:
+                    gate_ok = False
+                    break
+                if req_unrel and not (cst['unrelieved'] >= 1 or cst['fluid_lock'] or cst['des'] >= 80):
+                    gate_ok = False
+                    break
+            if not gate_ok:
+                continue
+
+        req_seed = beat.get('requires_seed')
+        if req_seed and req_seed not in all_seed_ids:
+            continue
+        add_seed = beat.get('seed_to_add')
+        if isinstance(add_seed, dict) and add_seed.get('seed_id') in all_seed_ids:
+            continue
+
+        btier = beat.get('tier', 'tier1')
+        tw = float(tier_weights.get(btier, 22.0 if btier == 'tier4' else 20.0))
+        w = max(1.0, float(beat.get('weight', 10))) * (tw / 30.0)
+        # Salience specificity multipliers (Elan Ruskin / Emily Short)
+        if len(locs) == 1:
+            w *= 1.45
+        elif len(locs) == 2:
+            w *= 1.15
+        elif len(locs) >= 4:
+            w *= 0.80
+        if req_cast:
+            w *= 1.35
+        if 'any' not in slots:
+            w *= 1.20
+        if req_cast and any(c in thread_people for c in req_cast):
+            w *= 1.40
+        if is_erotic_beat:
+            has_erotic_beat = True
+            w *= (1.85 if req_unrel else 1.55)
+        beat_chan = str(beat.get('channel') or '').strip()
+        if beat_chan and beat_chan in recent_channel_set:
+            w *= (0.45 if is_erotic_beat else 0.15)
+        if req_seed and req_seed in mature_seed_ids:
+            w *= 3.0
+            has_mature_seed_beat = True
+        elif req_seed:
+            w *= 1.5
+        preset_candidates.append((beat, w))
+
+    w_t3_base = float(track_cfg.get('preset_beat', 25))
+    if w_t3_base > 0 and preset_candidates:
+        t3_mult = 1.8 if has_mature_seed_beat else (1.35 if has_erotic_beat else 1.0)
+        track_pool.append(('preset_beat', w_t3_base * t3_mult))
+
+    if not track_pool:
+        return {'triggered': False, 'probability': round(prob, 4), 'scene_turns_in_place': scene_turns}
+
+    chosen_track = _weighted_choice(track_pool, gen)
+
+    # 4. Realize chosen track payload
+    if chosen_track == 'thread_spark':
+        threads = dstate['active_threads']
+        chosen_thread = None
+        if threads:
+            weighted_threads = []
+            for t in threads:
+                tw_score = 1.5 if any(w in cast for w in t['who']) else 1.0
+                if t['tension'] == 'hard':
+                    tw_score += 0.35
+                tw_score += min(0.4, t['age'] * 0.05)
+                weighted_threads.append((t, tw_score))
+            chosen_thread = _weighted_choice(weighted_threads, gen)
+            who_tag = '、'.join(chosen_thread['who']) if chosen_thread['who'] else '当前局势'
+            anchor_text = f"承接活体线头[{chosen_thread['id']}]（{who_tag}）：{chosen_thread['topic']}"
+            thread_id = chosen_thread['id']
+        else:
+            thread_id = ''
+            l1_snip = _extract_latest_l1_snippet(memory_text)
+            held_items = [i.get('name') for i in ((state or {}).get('items') or []) if isinstance(i, dict) and i.get('name')]
+            if l1_snip:
+                anchor_text = f'顺着近期余波自然延展：{l1_snip}'
+            elif held_items:
+                anchor_text = f'围绕随身物件「{held_items[0]}」与{location}当下相处细节'
+            elif cast:
+                anchor_text = f'围绕{location}中与{"、".join(cast)}此刻的微妙氛围与暗流'
+            else:
+                anchor_text = f'围绕{location}此刻独处环境中的细微反常'
+
+        rolled_tier = _weighted_choice(
+            [('tier1', tier_weights.get('tier1', 50)), ('tier2', tier_weights.get('tier2', 38))],
+            gen,
+        )
+        use_hard = bool(
+            hard_moves and (
+                (chosen_thread and (chosen_thread['touches'] >= 1 or chosen_thread['age'] >= 4 or chosen_thread['tension'] == 'hard'))
+                or (rolled_tier == 'tier2' and not soft_moves)
+            )
+        )
+        if use_hard and hard_moves:
+            move_kind = 'hard'
+            move_obj = _weighted_choice([(mv, 1.0) for mv in hard_moves], gen)
+            final_tier = 'tier2'
+        else:
+            move_kind = 'soft'
+            move_obj = _weighted_choice([(mv, 1.0) for mv in (soft_moves or hard_moves)], gen)
+            final_tier = 'tier1'
+
+        allowed_textures = [tx for tx in textures if isinstance(tx, dict) and tx.get('channel') not in recent_channel_set]
+        if not allowed_textures:
+            allowed_textures = [tx for tx in textures if isinstance(tx, dict)]
+        chosen_action = _weighted_choice([(act, 1.0) for act in actions], gen)
+        chosen_tex = _weighted_choice([(tx, 1.0) for tx in allowed_textures], gen)
+        tex_label = str(chosen_tex.get('label') or '')
+        chan_hint = str(chosen_tex.get('channel') or '')
+        spark_pair = f'{chosen_action} × {tex_label}'
+        return {
+            'triggered': True,
+            'mode': 'thread_spark',
+            'probability': round(prob, 4),
+            'scene_turns_in_place': scene_turns,
+            'tier': final_tier,
+            'event_id': f"SPARK-{thread_id or 'AMBIENT'}",
+            'category': 'living_spark',
+            'thread_id': thread_id,
+            'anchor': anchor_text,
+            'move_kind': move_kind,
+            'move_name': str(move_obj.get('name') or ''),
+            'move_guide': str(move_obj.get('guide') or ''),
+            'spark_action': str(chosen_action),
+            'spark_texture': tex_label,
+            'spark_pair': spark_pair,
+            'channel_hint': chan_hint,
+            'banned_channels': banned_labels,
+            'objective_event': f"{anchor_text}｜{move_obj.get('name', '')}｜火花：{spark_pair}",
+            'linked_seed': '',
+            'seed_to_add': None,
+            'seed_consumed': None,
+            'cooldown': 0,
+            'once': False,
+        }
+
+    if chosen_track == 'offstage_clock':
+        picked = _weighted_choice([(entry, entry[4]) for entry in ready_clocks], gen)
+        cid, meta, cst, stage_kind, _ = picked
+        max_seg = max(2, int(meta.get('max_segments', 4)))
+        phases = meta.get('phases') or []
+        phase = phases[cst['ph'] % len(phases)] if phases else {
+            'label': cid, 'soft_omen': '', 'hard_landing': '', 'channel_hint': 'offstage_ripple',
+        }
+        owner = str(meta.get('owner') or '')
+        owner_in_scene = owner in cast
+        clock_event = str(phase.get('hard_landing' if stage_kind == 'hard' else 'soft_omen') or '')
+        chan_hint = str(phase.get('channel_hint') or 'offstage_ripple')
+        progress_label = f"{min(cst['p'], max_seg)}/{max_seg}"
+        return {
+            'triggered': True,
+            'mode': 'offstage_clock',
+            'probability': round(prob, 4),
+            'scene_turns_in_place': scene_turns,
+            'tier': 'tier2' if stage_kind == 'soft' else 'tier3',
+            'event_id': f"{cid}-{stage_kind.upper()}",
+            'category': 'offstage_clock',
+            'clock_id': cid,
+            'clock_owner': owner,
+            'owner_in_scene': owner_in_scene,
+            'clock_stage': stage_kind,
+            'clock_progress_label': progress_label,
+            'clock_phase_label': str(phase.get('label') or ''),
+            'clock_event': clock_event,
+            'k01_guard': str(meta.get('k01_guard') or '严守K01知情边界。'),
+            'channel_hint': chan_hint,
+            'banned_channels': banned_labels,
+            'objective_event': f"[{owner}·{phase.get('label', '')} {progress_label}] {clock_event}",
+            'linked_seed': '',
+            'seed_to_add': None,
+            'seed_consumed': None,
+            'cooldown': 0,
+            'once': False,
+        }
+
+    # Track 3: Curated preset_beat
+    chosen = _weighted_choice(preset_candidates, gen)
+    linked_summary = ''
+    if chosen.get('requires_seed'):
+        for s in seeds:
+            if s['seed_id'] == chosen['requires_seed']:
+                linked_summary = s.get('summary', '')
+                break
+
+    return {
+        'triggered': True,
+        'mode': 'preset_beat',
+        'probability': round(prob, 4),
+        'scene_turns_in_place': scene_turns,
+        'tier': chosen.get('tier', 'tier1'),
+        'event_id': chosen['id'],
+        'category': chosen.get('category', ''),
+        'channel_hint': str(chosen.get('channel') or ''),
+        'banned_channels': banned_labels,
+        'objective_event': chosen['objective_event'],
+        'linked_seed': linked_summary,
+        'seed_to_add': chosen.get('seed_to_add'),
+        'seed_consumed': chosen.get('requires_seed'),
+        'cooldown': int(chosen.get('cooldown', 8)),
+        'once': bool(chosen.get('once', False)),
+    }
+
+
+def advance_director_state(root, memory_text, *, location, director_roll, effective_progress, had_events, memory_fact,
+                           director_echo=None, active_cast=(), new_clock=None, day_crossed=False):
+    """Atomically advance 【世界导演状态】 (threads, clocks, channels, seeds, entropy) on committed paid action."""
+    cfg = director_config(root)
+    catalog = load_world_beats(root, optional=True)
+    channels_map = catalog.get('channels') or DIRECTOR_DEFAULT_CHANNELS
+    clocks_cfg = catalog.get('offstage_clocks') or {}
+    dstate = parse_director_block(memory_text)
+
+    loc_changed = bool(dstate['scene_location'] and dstate['scene_location'] != location)
+    dstate['scene_turns'] = (dstate['scene_turns'] + 1) if dstate['scene_location'] == location else 1
+    dstate['scene_location'] = location
+    dstate['global_cooldown'] = max(0, dstate['global_cooldown'] - 1)
+    dstate['turns_since_beat'] = min(999, dstate['turns_since_beat'] + 1)
+    dstate['event_cooldowns'] = {k: v - 1 for k, v in dstate['event_cooldowns'].items() if v > 1}
+    for s in dstate['pending_seeds']:
+        s['age'] = int(s.get('age', 0)) + 1
+
+    # 1. Advance active_threads (age, close, touch escalation, deduped creation, cap)
+    max_threads = max(1, int(cfg.get('max_active_threads', 5)))
+    max_thread_age = max(2, int(cfg.get('max_thread_age', 12)))
+    echo = director_echo if isinstance(director_echo, dict) else {}
+    closed_ids = set(echo.get('close_thread') or [])
+    roll = director_roll if isinstance(director_roll, dict) else {}
+    touched_tid = roll.get('thread_id') if (roll.get('triggered') and roll.get('mode') == 'thread_spark') else ''
+
+    next_threads = []
+    for t in dstate['active_threads']:
+        if t['id'] in closed_ids:
+            continue
+        t['age'] = int(t.get('age', 0)) + 1
+        if t['id'] == touched_tid:
+            t['touches'] = int(t.get('touches', 0)) + 1
+            if t.get('tension') == 'soft':
+                t['tension'] = 'hard'
+        if t['age'] <= max_thread_age:
+            next_threads.append(t)
+
+    new_t = echo.get('new_thread')
+    if isinstance(new_t, dict) and new_t.get('topic'):
+        duplicate = next((t for t in next_threads if _thread_topic_similar(t['topic'], new_t['topic'])), None)
+        if duplicate is not None:
+            duplicate['age'] = 0
+            if new_t.get('tension') == 'hard':
+                duplicate['tension'] = 'hard'
+            for w in new_t.get('who') or []:
+                if w not in duplicate['who']:
+                    duplicate['who'].append(w)
+        else:
+            tid = f"TH-{dstate['next_thread_seq']}"
+            dstate['next_thread_seq'] += 1
+            next_threads.append({
+                'id': tid,
+                'who': list(new_t.get('who') or []),
+                'topic': new_t['topic'],
+                'tension': 'hard' if new_t.get('tension') == 'hard' else 'soft',
+                'age': 0,
+                'touches': 0,
+            })
+            if len(next_threads) > max_threads:
+                # Evict oldest soft thread first; otherwise oldest overall
+                soft_idx = next((i for i, item in enumerate(next_threads[:-1]) if item['tension'] == 'soft'), 0)
+                next_threads.pop(soft_idx)
+    dstate['active_threads'] = next_threads[-max_threads:]
+
+    # 2. Advance offstage_clocks (cooldown decay, landing/omen commit, Stage 2 nudges, deterministic offstage tick)
+    if clocks_cfg:
+        for cid in clocks_cfg:
+            dstate['offstage_clocks'].setdefault(cid, {'p': 0, 'ph': 0, 'so': False, 'cd': 0})
+        for cid, cst in dstate['offstage_clocks'].items():
+            cst['cd'] = max(0, int(cst.get('cd', 0)) - 1)
+
+        if roll.get('triggered') and roll.get('mode') == 'offstage_clock':
+            rcid = roll.get('clock_id')
+            if rcid in dstate['offstage_clocks'] and rcid in clocks_cfg:
+                cst = dstate['offstage_clocks'][rcid]
+                phases = clocks_cfg[rcid].get('phases') or []
+                if roll.get('clock_stage') == 'hard':
+                    cst['p'] = 0
+                    cst['so'] = False
+                    if phases:
+                        cst['ph'] = (int(cst.get('ph', 0)) + 1) % len(phases)
+                    cst['cd'] = 6
+                else:
+                    cst['so'] = True
+                    cst['cd'] = max(int(cst.get('cd', 0)), 2)
+
+        for cid, delta in (echo.get('clock_nudges') or {}).items():
+            if cid in dstate['offstage_clocks'] and cid in clocks_cfg and type(delta) is int:
+                max_seg = max(2, int(clocks_cfg[cid].get('max_segments', 4)))
+                soft_at = max(1, min(max_seg - 1, int(clocks_cfg[cid].get('soft_at', max_seg - 1))))
+                cst = dstate['offstage_clocks'][cid]
+                cst['p'] = max(0, min(max_seg, int(cst.get('p', 0)) + delta))
+                if cst['p'] < soft_at:
+                    cst['so'] = False
+
+        new_slot = _clock_time_slot(new_clock) if isinstance(new_clock, dict) else ''
+        slot_changed = bool(new_slot and dstate['last_time_slot'] and new_slot != dstate['last_time_slot'])
+        tick_interval = max(1, int(cfg.get('clock_tick_interval', 3)))
+        dstate['clock_tick_acc'] = int(dstate.get('clock_tick_acc', 0)) + 1
+        if day_crossed or slot_changed or dstate['clock_tick_acc'] >= tick_interval:
+            dstate['clock_tick_acc'] = 0
+            cast_set = set(active_cast or ())
+            clock_ids = list(clocks_cfg.keys())
+            rot = (dstate['scene_turns'] + dstate['turns_since_beat']) % len(clock_ids)
+            rotated = clock_ids[rot:] + clock_ids[:rot]
+            eligible = []
+            for idx_pos, cid in enumerate(rotated):
+                meta = clocks_cfg[cid]
+                cst = dstate['offstage_clocks'][cid]
+                max_seg = max(2, int(meta.get('max_segments', 4)))
+                if meta.get('owner') in cast_set or cst['cd'] > 0 or cst['p'] >= max_seg:
+                    continue
+                eligible.append((cst['p'], idx_pos, cid, max_seg))
+            if eligible:
+                eligible.sort(key=lambda x: (x[0], x[1]))
+                _, _, pick_cid, max_seg = eligible[0]
+                dstate['offstage_clocks'][pick_cid]['p'] = min(max_seg, dstate['offstage_clocks'][pick_cid]['p'] + 1)
+        if new_slot:
+            dstate['last_time_slot'] = new_slot
+
+    # 3. Record anti-cliché media channel sliding window
+    chan_win = max(1, int(cfg.get('channel_cooldown_window', 4)))
+    used_chan = echo.get('used_channel') or (roll.get('channel_hint') if roll.get('triggered') else '')
+    if isinstance(used_chan, str) and used_chan in channels_map:
+        dstate['recent_channels'].append(used_chan)
+        dstate['recent_channels'] = dstate['recent_channels'][-chan_win:]
+
+    # 4. Advance cooldowns, seeds & entropy calm_streak
+    if roll.get('triggered'):
+        mode = roll.get('mode') or 'preset_beat'
+        if mode == 'preset_beat':
+            eid = roll.get('event_id')
+            if eid:
+                cd = max(1, int(roll.get('cooldown', 8)))
+                dstate['event_cooldowns'][eid] = cd
+                if roll.get('once') and eid not in dstate['consumed_once']:
+                    dstate['consumed_once'].append(eid)
+            if roll.get('category') == 'erotic_accident':
+                dstate['event_cooldowns']['__EROTIC_CATEGORY__'] = 3
+            consumed_seed = roll.get('seed_consumed')
+            if consumed_seed:
+                dstate['pending_seeds'] = [s for s in dstate['pending_seeds'] if s['seed_id'] != consumed_seed]
+            add_seed = roll.get('seed_to_add')
+            if isinstance(add_seed, dict) and add_seed.get('seed_id'):
+                sid = add_seed['seed_id']
+                dstate['pending_seeds'] = [s for s in dstate['pending_seeds'] if s['seed_id'] != sid]
+                dstate['pending_seeds'].append({
+                    'seed_id': sid,
+                    'summary': str(add_seed.get('summary') or '')[:120],
+                    'age': 0,
+                })
+                dstate['pending_seeds'] = dstate['pending_seeds'][-DIRECTOR_SEED_LIMIT:]
+        if roll.get('tier') in ('tier2', 'tier3', 'tier4'):
+            dstate['global_cooldown'] = max(1, int(cfg.get('global_cooldown', 1)))
+            dstate['turns_since_beat'] = 0
+            dstate['calm_streak'] = 0
+        else:
+            dstate['calm_streak'] = max(0, dstate['calm_streak'] - 1)
+    else:
+        meaningful = bool(effective_progress or had_events or loc_changed or len((memory_fact or '').strip()) >= 24)
+        dstate['calm_streak'] = 0 if meaningful else (dstate['calm_streak'] + 1)
+
+    return write_director_block(memory_text, dstate)
+
+
+def derive_weekday(data, memory_text, clock):
+    """Deterministically derive current Chinese weekday from prologue base weekday + clock.day."""
+    base = ''
+    if isinstance(data, dict):
+        pro = data.get('prologue')
+        if isinstance(pro, dict) and pro.get('weekday') in WEEKDAYS:
+            base = pro['weekday']
+    if not base and memory_text:
+        m = re.search(r'【1】\s*(周[一二三四五六日])', memory_text)
+        if m and m.group(1) in WEEKDAYS:
+            base = m.group(1)
+    if not base:
+        base = '周二'
+    day = int((clock or {}).get('day') or 1)
+    idx = (WEEKDAYS.index(base) + max(0, day - 1)) % 7
+    return WEEKDAYS[idx]
+
+
+def reconcile_offstage_presence(engine, memory_path, new_clock, weekday, player_location, *, overnight=False, day_crossed=False, player_moved=False):
+    """Deterministically reconcile OFFSTAGE NPC locations per lore.驻地; never teleports co-present NPCs."""
+    if not new_clock or not weekday or weekday not in WEEKDAYS:
+        return []
+    content = Path(memory_path).read_text(encoding='utf-8')
+    presence = engine.parse_presence_from_memory(content)
+    if not presence:
+        return []
+    hour, part = map(int, new_clock['time'].split(':'))
+    hhmm = hour * 60 + part
+    is_workday = weekday in ('周一', '周二', '周三', '周四', '周五')
+    updates = {}
+    moves = []
+
+    def plan_move(name, target_loc, target_reason):
+        info = presence.get(name)
+        if not info or info.get('location') == player_location:
+            return  # Never move an NPC currently in the same scene as the player.
+        if target_loc == player_location and not (player_moved or overnight or day_crossed):
+            return  # Never silently pop an offstage NPC into an ongoing same-scene conversation.
+        if info.get('location') != target_loc:
+            updates[name] = {'location': target_loc, 'reason': target_reason}
+            moves.append({'name': name, 'from': info.get('location'), 'to': target_loc, 'reason': target_reason})
+
+    # 沈知韫：工作日 08:00-15:59 在公司，其余时段/周末在徐家主宅
+    if is_workday and 480 <= hhmm < 960:
+        plan_move('沈知韫', '公司', '工作日上班中')
+    else:
+        plan_move('沈知韫', '徐家主宅', '常住')
+
+    # 徐念薇：工作日 08:00-16:59 在大学，17:00-21:59 在校外画室（工作室），22:00后及周末在徐家主宅
+    if is_workday and 480 <= hhmm < 1020:
+        plan_move('徐念薇', '大学', '工作日在大学')
+    elif is_workday and 1020 <= hhmm < 1320:
+        plan_move('徐念薇', '工作室', '校外画室作画')
+    else:
+        plan_move('徐念薇', '徐家主宅', '周末在家' if not is_workday else '晚间回宅')
+
+    # 苏婉青：常住市中心顶层公寓；周二/五 15:30-18:30 到访、最晚留至 20:30，周日 10:00-15:00 请安午餐；若宿主显式留住/过夜则不强行驱回公寓
+    su_info = presence.get('苏婉青')
+    if su_info:
+        in_arrival_window = (
+            (weekday in ('周二', '周五') and 930 <= hhmm <= 1110)
+            or (weekday == '周日' and 600 <= hhmm <= 900)
+        )
+        in_stay_window = (
+            (weekday in ('周二', '周五') and 930 <= hhmm <= 1230)
+            or (weekday == '周日' and 600 <= hhmm <= 900)
+        )
+        su_reason = str(su_info.get('reason') or '')
+        explicit_stay = any(k in su_reason for k in ('留住', '过夜', '宿', '留下'))
+        if su_info.get('location') == '徐家主宅':
+            if overnight or day_crossed or (not in_stay_window and not explicit_stay):
+                plan_move('苏婉青', '市中心顶层公寓', '常住')
+        elif su_info.get('location') == '市中心顶层公寓':
+            if in_arrival_window and not overnight:
+                plan_move('苏婉青', '徐家主宅', '回主宅请安看望')
+
+    if updates:
+        rr._engine_call(engine.update_presence, updates)
+    return moves
+
+
+def derive_micro_state_changes(engine, events, conditions, cast, before_memory):
+    """Deterministically derive momentary_ease / confusion_debt / residual_tension from settled action events."""
+    changes = {}
+    intensity = (conditions or {}).get('intensity', 'A')
+    shame_ev = (events or {}).get('shame_events') or {}
+    dep_ev = (events or {}).get('depravity_events') or {}
+    aff_ev = (events or {}).get('affection_events') or {}
+    ds_ev = (events or {}).get('ds_events') or {}
+    host_ev = (events or {}).get('host_events') or []
+
+    warm_aff_tags = {engine._event_tag(f'AFFECTION_0{i}') for i in (3, 4, 5, 6, 7)} | {
+        engine._event_tag('AFFECTION_10'),
+        engine._event_tag('AFFECTION_11'),
+    }
+    warm_host_tags = {engine._event_tag('HOST_05'), engine._event_tag('HOST_06'), engine._event_tag('HOST_08')}
+    heavy_shame_tags = {
+        engine._event_tag('SHAME_04'),
+        engine._event_tag('SHAME_05'),
+        engine._event_tag('SHAME_06'),
+        engine._event_tag('SHAME_07'),
+        engine._event_tag('SHAME_20'),
+    }
+    heavy_dep_tags = {engine._event_tag('DEPRAVITY_01'), engine._event_tag('DEPRAVITY_10')}
+    probe_shame_tags = {engine._event_tag('SHAME_01'), engine._event_tag('SHAME_02'), engine._event_tag('SHAME_19')}
+    climax_tags = {engine._event_tag('DS_17'), engine._event_tag('DS_18')}
+    cog_tear_tag = engine._event_tag('HOST_01')
+
+    has_warm_host = any(t in warm_host_tags for t in host_ev)
+    has_cog_tear = cog_tear_tag in host_ev
+
+    for name in cast:
+        if name not in PASSIVE_TARGETS:
+            continue
+        s_tags = shame_ev.get(name) or []
+        p_tags = dep_ev.get(name) or []
+        a_tags = aff_ev.get(name) or []
+        d_tags = ds_ev.get(name) or []
+        cur_shame = engine._read_attr_value(before_memory, name, '羞耻')
+        cur_shame = 100 if cur_shame is None else cur_shame
+        delta = {}
+        if (
+            intensity == 'C'
+            or any(t in heavy_shame_tags for t in s_tags)
+            or any(t in heavy_dep_tags for t in p_tags)
+            or any(t in climax_tags for t in d_tags)
+        ):
+            delta['residual_tension'] = True
+        if has_cog_tear or (cur_shame > 75 and any(t in probe_shame_tags for t in s_tags)):
+            delta['confusion_debt'] = True
+        if intensity in ('A', 'B') and (has_warm_host or any(t in warm_aff_tags for t in a_tags)) and not delta.get('residual_tension'):
+            delta['momentary_ease'] = True
+        if delta:
+            changes[name] = delta
+    return changes
+
+
+def passive_level_info(level_int):
+    idx = max(0, min(len(PASSIVE_LEVELS) - 1, int(level_int)))
+    return PASSIVE_LEVELS[idx]
+
+
+def read_passive_level(content, target):
+    m = re.search(rf'\[{re.escape(target)}\][^\n]*?被动\s*Lv\.(\d+)', content or '')
+    return int(m.group(1)) if m else 0
+
+
 def memory_policy(root):
-    policy = rr.load_request((Path(root)/'txt文件/互动运行配置.json').read_text()).get('memory', MEMORY_DEFAULTS)
+    policy = rr.load_request((Path(root)/'txt文件/互动运行配置.json').read_text(encoding='utf-8')).get('memory', MEMORY_DEFAULTS)
     if (not isinstance(policy, dict) or set(policy) != set(MEMORY_DEFAULTS)
             or any(type(v) is not int or v < 1 or v > 100000 for v in policy.values())):
         raise rr.RoundError('记忆预算配置无效')
@@ -35,7 +1541,8 @@ def memory_text(value, label, limit, empty=False):
 
 def memory_merge(root, layers, number, clock, value, system=False):
     """Model supplies semantic compaction; never silently truncate accepted facts."""
-    prior = next((entry.split('】',1)[1] for entry in layers['L1'] if entry.startswith('【'+str(number)+'】')), '')
+    raw_prior = next((entry.split('】',1)[1] for entry in layers['L1'] if entry.startswith('【'+str(number)+'】')), '')
+    prior = save_store.strip_prologue_marker(raw_prior)
     if system:
         return None
     limit = memory_policy(root)['round_chars']
@@ -44,7 +1551,7 @@ def memory_merge(root, layers, number, clock, value, system=False):
     if compact:
         if not prior:
             raise rr.RoundError('同回合合并摘要缺少原条目')
-        return compact
+        return save_store.strip_prologue_marker(compact)
     if fact and re.sub(r'\s','',fact) in re.sub(r'\s','',prior):
         fact = ''
     stamped = '第'+str(clock['day'])+'天 '+clock['time']+' '+fact if fact else ''
@@ -55,11 +1562,12 @@ def memory_merge(root, layers, number, clock, value, system=False):
 
 
 def enabled(root):
-    return json.loads((Path(root)/'txt文件/互动运行配置.json').read_text())['resource'].get('scheme') == 'fixed_tiers'
+    path = Path(root)/'txt文件/互动运行配置.json'
+    return path.is_file() and json.loads(path.read_text(encoding='utf-8'))['resource'].get('scheme') == 'fixed_tiers'
 
 
 def config(root):
-    value = rr.load_request((Path(root)/'txt文件/互动运行配置.json').read_text())
+    value = rr.load_request((Path(root)/'txt文件/互动运行配置.json').read_text(encoding='utf-8'))
     r = value['resource']
     if (value['version'] != 2 or r.get('status') != 'active' or r.get('scheme') != 'fixed_tiers'
             or r.get('costs') != COSTS or r.get('custom_reserve') != 15
@@ -80,6 +1588,25 @@ def stamina(root, files):
 def state(root, files):
     data = json.loads(files.get('data.json') or b'{}')
     value = data.get('story_runtime')
+    if value is None:
+        # 优先从 存档/save_state.json 的 runtime 恢复（即使 data.json 丢失或被旧入口覆盖也不丢时钟与休息态）
+        if files.get(save_store.SAVE_STATE_PATH):
+            try:
+                st_obj, _, _ = save_store.load_bundle(root, files)
+                rt = st_obj.get('runtime') or {}
+                if rt.get('clock') is not None or int(rt.get('action_index') or 0) > 0 or int(rt.get('last_closed') or 0) > 0:
+                    value = {
+                        'version': 1,
+                        'clock': copy.deepcopy(rt.get('clock')),
+                        'memory_round': max(1, int(rt.get('memory_round') or 1)),
+                        'last_closed': max(0, int(rt.get('last_closed') or 0)),
+                        'phase': rt.get('phase') if rt.get('phase') in ('ready', 'resting') else 'ready',
+                        'item_recovered': max(0, int(rt.get('item_recovered') or 0)),
+                        'action_index': max(0, int(rt.get('action_index') or 0)),
+                        'closed_by': str(rt.get('closed_by') or ''),
+                    }
+            except Exception:
+                value = None
     if value is None:
         engine = rr._engine(Path(root), Path(root))
         _, _, previous = rr._memory_state(engine, files)
@@ -175,7 +1702,21 @@ def quote(root, files, selected, text, command=None):
 def change_stamina(root, files, value):
     result=dict(files)
     engine=rr._engine(Path(root),Path(root))
-    result[rr.FILES[0]]=engine._simulate_panel(files[rr.FILES[0]].decode(),{'系统宿主':{'体力':value}}).encode()
+    old_mem=files[rr.FILES[0]]
+    new_mem=engine._simulate_panel(old_mem.decode(),{'系统宿主':{'体力':value}}).encode()
+    result[rr.FILES[0]]=new_mem
+    if result.get(save_store.SAVE_STATE_PATH):
+        try:
+            st_obj=json.loads(result[save_store.SAVE_STATE_PATH].decode('utf-8'))
+            if isinstance(st_obj,dict) and isinstance(st_obj.get('panels'),dict) and isinstance(st_obj['panels'].get('系统宿主'),dict):
+                sha=st_obj.get('rendered_sha256') or {}
+                prior_drifted=bool(sha.get('memory_txt') and save_store._sha256_bytes(old_mem)!=sha['memory_txt'])
+                if not prior_drifted:
+                    st_obj['panels']['系统宿主']['体力']=value
+                    st_obj.setdefault('rendered_sha256',{})['memory_txt']=save_store._sha256_bytes(new_mem)
+                    result[save_store.SAVE_STATE_PATH]=save_store._json_bytes(st_obj)
+        except Exception:
+            pass
     return result
 
 
@@ -188,8 +1729,12 @@ def commit_tasks(store, files, tasks):
 
 def reserve(service, tasks, job, files, cost):
     held=change_stamina(service.root,files,cost['after'])
-    job['reservation']={'status':'held','quote':cost,'before_memory':base64.b64encode(files[rr.FILES[0]]).decode(),
-                        'original_revision':rr._revision(files),'held_revision':rr._revision(held)}
+    job['reservation']={
+        'status':'held','quote':cost,
+        'before_memory':base64.b64encode(files[rr.FILES[0]]).decode(),
+        'before_save_state':base64.b64encode(files[save_store.SAVE_STATE_PATH]).decode() if files.get(save_store.SAVE_STATE_PATH) else None,
+        'original_revision':rr._revision(files),'held_revision':rr._revision(held),
+    }
     job['working_revision']=rr._revision(held)
     job['status']='preparing'
     tasks['jobs'][job['request_id']]=job;tasks['latest']=job['request_id']
@@ -212,6 +1757,8 @@ def refund(service,tasks,job,status,error):
             commit_tasks(service.store,files,tasks)
             raise rr.RecoveryError(job['error'])
         files[rr.FILES[0]]=base64.b64decode(reservation['before_memory'],validate=True)
+        if reservation.get('before_save_state') is not None:
+            files[save_store.SAVE_STATE_PATH]=base64.b64decode(reservation['before_save_state'],validate=True)
         if rr._revision(files)!=reservation['original_revision']:
             raise rr.RecoveryError('预扣原始指纹不一致，拒绝猜测退款')
         reservation['status']='refunded'
@@ -226,7 +1773,7 @@ def refund(service,tasks,job,status,error):
 def resolution(root,files,body):
     value=body['resolution']
     required={'category','basis','clock','events','memory','conditions','sleep','task','items'}
-    rr._keys(value,required,'resolution',required)
+    rr._keys(value,required | {'intel_used','director_echo'},'resolution',required)
     selected=body['selection'];reservation=body['audit'].get('reservation')
     if not isinstance(reservation,dict) or reservation.get('status')!='held':
         raise rr.RoundError('缺少由正式任务写入器登记的预扣')
@@ -256,7 +1803,7 @@ def resolution(root,files,body):
         raise rr.RoundError('睡眠状态非法')
     if sleep['kind']!='none':
         rr._text(sleep['evidence'],'sleep.evidence',500)
-        if sleep['evidence'] not in texts:
+        if not _evidence_matches(sleep['evidence'],texts):
             raise rr.RoundError('休息依据必须引用本段实际正文')
     elif sleep['start'] is not None or sleep['evidence']!='':
         raise rr.RoundError('无睡眠不应携带伪起点或依据')
@@ -273,36 +1820,86 @@ def resolution(root,files,body):
     limits=memory_policy(root)
     rr._keys(value['memory'],{'fact','transfers','compact'},'memory',{'fact','transfers'})
     memory_text(value['memory']['fact'],'memory.fact',limits['fact_chars'],empty=True)
+    if isinstance(value['memory'].get('compact'), str) and value['memory']['compact'].strip():
+        value['memory']['compact'] = re.sub(
+            r'^\s*【\d+(?:-\d+)?】\s*',
+            '',
+            re.sub(r'[\r\n]+', ' ', value['memory']['compact']),
+        ).strip()
     memory_text(value['memory'].get('compact',''),'memory.compact',limits['round_chars'],empty=True)
     rr._keys(value['memory']['transfers'],{'l1_to_l2_condensed','l2_to_l3_summary','l3_to_l4_summary'},'memory.transfers')
     for key,text in value['memory']['transfers'].items():
         memory_text(text,'memory.transfer',limits[{'l1_to_l2_condensed':'l2_chars','l2_to_l3_summary':'l3_chars','l3_to_l4_summary':'l4_chars'}[key]])
-    grouped={key:[] if key=='host_events' else {} for key in rr._engine(Path(root),Path(root))._load_event_registry()['groups']}
+    engine=rr._engine(Path(root),Path(root))
+    memory_raw=files[rr.FILES[0]].decode('utf-8')
+    presence=engine.parse_presence_from_memory(memory_raw)
+    place=body['operation'].get('destination') if body.get('operation') and body['operation']['code']=='move_player' else presence['徐志北']['location']
+    active_cast={n for n,info in presence.items() if n!='徐志北' and info['location']==place}
+    if ((place=='徐家主宅' and re.search(r'^徐承邺位置：\s*(?:徐家主宅|徐家住宅)\b',memory_raw,re.M))
+            or (place=='市中心顶层公寓' and re.search(r'^徐承邺位置：\s*市中心顶层公寓\b',memory_raw,re.M))):
+        active_cast.add('徐承邺')
+    grouped={key:[] if key=='host_events' else {} for key in engine._load_event_registry()['groups']}
     if not isinstance(value['events'],list) or len(value['events'])>40:
         raise rr.RoundError('事件须为最多40组的数组')
+    dep02_tag=engine._event_tag('DEPRAVITY_02')
+    ds09_tag=engine._event_tag('DS_09')
+    insomnia_targets=set()
     for event in value['events']:
         rr._keys(event,{'group','target','tags','evidence'},'event',{'group','target','tags','evidence'})
         group=event['group'];target=event['target'];tags=event['tags']
         if not isinstance(tags,list) or not tags or not all(isinstance(t,str) for t in tags):raise rr.RoundError('事件标签须为非空文本数组')
-        presence=rr._engine(Path(root),Path(root)).parse_presence_from_memory(files[rr.FILES[0]].decode())
-        place=body['operation'].get('destination') if body.get('operation') and body['operation']['code']=='move_player' else presence['徐志北']['location']
-        if target!='系统宿主' and (target not in presence or presence[target]['location']!=place):raise rr.RoundError('事件对象不在本段实际场内')
         if group not in grouped or (group=='host_events' and target!='系统宿主'):
             raise rr.RoundError('事件组或宿主目标无效')
-        rr._text(event['evidence'],'event.evidence',800)
-        if event['evidence'] not in texts:
-            raise rr.RoundError('事件必须引用本段实际正文，不以选项或计划作已发生依据')
+        if group=='vigilance_events':
+            if target not in engine.VIGILANCE_TARGETS:
+                valid_vig = '/'.join(engine.VIGILANCE_TARGETS)
+                raise rr.RoundError(
+                    f'监视事件目标无效：{target}（vigilance_events.target 只能填被徐承邺监视的对象：{valid_vig}，严禁填监视者徐承邺本人；若正文仅口头提及徐承邺且无实质警惕增减，请直接删除该条事件）'
+                )
+        elif group=='depravity_events' and target=='徐承邺' and dep02_tag in tags:
+            pass
+        elif target!='系统宿主' and target not in active_cast:
+            valid_cast = '、'.join(sorted(active_cast)) or '无'
+            raise rr.RoundError(f'事件对象不在本段实际场内：{target}（当前合法在场角色：{valid_cast}；请核对target或删除场外人物事件）')
+        rr._text(event['evidence'],'event.evidence',1200)
+        if not _evidence_matches(event['evidence'],texts):
+            raise rr.RoundError('事件必须引用本段实际正文，不以选项或计划作已发生依据（请从 foreground_messages 的 text 中原样逐字截取子串作为 evidence）')
+        if group=='ds_events' and ds09_tag in tags and re.search(r'失眠|彻夜未眠|一夜未睡|没合眼|睡不着|通宵未眠', event['evidence']):
+            insomnia_targets.add(target)
         if group=='host_events':grouped[group].extend(tags)
         else:grouped[group].setdefault(target,[]).extend(tags)
-    engine=rr._engine(Path(root),Path(root))
     rr._validate_event_fields(Path(root),engine,grouped)
+    intel_used_raw=value.get('intel_used')
+    intel_used=None
+    if intel_used_raw not in (None,''):
+        if kind!='action':
+            raise rr.RoundError('免费系统操作不可消耗商业情报')
+        if not isinstance(intel_used_raw,dict):
+            raise rr.RoundError('intel_used须为对象或空值')
+        rr._keys(intel_used_raw,{'id','target','evidence'},'intel_used',{'id','target','evidence'})
+        iid=intel_used_raw['id'];itarget=intel_used_raw['target']
+        rr._text(intel_used_raw['evidence'],'intel_used.evidence',500)
+        if not _evidence_matches(intel_used_raw['evidence'],texts):
+            raise rr.RoundError('情报使用必须引用本段实际正文依据')
+        catalog=load_intel_catalog(root,optional=False)
+        item_cfg=next((x for x in catalog['items'] if x['id']==iid),None)
+        if item_cfg is None:
+            raise rr.RoundError('商业情报ID未登记：'+str(iid))
+        istate=parse_intel_block(memory_raw)
+        if iid not in istate['held']:
+            raise rr.RoundError('宿主当前未持有该商业情报：'+str(iid))
+        if itarget not in item_cfg['effects']:
+            raise rr.RoundError(f'情报 {iid} 不支持作用于目标 {itarget}')
+        if itarget!='徐承邺' and itarget not in active_cast:
+            raise rr.RoundError('情报作用对象不在本段实际场内：'+str(itarget))
+        intel_used={'id':iid,'target':itarget,'evidence':intel_used_raw['evidence'],'item':item_cfg}
     if kind=='item' and (runtime['clock'] is None or clock!=runtime['clock'] or sleep['kind']!='none'):
         raise rr.RoundError('道具系统不推进游戏时间或睡眠')
-    if kind!='action' and (value['events'] or value['task'] is not None or value['items']):
-        raise rr.RoundError('免费系统操作不可附带额外数值事件、任务或物品奖励')
+    if kind!='action' and (value['events'] or value['task'] is not None or value['items'] or intel_used is not None):
+        raise rr.RoundError('免费系统操作不可附带额外数值事件、任务、情报消耗或物品奖励')
     if engine._event_tag('HOST_15') in grouped['host_events'] and sleep['kind']!='overnight':
         raise rr.RoundError('整夜恢复事件缺少实际整夜睡眠')
-    forbidden={engine._event_tag('HOST_13'),engine._event_tag('HOST_14'),engine._event_tag('HOST_15'),engine._event_tag('HOST_07')}
+    forbidden={engine._event_tag('HOST_12'),engine._event_tag('HOST_13'),engine._event_tag('HOST_14'),engine._event_tag('HOST_15'),engine._event_tag('HOST_07')}
     grouped['host_events']=[tag for tag in grouped['host_events'] if tag not in forbidden]
     if kind=='action':
         if not isinstance(value['conditions'],dict):
@@ -315,23 +1912,95 @@ def resolution(root,files,body):
         raise rr.RoundError('免费操作不推进有效行动计数')
     if not isinstance(value['items'],list) or len(value['items'])>8:
         raise rr.RoundError('道具增量须为数组')
+    # 前置校验任务与道具，使格式/业务校验错误可由 allow_settlement_retry 自动纠正而非落入 apply_staged 崩溃
     if value['task'] is not None:
         task=value['task'];rr._keys(task,{'title','target','attr','value','tier','item_desc'},'task',{'title','target','attr','value','tier','item_desc'})
         rr._integer(task['value'],'task.value',1)
-        for key in ('title','target','attr','tier','item_desc'):rr._text(task[key],'task.'+key,300)
+        for key in ('title','target','attr','tier','item_desc'):
+            rr._text(task[key],'task.'+key,300)
+            if '|' in task[key]:
+                raise rr.RoundError(f'任务字段 task.{key} 不能包含竖线分隔符 |')
+        task_baseline_mem = memory_raw
+        if isinstance(reservation, dict) and reservation.get('before_memory'):
+            try:
+                task_baseline_mem = base64.b64decode(reservation['before_memory'], validate=True).decode('utf-8')
+            except Exception:
+                task_baseline_mem = memory_raw
+        task_before=engine._parse_task_block(task_baseline_mem)
+        if task_before and task_before.get('current') and task_before['current'].get('status')=='进行中':
+            raise rr.RoundError('已有进行中任务，不能覆盖')
+        ok_t,err_t=engine._validate_task(task,task_baseline_mem)
+        if not ok_t:
+            raise rr.RoundError(f'任务生成被拒绝：{err_t}')
+    if kind=='action' and any(t.startswith('兑换道具_') for t in grouped['host_events']):
+        points_now=engine._read_attr_value(memory_raw,'系统宿主','积分') or 0
+        if sum(int(t.split('_')[1]) for t in grouped['host_events'] if t.startswith('兑换道具_'))>points_now:
+            raise rr.RoundError('兑换积分不足，未接受道具或扣费')
+    items_raw=(files.get(rr.FILES[1]) or b'').decode('utf-8')
     for item in value['items']:
         rr._keys(item,{'entry','evidence'},'item',{'entry','evidence'})
         rr._text(item['evidence'],'item.evidence',500)
-        if item['evidence'] not in texts:raise rr.RoundError('道具变更缺正文依据')
-        entry=item['entry'];rr._keys(entry,{'id','name','type','desc','quantity','status','location','target','duration','expire_rule','usage_record','remark','action','system_effect'},'item.entry',{'name','action'})
+        if not _evidence_matches(item['evidence'],texts):raise rr.RoundError('道具变更缺正文依据')
+        entry=item['entry'];rr._keys(entry,{'id','name','type','desc','quantity','status','location','target','duration','expire_rule','usage_record','remark','action','system_effect','giftable'},'item.entry',{'name','action'})
         for field,text in entry.items():
             if field=='quantity':rr._integer(text,'item.quantity',1)
+            elif field=='giftable':
+                if not isinstance(text,(bool,str)):raise rr.RoundError('道具giftable须为布尔或文本')
             elif not isinstance(text,str) or '\n' in text or '\r' in text:raise rr.RoundError('道具字段须为单行文本')
         if entry['action'] not in ('add','consume','update','archive'):raise rr.RoundError('道具动作无效')
         if entry.get('system_effect') and not re.fullmatch(r'host_stamina:[1-9]\d{0,3}',entry['system_effect']):raise rr.RoundError('道具系统效果未登记')
+        if entry['action']=='update':
+            raise rr.RoundError('当前正式入口不允许任意覆写已有道具字段')
+        if entry['action']=='add':
+            if entry.get('id'):raise rr.RoundError('新增道具ID由执行器生成，不能覆盖已有编号')
+            if engine._find_item_block(items_raw,name=entry['name']):raise rr.RoundError('同名道具增发须保留已有登记字段，当前不自动改写')
+        else:
+            original=engine._find_item_block(items_raw,item_id=entry.get('id',''))
+            if original is None:raise rr.RoundError('道具增量未指向真实活跃ID')
+            original_fields=engine._parse_item_block(original['block'])
+            original_name=re.search(r'【道具名称】：([^\n]+)',original['block'])[1].strip()
+            if entry['name']!=original_name:raise rr.RoundError('道具名称与真实ID不一致')
+            if entry['action']=='consume' and entry.get('quantity',1)>engine._int_of(original_fields['数量'],0):raise rr.RoundError('道具消耗量超过库存')
+            if entry.get('system_effect') and entry['system_effect']!=original_fields.get('系统效果',''):raise rr.RoundError('不能为已有物品臆造恢复效果')
+    if kind=='action' and value['items']:
+        additions_pre=sum(item['entry']['action']=='add' for item in value['items'])
+        if additions_pre>0:
+            purchases_pre=sum(t.startswith('兑换道具_') for t in grouped['host_events'])
+            tb_pre=engine._parse_task_block(memory_raw)
+            had_pend_pre=bool(tb_pre and (tb_pre.get('pending_items') or tb_pre.get('pending_item')))
+            was_act_pre=bool(tb_pre and tb_pre.get('current') and tb_pre['current'].get('status')=='进行中')
+            could_pend_pre=had_pend_pre or was_act_pre or (value['task'] is not None)
+            if not purchases_pre and not could_pend_pre:
+                raise rr.RoundError('新增道具缺已接受兑换或任务待发资格')
+            if additions_pre>purchases_pre+int(could_pend_pre):
+                raise rr.RoundError('新增道具组数超过实际兑换或任务待发资格')
+    # 前置校验记忆合并与转移（空 fact 不产生新 L1 时自动忽略多余 transfers，防止盲崩；真正有转移错误时纳入重试）
+    if kind!='item':
+        was_resting_pre=runtime['phase']=='resting'
+        mem_round_pre=max(1,runtime['last_closed'] if was_resting_pre and runtime['last_closed'] else runtime['memory_round'])
+        old_layers_pre=engine._parse_memory_layer_items(memory_raw)
+        merged_pre=memory_merge(root,old_layers_pre,mem_round_pre,clock,value['memory'],system=False)
+        eff_transfers=copy.deepcopy(value['memory']['transfers']) if merged_pre else {}
+        if merged_pre or eff_transfers:
+            pre_deltas={**({'l1_new_round':merged_pre} if merged_pre else {}),**eff_transfers}
+            with tempfile.NamedTemporaryFile('w',encoding='utf-8',suffix='.txt',delete=False) as tf:
+                tf.write(memory_raw);tf_path=tf.name
+            try:
+                rr._engine_call(engine.validate_memory_transition_preflight,mem_round_pre,pre_deltas,tf_path)
+            finally:
+                try: Path(tf_path).unlink()
+                except OSError: pass
+    director_echo=_sanitize_director_echo(
+        value.get('director_echo'),
+        load_world_beats(root,optional=True),
+        parse_director_block(memory_raw),
+        is_action=(kind=='action'),
+    )
     final_cost=COSTS[value['category']] if kind=='action' else 0
     return {'runtime':runtime,'cost':cost,'refund':cost['total']-final_cost,'net':final_cost,
-            'events':grouped,'clock':clock,'elapsed':0 if start is None else end-start,'sleep':sleep}
+            'events':grouped,'clock':clock,'elapsed':0 if start is None else end-start,'sleep':sleep,
+            'intel_used':intel_used,'director_echo':director_echo,'active_cast':sorted(active_cast),
+            'insomnia_targets':sorted(insomnia_targets)}
 
 
 def panel_values(engine,text):
@@ -341,6 +2010,8 @@ def panel_values(engine,text):
         match=re.search(r'^\['+re.escape(name)+r'\]([^\n]+)',current,re.M)
         if not match:continue
         for pair in re.finditer(r'(积分|经验值|体力|魅力|商业嗅觉|好感|堕落|欲望|羞耻|高潮|内射)\s+(-?\d+)',match[1]):result[(name,pair[1])]=int(pair[2])
+        preg_m=re.search(r'怀孕\s+(True|False)',match[1])
+        if preg_m:result[(name,'怀孕')]=(preg_m[1]=='True')
     return result
 
 
@@ -348,73 +2019,296 @@ def apply_staged(store,engine,stage,body,files,parsed):
     runtime=copy.deepcopy(parsed['runtime']);value=body['resolution'];kind=parsed['cost']['kind']
     memory_path=stage/rr.FILES[0]
     before=base64.b64decode(body['audit']['reservation']['before_memory'],validate=True).decode()
-    content=memory_path.read_text();current=engine._read_attr_value(content,'系统宿主','体力')
+    content=memory_path.read_text(encoding='utf-8');current=engine._read_attr_value(content,'系统宿主','体力')
     rr._atomic(memory_path,engine._simulate_panel(content,{'系统宿主':{'体力':current+parsed['refund']}}).encode())
     events=parsed['events'];lifecycle=None;states=None;counts=None
+    task_completed=False;task_issued=False;completed_task_info=None
+    leverage_triggered=None;intel_consumed=None;schedule_moves=[]
+    active_cast=parsed.get('active_cast') or []
+    # 记录本幕实际发生时的同席知情者（先于离场日程移动，确保 messages_known_by 不掺入后到的场外 NPC）
+    scene_known_by=['徐志北',*active_cast] if kind!='item' else ['徐志北']
     if kind=='action':
         # Lifecycle units are accepted paid actions, independently of memory rounds.
         action=runtime['action_index']+1
+        pre_mem=memory_path.read_text(encoding='utf-8')
+        auto_micro=derive_micro_state_changes(engine,events,value['conditions'],active_cast,pre_mem)
         lifecycle_body={'current_round':action,'memory_deltas':{'round_conditions':value['conditions']},
-                        'micro_state_changes':{},'counter_updates':{},'system_log':'',**copy.deepcopy(events)}
-        derived,lifecycle,states,counts=rr._derive_lifecycle(engine,lifecycle_body,memory_path.read_text())
+                        'micro_state_changes':auto_micro,'counter_updates':{},'system_log':'',**copy.deepcopy(events)}
+        derived,lifecycle,states,counts=rr._derive_lifecycle(engine,lifecycle_body,pre_mem,active_cast=active_cast)
         events={k:derived[k] for k in events};runtime['action_index']=action
         if any(t.startswith('兑换道具_') for t in events['host_events']):
-            points=engine._read_attr_value(memory_path.read_text(),'系统宿主','积分')
+            points=engine._read_attr_value(memory_path.read_text(encoding='utf-8'),'系统宿主','积分')
             if sum(int(t.split('_')[1]) for t in events['host_events'] if t.startswith('兑换道具_'))>points:raise rr.RoundError('兑换积分不足，未接受道具或扣费')
-        rr._engine_call(engine.apply_story_events,events,value['task'],runtime['memory_round'])
+        task_before=engine._parse_task_block(memory_path.read_text(encoding='utf-8'))
+        had_pending_item=bool(task_before and (task_before.get('pending_items') or task_before.get('pending_item')))
+        was_active_task=bool(task_before and task_before.get('current') and task_before['current'].get('status')=='进行中')
+        intel_catalog=load_intel_catalog(store.root,optional=True)
+        intel_state=parse_intel_block(memory_path.read_text(encoding='utf-8'))
+        intel_dirty=False
+        leverage_armed=intel_state['leverage_armed'] if intel_state['leverage_armed'] in intel_state['held'] else ''
+        use_leverage=bool(leverage_armed) and (not parsed.get('intel_used') or parsed['intel_used']['id']!=leverage_armed)
+        # 1. 先结算常规事件（延迟任务结算，待 intel_used 数值生效后统一判任务完成）
+        ev_meta=rr._engine_call(
+            engine.apply_story_events,events,value['task'],runtime['memory_round'],
+            business_leverage=use_leverage,current_day=parsed['clock']['day'],
+            active_cast=active_cast,pre_event_content=pre_mem,
+            insomnia_targets=parsed.get('insomnia_targets'),defer_task=True,
+        )
+        if isinstance(ev_meta,dict) and isinstance(ev_meta.get('normalized_events'),dict):
+            events=ev_meta['normalized_events']
+        lev_meta=(ev_meta or {}).get('leverage_meta') or {}
+        if use_leverage and lev_meta.get('applied'):
+            intel_state['held']=[x for x in intel_state['held'] if x!=leverage_armed]
+            if leverage_armed not in intel_state['consumed']:
+                intel_state['consumed'].append(leverage_armed)
+            intel_state['leverage_armed']=''
+            intel_dirty=True
+            iname=next((it['name'] for it in intel_catalog['items'] if it['id']==leverage_armed),leverage_armed)
+            leverage_triggered={'intel_id':leverage_armed,'intel_name':iname,'targets':lev_meta.get('targets',[])}
+        su_targeted = (
+            (value.get('conditions') or {}).get('npc') == '苏婉青'
+            or any(m.get('kind') == 'dialogue' and m.get('speaker') == '苏婉青' for m in body.get('messages', []))
+        )
+        if '苏婉青' in active_cast and value['category'] in ('A','B') and su_targeted:
+            intel_state['su_ab_contacts']+=1
+            intel_dirty=True
+        # 2. 结算一次性商业情报亮牌（先于任务完成判定，消除任务迟 1 轮完成问题）
+        if parsed.get('intel_used'):
+            iu=parsed['intel_used'];iid=iu['id'];itarget=iu['target'];icfg=iu['item']
+            eff=icfg['effects'][itarget]
+            cur_mem=memory_path.read_text(encoding='utf-8')
+            st_chk,_,_=save_store.load_bundle(stage)
+            su_unlocked=bool((st_chk.get('mechanics') or {}).get('su_affection_85_unlocked'))
+            patch={}
+            if 'attr' in eff and 'delta' in eff:
+                attr=eff['attr'];old_v=engine._read_attr_value(cur_mem,itarget,attr)
+                if old_v is not None:
+                    cap=(95 if su_unlocked or old_v>85 else 85) if (itarget=='苏婉青' and attr=='好感') else 100
+                    new_v=min(cap,max(0,old_v+int(eff['delta'])))
+                    patch.setdefault(itarget,{})[attr]=new_v
+            if 'host_bonus' in eff:
+                host_now=engine._read_host_panel(cur_mem) or {'积分':0,'经验值':0,'体力':100,'商业嗅觉':0}
+                for hk,hv in eff['host_bonus'].items():
+                    nv=host_now.get(hk,0)+int(hv)
+                    if hk=='商业嗅觉': nv=min(100,max(0,nv))
+                    host_now[hk]=nv
+                patch['系统宿主']=host_now
+            if patch:
+                rr._atomic(memory_path,engine._simulate_panel(cur_mem,patch).encode('utf-8'))
+            intel_state['held']=[x for x in intel_state['held'] if x!=iid]
+            if iid not in intel_state['consumed']:
+                intel_state['consumed'].append(iid)
+            if intel_state['leverage_armed']==iid:
+                intel_state['leverage_armed']=''
+            intel_dirty=True
+            # 亮牌揭穿苏婉青眼线身份（INTEL-002）同步写入本档 secrets_unlocked
+            if iid=='INTEL-002':
+                st_s,ly_s,_=save_store.load_bundle(stage)
+                if iid not in st_s['mechanics']['secrets_unlocked']:
+                    st_s['mechanics']['secrets_unlocked'].append(iid)
+                    save_store.save_bundle(stage,st_s,ly_s)
+            intel_consumed={'id':iid,'name':icfg['name'],'target':itarget,'effect_summary':icfg['effect_summary']}
+        # 3. 统一结算任务完成与新任务挂载（保留未领 pending_items 队列）
+        post_ev_mem=memory_path.read_text(encoding='utf-8')
+        task_reward=rr._engine_call(
+            engine.process_task_system,value['task'],runtime['memory_round'],str(memory_path),
+            sim_content=post_ev_mem,pre_event_content=pre_mem,
+        )
+        if task_reward:
+            tmem=memory_path.read_text(encoding='utf-8')
+            thost=engine._read_host_panel(str(memory_path)) or {'积分':0,'经验值':0,'体力':100,'商业嗅觉':0}
+            for rk,rv in task_reward.items():
+                thost[rk]=thost.get(rk,0)+rv
+            rr._atomic(memory_path,engine._simulate_panel(tmem,{'系统宿主':thost}).encode('utf-8'))
+        task_after_events=engine._parse_task_block(memory_path.read_text(encoding='utf-8'))
+        if (was_active_task and task_after_events and task_after_events.get('current')
+                and task_after_events['current'].get('status')=='已完成'):
+            task_completed=True
+            completed_task_info=copy.deepcopy(task_after_events['current'])
+        if (value['task'] is not None and task_after_events and task_after_events.get('current')
+                and task_after_events['current'].get('status') in ('进行中','已完成')):
+            task_issued=True
+            if task_after_events['current'].get('status')=='已完成' and not was_active_task:
+                task_completed=True
+                completed_task_info=copy.deepcopy(task_after_events['current'])
         rr._engine_call(engine.update_persistent_buffs,str(memory_path),events['shame_events'],{})
         rr._engine_call(engine.process_item_timers,str(memory_path),str(stage/rr.FILES[1]),action)
-        memory=rr._write_lifecycle(rr._write_counters(rr._write_micro(memory_path.read_text(),states),counts),lifecycle)
-        rr._atomic(memory_path,memory.encode())
+        memory=rr._write_lifecycle(rr._write_counters(rr._write_micro(memory_path.read_text(encoding='utf-8'),states),counts),lifecycle)
+        if intel_dirty:
+            memory=write_intel_block(memory,intel_state,intel_catalog)
+        rr._atomic(memory_path,memory.encode('utf-8'))
         if value['items']:
             host=events['host_events'];task=engine._parse_task_block(memory)
             additions=sum(item['entry']['action']=='add' for item in value['items'])
             purchases=sum(t.startswith('兑换道具_') for t in host)
-            if additions>purchases+bool(task and task.get('pending_item')):raise rr.RoundError('新增道具组数超过实际兑换或任务待发资格')
+            pending_eligible=had_pending_item or bool(task and (task.get('pending_items') or task.get('pending_item')))
+            if additions>purchases+int(pending_eligible):raise rr.RoundError('新增道具组数超过实际兑换或任务待发资格')
             for item in value['items']:
                 entry=item['entry']
-                if entry['action']=='add' and not any(t.startswith('兑换道具_') for t in host) and not (task and task.get('pending_item')):
+                if entry['action']=='add' and not purchases and not pending_eligible:
                     raise rr.RoundError('新增道具缺已接受兑换或任务待发资格')
+                stage_items_text=(stage/rr.FILES[1]).read_text(encoding='utf-8') if (stage/rr.FILES[1]).is_file() else ''
                 if entry['action']=='add':
                     if entry.get('id'):raise rr.RoundError('新增道具ID由执行器生成，不能覆盖已有编号')
-                    if engine._find_item_block((files[rr.FILES[1]] or b'').decode(),name=entry['name']):raise rr.RoundError('同名道具增发须保留已有登记字段，当前不自动改写')
+                    if engine._find_item_block(stage_items_text,name=entry['name']):raise rr.RoundError('同名道具增发须保留已有登记字段，当前不自动改写')
                 if entry['action']!='add':
-                    original=engine._find_item_block((files[rr.FILES[1]] or b'').decode(),item_id=entry.get('id',''))
+                    original=engine._find_item_block(stage_items_text,item_id=entry.get('id',''))
                     if original is None:raise rr.RoundError('道具增量未指向真实活跃ID')
                     original_fields=engine._parse_item_block(original['block'])
                     original_name=re.search(r'【道具名称】：([^\n]+)',original['block'])[1].strip()
                     if entry['name']!=original_name:raise rr.RoundError('道具名称与真实ID不一致')
                     if entry['action']=='update':raise rr.RoundError('当前正式入口不允许任意覆写已有道具字段')
                     if entry['action']=='consume' and entry.get('quantity',1)>engine._int_of(original_fields['数量'],0):raise rr.RoundError('道具消耗量超过库存')
-                    if entry.get('system_effect') and entry['system_effect']!=engine._parse_item_block(original['block']).get('系统效果',''):raise rr.RoundError('不能为已有物品臆造恢复效果')
+                    if entry.get('system_effect') and entry['system_effect']!=original_fields.get('系统效果',''):raise rr.RoundError('不能为已有物品臆造恢复效果')
                 rr._engine_call(engine.update_item_catalog,runtime['memory_round'],[entry])
-            if task and task.get('pending_item') and any(i['entry']['action']=='add' for i in value['items']):
-                task['pending_item']=None;rr._engine_call(engine._write_task_block,task)
+            if task and (task.get('pending_items') or task.get('pending_item')) and additions > purchases:
+                plist=list(task.get('pending_items') or ([task['pending_item']] if task.get('pending_item') else []))
+                if plist: plist.pop(0)
+                task['pending_items']=plist
+                task['pending_item']=plist[0] if plist else None
+                rr._engine_call(engine._write_task_block,task)
+        delivered_echo_ids=body.get('audit',{}).get('delivered_echo_ids') or []
+        memory_text_now=memory_path.read_text(encoding='utf-8')
+        updated_memory_text=consume_echoes(memory_text_now,delivered_echo_ids)
+        if task_completed and completed_task_info:
+            pts,exp=engine.TASK_REWARDS.get(completed_task_info.get('tier','small'),engine.TASK_REWARDS['small'])
+            summary=f"「{completed_task_info['title']}」已达成（积分+{pts}，经验+{exp}；待领奖励：{completed_task_info['item_desc']}）"
+            updated_memory_text=append_echo(updated_memory_text,'task_completed',completed_task_info['id'],summary)
+        if updated_memory_text!=memory_text_now:
+            rr._atomic(memory_path,updated_memory_text.encode('utf-8'))
     if body['operation'] and kind!='item':rr._engine_call(engine.apply_interaction_operation,body['operation'])
     item_receipt=None
     if kind=='item':
         item_receipt=parsed['cost']['item']
         rr._engine_call(engine.consume_story_recovery_item,item_receipt['item_id'],item_receipt['recovery'],runtime['memory_round'])
         runtime['item_recovered']+=item_receipt['recovery']
+    data_before=json.loads((files.get('data.json') or b'{}').decode('utf-8'))
+    crossed=parsed['runtime']['clock'] is not None and parsed['clock']['day']>parsed['runtime']['clock']['day']
+    weekday=derive_weekday(data_before,memory_path.read_text(encoding='utf-8'),parsed['clock'])
     if kind!='item':
         old_clock=runtime['clock'];new_clock=parsed['clock']
-        hours=(minute(new_clock)//60-minute(old_clock)//60) if old_clock else 0
-        if kind=='action' or hours:
-            rr._engine_call(engine.process_vigilance_system,events['vigilance_events'],events['shame_events'],str(memory_path),elapsed_hours=hours,roll_home=kind=='action')
+        hours=max(0,(minute(new_clock)-minute(old_clock))//60) if old_clock else 0
         runtime['clock']=new_clock
+        cur_presence=engine.parse_presence_from_memory(memory_path.read_text(encoding='utf-8'))
+        player_loc_now=cur_presence['徐志北']['location']
+        # 4. 先同步离场作息日程，再结算徐承邺监视矩阵（保证 co_present 与发现几率基于最新坐标）
+        schedule_moves=reconcile_offstage_presence(
+            engine,memory_path,new_clock,weekday,player_loc_now,
+            overnight=(parsed['sleep']['kind']=='overnight'),day_crossed=crossed,
+            player_moved=bool(body.get('operation') and body['operation'].get('code')=='move_player'),
+        )
+        if kind=='action' or hours:
+            rr._engine_call(engine.process_vigilance_system,events['vigilance_events'],events['shame_events'],str(memory_path),elapsed_hours=hours,roll_home=kind=='action',active_cast=active_cast)
+        if kind=='action':
+            dir_mem=memory_path.read_text(encoding='utf-8')
+            dir_updated=advance_director_state(
+                store.root,dir_mem,location=player_loc_now,
+                director_roll=body.get('audit',{}).get('director_roll'),
+                effective_progress=bool((value.get('conditions') or {}).get('effective_progress')),
+                had_events=bool(any(events[g] for g in events)),
+                memory_fact=(value.get('memory') or {}).get('fact',''),
+                director_echo=parsed.get('director_echo'),
+                active_cast=active_cast,
+                new_clock=new_clock,
+                day_crossed=crossed,
+            )
+            if dir_updated!=dir_mem:
+                rr._atomic(memory_path,dir_updated.encode('utf-8'))
+    if crossed or parsed['sleep']['kind']=='overnight':
+        st_day,ly_day,_=save_store.load_bundle(stage)
+        cur_day_num=int((parsed.get('clock') or {}).get('day') or 1)
+        lat_map=st_day['mechanics'].setdefault('pregnancy_latent_until',{h:0 for h in save_store.HEROINES})
+        day_dirty=False
+        for hname in save_store.HEROINES:
+            due_day=int(lat_map.get(hname,0) or 0)
+            if due_day>0 and cur_day_num>=due_day:
+                was_preg=bool(st_day['panels'][hname].get('怀孕'))
+                st_day['panels'][hname]['怀孕']=True
+                if not was_preg:
+                    cur_shame=int(st_day['panels'][hname].get('羞耻',100))
+                    st_day['panels'][hname]['羞耻']=min(35,max(0,cur_shame-30))
+                lat_map[hname]=0
+                day_dirty=True
+        if day_dirty:
+            save_store.save_bundle(stage,st_day,ly_day)
     if parsed['sleep']['kind']=='overnight':
-        memory=memory_path.read_text()
-        rr._atomic(memory_path,engine._simulate_panel(memory,{'系统宿主':{'体力':100}}).encode())
+        # 跨夜安稳睡眠：宿主恢复 100；体液锁定跨夜衰减6回合；高欲求/空耗女主触发夜间暗中自渎纾解；未失眠女主恢复体力、残余高潮清零、堕落<30时羞耻防线回弹+2
+        st_ov,ly_ov,_=save_store.load_bundle(stage)
+        ins_map=st_ov['mechanics'].get('insomnia_applied') or {}
+        unlocked_caps=st_ov['mechanics'].setdefault('depravity_unlocked_caps',{h:30 for h in save_store.HEROINES})
+        m_trace=st_ov['mechanics'].setdefault('masturbation_trace',{h:0 for h in save_store.HEROINES})
+        ov_patch={'系统宿主':{'体力':100}}
+        for hname in save_store.HEROINES:
+            ov_patch[hname]={'高潮':0}
+            cur_h_sta=int(st_ov['panels'][hname]['体力'])
+            cur_h_shame=int(st_ov['panels'][hname].get('羞耻',100))
+            cur_h_dep=int(st_ov['panels'][hname].get('堕落',0))
+            cur_h_des=int(st_ov['panels'][hname].get('欲望',0))
+            # 1. 跨夜衰减 [持续_体液锁定] 6 回合
+            rem_lock_turns=0
+            next_buffs=[]
+            for bitem in (st_ov.get('buffs',{}).get(hname) or []):
+                if isinstance(bitem, dict) and bitem.get('name')=='持续_体液锁定':
+                    old_rem=int(bitem.get('turns') or 0)
+                    new_rem=max(0,old_rem-6)
+                    if new_rem>0:
+                        rem_lock_turns=new_rem
+                        fl_floor=engine.fluid_lock_floor_for_turns(new_rem)
+                        next_buffs.append({
+                            'name':'持续_体液锁定',
+                            'turns':new_rem,
+                            'effect':f'效果: 体内精液残留与激素共振，欲望锁底>={fl_floor}',
+                        })
+                elif isinstance(bitem, str) and '[持续_体液锁定]' in bitem:
+                    m_rem=re.search(r'剩余时效:\s*(\d+)回合',bitem)
+                    old_rem=int(m_rem.group(1)) if m_rem else 0
+                    new_rem=max(0,old_rem-6)
+                    if new_rem>0:
+                        rem_lock_turns=new_rem
+                        fl_floor=engine.fluid_lock_floor_for_turns(new_rem)
+                        next_buffs.append({
+                            'name':'持续_体液锁定',
+                            'turns':new_rem,
+                            'effect':f'效果: 体内精液残留与激素共振，欲望锁底>={fl_floor}',
+                        })
+                else:
+                    next_buffs.append(bitem)
+            st_ov.setdefault('buffs',{})[hname]=next_buffs
+            lock_floor=engine.fluid_lock_floor_for_turns(rem_lock_turns)
+            # 2. 夜间私密自渎自动纾解判定
+            unrel_key=f'空耗_连续未纾解_{hname}'
+            cur_unrel=int(st_ov.get('counters',{}).get(unrel_key,0))
+            secret_relief=bool((cur_h_des>=75 or rem_lock_turns>0) and (cur_h_dep>=15 or cur_unrel>=1))
+            if secret_relief:
+                ov_patch[hname]['欲望']=max(45,lock_floor)
+                cap_val=int(unlocked_caps.get(hname,30))
+                if cur_h_dep<cap_val:
+                    cur_h_dep=min(cap_val,cur_h_dep+2)
+                    ov_patch[hname]['堕落']=cur_h_dep
+                st_ov.setdefault('counters',{})[unrel_key]=0
+                m_trace[hname]=2
+            elif rem_lock_turns>0 and cur_h_des<lock_floor:
+                ov_patch[hname]['欲望']=lock_floor
+            if not ins_map.get(hname,False):
+                sta_gain=32 if secret_relief else 40
+                ov_patch[hname]['体力']=min(100,cur_h_sta+sta_gain)
+                if cur_h_dep<30 and not secret_relief:
+                    shame_cap=35 if st_ov['panels'][hname].get('怀孕') else max(0,100-int(cur_h_dep*0.6))
+                    ov_patch[hname]['羞耻']=min(shame_cap,cur_h_shame+2)
+            st_ov['mechanics']['insomnia_applied'][hname]=False
+        for ch,ch_vals in ov_patch.items():
+            for ak,av in ch_vals.items():
+                st_ov['panels'][ch][ak]=av
+        save_store.save_bundle(stage,st_ov,ly_ov)
         runtime['item_recovered']=0
-    final=engine._read_attr_value(memory_path.read_text(),'系统宿主','体力')
+    final=engine._read_attr_value(memory_path.read_text(encoding='utf-8'),'系统宿主','体力')
     low=final<5 or parsed['sleep']['kind']=='collapse'
     was_resting=runtime['phase']=='resting'
-    crossed=parsed['runtime']['clock'] is not None and parsed['clock']['day']>parsed['runtime']['clock']['day']
     memory_round=runtime['last_closed'] if was_resting and runtime['last_closed'] else runtime['memory_round']
     memory_round=max(1,memory_round)
-    old_layers=engine._parse_memory_layer_items(memory_path.read_text())
+    old_layers=engine._parse_memory_layer_items(memory_path.read_text(encoding='utf-8'))
     merged=memory_merge(store.root,old_layers,memory_round,parsed['clock'],value['memory'],system=kind=='item')
-    transfers={} if kind=='item' else copy.deepcopy(value['memory']['transfers'])
+    transfers={} if (kind=='item' or not merged) else copy.deepcopy(value['memory']['transfers'])
     deltas={**({'l1_new_round':merged} if merged else {}),**transfers}
     if deltas:
         rr._engine_call(engine.update_global_memory,memory_round,deltas,{})
@@ -426,16 +2320,35 @@ def apply_staged(store,engine,stage,body,files,parsed):
             runtime['last_closed']=runtime['memory_round'];runtime['memory_round']+=1;runtime['closed_by']=body['request_id'];closed=True
         runtime['phase']='ready' if parsed['sleep']['kind']=='overnight' and final>=5 else 'resting'
     else:runtime['phase']='ready'
-    after_memory=memory_path.read_text();before_values=panel_values(engine,before);after_values=panel_values(engine,after_memory)
-    changes=[{'target':name,'attribute':attr,'before':old,'after':after_values[key],'delta':after_values[key]-old}
+    # 最终统一同步 P2 JSON 真相与单向可读视图（含最新 runtime/weekday）
+    st_final,ly_final,_=save_store.load_bundle(stage)
+    st_final['runtime'].update({
+        'clock':copy.deepcopy(runtime['clock']),
+        'weekday':weekday,
+        'memory_round':runtime['memory_round'],
+        'last_closed':runtime['last_closed'],
+        'phase':runtime['phase'],
+        'item_recovered':runtime['item_recovered'],
+        'action_index':runtime['action_index'],
+        'closed_by':runtime['closed_by'],
+    })
+    if merged:
+        ly_final['prologue_active']=False
+    save_store.save_bundle(stage,st_final,ly_final)
+    after_memory=memory_path.read_text(encoding='utf-8');before_values=panel_values(engine,before);after_values=panel_values(engine,after_memory)
+    changes=[{'target':name,'attribute':attr,'before':old,'after':after_values[key],
+              'delta':(1 if after_values[key] else -1) if isinstance(old,bool) else after_values[key]-old}
              for key,old in before_values.items() for name,attr in (key,) if key in after_values and after_values[key]!=old]
     receipt={'request_id':body['request_id'],'kind':kind,'reserved':parsed['cost']['total'],'refunded':parsed['refund'],
              'items_changed':(files[rr.FILES[1]] or b'')!=(stage/rr.FILES[1]).read_bytes(),
-             'task_after':engine._parse_task_block(memory_path.read_text()),
+             'task_after':engine._parse_task_block(after_memory),
+             'task_completed':task_completed,'task_issued':task_issued,
              'net_cost':parsed['net'],'stamina_before':parsed['cost']['before'],'stamina_after':final,'changes':changes,
-             'events':events,'item':item_receipt,'clock':runtime['clock'],'memory_round':runtime['memory_round'],
+             'events':events,'item':item_receipt,'clock':runtime['clock'],'weekday':weekday,
+             'schedule_moves':schedule_moves,'leverage_triggered':leverage_triggered,'intel_consumed':intel_consumed,
+             'memory_round':runtime['memory_round'],
              'closed_round':runtime['last_closed'] if closed else None,'phase':runtime['phase'],'item_budget':20-runtime['item_recovered'],
-             'sleep_completed':parsed['sleep']['kind']=='overnight'}
+             'sleep_completed':parsed['sleep']['kind']=='overnight','_scene_known_by':scene_known_by}
     return runtime,receipt
 
 
@@ -470,7 +2383,7 @@ def contract(root=None,kind='action',option_id=None):
             'sleep':{'kind':'none|collapse|interrupted|overnight','start':None,'evidence':''},'task':None,'items':[]}
 
 
-def create(service,body,retry_key=None):
+def create(service,body,retry_key=None,resume_stage2=False):
     service.start()
     rr._keys(body,{'request_id','base_revision','action','model_key','entry_mode','operation','save_epoch','selection'},'提交',{'request_id','base_revision','action','entry_mode','save_epoch','selection'})
     key=body['request_id'];action=body['action'];revision=body['base_revision']
@@ -492,11 +2405,18 @@ def create(service,body,retry_key=None):
         cost=quote(service.root,files,selected,action,command)
         if cost['kind']=='item':command={'code':'use_recovery_item','item_id':cost['item']['item_id']}
         if command:ir.operation(service.root,files,command,action,True)
+        use_stage2_resume = bool(retry_key is not None and resume_stage2 and cost['kind'] != 'item')
+        if use_stage2_resume:
+            if ir.load_stage1_checkpoint(service, key, existing) is None:
+                raise rr.RoundError('未找到可复用的前台剧情断点，请使用完整重推')
+        else:
+            ir.clear_stage1_checkpoint(service, key)
         previous_error=(existing or {}).get('error','') if retry_key is not None else ''
         job={**(existing or {}),'request_id':key,'base_revision':revision,'action':action,'entry_mode':ir.MODE,
              'model_key':model_key,'operation':body.get('operation'),'save_epoch':body['save_epoch'],'selection':selected,
              'current_round':state(service.root,files)['memory_round'],'status':'preparing','attempt':(existing or {}).get('attempt',0),
-             'created_at':__import__('time').time(),'error':'','lease':None,'cost_preview':cost}
+             'created_at':__import__('time').time(),'error':'','lease':None,'cost_preview':cost,
+             'resume_stage2':use_stage2_resume,'has_stage1_checkpoint':use_stage2_resume}
         job.pop('refund',None);job.pop('receipt',None);job.pop('generation_model',None)
         service._blob(key,'.assembled.json').unlink(missing_ok=True)
         reserve(service,tasks,job,files,cost)
@@ -544,6 +2464,7 @@ def held_files(service,job):
 
 
 def retry(service,key,body):
+    body = body if isinstance(body, dict) else {}
     with service.store._locked():
         tasks=service._read();service._expire(tasks);job=tasks['jobs'].get(key)
         if not job:raise rr.RoundError('任务不存在')
@@ -551,7 +2472,8 @@ def retry(service,key,body):
         if job.get('reservation',{}).get('status')=='held':refund(service,tasks,job,'failed','重试前返还原预扣')
         request={k:job.get(k) for k in ('request_id','base_revision','action','entry_mode','operation','save_epoch','selection','model_key')}
         request['model_key']=service._model_key(body)
-    return create(service,request,retry_key=key)
+        wants_resume = bool(body.get('resume_stage2'))
+    return create(service,request,retry_key=key,resume_stage2=wants_resume)
 
 
 def finish(service,key):
@@ -559,11 +2481,11 @@ def finish(service,key):
         job=copy.deepcopy(service._read()['jobs'][key])
     if job['status']!='validating':return {'task':service._public(job)}
     try:
-        context=rr.load_request(service._blob(key,'.context.json').read_text())
-        payload=rr.load_request(service._blob(key,'.assembled.json').read_text()) if context.get('system_item') else service._assemble_result(key,job)
+        context=rr.load_request(service._blob(key,'.context.json').read_text(encoding='utf-8'))
+        payload=rr.load_request(service._blob(key,'.assembled.json').read_text(encoding='utf-8')) if context.get('system_item') else service._assemble_result(key,job)
         baseline=dict(context.get('audit',{}))
         if not context.get('system_item'):
-            proof=rr.load_request(service._blob(key,'.read-audit.json').read_text())
+            proof=rr.load_request(service._blob(key,'.read-audit.json').read_text(encoding='utf-8'))
             baseline.update({item['path']:item['source_sha256_at_result'] for item in proof['verified_tools'] if 'source_sha256_at_result' in item})
         receipt=service.store.submit(payload,_source_baseline=baseline)
         with service.store._locked():return {'task':service._public(service._read()['jobs'][key])}
@@ -576,11 +2498,383 @@ def finish(service,key):
 
 def cancel(service,key):
     service.start()
+    import interaction_runtime as ir
     with service.store._locked():
         tasks=service._read();job=tasks['jobs'].get(key)
         if not job:raise rr.RoundError('任务不存在')
-        if job.get('reservation'):
+        ir.clear_stage1_checkpoint(service, key)
+        job['has_stage1_checkpoint'] = False
+        job['resume_stage2'] = False
+        if job.get('status')=='refund_pending':
+            res=job.get('reservation')
+            if isinstance(res,dict): res['status']='abandoned'
+            job.update(status='cancelled',lease=None,error='已强制解除退款待恢复锁死（未覆盖外部存档改动）。')
+            service._write(tasks)
+        elif job.get('reservation'):
             refund(service,tasks,job,'cancelled','已取消，预扣全额返还。')
         elif job['status']!='committed':
             job.update(status='cancelled',lease=None,error='已取消原请求。');service._write(tasks)
         return {'task':service._public(job)}
+
+
+def _clock_label(runtime):
+    clock=(runtime or {}).get('clock')
+    if isinstance(clock,dict) and clock.get('day') and clock.get('time'):
+        return f"第{clock['day']}天 {clock['time']}"
+    return '当前'
+
+
+def _guard_deterministic_tx(service,body,required_keys,op_label):
+    service.start()
+    rr._keys(body,required_keys,op_label,required_keys)
+    key=body['request_id']
+    if not isinstance(key,str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}',key):
+        raise rr.RoundError('请求编号无效')
+    payload_hash=rr._digest(rr._json({k:v for k,v in body.items() if k!='request_id'}))
+    ledger=service.store._ledger()
+    previous=ledger['receipts'].get(key)
+    if previous is not None:
+        if previous['payload_hash']!=payload_hash:
+            raise rr.ConflictError('request_id已用于不同内容，请勿复用')
+        return {'replayed':True,'receipt':dict(previous['receipt'],replayed=True)}
+    if body['save_epoch']!=service._save_epoch():
+        raise rr.ConflictError('存档已切换，请刷新后再试')
+    tasks=service._read();service._expire(tasks)
+    if any(j['status'] in ACTIVE_JOB_STATUSES for j in tasks['jobs'].values()):
+        raise rr.ConflictError('当前有剧情行动正在处理，请待本段结算完成后再操作')
+    files=service.store._files()
+    if rr._revision(files)!=body['base_revision']:
+        raise rr.ConflictError('存档或积分已更新，请刷新后重试')
+    import interaction_runtime as ir
+    row=ir.segment(service.root,files)
+    prog=ir.playback(service.root,row)
+    if row is not None and not prog['completed']:
+        raise rr.ConflictError('请先演播完本段剧情后再操作')
+    return {'replayed':False,'key':key,'payload_hash':payload_hash,'ledger':ledger,'files':files}
+
+
+def _publish_deterministic_stage(service,guard,stage,extra_receipt):
+    files=guard['files'];ledger=guard['ledger'];key=guard['key']
+    sequence=ledger['sequence']+1
+    after={name:(stage/name).read_bytes() if (stage/name).is_file() else None for name in rr.FILES}
+    data=json.loads(after['data.json'] or b'{}')
+    data['state_version']=sequence
+    after['data.json']=rr._json(data)
+    # 原子同步 P2 save_state.json + 四层记忆.json + 渲染视图
+    st_obj,ly_obj,_=save_store.load_bundle(stage,after)
+    st_obj['runtime']['last_sequence']=max(int(st_obj['runtime'].get('last_sequence') or 0),sequence)
+    after.update(save_store.render_bundle_bytes(st_obj,ly_obj,data_dict=data))
+    revision=rr._revision(after)
+    receipt={'request_id':key,'revision':revision,'state_version':sequence,'status':'committed','replayed':False,**extra_receipt}
+    ledger['sequence']=sequence
+    ledger['receipts'][key]={'payload_hash':guard['payload_hash'],'receipt':receipt}
+    after[rr.META]=rr._json(ledger)
+    current_disk=service.store._files()
+    if any(current_disk[name]!=files[name] for name in rr.FILES):
+        raise rr.ConflictError('提交期间存档被其他工具改动，未写入')
+    service.store._commit_files(after)
+    return receipt
+
+
+def redeem_shop_item(service,body):
+    """Deterministic zero-stamina, zero-LLM shop redemption via single RoundStore WAL transaction."""
+    with service.store._locked():
+        guard=_guard_deterministic_tx(service,body,{'request_id','base_revision','save_epoch','item_id'},'商城兑换')
+        if guard['replayed']:
+            return {'status':'committed','receipt':guard['receipt'],'replayed':True}
+        item_id=body['item_id']
+        if not isinstance(item_id,str) or not re.fullmatch(r'SHOP-\d+',item_id):
+            raise rr.RoundError('商城商品ID无效')
+        catalog=load_shop_catalog(service.root,optional=False)
+        product=next((x for x in catalog['items'] if x['id']==item_id),None)
+        if product is None:
+            raise rr.RoundError('系统商城中未找到该商品：'+item_id)
+        files=guard['files']
+        stage=Path(tempfile.mkdtemp(prefix='work-',dir=service.store.runtime))
+        try:
+            for name,raw in files.items():
+                if raw is not None:
+                    rr._atomic(stage/name,raw)
+            engine=rr._engine(service.root,stage)
+            memory_path=stage/rr.FILES[0]
+            memory=memory_path.read_text(encoding='utf-8')
+            shop_state=parse_shop_echo_block(memory)
+            bought=shop_state['redeemed'].get(product['id'],0)
+            if product['max_per_save'] is not None and bought>=product['max_per_save']:
+                raise rr.RoundError(f"「{product['name']}」已达本档限购上限（{product['max_per_save']}次）")
+            points=engine._read_attr_value(memory,'系统宿主','积分')
+            if points is None:
+                raise rr.RoundError('正式存档缺少宿主积分字段')
+            if points<product['price']:
+                raise rr.RoundError(f"当前积分不足（需要 {product['price']}，现有 {points}）")
+            points_after=points-product['price']
+            memory=engine._simulate_panel(memory,{'系统宿主':{'积分':points_after}})
+            rr._atomic(memory_path,memory.encode('utf-8'))
+            runtime=state(service.root,files) if enabled(service.root) else {'memory_round':1,'clock':None}
+            memory_round=max(1,int(runtime.get('memory_round') or 1))
+            clock_str=_clock_label(runtime)
+            location='无' if '临时性' in product['type'] else '随身'
+            entry={
+                'name':product['name'],
+                'type':product['type'],
+                'desc':product['desc'],
+                'quantity':1,
+                'status':'仓库中',
+                'location':location,
+                'target':'未使用',
+                'duration':product['duration'],
+                'expire_rule':product['expire_rule'],
+                'usage_record':f'{clock_str} - 系统商城兑换入囊',
+                'remark':f"系统商城兑换（{product['id']}）· 消耗{product['price']}积分 · {clock_str}",
+                'system_effect':product['system_effect'],
+                'giftable':bool(product['giftable']),
+                'action':'add',
+            }
+            rr._engine_call(engine.update_item_catalog,memory_round,[entry])
+            catalog_text=(stage/rr.FILES[1]).read_text(encoding='utf-8')
+            found=engine._find_item_block(catalog_text,name=product['name'])
+            catalog_item_id=engine._parse_item_block(found['block']).get('道具ID','ITEM-001') if found else 'ITEM-001'
+            memory=memory_path.read_text(encoding='utf-8')
+            shop_state=parse_shop_echo_block(memory)
+            shop_state['redeemed'][product['id']]=bought+1
+            seq_tag=guard['ledger']['sequence']+1
+            shop_state['recent'].insert(0,f"{clock_str} | {product['id']} | {product['name']}×1 | -{product['price']}积分 | {catalog_item_id}")
+            shop_state['recent']=shop_state['recent'][:SHOP_RECENT_LIMIT]
+            memory=write_shop_echo_block(memory,shop_state)
+            memory=append_echo(
+                memory,'shop_redeemed',f"{product['id']}@{seq_tag}",
+                f"商城兑换「{product['name']}」×1（-{product['price']}积分，{catalog_item_id}）",
+            )
+            rr._atomic(memory_path,memory.encode('utf-8'))
+            receipt=_publish_deterministic_stage(service,guard,stage,{
+                'kind':'shop_redeem',
+                'shop_id':product['id'],
+                'item_id':catalog_item_id,
+                'item_name':product['name'],
+                'price':product['price'],
+                'points_before':points,
+                'points_after':points_after,
+            })
+            return {'status':'committed','receipt':receipt,'replayed':False}
+        finally:
+            shutil.rmtree(stage)
+
+
+def claim_task_reward(service,body):
+    """Deterministic zero-stamina, zero-LLM claim of the head completed task reward from pending_items queue."""
+    with service.store._locked():
+        guard=_guard_deterministic_tx(service,body,{'request_id','base_revision','save_epoch'},'领取委托奖励')
+        if guard['replayed']:
+            return {'status':'committed','receipt':guard['receipt'],'replayed':True}
+        files=guard['files']
+        stage=Path(tempfile.mkdtemp(prefix='work-',dir=service.store.runtime))
+        try:
+            for name,raw in files.items():
+                if raw is not None:
+                    rr._atomic(stage/name,raw)
+            engine=rr._engine(service.root,stage)
+            memory_path=stage/rr.FILES[0]
+            memory=memory_path.read_text(encoding='utf-8')
+            task_state=engine._parse_task_block(memory)
+            pending_list=list((task_state or {}).get('pending_items') or ([] if not (task_state and task_state.get('pending_item')) else [task_state['pending_item']]))
+            pending=pending_list[0] if pending_list else None
+            if not pending:
+                raise rr.RoundError('当前没有待领取的委托奖励道具')
+            pm=re.fullmatch(r'(TASK-\d+)\s*\|\s*([^|]+?)\s*\|完成回合(\d+)',pending.strip())
+            if not pm:
+                raise rr.RoundError('待发道具记录格式无法解析：'+str(pending))
+            task_id,item_desc=pm.group(1),pm.group(2).strip()
+            item_name=_clean_single_line(item_desc)[:40] or f'{task_id}纪念小物'
+            runtime=state(service.root,files) if enabled(service.root) else {'memory_round':1,'clock':None}
+            memory_round=max(1,int(runtime.get('memory_round') or 1))
+            clock_str=_clock_label(runtime)
+            entry={
+                'name':item_name,
+                'type':'永久性',
+                'desc':f'完成悬赏委托（{task_id}）所获奖励小物：{item_desc}。',
+                'quantity':1,
+                'status':'仓库中',
+                'location':'随身',
+                'target':'未使用',
+                'duration':'无',
+                'expire_rule':'无',
+                'usage_record':f'{clock_str} - 委托奖励领取入囊',
+                'remark':f'委托奖励（{task_id}）· {clock_str}',
+                'system_effect':'',
+                'giftable':True,
+                'action':'add',
+            }
+            rr._engine_call(engine.update_item_catalog,memory_round,[entry])
+            pending_list.pop(0)
+            task_state['pending_items']=pending_list
+            task_state['pending_item']=pending_list[0] if pending_list else None
+            rr._engine_call(engine._write_task_block,task_state)
+            catalog_text=(stage/rr.FILES[1]).read_text(encoding='utf-8')
+            found=engine._find_item_block(catalog_text,name=item_name)
+            catalog_item_id=engine._parse_item_block(found['block']).get('道具ID','ITEM-001') if found else 'ITEM-001'
+            memory=memory_path.read_text(encoding='utf-8')
+            memory=append_echo(
+                memory,'task_reward_claimed',task_id,
+                f"领取委托 {task_id} 奖励「{item_name}」（{catalog_item_id}）",
+            )
+            rr._atomic(memory_path,memory.encode('utf-8'))
+            receipt=_publish_deterministic_stage(service,guard,stage,{
+                'kind':'task_claim',
+                'task_id':task_id,
+                'item_id':catalog_item_id,
+                'item_name':item_name,
+                'remaining_pending_count':len(pending_list),
+            })
+            return {'status':'committed','receipt':receipt,'replayed':False}
+        finally:
+            shutil.rmtree(stage)
+
+
+def upgrade_passive_skill(service,body):
+    """Deterministic zero-stamina, zero-LLM passive Lv.0->Lv.4 EXP unlock for one heroine."""
+    with service.store._locked():
+        guard=_guard_deterministic_tx(service,body,{'request_id','base_revision','save_epoch','target'},'定向被动解锁')
+        if guard['replayed']:
+            return {'status':'committed','receipt':guard['receipt'],'replayed':True}
+        target=body['target']
+        if target not in PASSIVE_TARGETS:
+            raise rr.RoundError('定向被动目标非法：'+str(target))
+        files=guard['files']
+        stage=Path(tempfile.mkdtemp(prefix='work-',dir=service.store.runtime))
+        try:
+            for name,raw in files.items():
+                if raw is not None:
+                    rr._atomic(stage/name,raw)
+            engine=rr._engine(service.root,stage)
+            memory_path=stage/rr.FILES[0]
+            memory=memory_path.read_text(encoding='utf-8')
+            cur_lv=read_passive_level(memory,target)
+            levels=passive_levels(service.root)
+            if cur_lv>=len(levels)-1:
+                raise rr.RoundError(f'{target} 定向被动已达最高级 Lv.{cur_lv}')
+            next_info=levels[cur_lv+1]
+            cost_exp=next_info['cost']
+            exp_before=engine._read_attr_value(memory,'系统宿主','经验值')
+            if exp_before is None:
+                raise rr.RoundError('正式存档缺少宿主经验值字段')
+            if exp_before<cost_exp:
+                raise rr.RoundError(f"当前经验值不足（解锁 {next_info['tag']} {next_info['name']} 需 {cost_exp}，现有 {exp_before}）")
+            exp_after=exp_before-cost_exp
+            memory=engine._simulate_panel(memory,{
+                '系统宿主':{'经验值':exp_after},
+                target:{'被动':next_info['tag']},
+            })
+            memory=append_echo(
+                memory,'passive_upgraded',f"{target}@{next_info['tag']}",
+                f"对{target}解锁「{next_info['name']}」（{next_info['tag']}，-{cost_exp}经验）",
+            )
+            rr._atomic(memory_path,memory.encode('utf-8'))
+            receipt=_publish_deterministic_stage(service,guard,stage,{
+                'kind':'passive_upgrade',
+                'target':target,
+                'level_before':f'Lv.{cur_lv}',
+                'level_after':next_info['tag'],
+                'skill_name':next_info['name'],
+                'cost_exp':cost_exp,
+                'exp_before':exp_before,
+                'exp_after':exp_after,
+            })
+            return {'status':'committed','receipt':receipt,'replayed':False}
+        finally:
+            shutil.rmtree(stage)
+
+
+def acquire_intel(service,body):
+    """Deterministic zero-stamina acquisition of an unlocked one-time commercial intel item."""
+    with service.store._locked():
+        guard=_guard_deterministic_tx(service,body,{'request_id','base_revision','save_epoch','intel_id'},'商业情报入库')
+        if guard['replayed']:
+            return {'status':'committed','receipt':guard['receipt'],'replayed':True}
+        intel_id=body['intel_id']
+        if not isinstance(intel_id,str) or not re.fullmatch(r'INTEL-\d+',intel_id):
+            raise rr.RoundError('商业情报ID无效')
+        catalog=load_intel_catalog(service.root,optional=False)
+        item=next((x for x in catalog['items'] if x['id']==intel_id),None)
+        if item is None:
+            raise rr.RoundError('商业情报目录中未找到：'+intel_id)
+        files=guard['files']
+        stage=Path(tempfile.mkdtemp(prefix='work-',dir=service.store.runtime))
+        try:
+            for name,raw in files.items():
+                if raw is not None:
+                    rr._atomic(stage/name,raw)
+            engine=rr._engine(service.root,stage)
+            memory_path=stage/rr.FILES[0]
+            memory=memory_path.read_text(encoding='utf-8')
+            istate=parse_intel_block(memory)
+            if intel_id in istate['held']:
+                raise rr.RoundError(f"已持有情报「{item['name']}」")
+            if intel_id in istate['consumed']:
+                raise rr.RoundError(f"一次性情报「{item['name']}」已消耗作废，不可重复获取")
+            biz=engine._read_attr_value(memory,'系统宿主','商业嗅觉')
+            biz=0 if biz is None else biz
+            if biz<item['min_biz']:
+                raise rr.RoundError(f"商业嗅觉不足（需 ≥ {item['min_biz']}，当前 {biz}）")
+            if istate['su_ab_contacts']<item['min_su_ab_contacts']:
+                raise rr.RoundError(f"与苏婉青的A/B级接触次数不足（需 ≥ {item['min_su_ab_contacts']}，当前 {istate['su_ab_contacts']}）")
+            istate['held'].append(intel_id)
+            memory=write_intel_block(memory,istate,catalog)
+            memory=append_echo(
+                memory,'intel_acquired',intel_id,
+                f"整理掌握商业情报「{item['name']}」（一次性筹码）",
+            )
+            rr._atomic(memory_path,memory.encode('utf-8'))
+            receipt=_publish_deterministic_stage(service,guard,stage,{
+                'kind':'intel_acquire',
+                'intel_id':intel_id,
+                'intel_name':item['name'],
+                'biz':biz,
+            })
+            return {'status':'committed','receipt':receipt,'replayed':False}
+        finally:
+            shutil.rmtree(stage)
+
+
+def toggle_business_leverage(service,body):
+    """Deterministic zero-stamina arm/disarm of Business Leverage (requires 商业嗅觉>=60 + held intel)."""
+    with service.store._locked():
+        guard=_guard_deterministic_tx(service,body,{'request_id','base_revision','save_epoch','action','intel_id'},'商业杠杆切换')
+        if guard['replayed']:
+            return {'status':'committed','receipt':guard['receipt'],'replayed':True}
+        action=body['action'];intel_id=body['intel_id']
+        if action not in ('arm','disarm'):
+            raise rr.RoundError('商业杠杆操作须为 arm 或 disarm')
+        catalog=load_intel_catalog(service.root,optional=False)
+        files=guard['files']
+        stage=Path(tempfile.mkdtemp(prefix='work-',dir=service.store.runtime))
+        try:
+            for name,raw in files.items():
+                if raw is not None:
+                    rr._atomic(stage/name,raw)
+            engine=rr._engine(service.root,stage)
+            memory_path=stage/rr.FILES[0]
+            memory=memory_path.read_text(encoding='utf-8')
+            istate=parse_intel_block(memory)
+            biz=engine._read_attr_value(memory,'系统宿主','商业嗅觉')
+            biz=0 if biz is None else biz
+            if action=='arm':
+                min_biz=int(catalog.get('leverage_min_biz',60))
+                if biz<min_biz:
+                    raise rr.RoundError(f'启用商业杠杆需要商业嗅觉 ≥ {min_biz}（当前 {biz}）')
+                if not isinstance(intel_id,str) or intel_id not in istate['held']:
+                    raise rr.RoundError('所选商业情报未持有，无法预备商业杠杆')
+                istate['leverage_armed']=intel_id
+            else:
+                istate['leverage_armed']=''
+            memory=write_intel_block(memory,istate,catalog)
+            rr._atomic(memory_path,memory.encode('utf-8'))
+            iname=next((it['name'] for it in catalog['items'] if it['id']==istate['leverage_armed']),'')
+            receipt=_publish_deterministic_stage(service,guard,stage,{
+                'kind':'business_leverage',
+                'action':action,
+                'leverage_armed':istate['leverage_armed'],
+                'intel_name':iname,
+            })
+            return {'status':'committed','receipt':receipt,'replayed':False}
+        finally:
+            shutil.rmtree(stage)
