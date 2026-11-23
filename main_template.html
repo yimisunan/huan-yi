@@ -735,6 +735,33 @@
     </div>
   </dialog>
 
+  <!-- 落笔确认：防误触；发出后短时间内可收回 -->
+  <dialog id="commitDialog" class="sheet-dialog confirm-dialog" aria-labelledby="commitHeading">
+    <div class="sheet-handle" aria-hidden="true"><span></span></div>
+    <div class="dialog-head">
+      <div class="dialog-title-group">
+        <span class="eyebrow">落笔</span>
+        <h2 id="commitHeading">这一句，说出去就收不回</h2>
+      </div>
+      <button type="button" class="close-btn" data-close aria-label="再想想">
+        <svg viewBox="0 0 24 24" class="hud-svg"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      </button>
+    </div>
+    <div class="confirm-body">
+      <p id="commitText" class="commit-text"></p>
+      <p id="commitMeta" class="muted"></p>
+    </div>
+    <div class="confirm-actions">
+      <button id="commitBack" type="button" class="btn-outline">再想想</button>
+      <button id="commitGo" type="button" class="cta-gold">落笔</button>
+    </div>
+  </dialog>
+
+  <div id="withdrawBar" class="withdraw-bar" hidden>
+    <span class="withdraw-text">话已出口——</span>
+    <button id="withdrawBtn" type="button" class="withdraw-btn">收回这句</button>
+  </div>
+
   <audio id="audio" preload="none" hidden></audio>
 </body>
 </html>

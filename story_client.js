@@ -4816,9 +4816,11 @@
           b.addEventListener('blur', tiltOff);
           b.addEventListener('pointercancel', tiltOff);
 
-          b.onclick = () => {
+          b.onclick = async () => {
             previewChoiceWeight(null);
+            if (baseBlocked()) return;
             haptic(14);
+            if (!(await requestCommit({ text: opt.text, optionId: opt.id, cost: COSTS[opt.id] }))) return;
             void enqueue(opt.text, opt.operation || null, opt.id);
           };
           $('choices').append(b);
@@ -5267,6 +5269,110 @@
     }
   }
 
+  // ── 落笔确认 + 刚说出口可收回（防误触） ──
+  let commitResolve = null, commitArmedAt = 0, commitArmTimer = null;
+  let withdrawState = null, withdrawTimer = null;
+
+  function requestCommit({ text, optionId, cost }) {
+    if (cache.confirmCommit === false) return Promise.resolve(true);
+    const dialog = $('commitDialog');
+    if (!dialog || typeof dialog.showModal !== 'function') return Promise.resolve(true);
+    const raw = String(text || '').trim();
+    $('commitText').textContent = raw.length > 320 ? raw.slice(0, 320) + '…' : raw;
+    $('commitText').hidden = !raw;
+    $('commitMeta').textContent = optionId === 'CUSTOM'
+      ? (cost ? '这一行动将消耗 ' + cost + ' 点体力。' : '这一行动不消耗体力。')
+      : '你选中的是这一条。';
+    commitArmedAt = 0;
+    if (commitArmTimer) { clearTimeout(commitArmTimer); commitArmTimer = null; }
+    $('commitGo').textContent = '落笔';
+    $('commitGo').classList.remove('is-armed');
+    dialog.showModal();
+    return new Promise(resolve => { commitResolve = resolve; });
+  }
+
+  function closeCommit(result) {
+    if (commitArmTimer) { clearTimeout(commitArmTimer); commitArmTimer = null; }
+    commitArmedAt = 0;
+    const dialog = $('commitDialog');
+    if (dialog && dialog.open) dialog.close();
+    const resolve = commitResolve;
+    commitResolve = null;
+    if (resolve) resolve(result);
+  }
+
+  function showWithdraw(requestId, text) {
+    if (!requestId) return;
+    withdrawState = { requestId, text: String(text || '') };
+    $('withdrawBar').hidden = false;
+    if (withdrawTimer) clearTimeout(withdrawTimer);
+    withdrawTimer = setTimeout(() => {
+      withdrawTimer = null;
+      withdrawState = null;
+      $('withdrawBar').hidden = true;
+    }, 9000);
+  }
+
+  if ($('commitGo')) {
+    $('commitGo').onclick = () => {
+      const now = Date.now();
+      if (!commitArmedAt || now - commitArmedAt > 2500) {
+        commitArmedAt = now;
+        haptic(10);
+        $('commitGo').textContent = '再按一次落笔';
+        $('commitGo').classList.add('is-armed');
+        if (commitArmTimer) clearTimeout(commitArmTimer);
+        commitArmTimer = setTimeout(() => {
+          commitArmedAt = 0;
+          commitArmTimer = null;
+          $('commitGo').textContent = '落笔';
+          $('commitGo').classList.remove('is-armed');
+        }, 2500);
+        return;
+      }
+      haptic(18);
+      closeCommit(true);
+    };
+    $('commitBack').onclick = () => closeCommit(false);
+    $('commitDialog').addEventListener('cancel', event => {
+      event.preventDefault();
+      closeCommit(false);
+    });
+    $('commitDialog').addEventListener('click', event => {
+      if (event.target === $('commitDialog')) closeCommit(false);
+    });
+    $('withdrawBtn').onclick = async () => {
+      if (!withdrawState || posting) return;
+      const { requestId, text } = withdrawState;
+      haptic(14);
+      posting = true;
+      controls();
+      let cancelled = false;
+      try {
+        await api('tasks/' + encodeURIComponent(requestId) + '/cancel', {});
+        cancelled = true;
+      } catch (e) {
+        error = '这一句已经落定，收不回了。';
+      } finally {
+        posting = false;
+      }
+      if (withdrawTimer) { clearTimeout(withdrawTimer); withdrawTimer = null; }
+      withdrawState = null;
+      $('withdrawBar').hidden = true;
+      if (cancelled) {
+        if (text) {
+          $('input').value = text;
+          cache.draft = text;
+        }
+        cache.pending = null;
+        save();
+        await restore({ preserveError: true });
+        toast('这句话已收回');
+      }
+      controls();
+    };
+  }
+
   async function enqueue(text, op = null, optionId = 'CUSTOM') {
     if (baseBlocked() || !text.trim() || (optionId !== 'BEGIN' && !canDecide())) return;
     if (optionId !== 'REST' && optionId !== 'BEGIN' && (
@@ -5297,7 +5403,11 @@
       $('input').value = '';
       $('input').style.height = 'auto';
     }
+    const pendingId = cache.pending ? cache.pending.request_id : '';
     await dispatch();
+    if (pendingId && (optionId === 'CUSTOM' || ['A', 'B', 'C'].includes(optionId))) {
+      showWithdraw(pendingId, optionId === 'CUSTOM' ? text : '');
+    }
   }
 
   function toggleVoice() {
@@ -5422,10 +5532,16 @@
     }
   });
 
-  $('form').onsubmit = e => {
+  $('form').onsubmit = async e => {
     e.preventDefault();
+    const text = $('input').value;
+    if (baseBlocked() || !text.trim()) return;
     haptic(14);
-    void enqueue($('input').value);
+    if (!(await requestCommit({ text, optionId: 'CUSTOM', cost: 15 }))) {
+      $('input').focus();
+      return;
+    }
+    void enqueue(text);
   };
   $('input').addEventListener('input', () => {
     cache.draft = $('input').value;
