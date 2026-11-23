@@ -1432,8 +1432,11 @@ class StoryService:
 
     def material(self, key, body):
         self.start()
+        # continuity_hook: 桥接在重建会话时携带的续接钩子；本版只放行不参与资料生成，
+        # 缺了它会让 material 交付整批 400，进而每次发言都失败。
         opt_keys = {'delivery_version', 'protocol_mode', 'synced_zone0_sha256',
-                    'synced_zone1_sha256', 'last_committed_sequence', 'is_fresh_session'}
+                    'synced_zone1_sha256', 'last_committed_sequence', 'is_fresh_session',
+                    'continuity_hook'}
         rr._keys(body, {'lease', 'chat_id', 'participant_id'} | opt_keys, '程序资料交付',
                  {'lease', 'chat_id', 'participant_id'})
         for field in ('chat_id', 'participant_id'):
