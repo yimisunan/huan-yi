@@ -8,7 +8,7 @@ let busy = null;
 let lastError = '';
 let monitorTimer = null, monitorBusy = false, starting = null;
 let controlSupported = null, sessionReady = false;
-const PLUGIN_VERSION = '2.1.6';
+const PLUGIN_VERSION = '2.1.7';
 const SETTINGS_ROUTE = 'toolpkg:local.story.operit_bridge:ui:settings';
 const DEFAULT_MAX_TURNS = 10;
 const MAX_PLAYER_DIALOGUE_PER_TURN = 3;
@@ -63,6 +63,20 @@ async function restoreChat(chatId, returnChatId) {
     }
 }
 
+// 平台 character.update 会以 changes 整体覆盖卡片：只写本插件托管的字段，其余沿用卡上现有值，
+// 否则用户手动勾选的标签会被空数组覆盖掉。
+const CARD_PRESERVED_KEYS = ['advancedCustomPrompt', 'attachedTagIds', 'avatarUri', 'memoryBindingMode',
+    'openingStatement', 'otherContentVoice', 'sharedMemoryId', 'sharedMemoryMounts', 'themeConfigId'];
+function cardWritePayload(card, changes) {
+    const out = { ...changes };
+    if (card) {
+        for (const key of CARD_PRESERVED_KEYS) {
+            if (out[key] === undefined && Object.prototype.hasOwnProperty.call(card, key)) out[key] = card[key];
+        }
+    }
+    return out;
+}
+
 function roleChanges(model, scene = false, customPrompts = null) {
     if (scene === 'live') {
         const base = { ...roleChanges(model, true),
@@ -78,7 +92,7 @@ function roleChanges(model, scene = false, customPrompts = null) {
     return { name: scene ? '场景交流·项目只读' : '故事生成·项目只读', description: '网页故事桥接的专用只读生成参与者。',
         characterSetting: scene ? '你是隔离场景交流参与者。entry_mode=scene_chat时只真实读取指定packet，按其中交流规范回应；不执行完整回合读取链、字数、节拍、OPTIONS或结算。当前packet覆盖事实，不从旧会话引入其他场景。只输出裸JSON，不写文件、不执行命令。' : '你是项目故事回合生成器。按本次网页信封调用真实只读文件工具；当前文件是事实源，历史会话不能代替本轮读取。最终只返回契约JSON；禁止写文件、执行命令、外部服务或自行提交。',
         otherContentChat: scene ? '完整读取指定packet，截断则分段补全；只返回messages/facts_delta/needs/handoff。' : '工具读取可以分多步，最终回复只包含单个裸JSON。遵循当前reading_policy与output_contract；不能伪造读取、阅据或V1。',
-        attachedTagIds: [], marks: ROLE_MARK, chatModelBindingMode: 'FIXED_MODEL',
+        marks: ROLE_MARK, chatModelBindingMode: 'FIXED_MODEL',
         chatProviderId: model.provider_id, chatModelId: model.model_id,
         toolAccessConfig: { enabled: true, allowedBuiltinTools: FILE_TOOLS,
             allowedPackages: [], allowedSkills: [], allowedMcpServers: [] } };
@@ -137,12 +151,12 @@ async function ensureSession(config, model, scene = false, persist = () => Plugi
         if (card.characterSetting !== expected.characterSetting || card.otherContentChat !== expected.otherContentChat || card.chatModelBindingMode !== 'FIXED_MODEL' || card.chatProviderId !== expected.chatProviderId || card.chatModelId !== expected.chatModelId ||
                 JSON.stringify(card.toolAccessConfig) !== JSON.stringify(expected.toolAccessConfig)) {
             if (config.chatId && !(await Tools.Chat.agentStatus(config.chatId)).isIdle) throw new Error('专用会话仍在运行，不能更新模型或权限');
-            card = await ToolPkg.callDependency('com.operit.character_cards', 'character.update', { id: config.participantId, changes: expected });
+            card = await ToolPkg.callDependency('com.operit.character_cards', 'character.update', { id: config.participantId, changes: cardWritePayload(card, expected) });
         }
         verifiedCardCache.set(config.participantId, model.key);
     } else {
         try {
-            card = await ToolPkg.callDependency('com.operit.character_cards', 'character.create', { values: roleChanges(model, scene) });
+            card = await ToolPkg.callDependency('com.operit.character_cards', 'character.create', { values: { ...roleChanges(model, scene), attachedTagIds: [] } });
         } catch (error) {
             if (!/已存在|exist/i.test(String(error.message || error))) throw error;
             card = await ownedStoryCard(model, scene);
@@ -184,7 +198,8 @@ async function syncCardPrefixes(config, model, session, zone0Global, zone1Scene,
         throw new Error('专用会话仍在运行，不能更新冻结前缀');
     }
     const changes = roleChanges(model, 'live', { characterSetting: zone0Global, otherContentChat: zone1Scene });
-    await ToolPkg.callDependency('com.operit.character_cards', 'character.update', { id: session.participantId, changes });
+    const currentCard = await ToolPkg.callDependency('com.operit.character_cards', 'character.get', { id: session.participantId }).catch(() => null);
+    await ToolPkg.callDependency('com.operit.character_cards', 'character.update', { id: session.participantId, changes: cardWritePayload(currentCard, changes) });
     state.zone0Sha = zone0Sha;
     state.zone1Sha = zone1Sha;
     state.syncedCardSig = targetSig;
