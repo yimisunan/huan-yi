@@ -83,7 +83,8 @@
 | `GET` | `/<path:filename>` | `public_file` | 路径参数 | 严格白名单：放行 8 个根/存档文件（页面/脚本/样式/`data.json` 返回 `no-cache`）、`txt文件/image/` 下合法图片及 `txt文件/audio/` 下合法音频（`Cache-Control: public, max-age=86400`）；拒绝 `..` 与隐藏路径（`404`） |
 | `GET` | `/api/audio_assets` | `audio_assets_api` | — | 零配置扫描 `txt文件/audio/ambient/`，返回可用本地背景音景映射 |
 | `GET`/`POST`/`DELETE` | `/api/fish_key` | `fish_key_api` | `POST`: `{api_key}`（须 `X-Voice-Client: 1`） | 查询/保存/清空受保护本地 Fish API Key 缓存 `.cache/fish_api_key.json`（`0600` 原子写入）；仅返 `{configured, source, masked}`，绝不回显明文 |
-| `POST` | `/api/voice_tier` | `set_voice_tier` | `{tier: "free"|"pro"|"drama"}`（须 `X-Voice-Client: 1`） | 一键切换全局及各角色音质分档（`free → s2.1-pro-free` / `pro → s2.1-pro` / `drama → drama-3`），原子写回 `voice_config.json` |
+| `POST` | `/api/voice_tier` | `set_voice_tier` | `{tier: "free"|"pro"|"drama"}`（须 `X-Voice-Client: 1`） | 一键切换三女主音质分档（`free → s2.1-pro-free` / `pro → s2.1-pro` / `drama → drama-3`），`FREE_DEFAULT_ROLES`（`旁白/动作/徐志北`）保持免费档，原子写回 `voice_config.json` |
+| `POST` | `/api/voice_routing` | `set_voice_routing` | `{protagonist_voice_enabled?, action_voice_mode?, action_voice_scope?}`（须 `X-Voice-Client: 1`） | 原子更新 `__settings__` 中的主角语音开关（默认 `false`）及旁白/动作分声道路由（`follow_narrator`/`separate`/`muted`、`all`/`heroines`） |
 | `GET` | `/api/config` | `get_config` | — | 返回规范化后的 `voice_config.json`；文件损坏返 `503` |
 | `POST` | `/api/config` | `save_config` | JSON 配置对象（须 `X-Voice-Client: 1`） | 校验、清空 `emotion`、原子覆写 `voice_config.json`；现有文件损坏返 `409` |
 | `GET` | `/api/voices` | `get_voices` | `?search=` / `?title=` (≤80字) | 拉取 Fish 私有+公开音色列表（私有优先去重）与可用 `tts_models` |
