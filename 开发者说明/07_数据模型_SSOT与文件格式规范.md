@@ -228,5 +228,5 @@ flowchart LR
 
 ## 4. 保护边界与历史注释澄清
 
-1. **严禁手写或提交的运行态与隐私资产**：根目录 `.git/`（绝对禁改）、`.cache/fish_api_key.json`、`.fish_api_key`、`data.json`、`存档/*`（仅在明确批准刷新仓库默认干净种子档时提交，日常运行态严禁顺带提交）、`voice_config.json`（仅在变更默认模板时显式提交）、`.round-runtime/`、`.scene-chat/`、`语音仓库/`、`txt文件/.story-reading/`、`txt文件/audio/`（玩家本地离线音景/拟音/母带，受 `.gitignore` 与 `一键同步GitHub.py` 保护）、`日志/`、`vosi/`。
+1. **严禁手写或提交的运行态与隐私资产**：根目录 `.git/`（绝对禁改）、`.cache/fish_api_key.json`、`.fish_api_key`、`data.json`、`存档/*`（仅在明确批准刷新仓库默认干净种子档时提交，日常运行态严禁顺带提交）、`voice_config.json`（仅在变更默认模板时显式提交）、`.round-runtime/`、`.scene-chat/`、`语音仓库/`、`txt文件/.story-reading/`、`txt文件/audio/`（玩家本地离线背景音景，受 `.gitignore` 与 `一键同步GitHub.py` 保护）、`日志/`、`vosi/`。
 2. **关于 `.backup/` 的代码事实澄清**：`AGENTS.md` 与 `injection_core.py` 部分历史注释仍提及「`.backup/` 自动回滚点」，但**核查全仓代码后确认现役代码已没有任何写入 `.backup/` 的逻辑**——实际事务回滚完全由 `RoundStore` 的 `.round-runtime/journal.json`（与 `work-*` 沙箱）承载，轻量化可回档存档槽由 `存档清理器.py` 的 `.round-runtime/save-slots/`（兼容旧版 `.round-runtime/reset-backups/`）承载，GitHub 同步备份由 `一键同步GitHub.py` 的 `.sync-backup/` 承载。

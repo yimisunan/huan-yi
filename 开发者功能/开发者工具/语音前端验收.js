@@ -161,7 +161,7 @@ async function run() {
     assert.match(storySource, /function stageInkCommit\(/);
     assert.match(storySource, /function recallInkCommit\(/);
 
-    // Verify Fish Plus offline soundscape, Audio Ducking, SFX, sample audition & physiological prosody hooks
+    // Verify local ambient soundscape, Audio Ducking & physiological prosody hooks
     assert.equal(typeof csrfCtx.client.getAudioAssets, 'function', 'VoiceClient.getAudioAssets must be exported');
     const prosPayload = csrfCtx.client.buildPayload('测试', { voice: 'fish:abc', speed: 1.0 }, {}, '', '沈知韫', { speed_scale: 0.90, expressive_boost: 0.06 });
     assert.equal(prosPayload.speed_scale, 0.9);
@@ -171,8 +171,8 @@ async function run() {
     assert.match(storySource, /ambientAudio:\s*true/);
     assert.match(storySource, /function syncAmbientSoundscape\(\)/);
     assert.match(storySource, /function duckAmbient\(speakingNow\)/);
-    assert.match(storySource, /function playSfx\(slot/);
-    assert.match(storySource, /function playVoiceSample\(name\)/);
+    assert.doesNotMatch(storySource, /function playSfx\(/);
+    assert.doesNotMatch(storySource, /function playVoiceSample\(/);
     assert.match(storySource, /function computeProsodyMod\(m,\s*who\)/);
 
     // Verify v3 Archive Center, tiered rationalization, multi-banner Disco checks, Lv.4 防线支配, <=15, save_epoch & CSS integrity
@@ -210,7 +210,7 @@ async function run() {
     assert.match(cssSource, /\.archive-dialog/);
     assert.match(cssSource, /\.audio-vol-slider/);
 
-    console.log('PASS story_client & main_template: 4-speaker allowlist, Drama 3 director tag hiding, cache invalidation, Fish Plus soundscape/ducking/prosody, Scheme A+B confirm & v3 Archive Center');
+    console.log('PASS story_client & main_template: 4-speaker allowlist, Drama 3 director tag hiding, cache invalidation, ambient soundscape/ducking/prosody, Scheme A+B confirm & v3 Archive Center');
     console.log('All frontend checks passed; external requests: 0');
 }
 run().catch(error => { console.error(error.stack); process.exitCode = 1; });

@@ -5138,23 +5138,7 @@ html[data-theme="ivory"] .archive-slot-badge.is-auto {
   }
 }
 
-/* ── 本地音景音量滑块与角色原声试听按钮 ── */
-.char-banner-actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.portrait-open-btn.is-sample {
-  border-color: rgba(214, 178, 120, 0.55);
-  background: rgba(28, 22, 16, 0.72);
-  color: #f4dcb0;
-}
-.portrait-open-btn.is-sample.is-playing {
-  border-color: #e69a74;
-  background: rgba(180, 78, 56, 0.85);
-  color: #fff6ed;
-}
+/* ── 本地背景音景音量滑块 ── */
 .audio-vol-wrap {
   display: flex;
   align-items: center;

@@ -81,7 +81,7 @@
 | `GET` | `/` | `index` | — | 返回 `main_template.html`（`Cache-Control: no-cache`） |
 | `GET` | `/admin` | `admin` | — | 返回 `voice_manager.html` 声学工坊（`no-cache`） |
 | `GET` | `/<path:filename>` | `public_file` | 路径参数 | 严格白名单：放行 8 个根/存档文件（页面/脚本/样式/`data.json` 返回 `no-cache`）、`txt文件/image/` 下合法图片及 `txt文件/audio/` 下合法音频（`Cache-Control: public, max-age=86400`）；拒绝 `..` 与隐藏路径（`404`） |
-| `GET` | `/api/audio_assets` | `audio_assets_api` | — | 零配置扫描 `txt文件/audio/{ambient,sfx,samples,prologues}`，返回可用音景/拟音/试听清单与离线序幕母带数 |
+| `GET` | `/api/audio_assets` | `audio_assets_api` | — | 零配置扫描 `txt文件/audio/ambient/`，返回可用本地背景音景映射 |
 | `GET`/`POST`/`DELETE` | `/api/fish_key` | `fish_key_api` | `POST`: `{api_key}`（须 `X-Voice-Client: 1`） | 查询/保存/清空受保护本地 Fish API Key 缓存 `.cache/fish_api_key.json`（`0600` 原子写入）；仅返 `{configured, source, masked}`，绝不回显明文 |
 | `POST` | `/api/voice_tier` | `set_voice_tier` | `{tier: "free"|"pro"|"drama"}`（须 `X-Voice-Client: 1`） | 一键切换全局及各角色音质分档（`free → s2.1-pro-free` / `pro → s2.1-pro` / `drama → drama-3`），原子写回 `voice_config.json` |
 | `GET` | `/api/config` | `get_config` | — | 返回规范化后的 `voice_config.json`；文件损坏返 `503` |
@@ -92,8 +92,8 @@
 | `GET` | `/api/voice_repo` | `get_voice_repo` | — | 读取 `语音仓库/voice_repo.json` 收藏音色列表 `{items, count}` |
 | `POST` | `/api/voice_repo` | `add_voice_repo` | `{id, name?, note?}`（须 `X-Voice-Client: 1`） | 规范化并新增收藏音色（重复返 `409`） |
 | `DELETE` | `/api/voice_repo` | `delete_voice_repo` | `?id=...`（须 `X-Voice-Client: 1`） | 删除指定收藏音色 |
-| `GET`/`POST` | `/api/tts` | `tts_api` | `text`(1–12000), `voice`, `speaker?`, `emotion?`, `tts_model?`, `speed_scale?`, `expressive_boost?`, `stream?` | 剥离 `【】*`；优先匹配 `txt文件/audio/prologues/` 离线母带实现 0ms/\$0 直出（`X-Fish-Model: local-master`）；否则仅 Fish 注入音素，非 `drama-3` 智能降级 XML 标签并抽取中文导演句英文控制词，支持生理韵律微调；Singleflight + 内存/磁盘 LRU + 4 并发槽 |
-| `POST` | `/api/tts/prefetch` | `tts_prefetch_api` | `{items: [{text, voice, speaker?, speed_scale?, expressive_boost?}]}`（须 `X-Voice-Client: 1`） | 跳过已命中离线母带的台词，批量向后预热接下来 3 句台词，闲置槽位并发 2，100ms 快速超时放弃 |
+| `GET`/`POST` | `/api/tts` | `tts_api` | `text`(1–12000), `voice`, `speaker?`, `emotion?`, `tts_model?`, `speed_scale?`, `expressive_boost?`, `stream?` | 剥离 `【】*`；仅 Fish 注入音素，非 `drama-3` 智能降级 XML 标签并抽取中文导演句英文控制词，支持生理韵律微调；Singleflight + 内存/磁盘 LRU + 4 并发槽 |
+| `POST` | `/api/tts/prefetch` | `tts_prefetch_api` | `{items: [{text, voice, speaker?, speed_scale?, expressive_boost?}]}`（须 `X-Voice-Client: 1`） | 批量向后预热接下来 3 句台词，闲置槽位并发 2，100ms 快速超时放弃 |
 
 ### 3.2 正式互动、档案室、确定性交易、任务、流式推送与桥接路由（`story_service.py`，37 个路由）
 

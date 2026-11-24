@@ -92,11 +92,9 @@
   let archiveArmKey = '', archiveArmTimer = null;
   let audioSerial = 0, audioMessage = null, audioStatus = '', isSpeaking = false;
   let gesture = false, configPromise = null, voiceConfigCache = null, activeVoiceTier = 'free', lastTap = 0;
-  let audioAssets = { ambient: {}, sfx: {}, samples: {}, prologues_count: 0 };
+  let audioAssets = { ambient: {} };
   let audioAssetsLoaded = false, ambientTrackKey = '', ambientActiveIdx = 0;
   let ambientPlayers = null, ambientFadeRaf = 0, ambientDuckTimer = null, ambientDucked = false;
-  let samplePlayer = null, samplePlayingName = '', lastContextSfxAt = 0;
-  const sfxCooldowns = new Map();
   let armedChoice = null, inkCommit = null;
   let activeHubTab = 'host', selectedChar = '', selectedMapPlace = '', historyFilter = 'all';
   let settlementFolded = true, settlementDismissedId = '', deckCollapsed = false, customComposerExpanded = false, lastUiMode = '';
@@ -2524,10 +2522,7 @@
       const res = await VoiceClient.getAudioAssets();
       if (res && typeof res === 'object') {
         audioAssets = {
-          ambient: res.ambient && typeof res.ambient === 'object' ? res.ambient : {},
-          sfx: res.sfx && typeof res.sfx === 'object' ? res.sfx : {},
-          samples: res.samples && typeof res.samples === 'object' ? res.samples : {},
-          prologues_count: Number(res.prologues_count) || 0
+          ambient: res.ambient && typeof res.ambient === 'object' ? res.ambient : {}
         };
         audioAssetsLoaded = true;
         syncAmbientSoundscape();
@@ -2660,84 +2655,6 @@
         }
       }, 420);
     }
-  }
-
-  function playSfx(slot, volScale = 0.52) {
-    if (!prefs.ambientAudio || !gesture || document.hidden) return false;
-    const url = audioAssets?.sfx?.[slot];
-    if (!url) return false;
-    const now = Date.now();
-    if (now - (sfxCooldowns.get(slot) || 0) < 350) return false;
-    sfxCooldowns.set(slot, now);
-    try {
-      const a = new Audio(url);
-      const base = Math.max(0.08, Math.min(0.85, Number(prefs.ambientVolume) || 0.32));
-      a.volume = Math.max(0.06, Math.min(0.75, +(base * volScale * 1.45).toFixed(3)));
-      const pr = a.play();
-      if (pr?.catch) pr.catch(() => {});
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  function playContextSfxForMessage(m) {
-    if (!m || !prefs.ambientAudio || !gesture || document.hidden) return;
-    const now = Date.now();
-    if (now - lastContextSfxAt < 6000) return;
-    const txt = String(m.text || '');
-    if (!txt) return;
-    const cues = [
-      [/反锁|落锁|暗闩|咔哒|锁上/, 'door_lock', 0.55],
-      [/脚步声|门外走动|走廊.*声/, 'footsteps', 0.45],
-      [/手机.*震|屏幕亮|来电|提示音/, 'phone_vibrate', 0.50],
-      [/茶杯|瓷杯|咖啡杯|茶盏|搁回杯/, 'teacup_clink', 0.45],
-      [/真丝|丝袜|衣摆|吊带|肩带|滑落/, 'silk_rustle', 0.42],
-    ];
-    for (const [reCue, slot, vol] of cues) {
-      if (reCue.test(txt) && audioAssets?.sfx?.[slot]) {
-        if (playSfx(slot, vol)) {
-          lastContextSfxAt = now;
-          return;
-        }
-      }
-    }
-  }
-
-  function stopVoiceSample() {
-    if (samplePlayer) {
-      try { samplePlayer.pause(); } catch (_) {}
-      samplePlayer = null;
-    }
-    samplePlayingName = '';
-  }
-
-  function playVoiceSample(name) {
-    const url = audioAssets?.samples?.[name];
-    if (!url) return;
-    unlock();
-    if (samplePlayingName === name && samplePlayer && !samplePlayer.paused) {
-      stopVoiceSample();
-      renderWorld(true);
-      return;
-    }
-    stopVoice();
-    stopVoiceSample();
-    const a = new Audio(url);
-    samplePlayer = a;
-    samplePlayingName = name;
-    duckAmbient(true);
-    a.onended = a.onerror = () => {
-      if (samplePlayer === a) {
-        samplePlayer = null;
-        samplePlayingName = '';
-        duckAmbient(false);
-        renderWorld(true);
-      }
-    };
-    const pr = a.play();
-    if (pr?.catch) pr.catch(() => { stopVoiceSample(); duckAmbient(false); });
-    renderWorld(true);
   }
 
   function computeProsodyMod(m, who) {
@@ -2907,8 +2824,7 @@
         const cacheKey = audioCacheKey(id, who, cfg, config.__settings__ || {}, prosodyMod);
         const existing = audioCache.get(cacheKey);
         if (existing && urls.has(existing)) return;
-        const canOfflineMaster = audioAssets.prologues_count > 0 && (String(id).startsWith('prologue-') || (snapshot?.world?.interaction?.actions === 0));
-        if (!String(cfg.voice).startsWith('edge:') && !canOfflineMaster && !(await ensureFishKeyReady())) return;
+        if (!String(cfg.voice).startsWith('edge:') && !(await ensureFishKeyReady())) return;
         const payload = VoiceClient.buildPayload(stripSubtextForTts(m.text), cfg, config.__settings__ || {}, '', who, prosodyMod);
         const blob = await VoiceClient.requestAudio(payload, { channel: 'prefetch', maxBytes: 16 * 1024 * 1024 });
         if (!cache.voice || document.hidden) return;
@@ -2921,8 +2837,7 @@
 
   function schedulePrefetchWindow(messages, idPrefix, startIndex = 0) {
     if (!Array.isArray(messages) || !messages.length || !cache.voice || document.hidden) return;
-    const canOfflineMaster = audioAssets.prologues_count > 0 && (String(idPrefix).startsWith('prologue-') || (snapshot?.world?.interaction?.actions === 0));
-    if (fishKeyConfigured === false && !canOfflineMaster) return;
+    if (fishKeyConfigured === false) return;
     const voiced = [];
     for (let i = Math.max(0, startIndex); i < messages.length && voiced.length < 3; i++) {
       const m = messages[i];
@@ -2931,8 +2846,8 @@
     }
     if (!voiced.length) return;
     void ensureFishKeyReady().then(ok => {
-      if ((!ok && !canOfflineMaster) || !cache.voice || document.hidden) return;
-      if (ok && typeof VoiceClient.prefetchBatch === 'function') {
+      if (!ok || !cache.voice || document.hidden) return;
+      if (typeof VoiceClient.prefetchBatch === 'function') {
         void VoiceClient.prefetchBatch(voiced.map(v => ({
           text: stripSubtextForTts(v.m.text),
           speaker: v.who,
@@ -2959,7 +2874,6 @@
 
   async function speak(m, id) {
     stopVoice();
-    stopVoiceSample();
     const who = resolveVoiceSpeaker(m);
     if (!who) {
       audioMessage = null;
@@ -3028,8 +2942,7 @@
         audioStatus = isD3 ? 'D3 朗读中' : '朗读中';
         updateSpeakingUI();
       } else {
-        const canOfflineMaster = audioAssets.prologues_count > 0 && (String(id).startsWith('prologue-') || (snapshot?.world?.interaction?.actions === 0));
-        if (!String(cfg.voice).startsWith('edge:') && !canOfflineMaster && !(await ensureFishKeyReady())) {
+        if (!String(cfg.voice).startsWith('edge:') && !(await ensureFishKeyReady())) {
           audioStatus = '未配置语音密钥';
           if (!fishMissingToastShown) {
             fishMissingToastShown = true;
@@ -4535,22 +4448,11 @@
       titleBox.append(sub);
       overlay.append(titleBox);
 
-      if (Object.keys(slots).length > 0 || audioAssets?.samples?.[name]) {
-        const btnWrap = node('div', 'char-banner-actions');
-        if (audioAssets?.samples?.[name]) {
-          const playing = samplePlayingName === name && samplePlayer && !samplePlayer.paused;
-          const smBtn = node('button', 'portrait-open-btn is-sample' + (playing ? ' is-playing' : ''), playing ? '■ 停止原声' : '▶ 试听原声');
-          smBtn.type = 'button';
-          smBtn.onclick = () => { haptic(8); playVoiceSample(name); };
-          btnWrap.append(smBtn);
-        }
-        if (Object.keys(slots).length > 0) {
-          const openBtn = node('button', 'portrait-open-btn', '展开立绘');
-          openBtn.type = 'button';
-          openBtn.onclick = () => { haptic(10); showPortrait(name, slots.fullbody ? 'fullbody' : ''); };
-          btnWrap.append(openBtn);
-        }
-        overlay.append(btnWrap);
+      if (Object.keys(slots).length > 0) {
+        const openBtn = node('button', 'portrait-open-btn', '展开立绘');
+        openBtn.type = 'button';
+        openBtn.onclick = () => { haptic(10); showPortrait(name, slots.fullbody ? 'fullbody' : ''); };
+        overlay.append(openBtn);
       }
       banner.append(img, scrim, overlay);
       card.append(banner);
@@ -5683,13 +5585,13 @@
     pane.append(voiceGroup);
     void refreshVoiceKeyAndTier();
 
-    // 2.5 Local Offline Soundscape & Fish Plus Assets
+    // 2.5 Local Offline Ambient Soundscape
     const ambGroup = node('section', 'pref-group');
-    ambGroup.append(node('h3', '', '本地音景与离线母带（$0 离线）'));
+    ambGroup.append(node('h3', '', '本地背景音景'));
     ambGroup.append(
       mkSwitchRow(
-        '环境音景与电影拟音',
-        '随昼夜/情绪自动淡入淡出背景底噪，人声播报时自动压低背景音（Audio Ducking）',
+        '环境背景音',
+        '随昼夜/情绪自动淡入淡出循环背景音，人声播报时自动压低背景音（Audio Ducking）',
         [[true, '开启'], [false, '静音']],
         prefs.ambientAudio,
         v => { prefs.ambientAudio = v; savePrefs(); }
@@ -5717,21 +5619,18 @@
     volRow.append(volLbl, volCtrl);
     ambGroup.append(volRow);
 
-    const ambCount = Object.keys(audioAssets?.ambient || {}).length;
-    const sfxCount = Object.keys(audioAssets?.sfx || {}).length;
-    const smCount = Object.keys(audioAssets?.samples || {}).length;
-    const proCount = Number(audioAssets?.prologues_count) || 0;
-    const totalLocal = ambCount + sfxCount + smCount + proCount;
+    const ambKeys = Object.keys(audioAssets?.ambient || {});
+    const ambCount = ambKeys.length;
     const assetRow = node('div', 'pref-row');
     const assetLbl = node('div', 'pref-row-label');
     assetLbl.append(
-      node('strong', '', totalLocal > 0 ? `已挂载本地素材（共 ${totalLocal} 项）` : '等待放入本地素材'),
+      node('strong', '', ambCount > 0 ? `已挂载本地背景音（${ambCount} 首）` : '等待放入本地背景音'),
       node(
         'span',
         '',
-        totalLocal > 0
-          ? `氛围音 ${ambCount} 首 · 拟音 ${sfxCount} 条 · 原声试听 ${smCount} 条 · 序幕母带 ${proCount} 条（目录：txt文件/audio/）`
-          : '将 Fish Plus 网页端导出的音频放入 txt文件/audio/{ambient,sfx,prologues,samples}/ 后点刷新即刻生效，零 API 费用。'
+        ambCount > 0
+          ? `已加载：${ambKeys.join(' / ')}（目录：txt文件/audio/ambient/）`
+          : '将背景音（calm_home / rain_night / tension_stealth / intimate_warm / aftermath_quiet，支持 .mp3/.ogg/.wav）放入 txt文件/audio/ambient/ 后点刷新即刻生效。'
       )
     );
     const assetRefreshBtn = node('button', 'btn-outline', '刷新检测');
@@ -5741,9 +5640,8 @@
       assetRefreshBtn.disabled = true;
       try {
         await loadAudioAssets(true);
-        const c = Object.keys(audioAssets.ambient).length + Object.keys(audioAssets.sfx).length
-          + Object.keys(audioAssets.samples).length + (Number(audioAssets.prologues_count) || 0);
-        toast(c > 0 ? `检测到 ${c} 项本地离线音频素材` : '暂未在 txt文件/audio/ 检测到音频文件');
+        const c = Object.keys(audioAssets.ambient || {}).length;
+        toast(c > 0 ? `检测到 ${c} 首本地背景音景` : '暂未在 txt文件/audio/ambient/ 检测到背景音文件');
         renderWorld(true);
       } finally {
         assetRefreshBtn.disabled = false;
@@ -6358,17 +6256,7 @@
   let lastEffectSegmentId = '';
 
   function triggerStageEffect(kind, label) {
-    if (kind === 'climax') {
-      if (!playSfx('climax_swell', 0.62)) playSfx('heartbeat_low', 0.55);
-    } else if (kind === 'unlock') {
-      if (!playSfx('unlock_chime', 0.55)) playSfx('scale_chime', 0.50);
-    } else if (kind === 'meltdown') {
-      playSfx('heartbeat_low', 0.55);
-    }
-    if (reducedMotion()) {
-      if (label) toast(label);
-      return;
-    }
+    if (reducedMotion()) return;
     const stage = $('ambientStage');
     if (stage) {
       stage.classList.remove('fx-stage-climax', 'fx-stage-unlock', 'fx-stage-meltdown');
@@ -6715,11 +6603,7 @@
         latest();
         const idx = streamPreview.revealed - 1;
         const m = streamPreview.messages[idx];
-        playSfx('page_turn', 0.34);
-        if (m) {
-          playContextSfxForMessage(m);
-          void speak(m, 'preview:' + streamPreview.request_id + ':' + idx);
-        }
+        if (m) void speak(m, 'preview:' + streamPreview.request_id + ':' + idx);
         schedulePrefetchWindow(streamPreview.messages, 'preview:' + streamPreview.request_id, idx + 1);
       }
       return;
@@ -6740,13 +6624,9 @@
       const fresh = await api('live/progress', { save_epoch: cache.epoch, segment_id: p.segment_id, revealed, completed, compact: true });
       absorb(fresh);
       latest();
-      playSfx('page_turn', 0.34);
       if (!completed) {
         const turn = current(), m = turn?.messages[revealed - 1];
-        if (m) {
-          playContextSfxForMessage(m);
-          void speak(m, turn.id + ':' + (revealed - 1));
-        }
+        if (m) void speak(m, turn.id + ':' + (revealed - 1));
         if (turn?.messages) schedulePrefetchWindow(turn.messages, turn.id, revealed);
       }
     } catch (e) {
@@ -6990,7 +6870,6 @@
     )) return;
     const selected = { segment_id: optionId === 'BEGIN' ? '' : snapshot.playback.segment_id, option_id: optionId };
     unlock();
-    playSfx('scale_chime', 0.48);
     cache.pending = {
       request_id: 'live-' + (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2)),
       base_revision: snapshot.revision,
@@ -8114,7 +7993,6 @@
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       stopVoice();
-      stopVoiceSample();
       pauseAmbient();
       closeSSE();
     } else {
@@ -8133,7 +8011,6 @@
       clearInkCommit();
     }
     stopVoice();
-    stopVoiceSample();
     pauseAmbient();
     closeSSE();
     urls.clear();

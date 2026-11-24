@@ -6,7 +6,6 @@ import uuid
 import threading
 from pathlib import Path
 from urllib.parse import urlsplit, quote as url_quote
-import importlib.util
 import requests
 import copy
 import hashlib
@@ -1195,79 +1194,18 @@ PUBLIC_FILES = {
 IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.avif'}
 AUDIO_EXTENSIONS = {'.mp3', '.ogg', '.opus', '.wav', '.m4a', '.webm'}
 _AUDIO_EXT_PRIORITY = {'.mp3': 6, '.ogg': 5, '.opus': 5, '.m4a': 4, '.wav': 3, '.webm': 2}
-_AUDIO_MIME_MAP = {
-    '.mp3': 'audio/mpeg',
-    '.ogg': 'audio/ogg',
-    '.opus': 'audio/ogg',
-    '.wav': 'audio/wav',
-    '.m4a': 'audio/mp4',
-    '.webm': 'audio/webm',
-}
 _AUDIO_ASSETS_CACHE = {}
-_PROLOGUE_LINES_CACHE = {'mtime': None, 'entries': []}
 
 
 def _audio_dir_sig(audio_root):
     try:
         items = [(audio_root.name, audio_root.stat().st_mtime_ns)]
-        for sub in ('ambient', 'sfx', 'prologues', 'samples'):
-            p = audio_root / sub
-            if p.is_dir():
-                items.append((sub, p.stat().st_mtime_ns))
-                mf = p / 'manifest.json'
-                if mf.is_file():
-                    items.append((sub + '/manifest.json', mf.stat().st_mtime_ns))
+        amb = audio_root / 'ambient'
+        if amb.is_dir():
+            items.append(('ambient', amb.stat().st_mtime_ns))
         return tuple(items)
     except OSError:
         return None
-
-
-def _normalize_master_lookup_text(text):
-    """统一归一化台词文本以便离线母带精确命中（剥离潜台词、方括号声学标签、Drama3 XML 与空白）。"""
-    s = _SUBTEXT_RUBY_RE.sub(r'\1', str(text or ''))
-    s = s.replace('【', '').replace('】', '').replace('*', '')
-    s = _BRACKET_TAG_RE.sub('', s)
-    s = _DRAMA3_XML_RE.sub('', s)
-    s = _PHONEME_SPAN_RE.sub('', s)
-    s = _PHONEME_TOKEN_RE.sub('', s)
-    return re.sub(r'\s+', '', s).strip()
-
-
-def _load_prologue_opening_table(root):
-    """只读加载 存档开局随机盲盒.py 中的 10 组开局原文，用于零配置自动匹配 txt文件/audio/prologues/ 离线母带。"""
-    script = Path(root) / '存档开局随机盲盒.py'
-    try:
-        mtime = script.stat().st_mtime_ns
-    except OSError:
-        return []
-    if _PROLOGUE_LINES_CACHE['mtime'] == mtime:
-        return _PROLOGUE_LINES_CACHE['entries']
-    entries = []
-    try:
-        spec = importlib.util.spec_from_file_location('_opening_audio_index', str(script))
-        if spec and spec.loader:
-            mod = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(mod)
-            opening_lines = getattr(mod, 'OPENING_LINES', {}) or {}
-            for sc in getattr(mod, 'SCENARIOS', []) or []:
-                sid = str(sc.get('id') or '').strip()
-                if not sid:
-                    continue
-                nar = str(sc.get('l1_body') or '').strip()
-                if nar:
-                    entries.append((f'{sid}_narration', '旁白', _normalize_master_lookup_text(nar)))
-                line_tuple = opening_lines.get(sid)
-                if isinstance(line_tuple, (list, tuple)) and len(line_tuple) == 3:
-                    spk, act, dlg = line_tuple
-                    if act:
-                        entries.append((f'{sid}_action', '旁白', _normalize_master_lookup_text(act)))
-                    if dlg:
-                        entries.append((f'{sid}_dialogue', str(spk or '').strip(), _normalize_master_lookup_text(dlg)))
-    except Exception:
-        entries = []
-    _PROLOGUE_LINES_CACHE['mtime'] = mtime
-    _PROLOGUE_LINES_CACHE['entries'] = entries
-    return entries
 
 
 def _scan_audio_bucket(audio_root, subdir):
@@ -1296,17 +1234,10 @@ def _scan_audio_bucket(audio_root, subdir):
 
 
 def scan_audio_assets(root=None):
-    """自动扫描 txt文件/audio/{ambient,sfx,prologues,samples} 本地永久音频资产（零配置即放即用）。"""
+    """自动扫描 txt文件/audio/ambient/ 本地循环氛围背景音（零配置即放即用）。"""
     base = Path(root or BASE_DIR).resolve()
     audio_root = (base / 'txt文件' / 'audio').resolve()
-    empty = {
-        'ambient': {},
-        'sfx': {},
-        'samples': {},
-        'prologues': {},
-        'prologues_count': 0,
-        'master_index': {},
-    }
+    empty = {'ambient': {}}
     if not audio_root.is_dir():
         return empty
     sig = _audio_dir_sig(audio_root)
@@ -1316,75 +1247,10 @@ def scan_audio_assets(root=None):
         return cached[1]
 
     ambient_raw = _scan_audio_bucket(audio_root, 'ambient')
-    sfx_raw = _scan_audio_bucket(audio_root, 'sfx')
-    samples_raw = _scan_audio_bucket(audio_root, 'samples')
-    prologues_raw = _scan_audio_bucket(audio_root, 'prologues')
-
-    master_index = {}
-    prologues_dir = audio_root / 'prologues'
-    # 1. 自动按 <scenario_id>_{narration|action|dialogue}.<ext> 绑定 10 套开局序幕
-    if prologues_raw:
-        for slot_key, spk, norm_text in _load_prologue_opening_table(base):
-            hit = prologues_raw.get(slot_key)
-            if hit and norm_text:
-                master_index[(spk, norm_text)] = hit[2]
-                master_index[('', norm_text)] = hit[2]
-    # 2. 可选 manifest.json 自定义映射（支持 by_key 与 by_text）
-    manifest_file = prologues_dir / 'manifest.json'
-    if manifest_file.is_file():
-        try:
-            mf = json.loads(manifest_file.read_text(encoding='utf-8'))
-            if isinstance(mf, dict):
-                by_key = mf.get('by_key') if isinstance(mf.get('by_key'), dict) else {}
-                if by_key:
-                    for slot_key, spk, norm_text in _load_prologue_opening_table(base):
-                        rel = by_key.get(slot_key)
-                        if isinstance(rel, str) and rel.strip():
-                            cand = (prologues_dir / rel.strip()).resolve()
-                            if cand.is_relative_to(prologues_dir) and cand.is_file() and cand.suffix.lower() in AUDIO_EXTENSIONS:
-                                master_index[(spk, norm_text)] = cand
-                                master_index[('', norm_text)] = cand
-                by_text = mf.get('by_text') if isinstance(mf.get('by_text'), dict) else {}
-                for raw_k, rel in by_text.items():
-                    if not isinstance(raw_k, str) or not isinstance(rel, str):
-                        continue
-                    cand = (prologues_dir / rel.strip()).resolve()
-                    if not (cand.is_relative_to(prologues_dir) and cand.is_file() and cand.suffix.lower() in AUDIO_EXTENSIONS):
-                        continue
-                    norm = _normalize_master_lookup_text(raw_k)
-                    if norm:
-                        master_index[('', norm)] = cand
-        except Exception:
-            pass
-
-    result = {
-        'ambient': {k: v[1] for k, v in ambient_raw.items()},
-        'sfx': {k: v[1] for k, v in sfx_raw.items()},
-        'samples': {k: v[1] for k, v in samples_raw.items()},
-        'prologues': {k: v[1] for k, v in prologues_raw.items()},
-        'prologues_count': len(prologues_raw),
-        'master_index': master_index,
-    }
+    result = {'ambient': {k: v[1] for k, v in ambient_raw.items()}}
     if sig is not None:
         _AUDIO_ASSETS_CACHE[cache_key] = (sig, result)
     return result
-
-
-def _resolve_offline_master_audio(text, speaker='', root=None):
-    """若请求台词命中 txt文件/audio/prologues/ 离线母带，返回 (Path, mimetype)，实现 0ms / $0 秒播。"""
-    norm = _normalize_master_lookup_text(text)
-    if not norm:
-        return None, ''
-    assets = scan_audio_assets(root)
-    idx = assets.get('master_index') or {}
-    if not idx:
-        return None, ''
-    spk = str(speaker or '').strip()
-    path = idx.get((spk, norm)) or idx.get(('', norm))
-    if not path or not path.is_file():
-        return None, ''
-    mime = _AUDIO_MIME_MAP.get(path.suffix.lower(), 'audio/mpeg')
-    return path, mime
 
 
 _THUMB_SPECS = {'avatar': (160, 82), 'plate': (720, 84)}
@@ -1473,14 +1339,11 @@ def admin():
 
 @app.route('/api/audio_assets', methods=['GET'])
 def audio_assets_api():
-    """返回本地永久音频资产清单（氛围底噪 / 电影拟音 / 角色原声试听 / 离线序幕母带数）。"""
+    """返回本地背景音景资产清单（txt文件/audio/ambient/）。"""
     assets = scan_audio_assets(BASE_DIR)
     return jsonify({
         'ambient': assets['ambient'],
-        'sfx': assets['sfx'],
-        'samples': assets['samples'],
-        'prologues_count': assets['prologues_count'],
-        'audio_root': 'txt文件/audio/',
+        'audio_root': 'txt文件/audio/ambient/',
     })
 
 
@@ -2072,7 +1935,7 @@ def _prepare_tts_job(data):
 
 
 def prewarm_tts_items(items):
-    """低优先级后台预合成最多 6 句语音；严格受限于 2 并发与 429 冷却，命中离线母带直接跳过不耗 API。"""
+    """低优先级后台预合成最多 6 句语音；严格受限于 2 并发与 429 冷却，绝不抢占实时播放。"""
     if not isinstance(items, (list, tuple)) or not items:
         return 0
     if _in_fish_429_cooldown():
@@ -2081,9 +1944,6 @@ def prewarm_tts_items(items):
     seen_keys = set()
     for raw in items[:6]:
         if not isinstance(raw, dict):
-            continue
-        master_path, _ = _resolve_offline_master_audio(raw.get('text', ''), raw.get('speaker', ''))
-        if master_path is not None:
             continue
         try:
             job = _prepare_tts_job(raw)
@@ -2134,19 +1994,6 @@ def tts_prefetch_api():
 def tts_api():
     data = _request_tts_data()
     try:
-        raw_text = _SUBTEXT_RUBY_RE.sub(r'\1', str((data or {}).get('text') or ''))
-        clean_len = len(raw_text.strip().replace('【', '').replace('】', '').replace('*', ''))
-        if clean_len > TTS_MAX_TEXT_LENGTH:
-            raise TtsError(f'文本超过 {TTS_MAX_TEXT_LENGTH} 字符上限', 413)
-        if clean_len == 0:
-            raise TtsError('请提供需要朗读的文本。', 400)
-        master_path, master_mime = _resolve_offline_master_audio(raw_text, (data or {}).get('speaker', ''))
-        if master_path is not None:
-            response = send_file(master_path, mimetype=master_mime)
-            response.headers['Cache-Control'] = 'public, max-age=86400'
-            response.headers['X-Fish-Model'] = 'local-master'
-            response.headers['X-Audio-Source'] = 'offline-master'
-            return response
         job = _prepare_tts_job(data)
         model_hdr = {'X-Fish-Model': job['tts_model']}
         if job['model_name'] != 'edge' and data.get('stream') is True and job['stream_factory'] is not None:
@@ -2203,11 +2050,10 @@ def open_browser():
 
 
 def _ensure_audio_dirs():
-    """启动时自动创建本地音频资产目录骨架与 .nomedia（防止安卓系统音乐 App 扫描游戏拟音）。"""
+    """启动时自动创建本地背景音景目录与 .nomedia（防止安卓系统音乐 App 扫描游戏背景音）。"""
     audio_root = Path(BASE_DIR) / 'txt文件' / 'audio'
     try:
-        for sub in ('ambient', 'sfx', 'prologues', 'samples'):
-            (audio_root / sub).mkdir(parents=True, exist_ok=True)
+        (audio_root / 'ambient').mkdir(parents=True, exist_ok=True)
         nomedia = audio_root / '.nomedia'
         if not nomedia.exists():
             nomedia.write_text('', encoding='utf-8')
