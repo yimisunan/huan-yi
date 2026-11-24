@@ -391,6 +391,63 @@ class StoryCompilerTests(unittest.TestCase):
         self.assertEqual(data.get('status'), 500)
         _ = svc
 
+    def test_zone0_slimming_and_drama3_syntax_unified(self):
+        z0 = sc.build_zone0_global(ROOT, mode='dual_stream_v2', protagonist_style='faithful')
+        self.assertLess(len(z0), 11500, f'Zone 0 should stay lean (<11500 chars), got {len(z0)}')
+        for required in ('一幕一位移', '[MOVE:', 'surprise_directive', '4000字', '<whisper>', '<slow>', 'Drama 3'):
+            self.assertIn(required, z0)
+        self.assertNotIn('合法Fish英文方括号声学标签', z0)
+        self.assertNotIn('每幕五条硬基线', z0)
+
+    def test_sensory_lens_organic_and_cliche_sliding_window(self):
+        projection = {'text': '【L1】测试', 'current': None, 'index': [], 'transfers': {}, 'limits': {'round_chars': 600}}
+        repeated_history = [
+            {'id': 'seg-1', 'messages': [
+                {'kind': 'action', 'speaker': '沈知韫', 'text': '她放下茶杯，指尖微微一顿，垂下眼。'},
+                {'kind': 'narration', 'speaker': '', 'text': '徐志北喉结滚了一下。'},
+            ]},
+            {'id': 'seg-2', 'messages': [
+                {'kind': 'action', 'speaker': '沈知韫', 'text': '她再次合上文件，指尖微顿。'},
+                {'kind': 'narration', 'speaker': '', 'text': '徐志北喉结微动。'},
+            ]},
+        ]
+        delta_raw = sc.build_user_delta(
+            ROOT, self.state, projection, history=repeated_history, new_history_only=[],
+            text='坐下聊两句', selected={'segment_id': 'seg-2', 'option_id': 'A'},
+            resolved_op=None, intent_evidence=None, preview_cost={'kind': 'action', 'before': 100, 'reserved': 5},
+            runtime={'clock': {'day': 1, 'time': '09:30'}, 'memory_round': 1, 'phase': 'ready'},
+            memory_text=self.memory_text, include_full_anchor=False, mode='dual_stream_v2',
+        )
+        parsed = json.loads(delta_raw)
+        self.assertIn('sensory_lens', parsed)
+        self.assertNotIn('每幕必落至少1处', parsed['sensory_lens'])
+        self.assertIn('fresh_detail_hint', parsed)
+        self.assertIn('喉结滚动', parsed['fresh_detail_hint'])
+
+    def test_stream_normalizer_strips_stray_tags_from_player_and_narration(self):
+        raw = (
+            '[N] 灯光暗了下来，<whisper>气氛微凉</whisper>。\n'
+            '[A:沈知韫] <soft>她把账单推到桌角。</soft>\n'
+            '[D:徐志北] [低声克制] 我只是<emphasis>顺口问一句</emphasis>。\n'
+            '[D:沈知韫] [压着倦意，声音微冷] 账得<slow>先算清楚</slow>。[break] <whisper>别声张。</whisper>\n'
+            '---DECISION---\n'
+            'PROMPT: 桌上的账单还摊开着，你打算怎么接？\n'
+            'A: 追问深圳分部回款周期\n'
+            'B: 替她把文件边角压平\n'
+            'C: 直接翻看压在最下面的签字页\n'
+        )
+        parsed = sc.parse_stream_story(raw, allowed_speakers=['沈知韫'], partial=False, allow_player_dialogue=True)
+        msgs = parsed['messages']
+        self.assertEqual(len(msgs), 4)
+        self.assertNotIn('<whisper>', msgs[0]['text'])
+        self.assertNotIn('<soft>', msgs[1]['text'])
+        self.assertEqual(msgs[2]['speaker'], '徐志北')
+        self.assertEqual(msgs[2]['text'], '我只是顺口问一句。')
+        self.assertEqual(msgs[3]['speaker'], '沈知韫')
+        self.assertIn('[压着倦意，声音微冷]', msgs[3]['text'])
+        self.assertIn('<slow>先算清楚</slow>', msgs[3]['text'])
+        self.assertIn('<whisper>别声张。</whisper>', msgs[3]['text'])
+
 
 if __name__ == '__main__':
     unittest.main()

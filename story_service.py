@@ -94,6 +94,10 @@ class StoryService:
         fn = self._tts_prewarmer
         if not callable(fn) or not messages:
             return
+        try:
+            voice_cfg_rev = str((self.root / 'voice_config.json').stat().st_mtime_ns)
+        except OSError:
+            voice_cfg_rev = '0'
         candidates = []
         for idx, m in enumerate(messages):
             if not isinstance(m, dict):
@@ -111,7 +115,7 @@ class StoryService:
                 voice_who = '旁白'
             else:
                 continue
-            sig = f'{dedup_prefix}:{voice_who}:{hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]}'
+            sig = f'{dedup_prefix}:{voice_cfg_rev}:{voice_who}:{hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]}'
             with self._stream_lock:
                 if sig in self._prewarmed_keys:
                     continue

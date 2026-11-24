@@ -4129,18 +4129,185 @@ html[data-theme="ivory"] .stage-curtain-quote {
 }
 
 
-/* 落笔确认 */
-.commit-text {
-  margin: 0 0 8px;
-  max-height: 34vh;
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-  line-height: 1.7;
+/* ==========================================================================
+   Drama 3 Subtle Badge & Diegetic Zero-Modal Confirmation (Scheme A + B)
+   ========================================================================== */
+.voice-d3-pill {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(212, 173, 107, 0.16);
+  color: var(--gold-bright);
+  border: 1px solid rgba(212, 173, 107, 0.42);
+  line-height: 1.3;
 }
-#commitGo.is-armed {
-  filter: brightness(1.15);
-  box-shadow: 0 0 0 1px var(--line-strong), 0 0 18px rgba(212, 175, 55, 0.35);
+html[data-theme="ivory"] .voice-d3-pill {
+  background: rgba(164, 118, 46, 0.12);
+  color: #875d1e;
+  border-color: rgba(164, 118, 46, 0.36);
+}
+
+/* Scheme A: Scale-Weighted Inline Choice Arm-or-Hold */
+#choices.has-armed .story-option:not(.is-armed) {
+  opacity: 0.46;
+  filter: saturate(0.75);
+  transition: opacity 0.2s ease, filter 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.story-option {
+  transition: opacity 0.2s ease, transform 0.16s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: manipulation;
+}
+.story-option.is-armed {
+  border-color: var(--gold-bright);
+  background: linear-gradient(135deg, rgba(212, 173, 107, 0.16), var(--surface-card) 72%);
+  box-shadow: 0 0 0 1px rgba(246, 226, 184, 0.34), 0 8px 24px rgba(0, 0, 0, 0.36), 0 0 18px rgba(212, 173, 107, 0.22);
+}
+html[data-theme="ivory"] .story-option.is-armed {
+  background: linear-gradient(135deg, rgba(196, 150, 74, 0.16), var(--surface-card) 72%);
+  box-shadow: 0 0 0 1px rgba(164, 118, 46, 0.38), 0 6px 18px rgba(72, 52, 24, 0.12);
+}
+.story-option.is-armed .option-seal {
+  background: var(--gold);
+  color: #14100c;
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 12px rgba(212, 173, 107, 0.48);
+}
+.option-arm-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  background: rgba(212, 173, 107, 0.22);
+  color: var(--gold-bright);
+  border: 1px solid rgba(212, 173, 107, 0.55);
+  animation: arm-pill-in 0.18s ease-out both;
+}
+html[data-theme="ivory"] .option-arm-hint {
+  background: rgba(164, 118, 46, 0.16);
+  color: #7c5218;
+  border-color: rgba(164, 118, 46, 0.45);
+}
+@keyframes arm-pill-in {
+  from { opacity: 0; transform: translateY(2px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.story-option .option-seal {
+  position: relative;
+}
+.story-option.is-holding {
+  transform: scale(0.992);
+  border-color: var(--gold-bright);
+  box-shadow: 0 0 0 1px rgba(246, 226, 184, 0.3), 0 0 16px rgba(212, 173, 107, 0.25);
+}
+.story-option.is-holding::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2.5px;
+  width: 100%;
+  background: linear-gradient(90deg, var(--gold), var(--gold-bright));
+  transform-origin: left center;
+  animation: option-hold-fill 550ms linear forwards;
+  pointer-events: none;
+}
+@keyframes option-hold-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* Scheme B: 1.8s Ink-Dry Undo Bubble inside #stream */
+.ink-commit-dock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(100%, 720px);
+  margin: 10px auto 4px;
+  padding: 0 2px;
+}
+.ink-commit-dock[hidden] {
+  display: none !important;
+}
+.msg.player.is-ink-drying {
+  position: relative;
+  cursor: pointer;
+  animation: ink-enter 0.22s ease-out both;
+}
+@keyframes ink-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.msg.player.is-ink-drying > .text {
+  position: relative;
+  overflow: hidden;
+  opacity: 0.88;
+  border-style: dashed;
+  border-color: rgba(212, 173, 107, 0.56);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.28);
+}
+.ink-dry-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.ink-dry-status {
+  color: var(--gold-bright);
+  letter-spacing: 0.4px;
+}
+html[data-theme="ivory"] .ink-dry-status {
+  color: #875d1e;
+}
+.ink-recall-btn {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--line-strong);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.ink-recall-btn:hover,
+.ink-recall-btn:active {
+  background: rgba(212, 173, 107, 0.22);
+  border-color: var(--gold);
+}
+.ink-dry-bar {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2.5px;
+  width: 100%;
+  background: linear-gradient(90deg, rgba(212, 173, 107, 0.45), var(--gold-bright));
+  transform-origin: left center;
+  animation: ink-dry-sweep 1800ms linear forwards;
+  pointer-events: none;
+}
+@keyframes ink-dry-sweep {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .story-option.is-holding::after,
+  .ink-dry-bar,
+  .option-arm-hint,
+  .msg.player.is-ink-drying {
+    animation: none !important;
+  }
 }
 
 /* ==========================================================================

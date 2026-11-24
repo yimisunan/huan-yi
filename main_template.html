@@ -223,6 +223,7 @@
       </div>
 
       <div id="messages" role="log" aria-live="polite" aria-relevant="additions"></div>
+      <div id="inkCommitDock" class="ink-commit-dock" hidden aria-live="polite"></div>
       <div class="stream-spacer" aria-hidden="true"></div>
     </main>
 
@@ -737,28 +738,6 @@
     <div class="confirm-actions">
       <button type="button" class="btn-outline" data-close>暂不重置</button>
       <button id="confirmNewGame" type="button" class="cta-gold">确认开启新档</button>
-    </div>
-  </dialog>
-
-  <!-- 落笔确认：发出去之前先问一次，防误触 -->
-  <dialog id="commitDialog" class="sheet-dialog confirm-dialog" aria-labelledby="commitHeading">
-    <div class="sheet-handle" aria-hidden="true"><span></span></div>
-    <div class="dialog-head">
-      <div class="dialog-title-group">
-        <span class="eyebrow">落笔</span>
-        <h2 id="commitHeading">这一句，说出去就收不回</h2>
-      </div>
-      <button type="button" class="close-btn" data-close aria-label="再想想">
-        <svg viewBox="0 0 24 24" class="hud-svg"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-      </button>
-    </div>
-    <div class="confirm-body">
-      <p id="commitText" class="commit-text"></p>
-      <p id="commitMeta" class="muted"></p>
-    </div>
-    <div class="confirm-actions">
-      <button id="commitBack" type="button" class="btn-outline">再想想</button>
-      <button id="commitGo" type="button" class="cta-gold">落笔</button>
     </div>
   </dialog>
 

@@ -63,7 +63,7 @@
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
   let cache = { epoch: '', draft: '', pending: null, voice: true };
-  let prefs = { theme: 'noir', font: 'normal', haptics: true, backdrop: true, cinemaPlates: true, readingDof: true, displayMode: 'curtain' };
+  let prefs = { theme: 'noir', font: 'normal', haptics: true, backdrop: true, cinemaPlates: true, readingDof: true, displayMode: 'curtain', confirmMode: 'inline' };
   let snapshot = null, online = false, posting = false, polling = false, progressing = false;
   let storageOK = true, error = '', missing = false, mismatch = false;
   let portraitName = '', signature = '', worldSignature = '', lastSpeaker = '', backdropTarget = '';
@@ -71,7 +71,8 @@
   let gazeHoldActive = false, gazeHoldCleanup = null;
   let history = [], hasOlder = false, olderCursor = null, resetRequest = null;
   let audioSerial = 0, audioMessage = null, audioStatus = '', isSpeaking = false;
-  let gesture = false, configPromise = null, lastTap = 0;
+  let gesture = false, configPromise = null, voiceConfigCache = null, activeVoiceTier = 'free', lastTap = 0;
+  let armedChoice = null, inkCommit = null;
   let activeHubTab = 'host', selectedChar = '', selectedMapPlace = '', historyFilter = 'all';
   let settlementFolded = true, settlementDismissedId = '', deckCollapsed = false, customComposerExpanded = false, lastUiMode = '';
   let activeStream = null, speakingMessageId = '', lastVectorLocation = '';
@@ -106,11 +107,13 @@
   const urls = new VoiceClient.AudioUrlStore(8, 16 * 1024 * 1024);
   const audioCache = new Map();
 
+  let legacyConfirmOff = false;
   try {
     const v = JSON.parse(localStorage.getItem(KEY) || '{}');
     if (typeof v.epoch === 'string') cache.epoch = v.epoch;
     if (typeof v.draft === 'string') cache.draft = v.draft;
     if (typeof v.voice === 'boolean') cache.voice = v.voice;
+    if (v.confirmCommit === false) legacyConfirmOff = true;
     if (v.pending && typeof v.pending.request_id === 'string'
         && typeof v.pending.action === 'string'
         && typeof v.pending.base_revision === 'string') {
@@ -129,6 +132,11 @@
     if (typeof p.cinemaPlates === 'boolean') prefs.cinemaPlates = p.cinemaPlates;
     if (typeof p.readingDof === 'boolean') prefs.readingDof = p.readingDof;
     if (p.displayMode === 'curtain' || p.displayMode === 'stream') prefs.displayMode = p.displayMode;
+    if (p.confirmMode === 'inline' || p.confirmMode === 'critical' || p.confirmMode === 'off') {
+      prefs.confirmMode = p.confirmMode;
+    } else if (legacyConfirmOff) {
+      prefs.confirmMode = 'off';
+    }
   } catch (_) {}
 
   function reducedMotion() {
@@ -355,7 +363,7 @@
   const active = () => ['preparing', 'queued', 'generating', 'validating', 'refund_pending'].includes(snapshot?.task?.status);
   const hasPreview = () => !!(streamPreview && active() && streamPreview.request_id === snapshot?.task?.request_id);
   const hasPreviewNodes = () => !isCurtainMode() && hasPreview() && Array.isArray(streamPreview.messages) && streamPreview.messages.length > 0;
-  const baseBlocked = () => posting || polling || progressing || catchingUp || !online || !storageOK || ![2, 3].includes(snapshot?.interaction_protocol) || !!cache.pending || active();
+  const baseBlocked = () => posting || polling || progressing || catchingUp || !online || !storageOK || ![2, 3].includes(snapshot?.interaction_protocol) || !!cache.pending || !!inkCommit || active();
   const canDecide = () => !!snapshot?.playback?.segment_id && snapshot.playback.completed;
   const blocked = () => baseBlocked() || !canDecide();
   const current = () => history.find(t => t.id === snapshot?.playback?.segment_id);
@@ -365,7 +373,7 @@
   const afford = n => !progression() || progression().stamina >= n;
   const ordinaryBlocked = () => blocked() || resting();
   const canTransactDeterministic = () => online && !posting && !polling && !progressing && !catchingUp
-    && !active() && !shopBusy && !cache.pending && !!snapshot?.revision
+    && !active() && !shopBusy && !cache.pending && !inkCommit && !!snapshot?.revision
     && (!snapshot?.playback?.segment_id || snapshot.playback.completed);
 
   function transactBlockReason() {
@@ -2438,17 +2446,55 @@
     return '';
   }
 
+  function clearAudioCache() {
+    cancelPrefetch();
+    audioCache.clear();
+    urls.clear();
+  }
+
+  function resolveVoiceModelKey(who, cfg, settings) {
+    const voice = String(cfg?.voice || '');
+    if (voice.startsWith('edge:')) return 'edge';
+    return String(cfg?.tts_model || (who === '旁白' ? 's2.1-pro-free' : (settings?.fish_tts_model || 's2.1-pro-free'))).trim() || 's2.1-pro-free';
+  }
+
+  function audioCacheKey(id, who, cfg, settings) {
+    return id + '|' + resolveVoiceModelKey(who, cfg, settings);
+  }
+
+  function isDrama3Speaker(speaker) {
+    const name = String(speaker || '').trim();
+    if (!['沈知韫', '苏婉青', '徐念薇'].includes(name)) return false;
+    if (voiceConfigCache && voiceConfigCache[name]) {
+      return resolveVoiceModelKey(name, voiceConfigCache[name], voiceConfigCache.__settings__ || {}) === 'drama-3';
+    }
+    return activeVoiceTier === 'drama';
+  }
+
   function invalidateVoiceConfig() {
     configPromise = null;
+    voiceConfigCache = null;
     fishKeyStatusPromise = null;
     fishKeyConfigured = null;
+    clearAudioCache();
   }
 
   function loadVoiceConfig() {
-    configPromise = configPromise || VoiceClient.requestJson('/api/config?t=' + Date.now(), { cache: 'no-store' }).catch(e => {
-      configPromise = null;
-      throw e;
-    });
+    configPromise = configPromise || VoiceClient.requestJson('/api/config?t=' + Date.now(), { cache: 'no-store' })
+      .then(cfg => {
+        const prevTier = activeVoiceTier;
+        voiceConfigCache = cfg || null;
+        activeVoiceTier = cfg?.__settings__?.voice_tier || 'free';
+        if (prevTier !== activeVoiceTier && history.length) {
+          signature = '';
+          render();
+        }
+        return cfg;
+      })
+      .catch(e => {
+        configPromise = null;
+        throw e;
+      });
     return configPromise;
   }
 
@@ -2471,8 +2517,6 @@
     if (!m || !id || !cache.voice || !gesture || document.hidden) return;
     const who = resolveVoiceSpeaker(m);
     if (!who) return;
-    const existing = audioCache.get(id);
-    if (existing && urls.has(existing)) return;
     const serial = audioSerial;
     prefetchTimer = setTimeout(async () => {
       prefetchTimer = null;
@@ -2482,12 +2526,15 @@
         if (serial !== audioSerial || !cache.voice || document.hidden) return;
         const cfg = config[who];
         if (!cfg || !cfg.voice) return;
+        const cacheKey = audioCacheKey(id, who, cfg, config.__settings__ || {});
+        const existing = audioCache.get(cacheKey);
+        if (existing && urls.has(existing)) return;
         if (!String(cfg.voice).startsWith('edge:') && !(await ensureFishKeyReady())) return;
         const payload = VoiceClient.buildPayload(stripSubtextForTts(m.text), cfg, config.__settings__ || {}, '', who);
         const blob = await VoiceClient.requestAudio(payload, { channel: 'prefetch', maxBytes: 16 * 1024 * 1024 });
         if (!cache.voice || document.hidden) return;
         const blobUrl = urls.add(blob);
-        audioCache.set(id, blobUrl);
+        audioCache.set(cacheKey, blobUrl);
         for (const [key, value] of audioCache) if (!urls.has(value)) audioCache.delete(key);
       } catch (_) {}
     }, 250);
@@ -2553,24 +2600,35 @@
         }
       };
     };
-    const playBuffered = async payload => {
-      const blob = await VoiceClient.requestAudio(payload, { channel: 'live', maxBytes: 16 * 1024 * 1024 });
-      if (serial !== audioSerial || !cache.voice || document.hidden) return;
-      const blobUrl = urls.add(blob);
-      audioCache.set(id, blobUrl);
-      for (const [key, value] of audioCache) if (!urls.has(value)) audioCache.delete(key);
-      urls.pin(blobUrl);
-      $('audio').src = blobUrl;
-      bindEnded();
-      await $('audio').play();
-      if (serial !== audioSerial) return;
-      isSpeaking = true;
-      speakingMessageId = id;
-      audioStatus = '朗读中';
-      updateSpeakingUI();
-    };
     try {
-      const cachedUrl = audioCache.get(id);
+      const config = await loadVoiceConfig();
+      if (serial !== audioSerial || !cache.voice || document.hidden) return;
+      const cfg = config[who];
+      if (!cfg || !cfg.voice) {
+        audioStatus = '';
+        controls();
+        return;
+      }
+      const modelKey = resolveVoiceModelKey(who, cfg, config.__settings__ || {});
+      const isD3 = modelKey === 'drama-3';
+      const cacheKey = audioCacheKey(id, who, cfg, config.__settings__ || {});
+      const playBuffered = async payload => {
+        const blob = await VoiceClient.requestAudio(payload, { channel: 'live', maxBytes: 16 * 1024 * 1024 });
+        if (serial !== audioSerial || !cache.voice || document.hidden) return;
+        const blobUrl = urls.add(blob);
+        audioCache.set(cacheKey, blobUrl);
+        for (const [key, value] of audioCache) if (!urls.has(value)) audioCache.delete(key);
+        urls.pin(blobUrl);
+        $('audio').src = blobUrl;
+        bindEnded();
+        await $('audio').play();
+        if (serial !== audioSerial) return;
+        isSpeaking = true;
+        speakingMessageId = id;
+        audioStatus = isD3 ? 'D3 朗读中' : '朗读中';
+        updateSpeakingUI();
+      };
+      const cachedUrl = audioCache.get(cacheKey);
       if (cachedUrl && urls.has(cachedUrl)) {
         if (serial !== audioSerial || !cache.voice || document.hidden) return;
         urls.pin(cachedUrl);
@@ -2580,17 +2638,9 @@
         if (serial !== audioSerial) return;
         isSpeaking = true;
         speakingMessageId = id;
-        audioStatus = '朗读中';
+        audioStatus = isD3 ? 'D3 朗读中' : '朗读中';
         updateSpeakingUI();
       } else {
-        const config = await loadVoiceConfig();
-        if (serial !== audioSerial || !cache.voice || document.hidden) return;
-        const cfg = config[who];
-        if (!cfg || !cfg.voice) {
-          audioStatus = '';
-          controls();
-          return;
-        }
         if (!String(cfg.voice).startsWith('edge:') && !(await ensureFishKeyReady())) {
           audioStatus = '未配置语音密钥';
           if (!fishMissingToastShown) {
@@ -2609,7 +2659,7 @@
             streamStarted = true;
             isSpeaking = true;
             speakingMessageId = id;
-            audioStatus = '流式朗读中';
+            audioStatus = isD3 ? 'D3 流式朗读中' : '流式朗读中';
             updateSpeakingUI();
             controls();
           }
@@ -2627,7 +2677,7 @@
             if (serial === audioSerial && !streamStarted && !$('audio').paused) {
               isSpeaking = true;
               speakingMessageId = id;
-              audioStatus = '朗读中';
+              audioStatus = isD3 ? 'D3 朗读中' : '朗读中';
               updateSpeakingUI();
             }
           } catch (streamErr) {
@@ -2657,25 +2707,25 @@
 
   function isWhisperLine(rawText) {
     const s = String(rawText || '');
-    return /\[(?:[^\]]*(?:\b(?:whisper|softly|breathy|murmur|sigh|hushed|intimate|trembling)\b|低声|耳语|轻声|气音|压低声音)[^\]]*)\]/i.test(s)
+    return /\[(?:[^\]]*(?:\b(?:whisper|softly|breathy|murmur|sigh|hushed|intimate|trembling)\b|低声|耳语|轻声|气音|压低声音|声音放轻|贴耳)[^\]]*)\]/i.test(s)
       || /<(?:whisper|soft)>/i.test(s);
   }
 
   function classifyVoiceTag(rawTag) {
     const t = String(rawTag || '').toLowerCase();
-    if (/trembl|shaky|quiver|voice\s+breaks|颤|抖/.test(t)) {
+    if (/trembl|shaky|quiver|voice\s+breaks|颤|抖|破音|发涩/.test(t)) {
       return { cls: 'fx-tremble', label: '声线微颤', mood: 'tremble' };
     }
-    if (/exhaust|sobbing|weak|faint|dazed|out\s+of\s+breath|失力|虚弱|余韵|泣|哽咽/.test(t)) {
+    if (/exhaust|sobbing|weak|faint|dazed|out\s+of\s+breath|失力|虚弱|余韵|泣|哽咽|疲惫|倦意/.test(t)) {
       return { cls: 'fx-exhausted', label: '失力余韵', mood: 'exhausted' };
     }
-    if (/catch|choke|gasp|inhale|pant|hold(?:ing)?\s+back|short\s+breath|屏息|抽气|急促|喘/.test(t)) {
+    if (/catch|choke|gasp|inhale|pant|hold(?:ing)?\s+back|short\s+breath|屏息|抽气|急促|喘|发紧|发虚|发干/.test(t)) {
       return { cls: 'fx-catch', label: '呼吸急顿', mood: 'catch' };
     }
-    if (/whisper|breathy|softly|murmur|hushed|intimate|sigh|耳语|气音|低语|轻声|叹息/.test(t)) {
+    if (/whisper|breathy|softly|murmur|hushed|intimate|sigh|耳语|气音|低语|轻声|轻柔|声音放轻|叹息|轻叹|轻哄/.test(t)) {
       return { cls: 'fx-whisper', label: '微距气音', mood: 'whisper' };
     }
-    if (/calm|executive|cold|restrained|firm|low\s+voice|composed|克制|冷冽|沉稳|压低/.test(t)) {
+    if (/calm|executive|cold|restrained|firm|low\s+voice|composed|克制|冷冽|沉稳|压低|微冷|冷硬|冷淡|轻哂|放慢|强忍|压着|发沉/.test(t)) {
       return { cls: 'fx-restrained', label: '冷冽克制', mood: 'restrained' };
     }
     return null;
@@ -2710,11 +2760,14 @@
     }
   }
 
-  const ZH_VOICE_TAG_TOKEN_RE = /^(?:轻声|低声|耳语|气音|停顿|长停顿|短停顿|停顿半拍|微颤|颤抖|轻颤|声颤|克制|疲惫|倦怠|冷冽|冷淡|沉稳|平静|平淡|叹息|轻叹|低叹|叹气|抽气|倒吸一口气|屏息|急促|喘息|喘气|微喘|轻喘|喘|沙哑|微哑|柔声|低语|压低|压低声音|哽咽|泣声|哭腔|含泪|虚弱|失力|余韵|轻笑|冷笑|低笑|笑声|微笑|慌乱|紧张|窘迫|羞耻|羞涩|试探|挑眉|疑惑|缓声|放慢|语速放慢|迟疑|犹豫|沉默|顿了顿|顿了一下|温柔|冷笑一声|微怒|压抑|强忍|隐忍|娇喘|呢喃|喃喃|[a-zA-Z][a-zA-Z0-9_\s-]{0,36})$/;
+  const ZH_VOICE_TAG_TOKEN_RE = /^(?:轻声|低声|耳语|气音|停顿|长停顿|短停顿|停顿半拍|微颤|颤抖|轻颤|声颤|克制|疲惫|倦怠|冷冽|冷淡|沉稳|平静|平淡|叹息|轻叹|低叹|叹气|抽气|倒吸一口气|屏息|急促|喘息|喘气|微喘|轻喘|喘|沙哑|微哑|柔声|低语|压低|压低声音|哽咽|泣声|哭腔|含泪|虚弱|失力|余韵|轻笑|冷笑|低笑|笑声|微笑|慌乱|紧张|窘迫|羞耻|羞涩|试探|挑眉|疑惑|缓声|放慢|语速放慢|迟疑|犹豫|沉默|顿了顿|顿了一下|温柔|冷笑一声|微怒|压抑|强忍|隐忍|娇喘|呢喃|喃喃|敷衍|轻哂|微冷|冷硬|发紧|发沉|发干|发虚|发涩|[a-zA-Z][a-zA-Z0-9_\s-]{0,36})$/;
+  const NON_VOICE_BRACKET_RE = /^(?:N|[AD]\s*[:：].*|MOVE\s*[:：].*|ITEM-\d+|INTEL-\d+|CLK_[A-Z0-9_]+)$/i;
 
-  function isFishBracketTag(inner) {
+  function isFishBracketTag(inner, kind = '') {
     const trimmed = String(inner || '').trim();
-    if (!trimmed || trimmed.length > 80) return false;
+    if (!trimmed || trimmed.length > 80 || /[\r\n\[\]]/.test(trimmed)) return false;
+    if (NON_VOICE_BRACKET_RE.test(trimmed)) return false;
+    if (kind === 'dialogue') return true;
     if (/^[a-zA-Z][a-zA-Z0-9_,\s-]{0,79}$/.test(trimmed)) return true;
     if (classifyVoiceTag(trimmed)) return true;
     const parts = trimmed.split(/[,，、;/\s]+/).map(s => s.trim()).filter(Boolean);
@@ -2748,7 +2801,7 @@
     }
 
     const cleaned = raw
-      .replace(/\[([^\]\r\n]{1,80})\]/g, (full, inner) => (isFishBracketTag(inner) ? '' : full))
+      .replace(/\[([^\]\r\n]{1,80})\]/g, (full, inner) => (isFishBracketTag(inner, kind) ? '' : full))
       .replace(/<\/?(?:whisper|emphasis|soft|fast|slow|stress|forceful|chinese|english|japanese|korean|cantonese|french|german|spanish)>/gi, '')
       .replace(/<\|phoneme_start\|>[^<\r\n]{1,40}<\|phoneme_end\|>/g, '')
       .replace(/<\|[^|\r\n]+\|>/g, '')
@@ -2942,6 +2995,11 @@
       h.append(nameSpan);
       if (kind === 'action') h.append(node('span', 'kind-label', '动作'));
       if (whisper) h.append(node('span', 'whisper-pill', '耳语'));
+      if (kind === 'dialogue' && !opts.inHistory && isDrama3Speaker(speaker)) {
+        const d3 = node('span', 'voice-d3-pill', 'D3');
+        d3.title = 'Drama 3 导演声演';
+        h.append(d3);
+      }
       if (cStats && !opts.inHistory) {
         if (cStats.pregnant) {
           h.append(node('span', 'micro-state-chip is-pregnant', '孕期敏感'));
@@ -5073,7 +5131,8 @@
       mkSwitchRow('触感微振', '点按剧情与抉择时轻振反馈', [[true, '开启'], [false, '关闭']], prefs.haptics, v => { prefs.haptics = v; savePrefs(); }),
       mkSwitchRow('场景氛围光影', '随当前地点空镜与情绪变化柔和染光', [[true, '开启'], [false, '静默']], prefs.backdrop, v => { prefs.backdrop = v; savePrefs(); }),
       mkSwitchRow('电影插页', '切场空镜与角色入场横幅，零额外消耗', [[true, '开启'], [false, '纯文字']], prefs.cinemaPlates, v => { prefs.cinemaPlates = v; savePrefs(); signature = ''; render(); }),
-      mkSwitchRow('焦点景深阅读', '最新一段全清晰，上文轻柔退远', [[true, '开启'], [false, '关闭']], prefs.readingDof, v => { prefs.readingDof = v; savePrefs(); applyReadingFocus(); })
+      mkSwitchRow('焦点景深阅读', '最新一段全清晰，上文轻柔退远', [[true, '开启'], [false, '关闭']], prefs.readingDof, v => { prefs.readingDof = v; savePrefs(); applyReadingFocus(); }),
+      mkSwitchRow('落笔防误触', '无弹窗沉浸确认：原位称重落印与 1.8s 收墨撤回', [['inline', '原位轻确认'], ['critical', '仅关键动作'], ['off', '直出']], prefs.confirmMode, v => { prefs.confirmMode = v; savePrefs(); disarmChoice(); })
     );
     pane.append(uiGroup);
 
@@ -5110,7 +5169,7 @@
     const tierRow = node('div', 'pref-row');
     tierRow.style.marginTop = '12px';
     const tierLbl = node('div', 'pref-row-label');
-    const tierDesc = node('span', '', '仅三大女主（沈知韫/苏婉青/徐念薇）与旁白启用配音；主角、徐承邺及次要NPC静默无声。旁白恒走零费用免费档。');
+    const tierDesc = node('span', '', '仅三大女主（沈知韫/苏婉青/徐念薇）与旁白启用配音；主角、徐承邺及次要NPC静默无声。切旗舰 Drama3 时三大女主全量启用导演声演，旁白恒走免费档。');
     tierLbl.append(node('strong', '', '语音品质分档（默认零费用）'), tierDesc);
     const tierSwitch = node('div', 'seg-switch');
     const tierDefs = [
@@ -5179,14 +5238,20 @@
       b.setAttribute('aria-pressed', 'false');
       b.onclick = async () => {
         haptic(8);
-        if (tid === 'drama' && !window.confirm('旗舰导演档（Drama 3）按字节计费较高（促销后约 $50/百万字节，仅对三大女主启用，旁白仍免费）。确认切换？')) {
+        if (tid === 'drama' && !window.confirm('旗舰导演档（Drama 3）将对三大女主全部台词启用导演声演，旁白及其他内容仍免费。按字节计费较高（促销后约 $50/百万字节），确认切换？')) {
           return;
         }
         try {
           const res = await VoiceClient.setVoiceTier(tid);
           invalidateVoiceConfig();
-          markTierActive(res.tier || tid);
-          toast(res.msg || '语音品质档位已切换');
+          activeVoiceTier = res.tier || tid;
+          if (res.config) voiceConfigCache = res.config;
+          segmentDomCache.clear();
+          signature = '';
+          render();
+          markTierActive(activeVoiceTier);
+          void loadVoiceConfig().catch(() => null);
+          toast((res.msg || '语音品质档位已切换') + '（已刷新本幕音频缓存）');
         } catch (err) {
           toast(err.message || '档位切换失败');
         }
@@ -5526,7 +5591,7 @@
     const vaSig = va
       ? '|va:' + Object.keys(va.scenes || {}).sort().join(',') + '/' + Object.entries(va.characters || {}).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => k + ':' + Object.keys(v || {}).sort().join(',')).join(';')
       : '';
-    const sig = cache.epoch + ':' + (prefs.cinemaPlates ? 'P1' : 'P0') + ':' + history.map(t => t.id + ':' + t.messages.length + ':' + (t.handoff || '') + ':' + !!t.settlement).join('|') + pvSig + hpSig + vaSig;
+    const sig = cache.epoch + ':' + (prefs.cinemaPlates ? 'P1' : 'P0') + ':' + activeVoiceTier + ':' + history.map(t => t.id + ':' + t.messages.length + ':' + (t.handoff || '') + ':' + !!t.settlement).join('|') + pvSig + hpSig + vaSig;
     if (sig !== signature) {
       const stream = $('stream');
       const near = stream.scrollHeight - stream.scrollTop - stream.clientHeight < 140;
@@ -5601,7 +5666,7 @@
         return b;
       }));
     }
-    const activeDesktopFocus = (desktopFocusName && names.includes(desktopFocusName))
+    const activeDesktopFocus = desktopFocusName && names.includes(desktopFocusName)
       ? desktopFocusName
       : (primaryPortraitHero(w) || names[0] || lastSpeaker);
     if (castEl) {
@@ -5616,9 +5681,10 @@
 
     updateBackdrop();
 
-    // Decision Choice Cards with Abyssal Scale Weight Preview & Attribute Resonance Badges
+    // Decision Choice Cards with Abyssal Scale Weight Preview & Diegetic Inline Confirm (Scheme A)
     const turn = current(), decision = turn?.decision, decisionKey = p?.completed ? turn?.id : '';
     if ($('choices').dataset.key !== decisionKey) {
+      disarmChoice();
       $('choices').dataset.key = decisionKey || '';
       deckCollapsed = false;
       $('choices').replaceChildren();
@@ -5651,22 +5717,7 @@
             b.append(cost);
           }
 
-          const tiltOn = () => previewChoiceWeight(opt.id);
-          const tiltOff = () => previewChoiceWeight(null);
-          b.addEventListener('mouseenter', tiltOn);
-          b.addEventListener('focus', tiltOn);
-          b.addEventListener('pointerdown', tiltOn);
-          b.addEventListener('mouseleave', tiltOff);
-          b.addEventListener('blur', tiltOff);
-          b.addEventListener('pointercancel', tiltOff);
-
-          b.onclick = async () => {
-            previewChoiceWeight(null);
-            if (baseBlocked()) return;
-            haptic(14);
-            if (!(await requestCommit({ text: opt.text, optionId: opt.id, cost: COSTS[opt.id] }))) return;
-            void enqueue(opt.text, opt.operation || null, opt.id);
-          };
+          bindChoiceGesture(b, opt);
           $('choices').append(b);
         }
       }
@@ -6127,66 +6178,212 @@
     }
   }
 
-  // ── 落笔确认：发出去之前先问一次（防误触） ──
-  let commitResolve = null, commitArmedAt = 0, commitArmTimer = null;
+  // ── 沉浸式落笔确认：方案 A（选项原位称重/长按落印）+ 方案 B（自由输入 1.8s 收墨撤回） ──
+  const CHOICE_HOLD_MS = 550;
+  const CHOICE_ARM_MS = 3800;
+  const CHOICE_MOVE_CANCEL_PX = 12;
+  const INK_DRY_MS = 1800;
 
-  function requestCommit({ text, optionId, cost }) {
-    if (cache.confirmCommit === false) return Promise.resolve(true);
-    const dialog = $('commitDialog');
-    if (!dialog || typeof dialog.showModal !== 'function') return Promise.resolve(true);
-    const raw = String(text || '').trim();
-    $('commitText').textContent = raw.length > 320 ? raw.slice(0, 320) + '…' : raw;
-    $('commitText').hidden = !raw;
-    $('commitMeta').textContent = optionId === 'CUSTOM'
-      ? (cost ? '这一行动将消耗 ' + cost + ' 点体力。' : '这一行动不消耗体力。')
-      : '你选中的是这一条。';
-    commitArmedAt = 0;
-    if (commitArmTimer) { clearTimeout(commitArmTimer); commitArmTimer = null; }
-    $('commitGo').textContent = '落笔';
-    $('commitGo').classList.remove('is-armed');
-    dialog.showModal();
-    return new Promise(resolve => { commitResolve = resolve; });
+  function needsChoiceConfirm(opt) {
+    if (prefs.confirmMode === 'off') return false;
+    if (prefs.confirmMode === 'critical') {
+      const isMove = !!(opt?.operation && opt.operation.code === 'move_player');
+      return opt?.id === 'C' || isMove;
+    }
+    return true;
   }
 
-  function closeCommit(result) {
-    if (commitArmTimer) { clearTimeout(commitArmTimer); commitArmTimer = null; }
-    commitArmedAt = 0;
-    const dialog = $('commitDialog');
-    if (dialog && dialog.open) dialog.close();
-    const resolve = commitResolve;
-    commitResolve = null;
-    if (resolve) resolve(result);
+  function disarmChoice() {
+    if (!armedChoice) return;
+    if (armedChoice.timer) clearTimeout(armedChoice.timer);
+    if (armedChoice.btn) {
+      armedChoice.btn.classList.remove('is-armed', 'is-holding');
+      armedChoice.btn.querySelector('.option-arm-hint')?.remove();
+    }
+    $('choices')?.classList.remove('has-armed');
+    armedChoice = null;
+    previewChoiceWeight(null);
   }
 
-  if ($('commitGo')) {
-    $('commitGo').onclick = () => {
-      const now = Date.now();
-      if (!commitArmedAt || now - commitArmedAt > 2500) {
-        commitArmedAt = now;
+  function armChoice(opt, btn) {
+    disarmChoice();
+    if (!btn || !opt) return;
+    btn.classList.add('is-armed');
+    $('choices')?.classList.add('has-armed');
+    const head = btn.querySelector('.option-head');
+    if (head && !head.querySelector('.option-arm-hint')) {
+      head.append(node('span', 'option-arm-hint', '再点落印'));
+    }
+    previewChoiceWeight(opt.id);
+    const timer = setTimeout(() => {
+      if (armedChoice && armedChoice.btn === btn) disarmChoice();
+    }, CHOICE_ARM_MS);
+    armedChoice = { optId: opt.id, opt, btn, timer };
+  }
+
+  function bindChoiceGesture(b, opt) {
+    let holdTimer = null;
+    let holdFired = false;
+    let startX = 0, startY = 0;
+
+    const clearHold = () => {
+      if (holdTimer) { clearTimeout(holdTimer); holdTimer = null; }
+      b.classList.remove('is-holding');
+    };
+
+    const tiltOn = () => { if (!armedChoice) previewChoiceWeight(opt.id); };
+    const tiltOff = () => { if (!armedChoice) previewChoiceWeight(null); };
+
+    b.addEventListener('mouseenter', tiltOn);
+    b.addEventListener('focus', tiltOn);
+    b.addEventListener('mouseleave', () => { clearHold(); tiltOff(); });
+    b.addEventListener('blur', () => { clearHold(); tiltOff(); });
+
+    b.addEventListener('pointerdown', e => {
+      if (e.button > 0 || baseBlocked()) return;
+      holdFired = false;
+      startX = e.clientX;
+      startY = e.clientY;
+      previewChoiceWeight(opt.id);
+      if (!needsChoiceConfirm(opt)) return;
+      clearHold();
+      b.classList.add('is-holding');
+      holdTimer = setTimeout(() => {
+        holdTimer = null;
+        holdFired = true;
+        b.classList.remove('is-holding');
+        if (baseBlocked()) return;
+        disarmChoice();
         haptic(10);
-        $('commitGo').textContent = '再按一次落笔';
-        $('commitGo').classList.add('is-armed');
-        if (commitArmTimer) clearTimeout(commitArmTimer);
-        commitArmTimer = setTimeout(() => {
-          commitArmedAt = 0;
-          commitArmTimer = null;
-          $('commitGo').textContent = '落笔';
-          $('commitGo').classList.remove('is-armed');
-        }, 2500);
+        setTimeout(() => haptic(22), 60);
+        void enqueue(opt.text, opt.operation || null, opt.id);
+      }, CHOICE_HOLD_MS);
+    });
+
+    b.addEventListener('pointermove', e => {
+      if (!holdTimer) return;
+      if (Math.hypot(e.clientX - startX, e.clientY - startY) > CHOICE_MOVE_CANCEL_PX) {
+        clearHold();
+      }
+    });
+
+    b.addEventListener('pointerup', () => clearHold());
+    b.addEventListener('pointercancel', () => { clearHold(); tiltOff(); });
+
+    b.onclick = () => {
+      clearHold();
+      if (holdFired) { holdFired = false; return; }
+      if (baseBlocked()) return;
+      if (!needsChoiceConfirm(opt)) {
+        disarmChoice();
+        haptic(14);
+        void enqueue(opt.text, opt.operation || null, opt.id);
         return;
       }
-      haptic(18);
-      closeCommit(true);
+      if (armedChoice && armedChoice.optId === opt.id && armedChoice.btn === b) {
+        disarmChoice();
+        haptic(18);
+        void enqueue(opt.text, opt.operation || null, opt.id);
+        return;
+      }
+      haptic(10);
+      armChoice(opt, b);
     };
-    $('commitBack').onclick = () => closeCommit(false);
-    $('commitDialog').addEventListener('cancel', event => {
-      event.preventDefault();
-      closeCommit(false);
-    });
-    $('commitDialog').addEventListener('click', event => {
-      if (event.target === $('commitDialog')) closeCommit(false);
-    });
   }
+
+  function clearInkCommit() {
+    if (inkCommit?.timer) clearTimeout(inkCommit.timer);
+    inkCommit = null;
+    const dock = $('inkCommitDock');
+    if (dock) {
+      dock.replaceChildren();
+      dock.hidden = true;
+    }
+  }
+
+  function recallInkCommit() {
+    if (!inkCommit) return;
+    const saved = inkCommit;
+    clearInkCommit();
+    pendingItemAttachment = saved.attached || null;
+    renderSheetAttachBar();
+    const restoreText = saved.rawDraft != null ? saved.rawDraft : saved.text;
+    cache.draft = restoreText;
+    syncDraftInputs(restoreText);
+    save();
+    controls();
+    sizing();
+    if (saved.source === 'sheet') {
+      openComposerSheet();
+      $('sheetInput')?.focus();
+    } else {
+      $('input')?.focus();
+    }
+    haptic(10);
+    toast('已收回，可继续修改');
+  }
+
+  function flushInkCommitNow() {
+    if (!inkCommit) return;
+    const ready = inkCommit;
+    clearInkCommit();
+    controls();
+    haptic(16);
+    void enqueue(ready.text, ready.op || null, ready.optionId || 'CUSTOM');
+  }
+
+  function stageInkCommit({ text, rawDraft, op = null, optionId = 'CUSTOM', source = 'inline', attached = null, cost = 15 }) {
+    clearInkCommit();
+    disarmChoice();
+    const dock = $('inkCommitDock');
+    if (!dock) {
+      void enqueue(text, op, optionId);
+      return;
+    }
+    const card = node('article', 'msg player is-ink-drying');
+    card.title = '轻点立即落定，或点右侧收回';
+
+    const head = node('div', 'ink-dry-head');
+    const costLabel = cost ? ('-' + cost + '⚡ · ') : '';
+    head.append(node('span', 'ink-dry-status', costLabel + '墨迹未干 · 轻点立即落定'));
+    const recallBtn = node('button', 'ink-recall-btn', '收回');
+    recallBtn.type = 'button';
+    recallBtn.onclick = e => {
+      e.stopPropagation();
+      recallInkCommit();
+    };
+    head.append(recallBtn);
+
+    const body = node('div', 'text');
+    const parts = String(text || '').split(/([（(][^）)\r\n]+[）)])/g);
+    for (const part of parts) {
+      if (!part) continue;
+      if (/^[（(][^）)\r\n]+[）)]$/.test(part)) body.append(node('span', 'player-bracket', part));
+      else body.append(document.createTextNode(part));
+    }
+    body.append(node('span', 'ink-dry-bar'));
+
+    card.append(head, body);
+    card.onclick = () => flushInkCommitNow();
+
+    dock.replaceChildren(card);
+    dock.hidden = false;
+
+    const timer = setTimeout(() => flushInkCommitNow(), INK_DRY_MS);
+    inkCommit = { text, rawDraft, op, optionId, source, attached, cost, timer };
+    controls();
+    latest();
+  }
+
+  document.addEventListener('pointerdown', e => {
+    if (armedChoice && !e.target.closest?.('#choices')) disarmChoice();
+  }, { passive: true });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (inkCommit) { e.preventDefault(); recallInkCommit(); }
+      else if (armedChoice) disarmChoice();
+    }
+  });
 
   async function enqueue(text, op = null, optionId = 'CUSTOM') {
     if (baseBlocked() || !text.trim() || (optionId !== 'BEGIN' && !canDecide())) return;
@@ -6339,7 +6536,7 @@
   };
 
   $('stream').addEventListener('click', e => {
-    if (e.target.closest('button,a,input,textarea,select,summary,details') || getSelection()?.toString()) return;
+    if (e.target.closest('button,a,input,textarea,select,summary,details,.is-ink-drying') || getSelection()?.toString()) return;
     void advance({ x: e.clientX, y: e.clientY });
   });
   $('stream').addEventListener('keydown', e => {
@@ -6350,23 +6547,29 @@
   });
 
   async function submitDraftFromComposer(source = 'inline') {
-    const text = source === 'sheet' ? ($('sheetInput')?.value || '') : ($('input')?.value || '');
+    const rawDraft = source === 'sheet' ? ($('sheetInput')?.value || '') : ($('input')?.value || '');
     const attached = pendingItemAttachment;
-    if (baseBlocked() || (!text.trim() && !attached)) return;
+    if (baseBlocked() || (!rawDraft.trim() && !attached)) return;
     haptic(14);
-    const finalText = text.trim() || (attached?.defaultAction || '');
+    const finalText = rawDraft.trim() || (attached?.defaultAction || '');
     const isPureRec = !attached && /^\s*使用恢复道具\s*[：:]?\s*ITEM-\d+\s*[。！!]?\s*$/.test(finalText);
     const cost = isPureRec ? 0 : 15;
-    if (!(await requestCommit({ text: finalText, optionId: 'CUSTOM', cost }))) {
-      if (source === 'sheet') $('sheetInput')?.focus();
-      else $('input')?.focus();
-      return;
-    }
-    if (composerSheetOpen) closeComposerSheet();
     const op = attached?.operation || null;
+
+    if (composerSheetOpen) closeComposerSheet();
     pendingItemAttachment = null;
     renderSheetAttachBar();
-    void enqueue(finalText, op, 'CUSTOM');
+
+    if (prefs.confirmMode === 'off') {
+      void enqueue(finalText, op, 'CUSTOM');
+      return;
+    }
+    cache.draft = '';
+    syncDraftInputs('');
+    if ($('input')) $('input').style.height = 'auto';
+    if ($('sheetInput')) $('sheetInput').style.height = 'auto';
+    save();
+    stageInkCommit({ text: finalText, rawDraft, op, optionId: 'CUSTOM', source, attached, cost });
   }
 
   let draftSyncTimer = null;
@@ -6940,12 +7143,18 @@
       closeSSE();
     } else {
       invalidateVoiceConfig();
+      void loadVoiceConfig().catch(() => null);
       sseRetryAttempt = 0;
       connectSSE();
       void restore();
     }
   });
   window.addEventListener('pagehide', () => {
+    if (inkCommit) {
+      cache.draft = inkCommit.rawDraft != null ? inkCommit.rawDraft : inkCommit.text;
+      save();
+      clearInkCommit();
+    }
     stopVoice();
     closeSSE();
     urls.clear();
@@ -6958,6 +7167,7 @@
   syncInputHeight($('input'));
   save();
   render();
+  void loadVoiceConfig().catch(() => null);
   connectSSE();
   void restore();
   setInterval(() => { if (!document.hidden && !sseOpen) void restore(); }, 15000);

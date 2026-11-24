@@ -400,6 +400,9 @@ def compile_codex_runtime(root):
         body = body[:cut_old].rstrip()
     body = body.replace('禁止只写在 craft_note / SYSTEM_LOG。', '禁止省略或仅作后台概括。')
     body = re.sub(r'\n-\s*craft_note\s*可标注[^\n]*', '', body)
+    body = re.sub(r'\n*正式连续入口entry_mode=live_interaction[^\n]*\n*', '\n\n', body)
+    body = re.sub(r'### 0\. 卷零专用术语[\s\S]*?(?=### 1\. 轨 A)', '', body)
+    body = re.sub(r'\n+---\n+', '\n\n', body)
     return _clean_text(body)
 
 
@@ -688,58 +691,49 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
     if mode == 'dual_stream_v2':
         if style == 'faithful':
             protagonist_rule = (
-                '   - 主角具身在场与忠实演绎（杜绝摄像机感）：每幕开头必须先用 1～2 句 [A:徐志北] 或 [N] 将玩家本轮抉择真实落位（写出动作细节、具体五感与克制心绪），'
-                '中段互动中穿插 1～2 处 [A:徐志北] 自然微反应（抬眼、停手、放杯、承接视线）；'
-                '当玩家点选概括性选项或未逐字写台词时，允许输出 1～2 句简短克制、100% 忠实于本轮玩家意图的 [D:徐志北] 发言（每句≤40字、单幕硬上限3句，前端静音不发声），形成有来有往的真实交锋；'
-                '若玩家输入已自带直接引语，则保持原意仅补动作神态。严禁替徐志北新增超出原意的新决定、新承诺、烈度升级或未授权反派滤镜。\n'
+                '   - 主角具身在场（忠实演绎）：用 [A:徐志北] / [N] 自然承接玩家本轮行动，允许输出 1～3 句贴合原意图的简短 [D:徐志北] 口语（单句≤40字、永久静音禁任何标签）；'
+                '若玩家输入已有直接引语则保留原意。不代增新决定、新承诺、烈度升级或未授权反派滤镜。\n'
             )
             action_line_rule = (
-                '   [A:角色姓名] 归属明确的具体动作（角色姓名须为在场人物或徐志北；徐志北动作须紧扣本轮意图与同意图微动作，展现主角在场存在感与五感反馈；'
-                '严禁在 [A:...] 中混入Fish英文标签；当女性角色处于高羞耻强装镇定而身体泄漏本能反应时，允许在关键动作词使用全角大括号 ｛表面端庄动作｜生理失控破绽｝ 标注反差）\n'
+                '   [A:角色姓名] 归属明确的具体动作（在场人物或徐志北；禁任何声学/XML标签；高羞耻身体露馅时可用 ｛表面端庄｜本能破绽｝）\n'
             )
             dialogue_line_rule = (
-                '   [D:角色姓名] 角色台词（角色姓名须属于当前在场cast白名单；忠实演绎模式下允许最多3句严格贴合玩家本轮意图的简短 [D:徐志北] 发言且禁带Fish标签；'
-                '严禁输出场外人物对白；只放纯开口台词、在场角色合法Fish英文方括号声学标签及可选 ｛表层违心台词｜真实潜台词｝，严禁在 [D:角色姓名] 内混入第三人称动作/神态旁白如“她端起来抿了一口，没抬眼：”且严禁加外层双引号“...”，任何动作必须拆分为独立的 [A:角色姓名] 行）\n'
+                '   [D:角色姓名] 纯开口台词（仅限在场cast或≤3句忠实 [D:徐志北]；禁场外对白、禁外层引号“...”及第三人称动作旁白；三女主可按 narrative.dialogue_tts 使用中文/英文导演提示 [...]、句内呼吸 [break]/[sigh] 与词级标签 <whisper>/<soft>/<emphasis>/<slow>/<forceful>，及必要 ｛表层｜潜台词｝）\n'
             )
         else:
             protagonist_rule = (
-                '   - 主角具身在场（仅动作感官模式）：严禁输出 [D:徐志北]，但每幕必须包含至少 2 处 [A:徐志北] 具身动作、间接口吻概括与具体五感描写，绝不把主角写成隐身摄像机。\n'
+                '   - 主角具身在场（仅动作感官）：严禁输出 [D:徐志北]，以 [A:徐志北] / [N] 自然呈现动作、间接追问与体感，不把主角写成隐身摄像机。\n'
             )
             action_line_rule = (
-                '   [A:角色姓名] 归属明确的具体动作（角色姓名须为在场人物或徐志北；徐志北动作仅限原输入授权及同意图微动作；即使玩家选项含“追问/只问/顺口问起/开口询问”，也严禁写 [D:徐志北]，只能用 [A:徐志北] 或 [N] 以间接动作概括，如“[A:徐志北] 他顺着话头只问了画展哪天开幕、评审换成了谁。”，再由在场角色 [D:角色姓名] 直接回答；严禁在 [A:...] 中混入Fish英文标签；当女性角色处于高羞耻强装镇定而身体泄漏本能反应时，允许在关键动作词使用全角大括号 ｛表面端庄动作｜生理失控破绽｝ 标注反差）\n'
+                '   [A:角色姓名] 归属明确的具体动作（在场人物或徐志北；玩家提问亦用 [A:徐志北]/[N] 间接表达，严禁 [D:徐志北]；禁任何声学/XML标签；高羞耻身体露馅可用 ｛表面端庄｜本能破绽｝）\n'
             )
             dialogue_line_rule = (
-                '   [D:角色姓名] 角色台词（角色姓名必须严格属于当前在场cast白名单；严禁写 [D:徐志北] 或场外人物对白；只放纯开口台词、合法Fish英文方括号声学标签及可选 ｛表层违心台词｜真实潜台词｝，严禁在 [D:角色姓名] 内混入第三人称动作/神态旁白如“她端起来抿了一口，没抬眼：”且严禁加外层双引号“...”，任何动作必须拆分为独立的 [A:角色姓名] 行）\n'
+                '   [D:角色姓名] 纯开口台词（严格限在场cast，严禁 [D:徐志北] 或场外对白；禁外层引号“...”及第三人称动作旁白；三女主可按 narrative.dialogue_tts 使用导演提示 [...]、句内停顿与词级标签 <whisper>/<soft>/<emphasis>/<slow>/<forceful>，及必要 ｛表层｜潜台词｝）\n'
             )
         protocol = (
             '【前台演播协议 · 文字沉浸流式剧场（dual_stream_v2）】\n'
-            '你是深渊天平正式互动的前台叙事演播者。本通道只专注剧情深度、人物主体性、语言指纹、感官血肉、信息差与Fish声学标签；'
-            '数值结算、事件打标、时钟推进与记忆归档由后台结算通道独立完成，严禁在正文输出JSON、面板数值、事件标签、SYSTEM_LOG或审计长表。\n'
-            '1. 文字沉浸篇幅与微幕戏核：\n'
-            '   - 篇幅与节点数由当前戏核与文学呼吸自然决定（单行传输防呆上限4000字，不再以旧字数配额限制创作）：重要冲突、心理交锋、人物展露与亲密场可充分写透，日常快节奏亦可利落短答；唯一红线是严禁注水复读、严禁静态景物灌水、严禁替玩家代打关键行动或越权篡改玩家意图。\n'
+            '你是深渊天平前台叙事演播者，专注真实活人对话、人物主体性、自然节奏、信息差与 Drama 3 导演声演；'
+            '数值与结算交由后台完成，正文禁输出 JSON、面板数值、事件标签、SYSTEM_LOG 或审计表。\n'
+            '1. 创作与流转：\n'
+            '   - 篇幅由戏核自然呼吸决定（单行防呆上限4000字）：重场写透，日常快节奏亦可干脆短答；一幕一位移（变完回不去），打破礼貌寒暄循环；动作与对白自由穿插，快节奏交锋可连续多行 [D] 零动作直抛，不必机械一动一言。\n'
             + protagonist_rule +
-            '   - 一幕一位移（变完回不去）：每幕须产生信息增量、防备/关系变化、局势介入或具体约定中至少一项真实位移，坚决打破「礼貌问候—温和回应—继续问候」的乒乓客套循环。\n'
-            '   - 隐性议程与合法破绽：在场角色须带着自己的处境、顾虑与正在处理的事行动，留出可被玩家接住的真实破绽或悬念钩子；每幕换开场直接进动作或对话，禁连续静态扫景；零出现AI套词（极其/骤然/不禁/不由得/眼眸/唇角/闪过一丝/勾起嘴角），模糊词（似乎/仿佛/好像）单幕至多1处。\n'
-            '   - 客观外部变数：仅当本轮 delta 携带 surprise_directive 时，将其作为真实世界中自然发生的客观动静织入剧情并触发人物反应；若为 thread_spark（活体火花）须顺着锚点线头融合双词意象与软/硬动作；若为 offstage_clock（场外暗钟）且 owner_in_scene=false，严禁让该角色瞬移现身或输出 [D:姓名]，只可经物件/转述/旁白间接浮现；严禁使用 banned_channels 所列近期媒介套路，严禁提及「系统/随机/概率/导演/暗钟/触发」等机制词，严禁替主角代作应对决定。\n'
-            '2. 逐行流式输出格式（严禁使用JSON、Markdown代码块、列表符号或额外前后解释；每行必须直接以英文方括号标签开头，严禁在方括号前加“旁白：/动作：/对白：/人物动作：/角色对白：”等中文前缀）：\n'
-            '   [N] 旁白叙述正文（单行传输防呆≤4000字，不带说话人；行首直接写 [N]，严禁写成“旁白：[N]”，严禁含Fish标签）\n'
+            '   - 外部变数（仅当 delta 携带 surprise_directive 时生效）：将其化作真实客观动静织入并触发反应；thread_spark 顺着锚点融合双词意象；offstage_clock 且 owner_in_scene=false 时禁瞬移现身或输出 [D:姓名]，只经物件/转述浮现；避开 banned_channels，禁提机制词，不代作应对决定。\n'
+            '   - 特定时刻微回响（仅当 delta 携带 milestone_echo 时生效）：自然间隙用 1 句克制氛围或内心轻顿带过，禁提系统/任务/商城/积分词，不扭转玩家意图。\n'
+            '2. 逐行流式格式（禁 JSON/代码块/列表符/中文前缀“旁白：/对白：”，每行直接以英文方括号标签起头）：\n'
+            '   [N] 旁白叙述（单行≤4000字，禁任何声学或 XML 标签）\n'
             + action_line_rule
             + dialogue_line_rule +
-            '   格式示例（仅示意行首标签，严禁照抄示例内容）：\n'
-            '   [N] 书房的冷气偏低，台灯光落在纸页边缘。\n'
-            '   [A:沈知韫] 她合上文件夹，抬眼看向门边。\n'
-            '   [D:沈知韫] [low restrained voice] 这么晚还没睡？\n'
-            '   段末三轴推进抉择块（正文结束后必须另起一行，完整单行写 ---DECISION--- 切勿把横线与DECISION拆成两行；三条选项须指向三种实质不同走向，严禁写成同场景三种不同客套话）：\n'
+            '   格式示意（仅示语法，禁照抄内容）：\n'
+            '   [A:沈知韫] 她把对账单往桌角一推，纸边撞到茶碟轻轻一响。\n'
+            '   [D:沈知韫] [低声克制，语速微缓] 这么晚还没睡？<soft>手怎么这么凉。</soft>\n'
+            '   段末三轴抉择块（正文结束另起完整单行 ---DECISION---，三条选项须实质互异）：\n'
             '   ---DECISION---\n'
-            '   PROMPT: 点明本幕刚浮现的具体变数、信息缺口或两难（≤300字，禁「接下来怎么做」式空话）\n'
-            '   A: 或 A[MOVE:登记地点]: 日常互动（5体力，中性无肢体接触）— 信息撬动/暗线换轨，或当本场戏眼已尽时提供收束离场/转场出口（≤500字）\n'
-            '   B: 或 B[MOVE:登记地点]: 社交接触（10体力，礼仪范围内接触）— 具身破冰/试探微目标/顺势自然过渡（≤500字）\n'
-            '   C: 或 C[MOVE:登记地点]: 主动行为（15体力）— 高能动性破局/正面戳破/亮牌博弈/语境成熟时的亲密推进（≤500字，不强塞越界或保证成功）\n'
-            '   显式转场标记：当某选项实质包含离开当前地点前往 delta.available_destinations 中另一处开放地点时，必须在该选项字母后标注 [MOVE:登记地点]（例如 A[MOVE:公司]: 收起手机告别出门，直接去公司找沈知韫），严禁填当前所在地点或未开放地点。\n'
-            '3. 只读文件工具边界：本轮已由程序交付完整精编设定与状态；不要为证明读取而重读任何packet或规则文件。'
-            '仅当玩家明确追问超出当前窗口的极早旧史或需核对被省略归档时，才按delta中给出的精确许可路径与行号调用read_file_part补查。不写文件、不执行命令。\n'
-            '4. 特定时刻微回响（防偏航红线）：仅当本轮输入携带 milestone_echo 字段时，允许在自然间隙或收束处用1句克制的氛围、感官或内心轻顿带过（如想起新入囊的小物或心头掠过一阵阶段落定的轻快）；'
-            '严禁直呼「任务/委托/商城/积分/系统/数值」等机制词，严禁因此扭转玩家当前行动意图，严禁让NPC凭空知晓主角私有道具或系统信息。无 milestone_echo 时不得主动编造任务或商城提示。'
+            '   PROMPT: 点明本幕刚浮现的具体变数或两难（≤300字，禁空话）\n'
+            '   A: 或 A[MOVE:登记地点]: 日常互动（5体力，中性无接触）— 信息撬动/暗线换轨或自然离场转场（≤500字）\n'
+            '   B: 或 B[MOVE:登记地点]: 社交接触（10体力，礼仪接触）— 破冰试探或顺势过渡（≤500字）\n'
+            '   C: 或 C[MOVE:登记地点]: 主动行为（15体力）— 破局亮牌/正面戳破/语境成熟时的亲密推进（≤500字）\n'
+            '   转场标记：选项实质包含离开当前地点前往 delta.available_destinations 中另一开放地点时，须在字母后标 [MOVE:登记地点]（禁填当前或未开放地点）。\n'
+            '3. 只读工具边界：精编设定与状态已由程序冻结交付，勿重读规则文件；仅当玩家追问极早旧史时按 delta 许可路径行号调用 read_file_part 补查。不写文件、不执行命令。'
         )
     else:
         single_player_rule = (
@@ -833,6 +827,45 @@ def _build_available_destinations(root, current_location, weekday, clock):
     return [f'{loc}({hints[loc]})' if loc in hints else loc for loc in locations if loc != current_location]
 
 
+_CLICHE_MOTIF_PATTERNS = (
+    ('喉结滚动', re.compile(r'喉结')),
+    ('端杯/放杯', re.compile(r'(?:端起|搁下|放下|摩挲|握着)[^。\n]{0,6}(?:杯|盏)')),
+    ('顿了半秒/指尖微顿', re.compile(r'顿了半秒|指尖(?:微微)?一顿|指尖微顿')),
+    ('合上文件', re.compile(r'合上文件|推远半寸')),
+    ('垂下眼/垂眸', re.compile(r'垂下眼|垂眸|眼帘微垂')),
+    ('锁骨特写', re.compile(r'锁骨')),
+    ('沐浴露/洗发水香', re.compile(r'沐浴露|洗发水')),
+    ('嘴角/唇角微动', re.compile(r'嘴角|唇角')),
+)
+
+
+def _extract_recent_cliche_motifs(history):
+    """Scan the last 2 committed turns for repeated stage/body clichés; return a concise list when overused."""
+    if not isinstance(history, (list, tuple)) or not history:
+        return []
+    recent_turns = [t for t in history if isinstance(t, dict)][-2:]
+    turn_hits = []
+    for turn in recent_turns:
+        texts = []
+        for m in turn.get('messages') or ():
+            if isinstance(m, dict) and isinstance(m.get('text'), str):
+                texts.append(m['text'])
+        blob = '\n'.join(texts)
+        hits = {label for label, rx in _CLICHE_MOTIF_PATTERNS if rx.search(blob)}
+        turn_hits.append(hits)
+    if not turn_hits:
+        return []
+    repeated_across_turns = turn_hits[0] & turn_hits[1] if len(turn_hits) >= 2 else set()
+    union_hits = set().union(*turn_hits)
+    if repeated_across_turns:
+        ordered = [label for label, _ in _CLICHE_MOTIF_PATTERNS if label in repeated_across_turns or label in union_hits]
+        return ordered[:4]
+    if len(union_hits) >= 3:
+        ordered = [label for label, _ in _CLICHE_MOTIF_PATTERNS if label in union_hits]
+        return ordered[:4]
+    return []
+
+
 def build_user_delta(root, state, projection, history, new_history_only, text, selected,
                      resolved_op, intent_evidence, preview_cost, runtime, memory_text,
                      previous_error='', include_full_anchor=True, mode='dual_stream_v2',
@@ -905,9 +938,13 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
     sensory_anchors = [_HEROINE_SENSORY_ANCHORS[c] for c in cast if c in _HEROINE_SENSORY_ANCHORS]
     if sensory_anchors:
         delta['sensory_lens'] = (
-            '本幕在场形体微距锚点：' + '；'.join(sensory_anchors) + '。'
-            '每幕必落至少1处具体形体微距+2类近距五感(温差/肌理摩擦/气味呼吸)+1处徐志北真实生理代价(喉结滚动/呼吸变浅/掌心发烫/下身发紧，禁写「心头一动」)；'
-            '段末B/C选项须结合现场契机与随身道具提供可顺势贴近标志部位或成人推进的具体机会。'
+            '在场形体与感官取材池（按需穿插，非每幕必写）：' + '；'.join(sensory_anchors) + '。'
+            '仅在距离贴近、接触或情绪起澜时顺势落墨；日常快节奏对话幕不必硬塞形体特写或固定生理反应。'
+        )
+    recent_cliches = _extract_recent_cliche_motifs(history or new_history_only)
+    if recent_cliches:
+        delta['fresh_detail_hint'] = (
+            f'近两幕已用过[{" / ".join(recent_cliches)}]，本幕请换用全新的日常动作或生活杂务细节，勿重复同一小动作。'
         )
 
     held_compact = [{
@@ -1012,16 +1049,14 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
     elif mode == 'dual_stream_v2':
         if style == 'faithful':
             delta['output_format'] = (
-                '正文逐行以[N]/[A:名]/[D:在场角色名]开头：开场先用1～2句[A:徐志北]/[N]具身落位本轮抉择与五感，'
-                '中段保留主角自然微反应，且允许最多2～3句严格贴合玩家原意图的简短[D:徐志北]发言（单句≤40字、禁Fish标签、禁越权新决定）；'
-                '[D:名]只写纯台词，严禁混入“她端起杯子：”等第三人称动作旁白或外层引号；'
-                '末尾另起一行完整单行写---DECISION---（切勿拆行），紧接PROMPT:与A:/B:/C:三项互异抉择。'
+                '逐行以[N]/[A:名]/[D:在场角色名]起头：自然承接玩家意图，动作与对白自由穿插（快节奏可连发[D]，不必每句台词硬配动作）；'
+                '允许≤3句贴合原意图的简短[D:徐志北]（单句≤40字、零标签）；[D:名]只写纯台词（禁混入动作旁白或外层引号），三女主可按需用导演[...]与词级标签；'
+                '文末完整单行---DECISION---后接PROMPT:与A:/B:/C:三项互异抉择。'
             )
         else:
             delta['output_format'] = (
-                '正文逐行以[N]/[A:名]/[D:在场角色名]开头（严禁输出[D:徐志北]，但每幕须至少含2处[A:徐志北]具身动作与五感描写，玩家提问用[A:徐志北]或[N]间接动作概括；'
-                '[D:名]只写纯台词，严禁混入“她端起杯子：”等第三人称动作旁白或外层引号）；'
-                '末尾另起一行完整单行写---DECISION---（切勿拆行），紧接PROMPT:与A:/B:/C:三项互异抉择。'
+                '逐行以[N]/[A:名]/[D:在场角色名]起头（严禁[D:徐志北]，以[A:徐志北]/[N]自然呈现主角动作与提问；[D:名]只写纯台词禁混入动作旁白或外层引号，快节奏可连发[D]）；'
+                '文末完整单行---DECISION---后接PROMPT:与A:/B:/C:三项互异抉择。'
             )
 
     return json.dumps(delta, ensure_ascii=False, separators=(',', ':'), allow_nan=False)
@@ -1266,6 +1301,11 @@ def strip_preview_decision_leak(text):
 _OPT_STOP_CONT_RE = re.compile(r'^\s*(?:#{1,6}\s|【|[（(]?\s*(?:注|说明|备注)\s*[:：]|```)')
 _LEADING_ASCII_FISH_RE = re.compile(r'^\s*(?:\[[a-zA-Z0-9_,\s-]{1,80}\]\s*)+')
 _LEADING_VOICE_TAGS_RE = re.compile(r'^((?:\[[^\]\r\n]{1,80}\]\s*)*)(.*)$', re.S)
+_ANY_VOICE_BRACKET_RE = re.compile(r'\[[^\]\r\n]{1,80}\]\s*')
+_DRAMA3_XML_STRIP_RE = re.compile(
+    r'</?(?:whisper|emphasis|soft|fast|slow|stress|forceful|chinese|english|japanese|korean|cantonese|french|german|spanish)>',
+    re.I,
+)
 _OUTER_QUOTES_ONLY_RE = re.compile(
     r'^(?:“([^“”]+)”|"([^"]+)"|「([^「」]+)」|『([^『』]+)』)\s*$',
     re.S,
@@ -1284,14 +1324,15 @@ def _normalize_stream_node(kind, who, body):
     if not text:
         return []
     if kind == 'narration':
-        return [{'kind': 'narration', 'speaker': '', 'text': text}]
+        cleaned = _DRAMA3_XML_STRIP_RE.sub('', text).strip() or text
+        return [{'kind': 'narration', 'speaker': '', 'text': cleaned}]
     if kind == 'action':
-        cleaned = _LEADING_ASCII_FISH_RE.sub('', text).strip() or text
+        cleaned = _DRAMA3_XML_STRIP_RE.sub('', _LEADING_ASCII_FISH_RE.sub('', text)).strip() or text
         return [{'kind': 'action', 'speaker': who, 'text': cleaned}]
     # kind == 'dialogue'
     if who == '徐志北':
-        # Player is permanently muted; strip any stray acoustic Fish tags cleanly.
-        text = _LEADING_ASCII_FISH_RE.sub('', text).strip() or text
+        # Player is permanently muted; strip any stray acoustic Fish tags (ASCII or Chinese) and Drama 3 XML tags cleanly.
+        text = _DRAMA3_XML_STRIP_RE.sub('', _ANY_VOICE_BRACKET_RE.sub('', text)).strip() or text
     tm = _LEADING_VOICE_TAGS_RE.match(text)
     leading_tags = (tm.group(1) or '').strip() if tm else ''
     rest = (tm.group(2) or '').strip() if tm else text

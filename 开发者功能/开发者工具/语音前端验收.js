@@ -137,7 +137,31 @@ async function run() {
     assert.match(storySource, /=== '徐家主宅'/);
     const mainHtml = fs.readFileSync(path.join(root, 'main_template.html'), 'utf8');
     assert.equal((mainHtml.match(/<\/html>/gi) || []).length, 1, 'main_template.html should have exactly one closing </html>');
-    console.log('PASS story_client & main_template: 4-speaker allowlist, stripVoiceTags, isHome lock, discLabels 0..4, HTML integrity');
+    assert.ok(!mainHtml.includes('id="commitDialog"'), 'legacy #commitDialog modal must be removed');
+    assert.ok(mainHtml.includes('id="inkCommitDock"'), '#inkCommitDock container must exist inside #stream');
+
+    // Verify free-form Chinese Drama 3 director cues are hidden from dialogue display (zero screen leak)
+    const classifyFn = storySource.match(/function classifyVoiceTag\([\s\S]*?\n  \}/)[0];
+    const zhReBlock = storySource.match(/const ZH_VOICE_TAG_TOKEN_RE = [\s\S]*?function isFishBracketTag\([\s\S]*?\n  \}/)[0];
+    vm.runInContext(classifyFn + '\n' + zhReBlock, storyCtx);
+    assert.equal(storyCtx.isFishBracketTag('像在强忍眼泪，却努力笑着', 'dialogue'), true);
+    assert.equal(storyCtx.isFishBracketTag('声音发沉，带着点冷淡的提醒', 'dialogue'), true);
+    assert.equal(storyCtx.isFishBracketTag('MOVE:公司', 'dialogue'), false);
+    assert.equal(storyCtx.isFishBracketTag('ITEM-001', 'dialogue'), false);
+    assert.equal(storyCtx.classifyVoiceTag('压着倦意，声音微冷')?.mood, 'exhausted');
+    assert.equal(storyCtx.classifyVoiceTag('轻哂，语速放慢半拍')?.mood, 'restrained');
+
+    // Verify audioCache model-keying + invalidation on tier switch + Scheme A/B confirmation hooks
+    assert.match(storySource, /function clearAudioCache\(\)[\s\S]*?audioCache\.clear\(\)/);
+    assert.match(storySource, /function invalidateVoiceConfig\(\)[\s\S]*?clearAudioCache\(\)/);
+    assert.match(storySource, /function audioCacheKey\(id,\s*who,\s*cfg,\s*settings\)/);
+    assert.match(storySource, /voice-d3-pill/);
+    assert.match(storySource, /confirmMode:\s*'inline'/);
+    assert.match(storySource, /function bindChoiceGesture\(b,\s*opt\)/);
+    assert.match(storySource, /function stageInkCommit\(/);
+    assert.match(storySource, /function recallInkCommit\(/);
+
+    console.log('PASS story_client & main_template: 4-speaker allowlist, Drama 3 director tag hiding, cache invalidation, Scheme A+B zero-modal confirm');
     console.log('All frontend checks passed; external requests: 0');
 }
 run().catch(error => { console.error(error.stack); process.exitCode = 1; });

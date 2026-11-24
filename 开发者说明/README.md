@@ -23,13 +23,13 @@
 | 序号 | 文档 | 核心内容 | 建议阅读对象 |
 |---|---|---|---|
 | **01** | [`01_系统总架构与模块依赖.md`](01_系统总架构与模块依赖.md) | 系统四端拓扑、分层架构、全仓模块依赖图（含 `save_store.py` 与 `.round-runtime/story/prefs.json` 偏好持久化）、五大入口模式矩阵、一次互动的端到端时序图、运行环境与安全边界 | **所有人必读（入门首篇）** |
-| **02** | [`02_核心引擎与事务存储层.md`](02_核心引擎与事务存储层.md) | `save_store.py` P2 自包含存档（含 `deployed` 装置区与 `shop.dynamic_catalog` 动态货架）与漂移检测、`RoundStore` 单一写者锁与双阶段 WAL 崩溃恢复/冷启单调续号、任务生命周期状态机与租约、`story_compiler.py` 三区精编（默认全局成人感官锚点 `_HEROINE_SENSORY_ANCHORS` / `sensory_lens`）/全节点 K01 红线守卫/主角忠实演绎（`faithful` 最多 3 句短台词与动作落位）与仅动作感官（`silent` 0 台词）、`interaction_runtime.py` `O(limit)` 倒序分页/头部脱敏/6000 字预算/统一在场(`scene_cast`)/`use_item`·`deploy_item`·`retrieve_item`·`inspect_deployed` 远程视角支持、`story_reading.py` 与 `relationship_query.py` | 后端 / 引擎 / 事务维护者 |
+| **02** | [`02_核心引擎与事务存储层.md`](02_核心引擎与事务存储层.md) | `save_store.py` P2 自包含存档（含 `deployed` 装置区与 `shop.dynamic_catalog` 动态货架）与漂移检测、`RoundStore` 单一写者锁与双阶段 WAL 崩溃恢复/冷启单调续号、任务生命周期状态机与租约、`story_compiler.py` 三区精编（Zone 0 瘦身 ~11.3K 字、自然穿插感官色板 `sensory_lens`、`_extract_recent_cliche_motifs()` 近两幕高频套词防复读滑窗 `fresh_detail_hint`）/全节点标签净化与 K01 守卫/主角忠实演绎（`faithful` 最多 3 句短台词）与仅动作感官（`silent` 0 台词）、`interaction_runtime.py` `O(limit)` 倒序分页/头部脱敏/6000 字预算/统一在场(`scene_cast`)/`use_item`·`deploy_item`·`retrieve_item`·`inspect_deployed` 远程视角支持、`story_reading.py` 与 `relationship_query.py` | 后端 / 引擎 / 事务维护者 |
 | **03** | [`03_数值结算与规则推进体系.md`](03_数值结算与规则推进体系.md) | `story_progression.py` 三档体力预扣退款/时钟与星期/双向看望窗与场外作息流动/微状态自动派生/强制休息/整夜睡眠非失眠女主 `+40`/恢复道具额度/记忆压缩、独立确定性系统商城（16 件分类商品 + 叠加 `unlock_req` 门槛 + AI 动态进货 `DYN-*` 红线校验与删除）·委托队列领奖·经验被动升级·商业情报与杠杆 WAL 事务、活体导演 Tier-0 `sensual_hook` 与 `sensual_drought` 补偿、`injection_core.py` 全部 9 大数值系统（含感官 Buff 协同减损、`use_item` 预挂 Buff 与 `deployed` 装置闭环） | 游戏机制 / 规则 / 数值开发者 |
 | **04** | [`04_后端服务与HTTP_SSE协议参考.md`](04_后端服务与HTTP_SSE协议参考.md) | Flask 引导与 `/api/story/*` + `/api/*` 双同源/CSRF 边界、`_EventHub` + Long-Polling（含 `service_epoch` 与 `shop_inquiry` 唤醒）+ SSE 实时通道（含 `shop_updated`）、`DEFAULT_LIVE_LIMIT=10` 懒加载、`compact: true` 进度响应、`_thumbs/` WebP 缩略图服务（`?thumb=avatar\|plate`）、**32 个 `/api/story/*` 路由**与商城询货队列（`POST /shop/inquire`、`GET /shop/inquire/<id>`、`DELETE /shop/dynamic/<id>`、`/worker/shop-inquiry/*`）、`scene_chat` SQLite 隔离 | API / 前后端联调 / 桥接联调开发者 |
-| **05** | [`05_前端剧场与语音引擎架构.md`](05_前端剧场与语音引擎架构.md) | `main_template.html` + `story_client.js` + `story_client.css` 剧场前端（顶部锚定聚焦输入浮层 `#composerSheet` 抗 Android 软键盘遮挡 + 快捷筹码/道具挂载条 `#sheetAttachBar`、`#stageCurtain` 暗金幕布、`patchMessageTimeline()` 增量 DOM 补丁、`parsePanels()` 记忆化 + `segmentDomCache` 历史 DOM 缓存 + `IntersectionObserver` 视差优化、三段式行囊/内联选择器/已部署装置远程监控、地图装置徽标、商城 AI 询货窗、4 角色发声白名单）、Fish Audio 连接池/40MB 磁盘 LRU/3 句滑动预热、`voice_manager.html` | 前端 / UI / 语音引擎开发者 |
+| **05** | [`05_前端剧场与语音引擎架构.md`](05_前端剧场与语音引擎架构.md) | `main_template.html` + `story_client.js` + `story_client.css` 剧场前端（顶部锚定聚焦输入浮层 `#composerSheet`、无弹窗方案 A+B 落笔确认：原位称重/550ms长按落印与 1.8s `#inkCommitDock` 收墨撤回、`#stageCurtain` 暗金幕布、`patchMessageTimeline()` 增量补丁、`parsePanels()` 记忆化 + `segmentDomCache` + `IntersectionObserver` 视差优化、三段式行囊/地图装置徽标/商城 AI 询货窗、4 角色白名单与 `D3` 徽记）、Fish Audio 连接池/40MB 磁盘 LRU/`drama-3` 参数调优与 S2 短别名映射、`voice_manager.html` | 前端 / UI / 语音引擎开发者 |
 | **06** | [`06_Operit2桥接插件架构.md`](06_Operit2桥接插件架构.md) | **Operit 2 官方知识库与宿主机制** + `local.story.operit_bridge` **v2.1.8** 插件双阶段流水线、三档副模型结算思考自适应（`auto/off/on`）、`handleShopInquiry()` 无状态 `Tools.Chat.call` 商城定制询货处理（零触碰 `liveSession` 与 KV 缓存）、主角发声忠实演绎/静音支持、外部删窗实时自愈、`syncServiceEpoch`、Compose DSL 设置页与 `build.py` 自动清旧打包 | Operit 2 插件 / 桥接协议开发者 |
 | **07** | [`07_数据模型_SSOT与文件格式规范.md`](07_数据模型_SSOT与文件格式规范.md) | 单一事实来源（SSOT）依赖总图与派生视图同步规则、`txt文件/` 全量 JSON Schema（含 16 件分类商城与 `unlock_req`、Tier-0 `sensual_hook` 变故库）、**P2 自包含存档（`save_state.json` 含 `items.deployed` / `shop.dynamic_catalog` / `director.sensual_drought`、`四层记忆.json`、`近期演播.json`）**与单向自动渲染 `全局记忆库.txt` / `徐志北道具图鉴.txt`（含 `▼ 已部署装置区 ▼`） | 设定维护 / 数据结构 / 存档工具开发者 |
-| **08** | [`08_开发维护_测试排障与二次开发指南.md`](08_开发维护_测试排障与二次开发指南.md) | Pydroid 3 与 proot Alpine/Linux 双环境配置、改动与图片热替换生效路径、`run_tests.sh` 全量 **33 组**测试清册（Python 24 + Node 9，含 `bridge_shop_inquiry.js` 100% 全绿）、常见二次开发清单、运维脚本、崩溃恢复与 Git 交付流 | 接手维护 / QA / 二次开发工程师 |
+| **08** | [`08_开发维护_测试排障与二次开发指南.md`](08_开发维护_测试排障与二次开发指南.md) | Pydroid 3 与 proot Alpine/Linux 双环境配置、改动与图片热替换生效路径、**37 项**全量测试清册（Python 27 + Node 10 全绿）、常见二次开发清单、运维脚本、崩溃恢复与 Git 交付流 | 接手维护 / QA / 二次开发工程师 |
 | **附** | [`世界书关键字配置.txt`](世界书关键字配置.txt) | 23 条知识库世界书正则关键字与常驻配置全量对齐参考表（含按需条目 `narrative.intimate`，仅供参考、非数据源） | 设定维护 / 手动世界书维护者 |
 
 ### 快捷阅读路径
@@ -58,10 +58,10 @@
 
 ```text
 huan-yi/                                    # 项目根目录（Android: /storage/emulated/0/互动对话项目/Gemini网页版）
-├── 语音运行.py                              # 唯一服务端启动入口：Flask 托管 + ?thumb=avatar|plate 缩略图 + Fish/Edge TTS + 密钥缓存/分档/音素表/潜台词剥离/CSRF + 静态白名单
+├── 语音运行.py                              # 唯一服务端启动入口：Flask 托管 + ?thumb=avatar|plate 缩略图 + Fish/Edge TTS（Drama 3 调优/S2短别名映射/X-Fish-Model）+ CSRF + 静态白名单
 ├── save_store.py                           # P2 自包含存档存储层：JSON 真相读写（含 items.deployed / shop.dynamic_catalog / sensual_drought）、旧纯TXT迁移、漂移检测与单向 .txt 渲染
-├── story_service.py                        # 正式互动 HTTP/SSE/Long-Polling 服务（DEFAULT_LIVE_LIMIT=10、compact 演播进度、AI 商城询货队列与 worker 接口）
-├── story_compiler.py                       # 只读确定性精编器：Zone 0/1/2、全局成人微距锚点 _HEROINE_SENSORY_ANCHORS/sensory_lens、held_items 与 deployed_items_* 增量
+├── story_service.py                        # 正式互动 HTTP/SSE/Long-Polling 服务（DEFAULT_LIVE_LIMIT=10、compact 演播进度、AI 商城询货队列与 worker 接口、预热配置版本去重）
+├── story_compiler.py                       # 只读确定性精编器：Zone 0瘦身/1/2、按需穿插 sensory_lens、_extract_recent_cliche_motifs 防复读滑窗、流式标签净化
 ├── interaction_runtime.py                  # 正式连续互动协议：O(limit) 倒序分页、_thumbs 排除缓存、use_item/deploy_item/retrieve_item/inspect_deployed 校验与 remote_cast 注入
 ├── story_progression.py                    # 确定性资源与推进：三档体力、活体导演（Tier-0 sensual_hook + sensual_drought 补偿）、16件商城+AI动态进货验证+unlock_req 门槛
 ├── round_runtime.py                        # RoundStore 单一写者事务引擎：可重入 POSIX 锁、_ENGINE_CODE_CACHE、2PC WAL、playback 两文件写入收窄
@@ -71,9 +71,9 @@ huan-yi/                                    # 项目根目录（Android: /storag
 ├── scene_chat.py                           # 隔离实验场景聊天服务（.scene-chat/ SQLite）
 ├── scene_world.py                          # 旧存档只读隔离导入器（兼容 ▼ 已部署装置区 ▼ 边界识别）
 │
-├── main_template.html                      # 正式剧场首页（含顶部聚焦浮层 #composerSheet、六大档案中心、#gazeLens 等）
-├── story_client.js                         # 正式剧场前端主逻辑（#composerSheet、三段式行囊、地图装置徽标、商城AI询货、parsePanels记忆化、segmentDomCache、IntersectionObserver视差）
-├── story_client.css                        # 剧场设计系统（#composerSheet 样式、content-visibility:auto、商城询货/锁定/装置样式、noir/ivory 双主题）
+├── main_template.html                      # 正式剧场首页（顶部聚焦浮层 #composerSheet、收墨撤回坞 #inkCommitDock、六大档案中心、#gazeLens 等）
+├── story_client.js                         # 正式剧场前端主逻辑（#composerSheet、方案A+B无弹窗确认、模型级音频清缓存/D3徽记、三段式行囊、商城AI询货、长对话P1优化）
+├── story_client.css                        # 剧场设计系统（#composerSheet、原位称重/长按/收墨撤回动效、D3徽记、content-visibility:auto、noir/ivory 双主题）
 ├── voice_client.js                         # 共享语音传输库
 ├── voice_manager.html                      # /admin 声学工坊
 ├── scene_chat.html                         # /scene-chat 极简独立实验页
@@ -96,11 +96,11 @@ huan-yi/                                    # 项目根目录（Android: /storag
 ├── 存档/                                   # P2 自包含正式累积事实层（JSON 真相 + 单向渲染只读 .txt）
 ├── data.json & voice_config.json           # 派生运行时快照与角色语音配置
 ├── Operit世界书导出/                       # 手动入口世界书派生产物
-└── scene_chat_dev/                         # Operit 2 桥接源码（v2.1.8）、成品包与 33 组回归测试
+└── scene_chat_dev/                         # Operit 2 桥接源码（v2.1.8）、成品包与核心回归测试
     ├── local.story.operit_bridge/          # 插件 v2.1.8 源码（含无状态 AI 商城询货）
     ├── build.py                            # 打包脚本 → artifacts/故事桥接-continuous-2.1.8.toolpkg
     ├── src/scene_live/ & legacy_visibility.json
-    └── tests/ & run_tests.sh               # 24 个 Python 单测 + 9 个 Node 桥接测试套件（共 33 组，100% 全绿）
+    └── tests/ & run_tests.sh               # 24 个 Python 单测 + 9 个 Node 桥接测试套件（另加 开发者工具 4 项验收，共 37 项全绿）
 │
 ├── 开发者功能/                             # 历史变更归档与独立开发工具（非 AI 数据源）
 │   ├── 修订日志/                            # 压缩归档日志

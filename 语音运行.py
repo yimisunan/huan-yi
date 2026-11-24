@@ -329,6 +329,60 @@ def _strip_drama3_markup(text):
     return _DRAMA3_XML_RE.sub('', text).strip()
 
 
+_S2_CN_TAG_ALIAS_MAP = {
+    '低声': 'low restrained voice',
+    '轻声': 'soft gentle voice',
+    '耳语': 'whispering',
+    '气音': 'breathy whisper',
+    '低语': 'murmuring softly',
+    '克制': 'calm restrained tone',
+    '冷淡': 'cool detached tone',
+    '冷冽': 'cold restrained tone',
+    '平静': 'calm measured tone',
+    '沉稳': 'calm executive tone',
+    '轻叹': 'sighing softly',
+    '叹息': 'sighing',
+    '轻笑': 'small laugh',
+    '冷笑': 'cold chuckle',
+    '轻哂': 'chuckle',
+    '微颤': 'voice trembling',
+    '颤抖': 'voice trembling',
+    '停顿': 'break',
+    '短停顿': 'break',
+    '长停顿': 'long-break',
+    '急促': 'speaking fast',
+    '压低声音': 'hushed low voice',
+    '压低': 'hushed low voice',
+    '哽咽': 'choked up',
+    '哭腔': 'soft sobbing',
+    '喘息': 'breathless panting',
+    '抽气': 'gasp',
+    '换气': 'breath',
+    '疲惫': 'tired weak voice',
+    '敷衍': 'polite dismissive tone',
+    '放慢': 'slowly',
+    '语速放慢': 'slowly',
+}
+_BRACKET_TAG_RE = re.compile(r'\[([^\]\r\n]{1,80})\]')
+
+
+def _normalize_s2_chinese_aliases(text):
+    """仅对非 drama-3（S2.1/S2）将标准中文短别名（含逗号组合）映射为稳定英文控制词；自由长句原样保留。"""
+    if not text or '[' not in text:
+        return text
+
+    def _repl(match):
+        inner = match.group(1).strip()
+        if not inner:
+            return match.group(0)
+        parts = [p.strip() for p in re.split(r'[,，、]+', inner) if p.strip()]
+        if parts and all(p in _S2_CN_TAG_ALIAS_MAP for p in parts):
+            return '[' + ', '.join(_S2_CN_TAG_ALIAS_MAP[p] for p in parts) + ']'
+        return match.group(0)
+
+    return _BRACKET_TAG_RE.sub(_repl, text)
+
+
 def _infer_voice_tier(cfg):
     if not isinstance(cfg, dict):
         return 'free'
@@ -1016,8 +1070,16 @@ def _build_fish_payload(text, voice_id, cfg=None, tts_model=None):
         "max_new_tokens": fish_cfg["max_new_tokens"],
         "early_stop_threshold": fish_cfg["early_stop_threshold"],
     }
-    if model not in ("s2.1-pro", "s2.1-pro-free"):
+    if model not in ("s2.1-pro", "s2.1-pro-free", "drama-3"):
         payload["repetition_penalty"] = fish_cfg["repetition_penalty"]
+    if model == "drama-3":
+        payload["chunk_length"] = max(int(payload["chunk_length"]), 280)
+        if payload["latency"] == "balanced":
+            payload["latency"] = "normal"
+        if 0.45 <= float(payload["temperature"]) < 0.74:
+            payload["temperature"] = round(min(0.82, float(payload["temperature"]) + 0.12), 2)
+        if 0.55 <= float(payload["top_p"]) < 0.78:
+            payload["top_p"] = round(min(0.86, float(payload["top_p"]) + 0.08), 2)
     if fmt == "mp3":
         payload["mp3_bitrate"] = fish_cfg["mp3_bitrate"]
     elif fmt == "opus":
@@ -1566,7 +1628,7 @@ def _fish_audio(payload, tts_model, on_chunk=None, api_key=None):
         raise TtsError('语音服务连接失败，请检查网络后重试。', 502) from exc
 
 
-def _stream_cached_tts(key, factory, mimetype='audio/mpeg'):
+def _stream_cached_tts(key, factory, mimetype='audio/mpeg', extra_headers=None):
     """复用现有缓存及请求去重；单客户端提前取消不再毒化同 key 的并发等待者与缓存。"""
     messages = queue.Queue(maxsize=8)
     stopped = threading.Event()
@@ -1627,6 +1689,10 @@ def _stream_cached_tts(key, factory, mimetype='audio/mpeg'):
     response = Response(body(), mimetype=mimetype)
     response.headers['Cache-Control'] = 'no-store'
     response.headers['X-Accel-Buffering'] = 'no'
+    if isinstance(extra_headers, dict):
+        for hk, hv in extra_headers.items():
+            if hk and hv is not None:
+                response.headers[hk] = str(hv)
     response.call_on_close(stopped.set)
     return response
 
@@ -1649,6 +1715,7 @@ def _prepare_tts_job(data):
     audio_mime = 'audio/mpeg'
     audio_ext = 'mp3'
     stream_factory = None
+    resolved_tts_model = 'edge'
     if model_name == 'edge':
         if voice_id in EDGE_UNAVAILABLE_HINTS or not voice_id:
             voice_id = EDGE_DEFAULT_VOICE
@@ -1671,8 +1738,10 @@ def _prepare_tts_job(data):
         tts_model = _normalize_fish_tts_model(
             (data or {}).get('tts_model') or matched.get('tts_model') or _get_current_fish_tts_model()
         )
+        resolved_tts_model = tts_model
         if tts_model != 'drama-3':
             text = _strip_drama3_markup(text)
+            text = _normalize_s2_chinese_aliases(text)
         emotion = str((data or {}).get('emotion') or '').strip()
         existing_tags = len(re.findall(r'\[[^\]\r\n]{1,80}\]', text))
         if emotion and len(emotion) <= 48 and existing_tags < 2:
@@ -1697,6 +1766,7 @@ def _prepare_tts_job(data):
     return {
         'key': key,
         'model_name': model_name,
+        'tts_model': resolved_tts_model,
         'audio_mime': audio_mime,
         'audio_ext': audio_ext,
         'producer': producer,
@@ -1765,11 +1835,13 @@ def tts_api():
     data = _request_tts_data()
     try:
         job = _prepare_tts_job(data)
+        model_hdr = {'X-Fish-Model': job['tts_model']}
         if job['model_name'] != 'edge' and data.get('stream') is True and job['stream_factory'] is not None:
-            return _stream_cached_tts(job['key'], job['stream_factory'], mimetype=job['audio_mime'])
+            return _stream_cached_tts(job['key'], job['stream_factory'], mimetype=job['audio_mime'], extra_headers=model_hdr)
         audio = _cached_tts(job['key'], job['producer'])
         response = send_file(io.BytesIO(audio), mimetype=job['audio_mime'], download_name=f"tts.{job['audio_ext']}")
         response.headers['Cache-Control'] = 'no-store'
+        response.headers['X-Fish-Model'] = job['tts_model']
         return response
     except ConfigError as exc:
         return jsonify({'error': str(exc)}), 503

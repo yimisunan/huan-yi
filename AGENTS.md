@@ -45,8 +45,7 @@
 | 动态记忆 / 人物所在 / L1-L4 层 | `存档/全局记忆库.txt`（由 `存档/save_state.json` + `存档/四层记忆.json` 单向渲染） | workspace 物理读（每回合首个） |
 | 道具图鉴（活跃 / 已交付 / 历史） | `存档/徐志北道具图鉴.txt`（由 `存档/save_state.json` 单向渲染） | workspace 物理读（用道具 / 查仓库） |
 | 运行时快照（当前回合 / 场景标题 / STORY_NODES / presence） | `data.json` | 引擎覆写，AI 不手写 |
-| 全局技能（去AI味 / 界面设计 / 品牌 / 计划等） | Operit skill 区（`/storage/emulated/0/Download/Operit/skills/`） | Operit 加载 |
-| 去AI味技能（`qu-ai-wei`） | Operit 技能区 | 按 §4 路由调用 |
+| 全局技能（界面设计 / 计划等） | Operit skill 区（`/storage/emulated/0/Download/Operit/skills/`） | Operit 加载 |
 
 **执行入口签名**（详见 `injection_core.py`）：
 
@@ -74,13 +73,9 @@ execute_injection(current_round, story_nodes, memory_deltas, panel_changes,
 8. **禁止双源维护**：改规则只改原始文件；本文件只做索引，不复制条文。
 9. **AI 不直接改存档**：剧情回合只提交当前入口要求的数据或注入脚本，由固定执行器校验写入；桥接不执行命令、不写文件。禁止绕过执行器手写 `存档/`、`data.json` 或语音配置。→ `txt文件/提示词.md`「入口判定」/「输出前最小检查」
 
-## 4. 去AI味技能路由
+## 4. 外部技能使用边界
 
-去AI味 / 改自然 / 人话化类需求路由到 `qu-ai-wei`（本地，效果最佳且为本项目唯一方案）。oh-story-claudecode 系列（story / story-long-write / story-long-analyze / story-short-write / story-short-analyze / story-review / story-import）已移除，不再作为创作 / 拆文 / 审查 / 导入的外部技能路由。
-
-| 触发意图 | 调用技能 | 备注 |
-|---|---|---|
-| 去AI味 / 改自然 / 人话化 | `qu-ai-wei`（本地） | 效果最佳、无需繁琐配置，为本项目唯一去AI味方案 |
+原去AI味技能（`qu-ai-wei`）与 `oh-story-claudecode` 系列（story / story-long-write / story-long-analyze / story-short-write / story-short-analyze / story-review / story-import）均已移除，不再作为创作 / 拆文 / 去AI味 / 审查 / 导入的外部技能路由；剧情自然化、去舞台腔与防套词滑窗已直接内化为项目原生规则（`txt文件/知识库/叙事判断.json`、`角色类.json` 与 `story_compiler.py`）。
 
 ### 三条硬约束
 

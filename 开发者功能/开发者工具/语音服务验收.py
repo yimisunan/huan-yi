@@ -214,6 +214,56 @@ class VoiceServiceChecks(unittest.TestCase):
             result = self.client.post('/api/tts', json={'text': 'timeout test', 'voice': 'fish:test'})
             self.assertEqual(result.status_code, 504)
 
+    def test_drama3_directing_params_header_and_s2_alias_mapping(self):
+        captured = []
+        def fake_fish_audio(payload, tts_model, on_chunk=None, api_key=None):
+            captured.append((tts_model, dict(payload)))
+            return b'fake-mp3-audio'
+
+        with patch.object(module, '_fish_audio', side_effect=fake_fish_audio):
+            # 1. Drama 3 keeps Chinese director brief + paired XML tags, omits repetition_penalty,
+            #    raises chunk_length>=280 & normal latency & expressive temperature, and returns X-Fish-Model header.
+            r_d3 = self.client.post('/api/tts', json={
+                'text': '[强压着倦意，声音稳而微冷] 账得<slow>先算清楚</slow>。[break] <whisper>别声张。</whisper>',
+                'voice': 'fish:test',
+                'tts_model': 'drama-3',
+                'temperature': 0.58,
+                'top_p': 0.68,
+                'chunk_length': 180,
+                'latency': 'balanced',
+            })
+            self.assertEqual(r_d3.status_code, 200)
+            self.assertEqual(r_d3.headers.get('X-Fish-Model'), 'drama-3')
+            m_d3, p_d3 = captured[-1]
+            self.assertEqual(m_d3, 'drama-3')
+            self.assertIn('[强压着倦意，声音稳而微冷]', p_d3['text'])
+            self.assertIn('<slow>先算清楚</slow>', p_d3['text'])
+            self.assertIn('<whisper>别声张。</whisper>', p_d3['text'])
+            self.assertNotIn('repetition_penalty', p_d3)
+            self.assertGreaterEqual(p_d3['chunk_length'], 280)
+            self.assertEqual(p_d3['latency'], 'normal')
+            self.assertGreaterEqual(p_d3['temperature'], 0.70)
+            self.assertGreaterEqual(p_d3['top_p'], 0.76)
+
+            # 2. Non-Drama-3 (s2.1-pro-free) strips XML paired tags and maps standard Chinese short aliases.
+            r_s2 = self.client.post('/api/tts', json={
+                'text': '[低声, 微颤] 别再问了，<whisper>回房睡吧。</whisper>',
+                'voice': 'fish:test',
+                'tts_model': 's2.1-pro-free',
+            })
+            self.assertEqual(r_s2.status_code, 200)
+            self.assertEqual(r_s2.headers.get('X-Fish-Model'), 's2.1-pro-free')
+            m_s2, p_s2 = captured[-1]
+            self.assertEqual(m_s2, 's2.1-pro-free')
+            self.assertNotIn('<whisper>', p_s2['text'])
+            self.assertNotIn('</whisper>', p_s2['text'])
+            self.assertIn('[low restrained voice, voice trembling]', p_s2['text'])
+
+        # 3. VOICE_TIERS['drama'] routes all 3 heroines to drama-3 while keeping narrator free.
+        self.assertEqual(module.VOICE_TIERS['drama']['heroine_model'], 'drama-3')
+        self.assertEqual(module.VOICE_TIERS['drama']['narrator_model'], 's2.1-pro-free')
+        self.assertEqual(set(module.VOICED_HEROINES), {'沈知韫', '苏婉青', '徐念薇'})
+
 
 if __name__ == '__main__':
     protected = ['voice_config.json', 'data.json', '存档/全局记忆库.txt', 'injection_core.py']
