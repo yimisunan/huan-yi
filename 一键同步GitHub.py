@@ -59,6 +59,7 @@ LOCAL_ONLY_TOP_DIRS = frozenset({
 LOCAL_ONLY_NESTED_DIRS = frozenset({
     'scene_chat_dev/tmp',
     'txt文件/.story-reading',
+    'txt文件/audio',
 })
 LOCAL_ONLY_FILES = frozenset({
     SYNC_STATE_FILE,

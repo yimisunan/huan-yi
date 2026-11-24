@@ -245,7 +245,7 @@ class VoiceServiceChecks(unittest.TestCase):
             self.assertGreaterEqual(p_d3['temperature'], 0.70)
             self.assertGreaterEqual(p_d3['top_p'], 0.76)
 
-            # 2. Non-Drama-3 (s2.1-pro-free) strips XML paired tags and maps standard Chinese short aliases.
+            # 2. Non-Drama-3 (s2.1-pro-free) degrades XML tags to S2 English tags and maps Chinese short aliases & director sentences.
             r_s2 = self.client.post('/api/tts', json={
                 'text': '[低声, 微颤] 别再问了，<whisper>回房睡吧。</whisper>',
                 'voice': 'fish:test',
@@ -258,11 +258,99 @@ class VoiceServiceChecks(unittest.TestCase):
             self.assertNotIn('<whisper>', p_s2['text'])
             self.assertNotIn('</whisper>', p_s2['text'])
             self.assertIn('[low restrained voice, voice trembling]', p_s2['text'])
+            self.assertIn('[whispering] 回房睡吧。', p_s2['text'])
+
+            # 2b. Free-form Chinese director sentence on S2.1 maps cleanly to English control tags without leaking CJK brackets.
+            r_s2_cn = self.client.post('/api/tts', json={
+                'text': '[声音压得很低，带着点羞耻的轻颤] 别让人听见……<soft>先松手。</soft>',
+                'voice': 'fish:test',
+                'tts_model': 's2.1-pro-free',
+            })
+            self.assertEqual(r_s2_cn.status_code, 200)
+            _, p_s2_cn = captured[-1]
+            self.assertNotIn('声音压得很低', p_s2_cn['text'])
+            self.assertIn('voice trembling', p_s2_cn['text'])
+            self.assertIn('low restrained voice', p_s2_cn['text'])
+            self.assertIn('[soft tone] 先松手。', p_s2_cn['text'])
+
+            # 2c. Physiological prosody modulation adjusts speed & temperature/top_p and isolates cache keys.
+            r_pros = self.client.post('/api/tts', json={
+                'text': '慢一点，别这么急。',
+                'voice': 'fish:test',
+                'tts_model': 'drama-3',
+                'speed': 1.0,
+                'temperature': 0.72,
+                'top_p': 0.78,
+                'speed_scale': 0.90,
+                'expressive_boost': 0.06,
+            })
+            self.assertEqual(r_pros.status_code, 200)
+            _, p_pros = captured[-1]
+            self.assertEqual(p_pros['prosody']['speed'], 0.9)
+            self.assertGreaterEqual(p_pros['temperature'], 0.84)
 
         # 3. VOICE_TIERS['drama'] routes all 3 heroines to drama-3 while keeping narrator free.
         self.assertEqual(module.VOICE_TIERS['drama']['heroine_model'], 'drama-3')
         self.assertEqual(module.VOICE_TIERS['drama']['narrator_model'], 's2.1-pro-free')
         self.assertEqual(set(module.VOICED_HEROINES), {'沈知韫', '苏婉青', '徐念薇'})
+
+    def test_local_audio_assets_and_offline_prologue_master(self):
+        # Isolate BASE_DIR to temp workspace with a minimal opening script copy + txt文件/audio/
+        audio_base = self.directory / 'txt文件' / 'audio'
+        for sub in ('ambient', 'sfx', 'prologues', 'samples'):
+            (audio_base / sub).mkdir(parents=True, exist_ok=True)
+        (audio_base / 'ambient' / 'rain_night.mp3').write_bytes(b'ID3-RAIN-AMBIENT')
+        (audio_base / 'sfx' / 'scale_chime.mp3').write_bytes(b'ID3-SCALE-SFX')
+        (audio_base / 'samples' / '沈知韫.mp3').write_bytes(b'ID3-ZHIYUN-SAMPLE')
+        (audio_base / 'prologues' / 'zhiyun_friday_study_dialogue.mp3').write_bytes(b'ID3-PROLOGUE-MASTER')
+        (audio_base / 'prologues' / 'secret.txt').write_text('blocked', encoding='utf-8')
+        # Copy 存档开局随机盲盒.py into temp BASE_DIR so auto-index matches real scenario lines
+        (self.directory / '存档开局随机盲盒.py').write_bytes((ROOT / '存档开局随机盲盒.py').read_bytes())
+
+        old_base = module.BASE_DIR
+        old_key = module.FISH_API_KEY
+        module.BASE_DIR = str(self.directory)
+        module._AUDIO_ASSETS_CACHE.clear()
+        module._PROLOGUE_LINES_CACHE['mtime'] = None
+        try:
+            # 1. GET /api/audio_assets discovers all 4 buckets
+            res = self.client.get('/api/audio_assets')
+            self.assertEqual(res.status_code, 200)
+            info = res.get_json()
+            self.assertIn('rain_night', info['ambient'])
+            self.assertIn('scale_chime', info['sfx'])
+            self.assertIn('沈知韫', info['samples'])
+            self.assertEqual(info['prologues_count'], 1)
+
+            # 2. Static audio serving allows whitelisted audio extensions and blocks non-audio / traversal
+            self.assertEqual(self.client.get('/txt文件/audio/ambient/rain_night.mp3').data, b'ID3-RAIN-AMBIENT')
+            self.assertEqual(self.client.get('/txt文件/audio/prologues/secret.txt').status_code, 404)
+            self.assertEqual(self.client.get('/txt文件/audio/../voice_config.json').status_code, 404)
+
+            # 3. Offline prologue master audio serves 0ms/$0 directly even with NO Fish API key!
+            module.FISH_API_KEY = ''
+            with patch.object(module, '_load_cached_fish_key', return_value=''), \
+                 patch.object(module, '_fish_audio', side_effect=AssertionError('离线母带命中不应调用 Fish API')):
+                r_master = self.client.post('/api/tts', json={
+                    'text': '[低声克制，带着点倦意] 这么晚还没睡？外头冷气大，顺手把门带上，过来陪妈坐会儿。',
+                    'speaker': '沈知韫',
+                    'voice': 'fish:test',
+                    'stream': True,
+                })
+                self.assertEqual(r_master.status_code, 200)
+                self.assertEqual(r_master.data, b'ID3-PROLOGUE-MASTER')
+                self.assertEqual(r_master.headers.get('X-Fish-Model'), 'local-master')
+                self.assertEqual(r_master.headers.get('X-Audio-Source'), 'offline-master')
+                # Prefetch skips offline master without burning API calls
+                self.assertEqual(module.prewarm_tts_items([{
+                    'text': '这么晚还没睡？外头冷气大，顺手把门带上，过来陪妈坐会儿。',
+                    'speaker': '沈知韫',
+                }]), 0)
+        finally:
+            module.BASE_DIR = old_base
+            module.FISH_API_KEY = old_key
+            module._AUDIO_ASSETS_CACHE.clear()
+            module._PROLOGUE_LINES_CACHE['mtime'] = None
 
 
 if __name__ == '__main__':

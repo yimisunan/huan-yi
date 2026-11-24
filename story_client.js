@@ -79,7 +79,7 @@
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
   let cache = { epoch: '', draft: '', pending: null, voice: true };
-  let prefs = { theme: 'noir', font: 'normal', haptics: true, backdrop: true, cinemaPlates: true, readingDof: true, displayMode: 'curtain', confirmMode: 'inline' };
+  let prefs = { theme: 'noir', font: 'normal', haptics: true, backdrop: true, cinemaPlates: true, readingDof: true, displayMode: 'curtain', confirmMode: 'inline', ambientAudio: true, ambientVolume: 0.32 };
   let snapshot = null, online = false, posting = false, polling = false, progressing = false;
   let storageOK = true, error = '', missing = false, mismatch = false;
   let portraitName = '', signature = '', worldSignature = '', lastSpeaker = '', backdropTarget = '';
@@ -92,6 +92,11 @@
   let archiveArmKey = '', archiveArmTimer = null;
   let audioSerial = 0, audioMessage = null, audioStatus = '', isSpeaking = false;
   let gesture = false, configPromise = null, voiceConfigCache = null, activeVoiceTier = 'free', lastTap = 0;
+  let audioAssets = { ambient: {}, sfx: {}, samples: {}, prologues_count: 0 };
+  let audioAssetsLoaded = false, ambientTrackKey = '', ambientActiveIdx = 0;
+  let ambientPlayers = null, ambientFadeRaf = 0, ambientDuckTimer = null, ambientDucked = false;
+  let samplePlayer = null, samplePlayingName = '', lastContextSfxAt = 0;
+  const sfxCooldowns = new Map();
   let armedChoice = null, inkCommit = null;
   let activeHubTab = 'host', selectedChar = '', selectedMapPlace = '', historyFilter = 'all';
   let settlementFolded = true, settlementDismissedId = '', deckCollapsed = false, customComposerExpanded = false, lastUiMode = '';
@@ -194,6 +199,10 @@
     } else if (legacyConfirmOff) {
       prefs.confirmMode = 'off';
     }
+    if (typeof p.ambientAudio === 'boolean') prefs.ambientAudio = p.ambientAudio;
+    if (Number.isFinite(Number(p.ambientVolume))) {
+      prefs.ambientVolume = Math.max(0.05, Math.min(0.85, Number(p.ambientVolume)));
+    }
   } catch (_) {}
 
   function reducedMotion() {
@@ -207,6 +216,7 @@
     if (metaTheme) metaTheme.setAttribute('content', prefs.theme === 'ivory' ? '#f4efe6' : '#0c0a09');
     updateBackdrop();
     applyReadingFocus();
+    syncAmbientSoundscape();
   }
 
   function savePrefs() {
@@ -980,6 +990,7 @@
     if (!img) return;
     const w = snapshot?.world;
     document.documentElement.dataset.mood = deriveAtmosphereMood(w);
+    syncAmbientSoundscape();
     const still = prefs.backdrop ? resolveSceneStill(w?.location) : null;
 
     if (rain) {
@@ -2493,7 +2504,267 @@
     if (!$('portraitDialog').open) $('portraitDialog').showModal();
   }
 
+  function ensureAmbientPlayers() {
+    if (ambientPlayers) return ambientPlayers;
+    const mk = () => {
+      const a = new Audio();
+      a.loop = true;
+      a.preload = 'auto';
+      a.volume = 0;
+      return a;
+    };
+    ambientPlayers = [mk(), mk()];
+    return ambientPlayers;
+  }
+
+  async function loadAudioAssets(force = false) {
+    if (audioAssetsLoaded && !force) return audioAssets;
+    if (typeof VoiceClient.getAudioAssets !== 'function') return audioAssets;
+    try {
+      const res = await VoiceClient.getAudioAssets();
+      if (res && typeof res === 'object') {
+        audioAssets = {
+          ambient: res.ambient && typeof res.ambient === 'object' ? res.ambient : {},
+          sfx: res.sfx && typeof res.sfx === 'object' ? res.sfx : {},
+          samples: res.samples && typeof res.samples === 'object' ? res.samples : {},
+          prologues_count: Number(res.prologues_count) || 0
+        };
+        audioAssetsLoaded = true;
+        syncAmbientSoundscape();
+      }
+    } catch (_) {}
+    return audioAssets;
+  }
+
+  function ambientTargetVolume() {
+    const base = Math.max(0.05, Math.min(0.85, Number(prefs.ambientVolume) || 0.32));
+    return ambientDucked ? +(base * 0.28).toFixed(3) : +base.toFixed(3);
+  }
+
+  function chooseAmbientTrackKey(w = snapshot?.world) {
+    const avail = audioAssets?.ambient || {};
+    const keys = Object.keys(avail);
+    if (!keys.length) return '';
+    const pick = list => list.find(k => Boolean(avail[k])) || keys[0];
+    const mood = deriveAtmosphereMood(w);
+    if (mood === 'vigilance') {
+      return pick(['tension_stealth', 'rain_night', 'calm_home']);
+    }
+    if (mood === 'intimate') {
+      const cast = w?.cast || [];
+      const panels = parsePanels(w?.panels || []);
+      const isAftermath = cast.some(name => {
+        if (!PEOPLE.includes(name)) return false;
+        const micro = w?.micro_states?.[name] || {};
+        const stam = panels[name]?.stats?.['体力']?.num;
+        return Boolean(micro.residual_tension) || (Number.isFinite(stam) && stam <= 15);
+      });
+      if (isAftermath) {
+        return pick(['aftermath_quiet', 'intimate_warm', 'rain_night', 'calm_home']);
+      }
+      return pick(['intimate_warm', 'rain_night', 'calm_home']);
+    }
+    const tod = timeOfDay(w?.progression?.runtime?.clock?.time || '').phase;
+    const isRainScene = /雨/.test(String(w?.prologue?.title || '') + String(w?.intimate?.sub_location || ''));
+    if (tod === 'night' || tod === 'dusk' || isRainScene) {
+      return pick(['rain_night', 'calm_home']);
+    }
+    return pick(['calm_home', 'rain_night']);
+  }
+
+  function rampAmbientVolumes(activeEl, inactiveEl, targetActive, durationMs = 900) {
+    if (ambientFadeRaf) cancelAnimationFrame(ambientFadeRaf);
+    const startActive = activeEl ? activeEl.volume : 0;
+    const startInactive = inactiveEl ? inactiveEl.volume : 0;
+    const t0 = performance.now();
+    const step = now => {
+      const p = durationMs <= 0 ? 1 : Math.min(1, (now - t0) / durationMs);
+      if (activeEl) activeEl.volume = Math.max(0, Math.min(1, startActive + (targetActive - startActive) * p));
+      if (inactiveEl) inactiveEl.volume = Math.max(0, Math.min(1, startInactive * (1 - p)));
+      if (p < 1) {
+        ambientFadeRaf = requestAnimationFrame(step);
+      } else {
+        ambientFadeRaf = 0;
+        if (inactiveEl && inactiveEl.volume <= 0.005) {
+          inactiveEl.pause();
+          inactiveEl.volume = 0;
+        }
+      }
+    };
+    ambientFadeRaf = requestAnimationFrame(step);
+  }
+
+  function pauseAmbient() {
+    if (ambientFadeRaf) { cancelAnimationFrame(ambientFadeRaf); ambientFadeRaf = 0; }
+    if (ambientDuckTimer) { clearTimeout(ambientDuckTimer); ambientDuckTimer = null; }
+    if (!ambientPlayers) return;
+    for (const p of ambientPlayers) {
+      try { p.pause(); } catch (_) {}
+      p.volume = 0;
+    }
+  }
+
+  function syncAmbientSoundscape() {
+    if (!prefs.ambientAudio || document.hidden || !gesture) {
+      pauseAmbient();
+      return;
+    }
+    const desiredKey = chooseAmbientTrackKey(snapshot?.world);
+    const desiredUrl = desiredKey ? audioAssets.ambient[desiredKey] : '';
+    if (!desiredUrl) {
+      pauseAmbient();
+      return;
+    }
+    const players = ensureAmbientPlayers();
+    const cur = players[ambientActiveIdx];
+    const targetVol = ambientTargetVolume();
+    if (ambientTrackKey === desiredKey && cur.dataset.trackKey === desiredKey) {
+      if (cur.paused) {
+        cur.volume = 0;
+        const pr = cur.play();
+        if (pr?.catch) pr.catch(() => {});
+      }
+      rampAmbientVolumes(cur, players[1 - ambientActiveIdx], targetVol, 420);
+      return;
+    }
+    const nextIdx = 1 - ambientActiveIdx;
+    const next = players[nextIdx];
+    const prev = cur;
+    ambientActiveIdx = nextIdx;
+    ambientTrackKey = desiredKey;
+    next.dataset.trackKey = desiredKey;
+    next.src = desiredUrl;
+    next.volume = 0;
+    const pr = next.play();
+    if (pr?.catch) pr.catch(() => {});
+    rampAmbientVolumes(next, prev, targetVol, 1150);
+  }
+
+  function duckAmbient(speakingNow) {
+    if (ambientDuckTimer) { clearTimeout(ambientDuckTimer); ambientDuckTimer = null; }
+    if (!prefs.ambientAudio || !ambientPlayers || document.hidden || !gesture) return;
+    const cur = ambientPlayers[ambientActiveIdx];
+    if (!cur || cur.paused) return;
+    if (speakingNow) {
+      ambientDucked = true;
+      rampAmbientVolumes(cur, ambientPlayers[1 - ambientActiveIdx], ambientTargetVolume(), 240);
+    } else {
+      ambientDuckTimer = setTimeout(() => {
+        ambientDuckTimer = null;
+        ambientDucked = false;
+        if (!isSpeaking && prefs.ambientAudio && !document.hidden && ambientPlayers) {
+          const active = ambientPlayers[ambientActiveIdx];
+          if (active && !active.paused) {
+            rampAmbientVolumes(active, ambientPlayers[1 - ambientActiveIdx], ambientTargetVolume(), 520);
+          }
+        }
+      }, 420);
+    }
+  }
+
+  function playSfx(slot, volScale = 0.52) {
+    if (!prefs.ambientAudio || !gesture || document.hidden) return false;
+    const url = audioAssets?.sfx?.[slot];
+    if (!url) return false;
+    const now = Date.now();
+    if (now - (sfxCooldowns.get(slot) || 0) < 350) return false;
+    sfxCooldowns.set(slot, now);
+    try {
+      const a = new Audio(url);
+      const base = Math.max(0.08, Math.min(0.85, Number(prefs.ambientVolume) || 0.32));
+      a.volume = Math.max(0.06, Math.min(0.75, +(base * volScale * 1.45).toFixed(3)));
+      const pr = a.play();
+      if (pr?.catch) pr.catch(() => {});
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  function playContextSfxForMessage(m) {
+    if (!m || !prefs.ambientAudio || !gesture || document.hidden) return;
+    const now = Date.now();
+    if (now - lastContextSfxAt < 6000) return;
+    const txt = String(m.text || '');
+    if (!txt) return;
+    const cues = [
+      [/反锁|落锁|暗闩|咔哒|锁上/, 'door_lock', 0.55],
+      [/脚步声|门外走动|走廊.*声/, 'footsteps', 0.45],
+      [/手机.*震|屏幕亮|来电|提示音/, 'phone_vibrate', 0.50],
+      [/茶杯|瓷杯|咖啡杯|茶盏|搁回杯/, 'teacup_clink', 0.45],
+      [/真丝|丝袜|衣摆|吊带|肩带|滑落/, 'silk_rustle', 0.42],
+    ];
+    for (const [reCue, slot, vol] of cues) {
+      if (reCue.test(txt) && audioAssets?.sfx?.[slot]) {
+        if (playSfx(slot, vol)) {
+          lastContextSfxAt = now;
+          return;
+        }
+      }
+    }
+  }
+
+  function stopVoiceSample() {
+    if (samplePlayer) {
+      try { samplePlayer.pause(); } catch (_) {}
+      samplePlayer = null;
+    }
+    samplePlayingName = '';
+  }
+
+  function playVoiceSample(name) {
+    const url = audioAssets?.samples?.[name];
+    if (!url) return;
+    unlock();
+    if (samplePlayingName === name && samplePlayer && !samplePlayer.paused) {
+      stopVoiceSample();
+      renderWorld(true);
+      return;
+    }
+    stopVoice();
+    stopVoiceSample();
+    const a = new Audio(url);
+    samplePlayer = a;
+    samplePlayingName = name;
+    duckAmbient(true);
+    a.onended = a.onerror = () => {
+      if (samplePlayer === a) {
+        samplePlayer = null;
+        samplePlayingName = '';
+        duckAmbient(false);
+        renderWorld(true);
+      }
+    };
+    const pr = a.play();
+    if (pr?.catch) pr.catch(() => { stopVoiceSample(); duckAmbient(false); });
+    renderWorld(true);
+  }
+
+  function computeProsodyMod(m, who) {
+    if (!m || m.kind !== 'dialogue' || !VOICED_SPEAKERS.has(who)) return null;
+    const w = snapshot?.world;
+    const panels = w ? parsePanels(w.panels || []) : {};
+    const stats = panels[who]?.stats || {};
+    const desire = stats['欲望']?.num ?? 0;
+    const orgasm = stats['高潮']?.num ?? 0;
+    const stam = stats['体力']?.num ?? 100;
+    const intimateBeat = Number(w?.intimate?.session_beats || 0);
+    const txt = String(m.text || '');
+    const hasIntimateTag = /<whisper>|<soft>|\[(?:[^\]\r\n]*(?:耳语|气音|气声|喘|颤|沙哑|发紧|发虚|低哑|whisper|pant|breathless|trembl)[^\]\r\n]*)\]/i.test(txt);
+    if (orgasm >= 70 || stam <= 15) {
+      return { speed_scale: 0.90, expressive_boost: 0.06 };
+    }
+    if (desire >= 85 || hasIntimateTag) {
+      return { speed_scale: 0.93, expressive_boost: 0.04 };
+    }
+    if (intimateBeat >= 1) {
+      return { speed_scale: 0.95, expressive_boost: 0.02 };
+    }
+    return null;
+  }
+
   function updateSpeakingUI() {
+    duckAmbient(Boolean(isSpeaking));
     document.querySelectorAll('#messages .msg.is-speaking').forEach(el => {
       el.classList.remove('is-speaking');
       el.querySelector('.speaking-wave')?.remove();
@@ -2560,8 +2831,12 @@
     return String(cfg?.tts_model || (who === '旁白' ? 's2.1-pro-free' : (settings?.fish_tts_model || 's2.1-pro-free'))).trim() || 's2.1-pro-free';
   }
 
-  function audioCacheKey(id, who, cfg, settings) {
-    return id + '|' + resolveVoiceModelKey(who, cfg, settings);
+  function audioCacheKey(id, who, cfg, settings, prosodyMod = null) {
+    let key = id + '|' + resolveVoiceModelKey(who, cfg, settings);
+    if (prosodyMod && (prosodyMod.speed_scale || prosodyMod.expressive_boost)) {
+      key += '|p:' + (prosodyMod.speed_scale || 1) + ':' + (prosodyMod.expressive_boost || 0);
+    }
+    return key;
   }
 
   function isDrama3Speaker(speaker) {
@@ -2628,11 +2903,13 @@
         if (serial !== audioSerial || !cache.voice || document.hidden) return;
         const cfg = config[who];
         if (!cfg || !cfg.voice) return;
-        const cacheKey = audioCacheKey(id, who, cfg, config.__settings__ || {});
+        const prosodyMod = computeProsodyMod(m, who);
+        const cacheKey = audioCacheKey(id, who, cfg, config.__settings__ || {}, prosodyMod);
         const existing = audioCache.get(cacheKey);
         if (existing && urls.has(existing)) return;
-        if (!String(cfg.voice).startsWith('edge:') && !(await ensureFishKeyReady())) return;
-        const payload = VoiceClient.buildPayload(stripSubtextForTts(m.text), cfg, config.__settings__ || {}, '', who);
+        const canOfflineMaster = audioAssets.prologues_count > 0 && (String(id).startsWith('prologue-') || (snapshot?.world?.interaction?.actions === 0));
+        if (!String(cfg.voice).startsWith('edge:') && !canOfflineMaster && !(await ensureFishKeyReady())) return;
+        const payload = VoiceClient.buildPayload(stripSubtextForTts(m.text), cfg, config.__settings__ || {}, '', who, prosodyMod);
         const blob = await VoiceClient.requestAudio(payload, { channel: 'prefetch', maxBytes: 16 * 1024 * 1024 });
         if (!cache.voice || document.hidden) return;
         const blobUrl = urls.add(blob);
@@ -2644,20 +2921,22 @@
 
   function schedulePrefetchWindow(messages, idPrefix, startIndex = 0) {
     if (!Array.isArray(messages) || !messages.length || !cache.voice || document.hidden) return;
-    if (fishKeyConfigured === false) return;
+    const canOfflineMaster = audioAssets.prologues_count > 0 && (String(idPrefix).startsWith('prologue-') || (snapshot?.world?.interaction?.actions === 0));
+    if (fishKeyConfigured === false && !canOfflineMaster) return;
     const voiced = [];
     for (let i = Math.max(0, startIndex); i < messages.length && voiced.length < 3; i++) {
       const m = messages[i];
       const who = resolveVoiceSpeaker(m);
-      if (who) voiced.push({ m, who, idx: i, id: idPrefix + ':' + i });
+      if (who) voiced.push({ m, who, idx: i, id: idPrefix + ':' + i, prosodyMod: computeProsodyMod(m, who) });
     }
     if (!voiced.length) return;
     void ensureFishKeyReady().then(ok => {
-      if (!ok || !cache.voice || document.hidden) return;
-      if (typeof VoiceClient.prefetchBatch === 'function') {
+      if ((!ok && !canOfflineMaster) || !cache.voice || document.hidden) return;
+      if (ok && typeof VoiceClient.prefetchBatch === 'function') {
         void VoiceClient.prefetchBatch(voiced.map(v => ({
           text: stripSubtextForTts(v.m.text),
-          speaker: v.who
+          speaker: v.who,
+          ...(v.prosodyMod || {})
         })));
       }
       if (gesture) {
@@ -2667,15 +2946,20 @@
   }
 
   function unlock() {
-    if (gesture) return;
+    if (gesture) {
+      syncAmbientSoundscape();
+      return;
+    }
     gesture = true;
     $('audio').src = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=';
     const result = $('audio').play();
     if (result?.catch) result.catch(() => {});
+    syncAmbientSoundscape();
   }
 
   async function speak(m, id) {
     stopVoice();
+    stopVoiceSample();
     const who = resolveVoiceSpeaker(m);
     if (!who) {
       audioMessage = null;
@@ -2713,7 +2997,8 @@
       }
       const modelKey = resolveVoiceModelKey(who, cfg, config.__settings__ || {});
       const isD3 = modelKey === 'drama-3';
-      const cacheKey = audioCacheKey(id, who, cfg, config.__settings__ || {});
+      const prosodyMod = computeProsodyMod(m, who);
+      const cacheKey = audioCacheKey(id, who, cfg, config.__settings__ || {}, prosodyMod);
       const playBuffered = async payload => {
         const blob = await VoiceClient.requestAudio(payload, { channel: 'live', maxBytes: 16 * 1024 * 1024 });
         if (serial !== audioSerial || !cache.voice || document.hidden) return;
@@ -2743,7 +3028,8 @@
         audioStatus = isD3 ? 'D3 朗读中' : '朗读中';
         updateSpeakingUI();
       } else {
-        if (!String(cfg.voice).startsWith('edge:') && !(await ensureFishKeyReady())) {
+        const canOfflineMaster = audioAssets.prologues_count > 0 && (String(id).startsWith('prologue-') || (snapshot?.world?.interaction?.actions === 0));
+        if (!String(cfg.voice).startsWith('edge:') && !canOfflineMaster && !(await ensureFishKeyReady())) {
           audioStatus = '未配置语音密钥';
           if (!fishMissingToastShown) {
             fishMissingToastShown = true;
@@ -2752,7 +3038,7 @@
           controls();
           return;
         }
-        const payload = VoiceClient.buildPayload(stripSubtextForTts(m.text), cfg, config.__settings__ || {}, '', who);
+        const payload = VoiceClient.buildPayload(stripSubtextForTts(m.text), cfg, config.__settings__ || {}, '', who, prosodyMod);
         let streamStarted = false;
         const stream = await VoiceClient.requestStream(payload, {
           channel: 'live',
@@ -4249,11 +4535,22 @@
       titleBox.append(sub);
       overlay.append(titleBox);
 
-      if (Object.keys(slots).length > 0) {
-        const openBtn = node('button', 'portrait-open-btn', '展开立绘');
-        openBtn.type = 'button';
-        openBtn.onclick = () => { haptic(10); showPortrait(name, slots.fullbody ? 'fullbody' : ''); };
-        overlay.append(openBtn);
+      if (Object.keys(slots).length > 0 || audioAssets?.samples?.[name]) {
+        const btnWrap = node('div', 'char-banner-actions');
+        if (audioAssets?.samples?.[name]) {
+          const playing = samplePlayingName === name && samplePlayer && !samplePlayer.paused;
+          const smBtn = node('button', 'portrait-open-btn is-sample' + (playing ? ' is-playing' : ''), playing ? '■ 停止原声' : '▶ 试听原声');
+          smBtn.type = 'button';
+          smBtn.onclick = () => { haptic(8); playVoiceSample(name); };
+          btnWrap.append(smBtn);
+        }
+        if (Object.keys(slots).length > 0) {
+          const openBtn = node('button', 'portrait-open-btn', '展开立绘');
+          openBtn.type = 'button';
+          openBtn.onclick = () => { haptic(10); showPortrait(name, slots.fullbody ? 'fullbody' : ''); };
+          btnWrap.append(openBtn);
+        }
+        overlay.append(btnWrap);
       }
       banner.append(img, scrim, overlay);
       card.append(banner);
@@ -5386,6 +5683,76 @@
     pane.append(voiceGroup);
     void refreshVoiceKeyAndTier();
 
+    // 2.5 Local Offline Soundscape & Fish Plus Assets
+    const ambGroup = node('section', 'pref-group');
+    ambGroup.append(node('h3', '', '本地音景与离线母带（$0 离线）'));
+    ambGroup.append(
+      mkSwitchRow(
+        '环境音景与电影拟音',
+        '随昼夜/情绪自动淡入淡出背景底噪，人声播报时自动压低背景音（Audio Ducking）',
+        [[true, '开启'], [false, '静音']],
+        prefs.ambientAudio,
+        v => { prefs.ambientAudio = v; savePrefs(); }
+      )
+    );
+    const volRow = node('div', 'pref-row');
+    const volLbl = node('div', 'pref-row-label');
+    const volPct = Math.round((Number(prefs.ambientVolume) || 0.32) * 100);
+    const volValSpan = node('span', '', `当前背景音量：${volPct}%（播报人声时自动压低至约 28%）`);
+    volLbl.append(node('strong', '', '氛围背景音量'), volValSpan);
+    const volCtrl = node('div', 'audio-vol-wrap');
+    const volSlider = node('input', 'audio-vol-slider');
+    volSlider.type = 'range';
+    volSlider.min = '5';
+    volSlider.max = '85';
+    volSlider.step = '5';
+    volSlider.value = String(volPct);
+    volSlider.oninput = () => {
+      const pct = Math.max(5, Math.min(85, Number(volSlider.value) || 32));
+      prefs.ambientVolume = +(pct / 100).toFixed(2);
+      volValSpan.textContent = `当前背景音量：${pct}%（播报人声时自动压低至约 28%）`;
+      savePrefs();
+    };
+    volCtrl.append(volSlider);
+    volRow.append(volLbl, volCtrl);
+    ambGroup.append(volRow);
+
+    const ambCount = Object.keys(audioAssets?.ambient || {}).length;
+    const sfxCount = Object.keys(audioAssets?.sfx || {}).length;
+    const smCount = Object.keys(audioAssets?.samples || {}).length;
+    const proCount = Number(audioAssets?.prologues_count) || 0;
+    const totalLocal = ambCount + sfxCount + smCount + proCount;
+    const assetRow = node('div', 'pref-row');
+    const assetLbl = node('div', 'pref-row-label');
+    assetLbl.append(
+      node('strong', '', totalLocal > 0 ? `已挂载本地素材（共 ${totalLocal} 项）` : '等待放入本地素材'),
+      node(
+        'span',
+        '',
+        totalLocal > 0
+          ? `氛围音 ${ambCount} 首 · 拟音 ${sfxCount} 条 · 原声试听 ${smCount} 条 · 序幕母带 ${proCount} 条（目录：txt文件/audio/）`
+          : '将 Fish Plus 网页端导出的音频放入 txt文件/audio/{ambient,sfx,prologues,samples}/ 后点刷新即刻生效，零 API 费用。'
+      )
+    );
+    const assetRefreshBtn = node('button', 'btn-outline', '刷新检测');
+    assetRefreshBtn.type = 'button';
+    assetRefreshBtn.onclick = async () => {
+      haptic(8);
+      assetRefreshBtn.disabled = true;
+      try {
+        await loadAudioAssets(true);
+        const c = Object.keys(audioAssets.ambient).length + Object.keys(audioAssets.sfx).length
+          + Object.keys(audioAssets.samples).length + (Number(audioAssets.prologues_count) || 0);
+        toast(c > 0 ? `检测到 ${c} 项本地离线音频素材` : '暂未在 txt文件/audio/ 检测到音频文件');
+        renderWorld(true);
+      } finally {
+        assetRefreshBtn.disabled = false;
+      }
+    };
+    assetRow.append(assetLbl, assetRefreshBtn);
+    ambGroup.append(assetRow);
+    pane.append(ambGroup);
+
     // 3. Audio & Bridge Operations
     const srvGroup = node('section', 'pref-group');
     srvGroup.append(node('h3', '', '语音与本地连接'));
@@ -5991,7 +6358,17 @@
   let lastEffectSegmentId = '';
 
   function triggerStageEffect(kind, label) {
-    if (reducedMotion()) return;
+    if (kind === 'climax') {
+      if (!playSfx('climax_swell', 0.62)) playSfx('heartbeat_low', 0.55);
+    } else if (kind === 'unlock') {
+      if (!playSfx('unlock_chime', 0.55)) playSfx('scale_chime', 0.50);
+    } else if (kind === 'meltdown') {
+      playSfx('heartbeat_low', 0.55);
+    }
+    if (reducedMotion()) {
+      if (label) toast(label);
+      return;
+    }
     const stage = $('ambientStage');
     if (stage) {
       stage.classList.remove('fx-stage-climax', 'fx-stage-unlock', 'fx-stage-meltdown');
@@ -6338,7 +6715,11 @@
         latest();
         const idx = streamPreview.revealed - 1;
         const m = streamPreview.messages[idx];
-        if (m) void speak(m, 'preview:' + streamPreview.request_id + ':' + idx);
+        playSfx('page_turn', 0.34);
+        if (m) {
+          playContextSfxForMessage(m);
+          void speak(m, 'preview:' + streamPreview.request_id + ':' + idx);
+        }
         schedulePrefetchWindow(streamPreview.messages, 'preview:' + streamPreview.request_id, idx + 1);
       }
       return;
@@ -6359,9 +6740,13 @@
       const fresh = await api('live/progress', { save_epoch: cache.epoch, segment_id: p.segment_id, revealed, completed, compact: true });
       absorb(fresh);
       latest();
+      playSfx('page_turn', 0.34);
       if (!completed) {
         const turn = current(), m = turn?.messages[revealed - 1];
-        if (m) void speak(m, turn.id + ':' + (revealed - 1));
+        if (m) {
+          playContextSfxForMessage(m);
+          void speak(m, turn.id + ':' + (revealed - 1));
+        }
         if (turn?.messages) schedulePrefetchWindow(turn.messages, turn.id, revealed);
       }
     } catch (e) {
@@ -6604,6 +6989,8 @@
         : optionCost(optionId))
     )) return;
     const selected = { segment_id: optionId === 'BEGIN' ? '' : snapshot.playback.segment_id, option_id: optionId };
+    unlock();
+    playSfx('scale_chime', 0.48);
     cache.pending = {
       request_id: 'live-' + (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2)),
       base_revision: snapshot.revision,
@@ -7727,10 +8114,13 @@
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       stopVoice();
+      stopVoiceSample();
+      pauseAmbient();
       closeSSE();
     } else {
       invalidateVoiceConfig();
       void loadVoiceConfig().catch(() => null);
+      void loadAudioAssets(true).catch(() => null);
       sseRetryAttempt = 0;
       connectSSE();
       void restore();
@@ -7743,6 +8133,8 @@
       clearInkCommit();
     }
     stopVoice();
+    stopVoiceSample();
+    pauseAmbient();
     closeSSE();
     urls.clear();
   });
@@ -7755,6 +8147,7 @@
   save();
   render();
   void loadVoiceConfig().catch(() => null);
+  void loadAudioAssets().catch(() => null);
   connectSSE();
   void restore();
   setInterval(() => { if (!document.hidden && !sseOpen) void restore(); }, 15000);

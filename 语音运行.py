@@ -5,7 +5,8 @@ import time
 import uuid
 import threading
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, quote as url_quote
+import importlib.util
 import requests
 import copy
 import hashlib
@@ -329,17 +330,49 @@ def _strip_drama3_markup(text):
     return _DRAMA3_XML_RE.sub('', text).strip()
 
 
+_DRAMA3_TO_S2_TAG_PAIRS = (
+    (re.compile(r'<whisper>(.*?)</whisper>', flags=re.I | re.S), 'whispering'),
+    (re.compile(r'<soft>(.*?)</soft>', flags=re.I | re.S), 'soft tone'),
+    (re.compile(r'<slow>(.*?)</slow>', flags=re.I | re.S), 'slowly'),
+    (re.compile(r'<fast>(.*?)</fast>', flags=re.I | re.S), 'speaking fast'),
+)
+
+
+def _degrade_drama3_for_s2(text):
+    """将 Drama 3 配对 XML 演技标签无损降级为 S2.1/S2 原生可识别的英文控制标签，保留耳语/轻声/慢速质感。"""
+    if not text or '<' not in text:
+        return text
+    out = text
+    for pattern, s2_tag in _DRAMA3_TO_S2_TAG_PAIRS:
+        def _convert(match, tag=s2_tag):
+            inner = (match.group(1) or '').strip()
+            if not inner:
+                return ''
+            return f'[{tag}] {inner}'
+        out = pattern.sub(_convert, out)
+    out = _DRAMA3_XML_RE.sub('', out)
+    # 折叠紧邻重复的同类控制标签（如 [whispering] [whispering]）
+    out = re.sub(r'(\[[^\]\r\n]{1,40}\])\s*\1', r'\1', out)
+    return out.strip()
+
+
 _S2_CN_TAG_ALIAS_MAP = {
     '低声': 'low restrained voice',
     '轻声': 'soft gentle voice',
     '耳语': 'whispering',
     '气音': 'breathy whisper',
+    '气声': 'breathy whisper',
     '低语': 'murmuring softly',
+    '呢喃': 'soft murmur',
     '克制': 'calm restrained tone',
     '冷淡': 'cool detached tone',
     '冷冽': 'cold restrained tone',
+    '冷锐': 'cool restrained tone',
     '平静': 'calm measured tone',
+    '平淡': 'calm flat tone',
     '沉稳': 'calm executive tone',
+    '从容': 'calm composed tone',
+    '松弛': 'relaxed warm voice',
     '轻叹': 'sighing softly',
     '叹息': 'sighing',
     '轻笑': 'small laugh',
@@ -347,6 +380,9 @@ _S2_CN_TAG_ALIAS_MAP = {
     '轻哂': 'chuckle',
     '微颤': 'voice trembling',
     '颤抖': 'voice trembling',
+    '颤声': 'voice trembling',
+    '发抖': 'voice trembling',
+    '发虚': 'weak breathless voice',
     '停顿': 'break',
     '短停顿': 'break',
     '长停顿': 'long-break',
@@ -355,19 +391,51 @@ _S2_CN_TAG_ALIAS_MAP = {
     '压低': 'hushed low voice',
     '哽咽': 'choked up',
     '哭腔': 'soft sobbing',
+    '委屈': 'soft vulnerable tone',
+    '羞耻': 'shy flustered tone',
+    '拘谨': 'shy hesitant tone',
+    '试探': 'tentative soft tone',
     '喘息': 'breathless panting',
+    '轻喘': 'soft panting',
+    '娇喘': 'soft breathless panting',
     '抽气': 'gasp',
     '换气': 'breath',
+    '沙哑': 'husky low voice',
+    '微哑': 'husky soft voice',
+    '低哑': 'husky low voice',
+    '发紧': 'tense hushed voice',
+    '强忍': 'restrained breathy tone',
+    '咬唇': 'restrained breathy tone',
+    '失神': 'dazed breathless voice',
     '疲惫': 'tired weak voice',
+    '倦意': 'tired soft voice',
+    '慵懒': 'languid warm voice',
     '敷衍': 'polite dismissive tone',
     '放慢': 'slowly',
     '语速放慢': 'slowly',
 }
+_S2_CN_KEYWORD_RULES = (
+    (re.compile(r'耳语|气音|气声|贴耳|凑近耳'), 'whispering'),
+    (re.compile(r'喘|呼吸急|急促|换气|气息乱'), 'breathless panting'),
+    (re.compile(r'颤|发抖|发虚|发软|打颤'), 'voice trembling'),
+    (re.compile(r'沙哑|微哑|低哑|发紧|发哑|哑着'), 'husky low voice'),
+    (re.compile(r'强忍|咬唇|憋着|忍着|压着'), 'restrained breathy tone'),
+    (re.compile(r'压低|压得.{0,2}低|低声|声音.{0,2}低|压轻|克制|沉稳|从容|稳住'), 'low restrained voice'),
+    (re.compile(r'轻柔|温柔|轻哄|放软|松弛|软绵|轻声|呢喃'), 'soft gentle voice'),
+    (re.compile(r'倦|疲惫|累|慵懒|困倦'), 'tired soft voice'),
+    (re.compile(r'冷淡|冷冽|微冷|冷锐|清冷|平淡|疏离'), 'cool detached tone'),
+    (re.compile(r'羞|窘|拘谨|局促|慌|害羞|难为情|试探'), 'shy hesitant tone'),
+    (re.compile(r'笑|轻哂|嗤|揶揄'), 'small laugh'),
+    (re.compile(r'叹|轻叹'), 'sighing softly'),
+    (re.compile(r'哽咽|哭|委屈|鼻音'), 'choked up'),
+    (re.compile(r'微缓|放慢|语速慢|慢下来'), 'slowly'),
+)
+_CJK_RE = re.compile(r'[\u4e00-\u9fff]')
 _BRACKET_TAG_RE = re.compile(r'\[([^\]\r\n]{1,80})\]')
 
 
 def _normalize_s2_chinese_aliases(text):
-    """仅对非 drama-3（S2.1/S2）将标准中文短别名（含逗号组合）映射为稳定英文控制词；自由长句原样保留。"""
+    """仅对非 drama-3（S2.1/S2）：短别名精准映射 + 自然中文导演句智能抽取英文控制词（避免 S2 漏读或忽略）。"""
     if not text or '[' not in text:
         return text
 
@@ -378,9 +446,20 @@ def _normalize_s2_chinese_aliases(text):
         parts = [p.strip() for p in re.split(r'[,，、]+', inner) if p.strip()]
         if parts and all(p in _S2_CN_TAG_ALIAS_MAP for p in parts):
             return '[' + ', '.join(_S2_CN_TAG_ALIAS_MAP[p] for p in parts) + ']'
+        if _CJK_RE.search(inner):
+            mapped = []
+            for pat, tag in _S2_CN_KEYWORD_RULES:
+                if pat.search(inner) and tag not in mapped:
+                    mapped.append(tag)
+                    if len(mapped) >= 3:
+                        break
+            if mapped:
+                return '[' + ', '.join(mapped) + ']'
+            return ''
         return match.group(0)
 
-    return _BRACKET_TAG_RE.sub(_repl, text)
+    out = _BRACKET_TAG_RE.sub(_repl, text)
+    return re.sub(r'\s{2,}', ' ', out).strip()
 
 
 def _infer_voice_tier(cfg):
@@ -1051,7 +1130,7 @@ def _fish_reference_id(voice_id):
     return FISH_DEFAULT_VOICE_ID
 
 
-def _build_fish_payload(text, voice_id, cfg=None, tts_model=None):
+def _build_fish_payload(text, voice_id, cfg=None, tts_model=None, *, expressive_boost=0.0):
     """Fish Audio /v1/tts：构建完整官方 v1 参数载荷（兼容 s2.1-pro / s2.1-pro-free / drama-3 / s2-pro）。"""
     fish_cfg = _normalize_fish_cfg(cfg or {})
     fmt = fish_cfg["format"]
@@ -1080,6 +1159,10 @@ def _build_fish_payload(text, voice_id, cfg=None, tts_model=None):
             payload["temperature"] = round(min(0.82, float(payload["temperature"]) + 0.12), 2)
         if 0.55 <= float(payload["top_p"]) < 0.78:
             payload["top_p"] = round(min(0.86, float(payload["top_p"]) + 0.08), 2)
+    boost = _clamp_float(expressive_boost, 0.0, 0.0, 0.12)
+    if boost >= 0.01:
+        payload["temperature"] = round(min(0.88, float(payload["temperature"]) + boost), 2)
+        payload["top_p"] = round(min(0.90, float(payload["top_p"]) + boost * 0.65), 2)
     if fmt == "mp3":
         payload["mp3_bitrate"] = fish_cfg["mp3_bitrate"]
     elif fmt == "opus":
@@ -1110,6 +1193,198 @@ PUBLIC_FILES = {
     '存档/全局记忆库.txt', '存档/徐志北道具图鉴.txt',
 }
 IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.avif'}
+AUDIO_EXTENSIONS = {'.mp3', '.ogg', '.opus', '.wav', '.m4a', '.webm'}
+_AUDIO_EXT_PRIORITY = {'.mp3': 6, '.ogg': 5, '.opus': 5, '.m4a': 4, '.wav': 3, '.webm': 2}
+_AUDIO_MIME_MAP = {
+    '.mp3': 'audio/mpeg',
+    '.ogg': 'audio/ogg',
+    '.opus': 'audio/ogg',
+    '.wav': 'audio/wav',
+    '.m4a': 'audio/mp4',
+    '.webm': 'audio/webm',
+}
+_AUDIO_ASSETS_CACHE = {}
+_PROLOGUE_LINES_CACHE = {'mtime': None, 'entries': []}
+
+
+def _audio_dir_sig(audio_root):
+    try:
+        items = [(audio_root.name, audio_root.stat().st_mtime_ns)]
+        for sub in ('ambient', 'sfx', 'prologues', 'samples'):
+            p = audio_root / sub
+            if p.is_dir():
+                items.append((sub, p.stat().st_mtime_ns))
+                mf = p / 'manifest.json'
+                if mf.is_file():
+                    items.append((sub + '/manifest.json', mf.stat().st_mtime_ns))
+        return tuple(items)
+    except OSError:
+        return None
+
+
+def _normalize_master_lookup_text(text):
+    """统一归一化台词文本以便离线母带精确命中（剥离潜台词、方括号声学标签、Drama3 XML 与空白）。"""
+    s = _SUBTEXT_RUBY_RE.sub(r'\1', str(text or ''))
+    s = s.replace('【', '').replace('】', '').replace('*', '')
+    s = _BRACKET_TAG_RE.sub('', s)
+    s = _DRAMA3_XML_RE.sub('', s)
+    s = _PHONEME_SPAN_RE.sub('', s)
+    s = _PHONEME_TOKEN_RE.sub('', s)
+    return re.sub(r'\s+', '', s).strip()
+
+
+def _load_prologue_opening_table(root):
+    """只读加载 存档开局随机盲盒.py 中的 10 组开局原文，用于零配置自动匹配 txt文件/audio/prologues/ 离线母带。"""
+    script = Path(root) / '存档开局随机盲盒.py'
+    try:
+        mtime = script.stat().st_mtime_ns
+    except OSError:
+        return []
+    if _PROLOGUE_LINES_CACHE['mtime'] == mtime:
+        return _PROLOGUE_LINES_CACHE['entries']
+    entries = []
+    try:
+        spec = importlib.util.spec_from_file_location('_opening_audio_index', str(script))
+        if spec and spec.loader:
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            opening_lines = getattr(mod, 'OPENING_LINES', {}) or {}
+            for sc in getattr(mod, 'SCENARIOS', []) or []:
+                sid = str(sc.get('id') or '').strip()
+                if not sid:
+                    continue
+                nar = str(sc.get('l1_body') or '').strip()
+                if nar:
+                    entries.append((f'{sid}_narration', '旁白', _normalize_master_lookup_text(nar)))
+                line_tuple = opening_lines.get(sid)
+                if isinstance(line_tuple, (list, tuple)) and len(line_tuple) == 3:
+                    spk, act, dlg = line_tuple
+                    if act:
+                        entries.append((f'{sid}_action', '旁白', _normalize_master_lookup_text(act)))
+                    if dlg:
+                        entries.append((f'{sid}_dialogue', str(spk or '').strip(), _normalize_master_lookup_text(dlg)))
+    except Exception:
+        entries = []
+    _PROLOGUE_LINES_CACHE['mtime'] = mtime
+    _PROLOGUE_LINES_CACHE['entries'] = entries
+    return entries
+
+
+def _scan_audio_bucket(audio_root, subdir):
+    bucket = {}
+    folder = audio_root / subdir
+    if not folder.is_dir():
+        return bucket
+    for path in folder.iterdir():
+        if not path.is_file() or path.name.startswith('.'):
+            continue
+        ext = path.suffix.lower()
+        prio = _AUDIO_EXT_PRIORITY.get(ext, 0)
+        if not prio:
+            continue
+        try:
+            st = path.stat()
+        except OSError:
+            continue
+        key = path.stem
+        rank = (st.st_mtime_ns, prio)
+        prev = bucket.get(key)
+        if prev is None or rank > prev[0]:
+            url = '/txt文件/audio/' + subdir + '/' + url_quote(path.name, safe='') + f'?v={int(st.st_mtime)}'
+            bucket[key] = (rank, url, path)
+    return bucket
+
+
+def scan_audio_assets(root=None):
+    """自动扫描 txt文件/audio/{ambient,sfx,prologues,samples} 本地永久音频资产（零配置即放即用）。"""
+    base = Path(root or BASE_DIR).resolve()
+    audio_root = (base / 'txt文件' / 'audio').resolve()
+    empty = {
+        'ambient': {},
+        'sfx': {},
+        'samples': {},
+        'prologues': {},
+        'prologues_count': 0,
+        'master_index': {},
+    }
+    if not audio_root.is_dir():
+        return empty
+    sig = _audio_dir_sig(audio_root)
+    cache_key = str(audio_root)
+    cached = _AUDIO_ASSETS_CACHE.get(cache_key)
+    if sig is not None and cached and cached[0] == sig:
+        return cached[1]
+
+    ambient_raw = _scan_audio_bucket(audio_root, 'ambient')
+    sfx_raw = _scan_audio_bucket(audio_root, 'sfx')
+    samples_raw = _scan_audio_bucket(audio_root, 'samples')
+    prologues_raw = _scan_audio_bucket(audio_root, 'prologues')
+
+    master_index = {}
+    prologues_dir = audio_root / 'prologues'
+    # 1. 自动按 <scenario_id>_{narration|action|dialogue}.<ext> 绑定 10 套开局序幕
+    if prologues_raw:
+        for slot_key, spk, norm_text in _load_prologue_opening_table(base):
+            hit = prologues_raw.get(slot_key)
+            if hit and norm_text:
+                master_index[(spk, norm_text)] = hit[2]
+                master_index[('', norm_text)] = hit[2]
+    # 2. 可选 manifest.json 自定义映射（支持 by_key 与 by_text）
+    manifest_file = prologues_dir / 'manifest.json'
+    if manifest_file.is_file():
+        try:
+            mf = json.loads(manifest_file.read_text(encoding='utf-8'))
+            if isinstance(mf, dict):
+                by_key = mf.get('by_key') if isinstance(mf.get('by_key'), dict) else {}
+                if by_key:
+                    for slot_key, spk, norm_text in _load_prologue_opening_table(base):
+                        rel = by_key.get(slot_key)
+                        if isinstance(rel, str) and rel.strip():
+                            cand = (prologues_dir / rel.strip()).resolve()
+                            if cand.is_relative_to(prologues_dir) and cand.is_file() and cand.suffix.lower() in AUDIO_EXTENSIONS:
+                                master_index[(spk, norm_text)] = cand
+                                master_index[('', norm_text)] = cand
+                by_text = mf.get('by_text') if isinstance(mf.get('by_text'), dict) else {}
+                for raw_k, rel in by_text.items():
+                    if not isinstance(raw_k, str) or not isinstance(rel, str):
+                        continue
+                    cand = (prologues_dir / rel.strip()).resolve()
+                    if not (cand.is_relative_to(prologues_dir) and cand.is_file() and cand.suffix.lower() in AUDIO_EXTENSIONS):
+                        continue
+                    norm = _normalize_master_lookup_text(raw_k)
+                    if norm:
+                        master_index[('', norm)] = cand
+        except Exception:
+            pass
+
+    result = {
+        'ambient': {k: v[1] for k, v in ambient_raw.items()},
+        'sfx': {k: v[1] for k, v in sfx_raw.items()},
+        'samples': {k: v[1] for k, v in samples_raw.items()},
+        'prologues': {k: v[1] for k, v in prologues_raw.items()},
+        'prologues_count': len(prologues_raw),
+        'master_index': master_index,
+    }
+    if sig is not None:
+        _AUDIO_ASSETS_CACHE[cache_key] = (sig, result)
+    return result
+
+
+def _resolve_offline_master_audio(text, speaker='', root=None):
+    """若请求台词命中 txt文件/audio/prologues/ 离线母带，返回 (Path, mimetype)，实现 0ms / $0 秒播。"""
+    norm = _normalize_master_lookup_text(text)
+    if not norm:
+        return None, ''
+    assets = scan_audio_assets(root)
+    idx = assets.get('master_index') or {}
+    if not idx:
+        return None, ''
+    spk = str(speaker or '').strip()
+    path = idx.get((spk, norm)) or idx.get(('', norm))
+    if not path or not path.is_file():
+        return None, ''
+    mime = _AUDIO_MIME_MAP.get(path.suffix.lower(), 'audio/mpeg')
+    return path, mime
 
 
 _THUMB_SPECS = {'avatar': (160, 82), 'plate': (720, 84)}
@@ -1161,10 +1436,12 @@ def _serve_public_file(filename):
     root = Path(BASE_DIR).resolve()
     target = (root / filename).resolve()
     image_root = (root / 'txt文件' / 'image').resolve()
+    audio_root = (root / 'txt文件' / 'audio').resolve()
     image_allowed = target.is_relative_to(image_root) and target.suffix.lower() in IMAGE_EXTENSIONS
+    audio_allowed = target.is_relative_to(audio_root) and target.suffix.lower() in AUDIO_EXTENSIONS
     if (not target.is_relative_to(root) or not target.is_file() or
             any(part.startswith('.') for part in Path(filename).parts) or
-            not (filename in PUBLIC_FILES or image_allowed)):
+            not (filename in PUBLIC_FILES or image_allowed or audio_allowed)):
         abort(404)
     serve_path = target
     if image_allowed:
@@ -1174,7 +1451,7 @@ def _serve_public_file(filename):
     response = send_file(serve_path)
     if filename in {'main_template.html', 'voice_manager.html', 'voice_client.js', 'story_client.js', 'story_client.css', 'data.json'}:
         response.headers['Cache-Control'] = 'no-cache'
-    elif image_allowed:
+    elif image_allowed or audio_allowed:
         response.headers['Cache-Control'] = 'public, max-age=86400'
     return response
 
@@ -1192,6 +1469,19 @@ def index():
 @app.route('/admin')
 def admin():
     return _serve_public_file('voice_manager.html')
+
+
+@app.route('/api/audio_assets', methods=['GET'])
+def audio_assets_api():
+    """返回本地永久音频资产清单（氛围底噪 / 电影拟音 / 角色原声试听 / 离线序幕母带数）。"""
+    assets = scan_audio_assets(BASE_DIR)
+    return jsonify({
+        'ambient': assets['ambient'],
+        'sfx': assets['sfx'],
+        'samples': assets['samples'],
+        'prologues_count': assets['prologues_count'],
+        'audio_root': 'txt文件/audio/',
+    })
 
 
 @app.route('/api/fish_key', methods=['GET', 'POST', 'DELETE'])
@@ -1735,12 +2025,17 @@ def _prepare_tts_job(data):
         for name in FISH_DEFAULT_STYLE:
             if (data or {}).get(name) is not None:
                 runtime_cfg[name] = data[name]
+        speed_scale = _clamp_float((data or {}).get('speed_scale'), 1.0, 0.85, 1.10)
+        if abs(speed_scale - 1.0) >= 0.005:
+            base_spd = _clamp_float(runtime_cfg.get('speed'), FISH_DEFAULT_STYLE['speed'], 0.5, 2.0)
+            runtime_cfg['speed'] = round(_clamp_float(base_spd * speed_scale, base_spd, 0.5, 2.0), 2)
+        expressive_boost = _clamp_float((data or {}).get('expressive_boost'), 0.0, 0.0, 0.12)
         tts_model = _normalize_fish_tts_model(
             (data or {}).get('tts_model') or matched.get('tts_model') or _get_current_fish_tts_model()
         )
         resolved_tts_model = tts_model
         if tts_model != 'drama-3':
-            text = _strip_drama3_markup(text)
+            text = _degrade_drama3_for_s2(text)
             text = _normalize_s2_chinese_aliases(text)
         emotion = str((data or {}).get('emotion') or '').strip()
         existing_tags = len(re.findall(r'\[[^\]\r\n]{1,80}\]', text))
@@ -1755,7 +2050,9 @@ def _prepare_tts_job(data):
         text = _apply_fish_phonemes(text)
         if not text.strip():
             raise TtsError('没有可朗读的文本。', 400)
-        payload = _build_fish_payload(text, voice_id, runtime_cfg, tts_model=tts_model)
+        payload = _build_fish_payload(
+            text, voice_id, runtime_cfg, tts_model=tts_model, expressive_boost=expressive_boost
+        )
         fmt_meta = FISH_AUDIO_FORMATS.get(payload.get('format', 'mp3'), FISH_AUDIO_FORMATS['mp3'])
         audio_mime = fmt_meta['mime']
         audio_ext = fmt_meta['ext']
@@ -1775,7 +2072,7 @@ def _prepare_tts_job(data):
 
 
 def prewarm_tts_items(items):
-    """低优先级后台预合成最多 6 句语音；严格受限于 2 并发与 429 冷却，绝不抢占实时播放。"""
+    """低优先级后台预合成最多 6 句语音；严格受限于 2 并发与 429 冷却，命中离线母带直接跳过不耗 API。"""
     if not isinstance(items, (list, tuple)) or not items:
         return 0
     if _in_fish_429_cooldown():
@@ -1784,6 +2081,9 @@ def prewarm_tts_items(items):
     seen_keys = set()
     for raw in items[:6]:
         if not isinstance(raw, dict):
+            continue
+        master_path, _ = _resolve_offline_master_audio(raw.get('text', ''), raw.get('speaker', ''))
+        if master_path is not None:
             continue
         try:
             job = _prepare_tts_job(raw)
@@ -1834,6 +2134,19 @@ def tts_prefetch_api():
 def tts_api():
     data = _request_tts_data()
     try:
+        raw_text = _SUBTEXT_RUBY_RE.sub(r'\1', str((data or {}).get('text') or ''))
+        clean_len = len(raw_text.strip().replace('【', '').replace('】', '').replace('*', ''))
+        if clean_len > TTS_MAX_TEXT_LENGTH:
+            raise TtsError(f'文本超过 {TTS_MAX_TEXT_LENGTH} 字符上限', 413)
+        if clean_len == 0:
+            raise TtsError('请提供需要朗读的文本。', 400)
+        master_path, master_mime = _resolve_offline_master_audio(raw_text, (data or {}).get('speaker', ''))
+        if master_path is not None:
+            response = send_file(master_path, mimetype=master_mime)
+            response.headers['Cache-Control'] = 'public, max-age=86400'
+            response.headers['X-Fish-Model'] = 'local-master'
+            response.headers['X-Audio-Source'] = 'offline-master'
+            return response
         job = _prepare_tts_job(data)
         model_hdr = {'X-Fish-Model': job['tts_model']}
         if job['model_name'] != 'edge' and data.get('stream') is True and job['stream_factory'] is not None:
@@ -1889,11 +2202,25 @@ def open_browser():
         print(f"⚠️ 自动打开浏览器发生异常: {e}")
 
 
+def _ensure_audio_dirs():
+    """启动时自动创建本地音频资产目录骨架与 .nomedia（防止安卓系统音乐 App 扫描游戏拟音）。"""
+    audio_root = Path(BASE_DIR) / 'txt文件' / 'audio'
+    try:
+        for sub in ('ambient', 'sfx', 'prologues', 'samples'):
+            (audio_root / sub).mkdir(parents=True, exist_ok=True)
+        nomedia = audio_root / '.nomedia'
+        if not nomedia.exists():
+            nomedia.write_text('', encoding='utf-8')
+    except OSError:
+        pass
+
+
 if __name__ == '__main__':
     try:
         _initialize_config()
     except (ConfigError, OSError) as exc:
         print(f'配置加载异常，原文件已保留：{exc}')
+    _ensure_audio_dirs()
     _cleanup_temp_audio()
     print("=======================================")
     print("🚀 双引擎语音中控已启动（Fish Audio旁白/人物，Edge可选回退）")

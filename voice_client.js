@@ -68,7 +68,7 @@
             pronunciation_dictionary_version: cleanToken(cfg.pronunciation_dictionary_version, /^[A-Za-z0-9._:-]{1,64}$/, 64)
         };
     }
-    function buildPayload(text, cfg = {}, settings = {}, emotion = '', speaker = '') {
+    function buildPayload(text, cfg = {}, settings = {}, emotion = '', speaker = '', prosodyMod = null) {
         const voice = cfg.voice || 'fish:';
         const body = { text, voice, emotion };
         if (speaker) body.speaker = String(speaker);
@@ -76,6 +76,12 @@
             Object.assign(body, { rate: cfg.rate || '-8%', pitch: cfg.pitch || '-4Hz', volume: cfg.volume || '+0%', emotion: '' });
         } else {
             Object.assign(body, normalizeFish(cfg), { tts_model: cfg.tts_model || settings.fish_tts_model || 's2.1-pro-free' });
+            if (prosodyMod && typeof prosodyMod === 'object') {
+                const sc = number(prosodyMod.speed_scale, 1, 0.85, 1.10);
+                if (Math.abs(sc - 1) >= 0.005) body.speed_scale = +sc.toFixed(2);
+                const eb = number(prosodyMod.expressive_boost, 0, 0, 0.12);
+                if (eb >= 0.01) body.expressive_boost = +eb.toFixed(2);
+            }
         }
         return body;
     }
@@ -118,6 +124,9 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ tier: String(tier || 'free') })
         }, 10000);
+    }
+    function getAudioAssets() {
+        return requestJson('/api/audio_assets?t=' + Date.now(), { cache: 'no-store' }, 6000);
     }
     function cancel(channel) {
         const job = channels.get(channel);
@@ -260,11 +269,16 @@
     }
     function prefetchBatch(items) {
         if (!Array.isArray(items) || !items.length) return Promise.resolve({ scheduled: 0 });
-        const clean = items.slice(0, 6).filter(it => it && typeof it.text === 'string' && it.text.trim()).map(it => ({
-            text: it.text,
-            speaker: it.speaker || '',
-            voice: it.voice || ''
-        }));
+        const clean = items.slice(0, 6).filter(it => it && typeof it.text === 'string' && it.text.trim()).map(it => {
+            const row = {
+                text: it.text,
+                speaker: it.speaker || '',
+                voice: it.voice || ''
+            };
+            if (it.speed_scale !== undefined) row.speed_scale = it.speed_scale;
+            if (it.expressive_boost !== undefined) row.expressive_boost = it.expressive_boost;
+            return row;
+        });
         if (!clean.length) return Promise.resolve({ scheduled: 0 });
         return fetch('/api/tts/prefetch', {
             method: 'POST',
@@ -275,5 +289,5 @@
 
     global.VoiceClient = Object.freeze({ TTS_TIMEOUT_MS, fishDefaults, normalizeFish, buildPayload,
         requestJson, requestAudio, requestStream, prefetchBatch, cancel, cancelAll, AudioUrlStore,
-        getFishKeyStatus, saveFishKey, clearFishKey, setVoiceTier });
+        getFishKeyStatus, saveFishKey, clearFishKey, setVoiceTier, getAudioAssets });
 })(typeof window === 'undefined' ? globalThis : window);

@@ -32,6 +32,7 @@ venv/
 build/
 dist/
 /txt文件/.story-reading/
+/txt文件/audio/
 /scene_chat_dev/tmp/
 /开发者功能/修订日志/2026.11/回合执行基础/tmp/
 /开发者功能/归档/项目清理/

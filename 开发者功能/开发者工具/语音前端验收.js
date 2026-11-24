@@ -154,12 +154,26 @@ async function run() {
     // Verify audioCache model-keying + invalidation on tier switch + Scheme A/B confirmation hooks
     assert.match(storySource, /function clearAudioCache\(\)[\s\S]*?audioCache\.clear\(\)/);
     assert.match(storySource, /function invalidateVoiceConfig\(\)[\s\S]*?clearAudioCache\(\)/);
-    assert.match(storySource, /function audioCacheKey\(id,\s*who,\s*cfg,\s*settings\)/);
+    assert.match(storySource, /function audioCacheKey\(id,\s*who,\s*cfg,\s*settings,\s*prosodyMod\s*=\s*null\)/);
     assert.match(storySource, /voice-d3-pill/);
     assert.match(storySource, /confirmMode:\s*'inline'/);
     assert.match(storySource, /function bindChoiceGesture\(b,\s*opt\)/);
     assert.match(storySource, /function stageInkCommit\(/);
     assert.match(storySource, /function recallInkCommit\(/);
+
+    // Verify Fish Plus offline soundscape, Audio Ducking, SFX, sample audition & physiological prosody hooks
+    assert.equal(typeof csrfCtx.client.getAudioAssets, 'function', 'VoiceClient.getAudioAssets must be exported');
+    const prosPayload = csrfCtx.client.buildPayload('测试', { voice: 'fish:abc', speed: 1.0 }, {}, '', '沈知韫', { speed_scale: 0.90, expressive_boost: 0.06 });
+    assert.equal(prosPayload.speed_scale, 0.9);
+    assert.equal(prosPayload.expressive_boost, 0.06);
+    const calmPayload = csrfCtx.client.buildPayload('测试', { voice: 'fish:abc', speed: 1.0 }, {}, '', '沈知韫', null);
+    assert.equal(calmPayload.speed_scale, undefined);
+    assert.match(storySource, /ambientAudio:\s*true/);
+    assert.match(storySource, /function syncAmbientSoundscape\(\)/);
+    assert.match(storySource, /function duckAmbient\(speakingNow\)/);
+    assert.match(storySource, /function playSfx\(slot/);
+    assert.match(storySource, /function playVoiceSample\(name\)/);
+    assert.match(storySource, /function computeProsodyMod\(m,\s*who\)/);
 
     // Verify v3 Archive Center, tiered rationalization, multi-banner Disco checks, Lv.4 防线支配, <=15, save_epoch & CSS integrity
     const ratFn = storySource.match(/function rationalizationTier\([\s\S]*?\n  \}/)[0];
@@ -194,8 +208,9 @@ async function run() {
     assert.match(cssSource, /\.msg\[data-defense="melted"\]/);
     assert.match(cssSource, /\.msg\[data-defense="guarded"\]/);
     assert.match(cssSource, /\.archive-dialog/);
+    assert.match(cssSource, /\.audio-vol-slider/);
 
-    console.log('PASS story_client & main_template: 4-speaker allowlist, Drama 3 director tag hiding, cache invalidation, Scheme A+B confirm, v3 Archive Center & intimate HUD');
+    console.log('PASS story_client & main_template: 4-speaker allowlist, Drama 3 director tag hiding, cache invalidation, Fish Plus soundscape/ducking/prosody, Scheme A+B confirm & v3 Archive Center');
     console.log('All frontend checks passed; external requests: 0');
 }
 run().catch(error => { console.error(error.stack); process.exitCode = 1; });
