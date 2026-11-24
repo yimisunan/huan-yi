@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "toolpkg_id": "local.story.operit_bridge",
-  "version": "2.1.7",
+  "version": "2.1.8",
   "api_version": "2.0.0",
   "main": "main.js",
   "display_name": {
@@ -9,8 +9,8 @@
     "en": "Story bridge"
   },
   "description": {
-    "zh": "双阶段流式剧情演播与后台结算、前缀冻结KV缓存、原生设置界面及双端主/副模型联动配置。",
-    "en": "Dual-stage streaming story bridge with native settings UI and dual-synced primary/settlement model controls."
+    "zh": "双阶段流式剧情演播与后台结算、前缀冻结KV缓存、商城AI定制询货进货、原生设置界面及双端主/副模型联动配置。",
+    "en": "Dual-stage streaming story bridge with stateless AI shop restock, native settings UI, and dual-synced primary/settlement model controls."
   },
   "enabled_by_default": true,
   "installation_scope": "device",

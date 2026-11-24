@@ -98,7 +98,7 @@ html, body {
   color: var(--ink);
   font: 15px/1.6 var(--font-sans);
   -webkit-font-smoothing: antialiased;
-  text-rendering: optimizeLegibility;
+  text-rendering: auto;
 }
 
 button, input, textarea, select { font: inherit; color: inherit; }
@@ -506,8 +506,10 @@ body.is-thinking .scales-beam {
 
 .layout {
   position: fixed;
-  inset: var(--top) 0 0 0;
-  height: calc(100dvh - var(--top) - var(--keyboard));
+  top: calc(var(--top) + var(--vv-top, 0px));
+  left: 0;
+  right: 0;
+  height: calc(var(--vvh, 100%) - var(--top));
   display: flex;
   flex-direction: column;
   z-index: 2;
@@ -888,11 +890,9 @@ html[data-theme="ivory"] .msg.player > .text {
   isolation: isolate;
   border-radius: 14px;
   padding: 6px 10px;
-  background: rgba(24, 20, 16, 0.94);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  background: linear-gradient(180deg, rgba(28, 23, 18, 0.97), rgba(20, 17, 14, 0.96));
   border: 1px solid var(--line-strong);
-  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.36);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28);
   animation: receipt-in 0.32s var(--ease-spring) both;
 }
 
@@ -1653,14 +1653,14 @@ html[data-theme="ivory"] .advance-btn {
   resize: none;
   height: 36px;
   min-height: 36px;
-  max-height: 84px;
+  max-height: 180px;
   padding: 7px 4px;
   font: 14px/1.45 var(--font-sans);
   color: var(--ink);
   outline: none;
-  scrollbar-width: none;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
 }
-#input::-webkit-scrollbar { display: none; }
 #input::placeholder { color: var(--muted); }
 
 .send-btn {
@@ -3161,8 +3161,7 @@ html[data-theme="ivory"] .msg.player.action > .text .player-bracket {
   object-fit: cover;
   object-position: 50% 18%;
   display: block;
-  transform: scale(1.08);
-  will-change: transform;
+  transform: scale(1.06);
   transition: transform 0.14s linear;
 }
 .cinema-plate.is-scene .cinema-plate-img {
@@ -3183,9 +3182,8 @@ html[data-theme="ivory"] .msg.player.action > .text .player-bracket {
   font-size: 10.5px;
   letter-spacing: 0.4px;
   color: #f4dcb0;
-  background: rgba(11, 9, 8, 0.62);
+  background: rgba(11, 9, 8, 0.78);
   border: 1px solid rgba(216, 180, 118, 0.38);
-  backdrop-filter: blur(6px);
 }
 .cinema-plate-caption {
   position: absolute;
@@ -4143,4 +4141,403 @@ html[data-theme="ivory"] .stage-curtain-quote {
 #commitGo.is-armed {
   filter: brightness(1.15);
   box-shadow: 0 0 0 1px var(--line-strong), 0 0 18px rgba(212, 175, 55, 0.35);
+}
+
+/* ==========================================================================
+   Long-Chat Rendering Performance (content-visibility + Historic Freeze)
+   ========================================================================== */
+#messages > .msg,
+#messages > .cinema-plate,
+#messages > .game-settlement {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 128px;
+  contain: layout style;
+}
+#messages > .cinema-plate {
+  contain-intrinsic-size: auto 210px;
+}
+#messages > .msg.is-historic .npc-prose-body,
+#messages > .msg.is-historic .fx-tremble,
+#messages > .msg.is-historic .fx-catch,
+#messages > .msg.is-historic .fx-spasm {
+  animation: none !important;
+}
+
+/* ==========================================================================
+   Top-Anchored Focused Composer Sheet (100% Immune to Mobile Soft Keyboard)
+   ========================================================================== */
+.write-expand-btn {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+  background: transparent;
+  color: var(--muted);
+}
+.write-expand-btn:hover,
+.write-expand-btn:active {
+  color: var(--gold-bright);
+  background: var(--gold-soft);
+}
+
+.composer-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 38;
+  background: rgba(8, 6, 5, 0.62);
+}
+.composer-sheet-backdrop[hidden] {
+  display: none !important;
+}
+
+.composer-sheet {
+  position: fixed;
+  top: env(safe-area-inset-top);
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  max-width: 720px;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  max-height: min(49vh, calc(var(--vvh, 100vh) - env(safe-area-inset-top) - 6px));
+  padding: 8px 12px 10px;
+  background: linear-gradient(180deg, rgba(22, 18, 15, 0.99), rgba(14, 11, 9, 0.98));
+  border-bottom: 1px solid var(--gold);
+  border-radius: 0 0 18px 18px;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.72);
+}
+.composer-sheet[hidden] {
+  display: none !important;
+}
+html[data-theme="ivory"] .composer-sheet {
+  background: linear-gradient(180deg, rgba(255, 252, 246, 0.99), rgba(246, 239, 228, 0.99));
+  box-shadow: 0 12px 30px rgba(42, 30, 18, 0.24);
+}
+
+.composer-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex: none;
+}
+.sheet-cancel-btn {
+  min-height: 34px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 12.5px;
+}
+.sheet-char-count {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.sheet-send-btn {
+  min-width: 74px;
+  min-height: 34px;
+  padding: 4px 12px;
+  flex-direction: row;
+  gap: 5px;
+}
+.sheet-send-btn small {
+  font-size: 11px;
+  opacity: 0.88;
+}
+
+.sheet-context-peek {
+  flex: none;
+  width: 100%;
+  text-align: left;
+  padding: 6px 10px;
+  min-height: 0;
+  border-radius: 10px;
+  background: rgba(216, 180, 118, 0.08);
+  border: 1px solid rgba(216, 180, 118, 0.22);
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.sheet-context-peek.is-expanded {
+  display: block;
+  max-height: 88px;
+  overflow-y: auto;
+}
+
+.sheet-attach-bar {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.sheet-attach-bar[hidden] {
+  display: none !important;
+}
+.sheet-attach-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(216, 180, 118, 0.16);
+  border: 1px solid var(--gold);
+  color: var(--gold-bright);
+  font-size: 12px;
+  line-height: 1.25;
+}
+.sheet-attach-pill button {
+  min-height: 20px;
+  padding: 0 4px;
+  font-size: 13px;
+  color: var(--ink);
+  opacity: 0.8;
+}
+
+.sheet-editor-wrap {
+  flex: 1 1 auto;
+  min-height: 96px;
+  display: flex;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  padding: 6px 10px;
+}
+.sheet-editor-wrap:focus-within {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px var(--gold-soft);
+}
+#sheetInput {
+  width: 100%;
+  min-height: 92px;
+  max-height: min(26vh, 210px);
+  border: 0;
+  background: transparent;
+  resize: none;
+  outline: none;
+  font: 16px/1.5 var(--font-sans);
+  color: var(--ink);
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+#sheetInput::placeholder {
+  color: var(--muted);
+}
+
+.composer-sheet-tools {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sheet-quick-chips {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding-bottom: 0 !important;
+}
+.sheet-tool-icons {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.sheet-tool-icons .write-tool-btn {
+  width: 32px;
+  height: 32px;
+  min-height: 32px;
+}
+
+/* ============================================================================
+   Phase 3: AI Shop Inquiry Window, Unlock Badges, Bag Pickers & Deployed Devices
+   ============================================================================ */
+.shop-inquiry-card {
+  display: grid;
+  gap: 10px;
+  padding: 13px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(214, 178, 120, 0.34);
+  background: linear-gradient(145deg, rgba(214, 178, 120, 0.09), rgba(20, 17, 15, 0.72));
+}
+html[data-theme="ivory"] .shop-inquiry-card {
+  background: linear-gradient(145deg, rgba(186, 140, 72, 0.11), rgba(252, 248, 241, 0.96));
+  border-color: rgba(164, 120, 56, 0.34);
+}
+.shop-inquiry-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.shop-inquiry-head strong {
+  font-size: 13.5px;
+  color: var(--gold-bright, var(--gold));
+  letter-spacing: 0.02em;
+}
+.shop-inquiry-sub {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--ink-soft);
+}
+.shop-inquiry-form {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.shop-inquiry-input,
+.bag-picker-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 11px;
+  border-radius: 11px;
+  border: 1px solid var(--line-strong, var(--line));
+  background: var(--surface-2, var(--surface));
+  color: var(--ink);
+  font-size: 13px;
+  font-family: inherit;
+}
+.shop-inquiry-input:focus,
+.bag-picker-input:focus {
+  outline: none;
+  border-color: var(--gold);
+}
+.shop-inquiry-chips,
+.bag-picker-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.shop-inquiry-note {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--ink-muted, var(--ink-soft));
+}
+.shop-inquiry-reply {
+  display: grid;
+  gap: 4px;
+  padding: 9px 11px;
+  border-radius: 11px;
+  font-size: 12.2px;
+  line-height: 1.5;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.03);
+}
+.shop-inquiry-reply.is-loading {
+  border-color: rgba(214, 178, 120, 0.45);
+  color: var(--gold-bright, var(--gold));
+}
+.shop-inquiry-reply.is-ok {
+  border-color: rgba(109, 181, 146, 0.45);
+  background: rgba(109, 181, 146, 0.08);
+  color: var(--ink);
+}
+.shop-inquiry-reply.is-err {
+  border-color: rgba(208, 97, 97, 0.48);
+  background: rgba(208, 97, 97, 0.1);
+  color: #f0a4a4;
+}
+html[data-theme="ivory"] .shop-inquiry-reply.is-err {
+  color: #9e2d2d;
+}
+.shop-item-card.is-locked {
+  border-style: dashed;
+  opacity: 0.88;
+}
+.item-tag.is-locked {
+  border-color: rgba(208, 97, 97, 0.45);
+  background: rgba(208, 97, 97, 0.12);
+  color: #e6a6a6;
+}
+html[data-theme="ivory"] .item-tag.is-locked {
+  color: #9a3030;
+}
+.item-tag.is-device,
+.map-device-badge {
+  border: 1px solid rgba(130, 188, 214, 0.42);
+  background: rgba(130, 188, 214, 0.13);
+  color: #9bd2ea;
+}
+html[data-theme="ivory"] .item-tag.is-device,
+html[data-theme="ivory"] .map-device-badge {
+  color: #215e79;
+}
+.map-device-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 500;
+}
+.btn-outline.is-tiny {
+  min-height: 30px;
+  padding: 4px 10px;
+  font-size: 11.5px;
+}
+.bag-inline-picker {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 10px 11px;
+  border-radius: 12px;
+  border: 1px solid rgba(214, 178, 120, 0.34);
+  background: rgba(214, 178, 120, 0.06);
+}
+.bag-picker-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gold-bright, var(--gold));
+}
+.bag-picker-chip {
+  min-height: 29px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line-strong, var(--line));
+  background: var(--surface-2, var(--surface));
+  color: var(--ink-soft);
+  font-size: 11.8px;
+  cursor: pointer;
+}
+.bag-picker-chip.is-active {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+  color: var(--gold-bright, var(--ink));
+}
+.bag-picker-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.bag-picker-qty {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.2px;
+  color: var(--ink-soft);
+}
+.bag-picker-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.deployed-device-card {
+  border-color: rgba(130, 188, 214, 0.38);
+  background: linear-gradient(145deg, rgba(130, 188, 214, 0.08), var(--surface));
+}
+@media (max-width: 520px) {
+  .shop-inquiry-form {
+    flex-direction: column;
+  }
 }

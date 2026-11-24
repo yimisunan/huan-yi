@@ -276,12 +276,15 @@ class LegacyWorld:
 
         item_text = texts[rr.FILES[1]]
         active_marker = '▼ 活跃道具区 ▼'
+        deployed_marker = '▼ 已部署装置区 ▼'
         delivered_marker = '▼ 已交付道具区 ▼'
         history_marker = '▼ 已过期/已消耗道具历史区 ▼'
         if item_text.count(active_marker) != 1 or item_text.count(history_marker) != 1:
             raise rr.RoundError('道具活跃/历史锚点缺失或不唯一')
         active_start = item_text.index('\n', item_text.index(active_marker)) + 1
         end_candidates = [item_text.index(history_marker)]
+        if deployed_marker in item_text:
+            end_candidates.append(item_text.index(deployed_marker))
         if delivered_marker in item_text:
             end_candidates.append(item_text.index(delivered_marker))
         active_end = min(end_candidates)

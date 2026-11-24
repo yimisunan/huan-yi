@@ -86,6 +86,7 @@ def default_director():
         'scene_location': '',
         'scene_turns': 0,
         'clock_tick_acc': 0,
+        'sensual_drought': 0,
         'last_time_slot': '',
         'event_cooldowns': {},
         'consumed_once': [],
@@ -156,6 +157,7 @@ def default_state():
         'items': {
             'next_seq': 1,
             'active': [],
+            'deployed': [],
             'delivered': [],
             'history': [],
         },
@@ -163,6 +165,8 @@ def default_state():
             'redeemed': {},
             'recent': [],
             'echoes': [],
+            'dynamic_catalog': [],
+            'next_dyn_seq': 1,
         },
         'intel': {
             'held': [],
@@ -439,7 +443,7 @@ def normalize_state(raw):
     # Items
     raw_items = raw.get('items') if isinstance(raw.get('items'), dict) else {}
     max_seq = 0
-    for bucket in ('active', 'delivered', 'history'):
+    for bucket in ('active', 'deployed', 'delivered', 'history'):
         arr = raw_items.get(bucket)
         if isinstance(arr, list):
             clean_arr = []
@@ -459,6 +463,23 @@ def normalize_state(raw):
         base['shop']['redeemed'] = {str(k): _parse_int(v, 0) for k, v in (rs.get('redeemed') or {}).items() if _parse_int(v, 0) > 0}
         base['shop']['recent'] = [str(x).strip() for x in (rs.get('recent') or []) if str(x).strip()][:8]
         base['shop']['echoes'] = [copy.deepcopy(e) for e in (rs.get('echoes') or []) if isinstance(e, dict) and e.get('id')][-4:]
+        dyn_raw = rs.get('dynamic_catalog')
+        dyn_clean = []
+        max_dyn_seq = 0
+        seen_dyn = set()
+        if isinstance(dyn_raw, list):
+            for entry in dyn_raw:
+                if not isinstance(entry, dict):
+                    continue
+                did = str(entry.get('id') or '').strip()
+                dm = re.fullmatch(r'DYN-(\d+)', did)
+                if not dm or did in seen_dyn:
+                    continue
+                seen_dyn.add(did)
+                max_dyn_seq = max(max_dyn_seq, int(dm.group(1)))
+                dyn_clean.append(copy.deepcopy(entry))
+        base['shop']['dynamic_catalog'] = dyn_clean[-30:]
+        base['shop']['next_dyn_seq'] = max(_parse_int(rs.get('next_dyn_seq'), 1), max_dyn_seq + 1)
     if isinstance(raw.get('intel'), dict):
         ri = raw['intel']
         base['intel']['held'] = list(dict.fromkeys(str(x) for x in (ri.get('held') or []) if str(x)))
@@ -482,6 +503,23 @@ def normalize_state(raw):
     return base
 
 
+VALID_USAGE_MODES = ('gift', 'consumable_host', 'consumable_target', 'reusable_tool', 'deployable_device')
+
+
+def infer_usage_mode(sys_eff='', giftable=True, explicit_mode=''):
+    mode = str(explicit_mode or '').strip()
+    if mode in VALID_USAGE_MODES:
+        return mode
+    eff = str(sys_eff or '').strip()
+    if eff.startswith('host_stamina:'):
+        return 'consumable_host'
+    if eff.startswith('buff:'):
+        return 'consumable_target'
+    if eff.startswith('deploy_device:'):
+        return 'deployable_device'
+    return 'gift' if giftable else 'reusable_tool'
+
+
 def normalize_item_dict(it):
     dur = str(it.get('duration') if it.get('duration') is not None else '无').strip() or '无'
     rem_turns = it.get('remaining_turns')
@@ -502,15 +540,29 @@ def normalize_item_dict(it):
             giftable = giftable.strip() not in ('否', 'false', 'False', '0', '不可赠予')
         else:
             giftable = not bool(sys_eff)
+    usage_mode = infer_usage_mode(sys_eff, giftable, it.get('usage_mode'))
+    hidden_raw = it.get('hidden')
+    if type(hidden_raw) is bool:
+        hidden = hidden_raw
+    elif isinstance(hidden_raw, str) and hidden_raw.strip():
+        hidden = hidden_raw.strip() not in ('否', 'false', 'False', '0')
+    else:
+        hidden = True
     return {
         'id': str(it.get('id') or '').strip(),
         'name': str(it.get('name') or '未命名道具').strip(),
         'type': str(it.get('type') or '永久性').strip(),
+        'category': str(it.get('category') or '').strip(),
+        'usage_mode': usage_mode,
         'desc': str(it.get('desc') or '未填写').strip(),
         'quantity': max(1, _parse_int(it.get('quantity'), 1)),
         'obtain_round': str(it.get('obtain_round') if it.get('obtain_round') is not None else '').strip(),
         'status': str(it.get('status') or '仓库中').strip(),
         'location': str(it.get('location') or '无').strip(),
+        'spot': str(it.get('spot') or '').strip(),
+        'hidden': hidden,
+        'installed_clock': str(it.get('installed_clock') or '').strip(),
+        'detected_risk': max(0, min(100, _parse_int(it.get('detected_risk'), 0))),
         'target': str(it.get('target') or '未使用').strip(),
         'duration': dur,
         'remaining': remaining_str,
@@ -524,7 +576,7 @@ def normalize_item_dict(it):
 
 
 def _parse_legacy_items(item_text):
-    items_out = {'next_seq': 1, 'active': [], 'delivered': [], 'history': []}
+    items_out = {'next_seq': 1, 'active': [], 'deployed': [], 'delivered': [], 'history': []}
     if not item_text:
         return items_out
     max_seq = 0
@@ -553,11 +605,15 @@ def _parse_legacy_items(item_text):
                 'id': item_id,
                 'name': name,
                 'type': fields.get('类型', '永久性'),
+                'usage_mode': fields.get('使用模式', ''),
                 'desc': fields.get('描述', '未填写'),
                 'quantity': _parse_int(fields.get('数量'), 1),
                 'obtain_round': fields.get('获得回合', ''),
                 'status': fields.get('当前状态', '仓库中'),
                 'location': fields.get('位置', '无'),
+                'spot': fields.get('安装点位', ''),
+                'hidden': fields.get('隐蔽部署', '是'),
+                'installed_clock': fields.get('部署时间', ''),
                 'target': fields.get('使用对象', '未使用'),
                 'duration': fields.get('时效', '无'),
                 'remaining': rem_str or '无',
@@ -571,22 +627,32 @@ def _parse_legacy_items(item_text):
         return found
 
     act_idx = item_text.find('▼ 活跃道具区 ▼')
+    dep_idx = item_text.find('▼ 已部署装置区 ▼')
     deliv_idx = item_text.find('▼ 已交付道具区 ▼')
     hist_idx = item_text.find('▼ 已过期/已消耗道具历史区 ▼')
     tpl_idx = item_text.find('▼ 格式模板区 ▼')
 
+    def _next_stop(start_pos, *candidates):
+        stops = [c for c in candidates if c != -1 and c > start_pos]
+        return min(stops) if stops else len(item_text)
+
     if act_idx != -1:
-        end_act = deliv_idx if (deliv_idx != -1 and deliv_idx > act_idx) else (hist_idx if hist_idx != -1 else len(item_text))
+        end_act = _next_stop(act_idx, dep_idx, deliv_idx, hist_idx, tpl_idx)
         for it in _extract_zone(item_text[act_idx:end_act]):
             if it['status'] == '已交付':
                 items_out['delivered'].append(it)
+            elif it['status'] == '已部署':
+                items_out['deployed'].append(it)
             else:
                 items_out['active'].append(it)
+    if dep_idx != -1:
+        end_dep = _next_stop(dep_idx, deliv_idx, hist_idx, tpl_idx)
+        items_out['deployed'].extend(_extract_zone(item_text[dep_idx:end_dep]))
     if deliv_idx != -1:
-        end_del = hist_idx if (hist_idx != -1 and hist_idx > deliv_idx) else (tpl_idx if tpl_idx != -1 else len(item_text))
+        end_del = _next_stop(deliv_idx, hist_idx, tpl_idx)
         items_out['delivered'].extend(_extract_zone(item_text[deliv_idx:end_del]))
     if hist_idx != -1:
-        end_hist = tpl_idx if (tpl_idx != -1 and tpl_idx > hist_idx) else len(item_text)
+        end_hist = _next_stop(hist_idx, tpl_idx)
         items_out['history'].extend(_extract_zone(item_text[hist_idx:end_hist]))
 
     items_out['next_seq'] = max(1, max_seq + 1)
@@ -750,16 +816,22 @@ def migrate_from_legacy_texts(memory_text='', items_text='', data_dict=None, bas
         sm = re.search(r'(?m)(【商城与回响状态】.*?)(?=\n【|\n▲ 第一层：|\Z)', pre, re.S)
         if sm:
             sblock = sm.group(1)
-            shop = {'redeemed': {}, 'recent': [], 'echoes': []}
+            shop = {
+                'redeemed': {},
+                'recent': [],
+                'echoes': [],
+                'dynamic_catalog': copy.deepcopy(state['shop'].get('dynamic_catalog') or []),
+                'next_dyn_seq': int(state['shop'].get('next_dyn_seq') or 1),
+            }
             rm = re.search(r'^已兑统计：([^\n]+)', sblock, re.M)
             if rm and rm.group(1).strip() not in _EMPTY_MARKERS:
                 for seg in rm.group(1).split('|'):
-                    pm2 = re.fullmatch(r'\s*(SHOP-\d+)[×x*](\d+)\s*', seg)
+                    pm2 = re.fullmatch(r'\s*((?:SHOP|DYN)-\d+)[×x*](\d+)\s*', seg)
                     if pm2:
                         shop['redeemed'][pm2.group(1)] = int(pm2.group(2))
             recm = re.search(r'^最近兑换：\n((?: [^\n]+\n?)*)', sblock, re.M)
             if recm and recm.group(1).strip():
-                shop['recent'] = [ln.strip() for ln in recm.group(1).splitlines() if ln.strip()][:5]
+                shop['recent'] = [ln.strip() for ln in recm.group(1).splitlines() if ln.strip()][:8]
             em = re.search(r'^待播回响：\n((?: [^\n]+\n?)*)', sblock, re.M)
             if em and em.group(1).strip():
                 for ln in em.group(1).splitlines():
@@ -1050,15 +1122,23 @@ def render_memory_txt(state, mem_layers):
 
 def _format_item_record(it):
     it = normalize_item_dict(it)
-    return '\n'.join([
+    lines = [
         f"【道具名称】：{it['name']}",
         f"【道具ID】：{it['id']}",
         f"【类型】：{it['type']}",
+        f"【使用模式】：{it['usage_mode']}",
         f"【描述】：{it['desc']}",
         f"【数量】：{it['quantity']}",
         f"【获得回合】：{it['obtain_round']}",
         f"【当前状态】：{it['status']}",
         f"【位置】：{it['location']}",
+    ]
+    if it.get('spot') or it.get('status') == '已部署':
+        lines.append(f"【安装点位】：{it.get('spot') or '隐蔽角落'}")
+        lines.append(f"【隐蔽部署】：{'是' if it.get('hidden', True) else '否'}")
+        if it.get('installed_clock'):
+            lines.append(f"【部署时间】：{it['installed_clock']}")
+    lines.extend([
         f"【使用对象】：{it['target']}",
         f"【时效】：{it['duration']}",
         f"【剩余时效】：{it['remaining']}",
@@ -1068,10 +1148,11 @@ def _format_item_record(it):
         f"【系统效果】：{it['system_effect']}",
         f"【可赠予】：{'是' if it['giftable'] else '否'}",
     ])
+    return '\n'.join(lines)
 
 
 def render_items_txt(state):
-    """Deterministically render 存档/徐志北道具图鉴.txt (active / delivered / history / template)."""
+    """Deterministically render 存档/徐志北道具图鉴.txt (active / deployed / delivered / history / template)."""
     state = normalize_state(state)
     items = state['items']
 
@@ -1087,13 +1168,18 @@ def render_items_txt(state):
         '【AI读取规则】\n'
         '1. 本文件由 save_store 从 存档/save_state.json 单向自动渲染，供人工与只读查阅；机器真相以 JSON 为准。\n'
         '2. 仅读取 ▼活跃道具区▼ 内的条目作为徐志北当前实际持有的有效道具。\n'
-        '3. ▼已交付道具区▼ 记录已赠予/交付他人的道具，不计入徐志北当前库存，也不会被商城重购覆盖。\n'
-        '4. 禁止把 ▼格式模板区▼ 和 ▼已过期/已消耗道具历史区▼ 里的内容当作可用道具。\n'
-        '5. 临时道具剩余回合数由引擎统一维护在 save_state.json，归零自动移入历史区。\n\n'
+        '3. ▼已部署装置区▼ 记录已暗中安装于各场景的设备，可远程查看或回原址拆除回收。\n'
+        '4. ▼已交付道具区▼ 记录已赠予/交付他人的道具，不计入徐志北当前库存，也不会被商城重购覆盖。\n'
+        '5. 禁止把 ▼格式模板区▼ 和 ▼已过期/已消耗道具历史区▼ 里的内容当作可用道具。\n'
+        '6. 临时道具剩余回合数由引擎统一维护在 save_state.json，归零自动移入历史区。\n\n'
         '==================================================\n'
         '▼ 活跃道具区 ▼（以下为当前实际持有的全部道具）\n'
         '==================================================\n\n'
         + _section(items['active'], '（新游戏初始仓库为空，兑换道具后由注入逻辑写入此区域）')
+        + '\n\n==================================================\n'
+        '▼ 已部署装置区 ▼（已暗中安装于各场景的设备记录，可远程查看或回原址拆除回收）\n'
+        '==================================================\n\n'
+        + _section(items.get('deployed', []), '（当前为空）')
         + '\n\n==================================================\n'
         '▼ 已交付道具区 ▼（已赠予或交付给其他角色的道具记录）\n'
         '==================================================\n\n'
@@ -1108,18 +1194,19 @@ def render_items_txt(state):
         '【道具名称】：\n'
         '【道具ID】：（引擎自动生成，如 ITEM-001）\n'
         '【类型】：永久性 / 临时性 / 临时性（消耗品）\n'
+        '【使用模式】：gift / consumable_host / consumable_target / reusable_tool / deployable_device\n'
         '【描述】：\n'
         '【数量】：（缺省1；同名仓库中条目堆叠累加）\n'
         '【获得回合】：\n'
         '【当前状态】：仓库中 / 已使用 / 已部署 / 已交付\n'
-        '【位置】：（永久性必填，临时性填「无」）\n'
+        '【位置】：（永久性或已部署必填，临时性填「无」）\n'
         '【使用对象】：（临时性或已交付必填，未使用填「未使用」）\n'
         '【时效】：（临时性必填，填数字回合，例：12）\n'
         '【剩余时效】：（引擎自动维护，例：11回合；归零自动移入历史区）\n'
         '【过期规则】：\n'
         '【使用记录】：\n'
         '【备注】：\n'
-        '【系统效果】：（登记宿主体力恢复时为host_stamina:正整数；未登记不能猜效果）\n'
+        '【系统效果】：（host_stamina:正整数 / buff:名称:回合:效果 / deploy_device:camera|audio|aroma）\n'
         '【可赠予】：是 / 否\n'
     )
 
@@ -1194,8 +1281,10 @@ def load_bundle(root, files=None):
                     base_state=state,
                 )
                 if mem_drifted:
-                    # Preserve JSON-only mechanics/runtime and layer metadata (prologue_active / known_by) across .txt syncs.
+                    # Preserve JSON-only mechanics/runtime/dynamic_catalog and layer metadata (prologue_active / known_by) across .txt syncs.
                     migrated_state['mechanics'] = copy.deepcopy(state['mechanics'])
+                    migrated_state['shop']['dynamic_catalog'] = copy.deepcopy(state['shop'].get('dynamic_catalog') or [])
+                    migrated_state['shop']['next_dyn_seq'] = int(state['shop'].get('next_dyn_seq') or 1)
                     if not data_rt_drifted:
                         migrated_state['runtime'] = copy.deepcopy(state['runtime'])
                     if not items_drifted:

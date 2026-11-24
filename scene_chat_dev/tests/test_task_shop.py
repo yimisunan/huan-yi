@@ -105,7 +105,7 @@ class TaskAndShopTests(unittest.TestCase):
     def _make_response(
         self, task, *, category='SYSTEM', day=1, time='09:10',
         text='窗外光线安静，对话顺势推进了一步。', events=None,
-        task_issue=None, items=None,
+        task_issue=None, items=None, operation=None, messages=None,
     ):
         key = task['request_id']
         context = json.loads(self.service._blob(key, '.context.json').read_text(encoding='utf-8'))
@@ -126,9 +126,9 @@ class TaskAndShopTests(unittest.TestCase):
             }],
         }
         result = {
-            'messages': [{'kind': 'narration', 'speaker': '', 'text': text}],
+            'messages': messages or [{'kind': 'narration', 'speaker': '', 'text': text}],
             'decision': DECISION,
-            'operation': None,
+            'operation': operation,
             'handoff': '',
             'checks': {
                 'intent': '承接玩家行动。',
@@ -175,8 +175,15 @@ class TaskAndShopTests(unittest.TestCase):
     # 1. Shop catalog schema & red-line validation
     def test_shop_catalog_valid_and_rejects_redline_violations(self):
         catalog = sp.load_shop_catalog(self.root, optional=False)
-        self.assertEqual(len(catalog['items']), 8)
+        self.assertEqual(len(catalog['items']), 16)
         self.assertEqual({it['tier'] for it in catalog['items']}, {'low', 'mid', 'high'})
+        self.assertEqual({it['category'] for it in catalog['items']}, {'daily', 'sensual', 'covert'})
+        by_id = {it['id']: it for it in catalog['items']}
+        self.assertEqual(by_id['SHOP-009']['usage_mode'], 'consumable_target')
+        self.assertEqual(by_id['SHOP-009']['pack_qty'], 3)
+        self.assertEqual(by_id['SHOP-013']['usage_mode'], 'reusable_tool')
+        self.assertEqual(by_id['SHOP-015']['usage_mode'], 'deployable_device')
+        self.assertEqual(by_id['SHOP-015']['unlock_req']['min_biz'], 25)
 
         base = json.loads((self.root / 'txt文件/系统商城目录.json').read_text(encoding='utf-8'))
         catalog_path = self.root / 'txt文件/系统商城目录.json'
@@ -570,7 +577,7 @@ class TaskAndShopTests(unittest.TestCase):
         self.assertEqual(r_get.status_code, 200)
         data = r_get.get_json()
         self.assertEqual(data['points'], 20)
-        self.assertEqual(len(data['items']), 8)
+        self.assertEqual(len(data['items']), 16)
         self.assertTrue(data['can_transact'])
 
         # Missing X-Story-Client header -> 403
@@ -661,6 +668,382 @@ class TaskAndShopTests(unittest.TestCase):
         self.assertEqual(parsed_after['redeemed'], {'SHOP-001': 2})
         self.assertEqual(len(parsed_after['recent']), 1)
         self.assertEqual(len(parsed_after['echoes']), 1)
+
+    # 9. Stacked points + 商业嗅觉 / 好感 unlock_req enforcement
+    def test_shop_unlock_req_enforcement(self):
+        self._begin()
+        self._set_host_attr('积分', 200)
+        self._set_host_attr('商业嗅觉', 10)
+
+        # SHOP-015 requires min_biz >= 25
+        sv = self.service.shop_view()
+        cam = next(x for x in sv['items'] if x['id'] == 'SHOP-015')
+        self.assertFalse(cam['unlocked'])
+        self.assertIn('商业嗅觉', cam['unlock_hint'])
+        snap = self.service.interaction_snapshot()
+        with self.assertRaises(rr.RoundError):
+            self.service.redeem_shop({
+                'request_id': 'unlock-fail-1',
+                'base_revision': snap['revision'],
+                'save_epoch': snap['save_epoch'],
+                'item_id': 'SHOP-015',
+            })
+
+        # Raise 商业嗅觉 to 25 -> SHOP-015 unlocks & redeems cleanly
+        self._set_host_attr('商业嗅觉', 25)
+        sv2 = self.service.shop_view()
+        cam2 = next(x for x in sv2['items'] if x['id'] == 'SHOP-015')
+        self.assertTrue(cam2['unlocked'])
+        snap2 = self.service.interaction_snapshot()
+        r_cam = self.service.redeem_shop({
+            'request_id': 'unlock-ok-1',
+            'base_revision': snap2['revision'],
+            'save_epoch': snap2['save_epoch'],
+            'item_id': 'SHOP-015',
+        })
+        self.assertEqual(r_cam['status'], 'committed')
+
+        # SHOP-014 requires BOTH min_biz >= 15 AND min_any_affection >= 55
+        engine = rr._engine(self.root, self.root)
+        mem_path = self.root / rr.FILES[0]
+        mem_low = engine._simulate_panel(
+            mem_path.read_text(encoding='utf-8'),
+            {'沈知韫': {'好感': 30}, '苏婉青': {'好感': 30}, '徐念薇': {'好感': 30}},
+        )
+        mem_path.write_text(mem_low, encoding='utf-8')
+        snap3 = self.service.interaction_snapshot()
+        with self.assertRaises(rr.RoundError):
+            self.service.redeem_shop({
+                'request_id': 'unlock-fail-2',
+                'base_revision': snap3['revision'],
+                'save_epoch': snap3['save_epoch'],
+                'item_id': 'SHOP-014',
+            })
+        mem_hi = engine._simulate_panel(mem_path.read_text(encoding='utf-8'), {'沈知韫': {'好感': 60}})
+        mem_path.write_text(mem_hi, encoding='utf-8')
+        snap4 = self.service.interaction_snapshot()
+        r_drop = self.service.redeem_shop({
+            'request_id': 'unlock-ok-2',
+            'base_revision': snap4['revision'],
+            'save_epoch': snap4['save_epoch'],
+            'item_id': 'SHOP-014',
+        })
+        self.assertEqual(r_drop['receipt']['quantity'], 2)
+
+    # 10. AI Shop Inquiry E2E: HTTP -> worker claim -> redline filter -> persist DYN-* -> redeem -> delete
+    def test_shop_inquiry_e2e_redline_and_delete(self):
+        self._begin()
+        self._set_host_attr('积分', 120)
+        self._set_host_attr('商业嗅觉', 30)
+
+        app = Flask(__name__)
+        svc = register_story_routes(app, self.root)
+        client = app.test_client()
+        token = svc.bridge_info()['token']
+        shop0 = client.get('/api/story/shop').get_json()
+
+        # Queue inquiry from browser
+        r_iq = client.post(
+            '/api/story/shop/inquire',
+            headers={'X-Story-Client': '1'},
+            json={'query': '有没有适合深夜氛围的丝绸香氛礼盒？', 'save_epoch': shop0['save_epoch']},
+        )
+        self.assertEqual(r_iq.status_code, 200, r_iq.get_json())
+        iq_id = r_iq.get_json()['inquiry']['id']
+
+        # worker_wait immediately detects queued shop inquiry
+        has_task, _ = svc._pending_flags()
+        self.assertTrue(has_task)
+
+        # Unauthorized worker claim blocked (403)
+        self.assertEqual(client.post('/api/story/worker/shop-inquiry/claim', json={}).status_code, 403)
+
+        # Authorized worker claims inquiry and receives compiled system/user prompt
+        r_claim = client.post(
+            '/api/story/worker/shop-inquiry/claim',
+            headers={'X-Story-Bridge': token},
+            json={},
+        )
+        self.assertEqual(r_claim.status_code, 200)
+        claimed = r_claim.get_json()['inquiry']
+        self.assertEqual(claimed['id'], iq_id)
+        self.assertIn('system_prompt', claimed)
+        self.assertIn('user_prompt', claimed)
+
+        # Worker submits mixed valid + redline-violating items
+        llm_reply = json.dumps({
+            'shopkeeper_reply': '为您调货了深夜香氛丝巾礼盒。',
+            'items': [
+                {
+                    'name': '夜玫瑰真丝披肩礼盒',
+                    'category': 'sensual',
+                    'usage_mode': 'consumable_target',
+                    'tier': 'mid',
+                    'price': 28,
+                    'pack_qty': 2,
+                    'type': '消耗品',
+                    'desc': '带着冷冽玫瑰淡香的温感真丝披肩与按摩油组合。',
+                    'system_effect': 'buff:温热精油:3:亲密互动更松弛',
+                    'giftable': True,
+                    'max_per_save': 3,
+                    'unlock_req': {'min_biz': 0, 'min_any_affection': 0, 'mode': 'all'},
+                },
+                {
+                    'name': '强效迷药催情散',
+                    'category': 'sensual',
+                    'usage_mode': 'consumable_target',
+                    'tier': 'mid',
+                    'price': 20,
+                    'pack_qty': 1,
+                    'type': '消耗品',
+                    'desc': '掺进水里即可迷晕目标。',
+                    'system_effect': '',
+                    'giftable': False,
+                    'max_per_save': 1,
+                },
+                {
+                    'name': '时效冻结沙漏',
+                    'category': 'daily',
+                    'usage_mode': 'reusable_tool',
+                    'tier': 'mid',
+                    'price': 20,
+                    'pack_qty': 1,
+                    'type': '永久性',
+                    'desc': '延长穿戴时效并冻结倒计时。',
+                    'system_effect': 'extend_duration:9',
+                    'giftable': False,
+                    'max_per_save': 1,
+                },
+            ],
+        }, ensure_ascii=False)
+        r_done = client.post(
+            f'/api/story/worker/shop-inquiry/{iq_id}/complete',
+            headers={'X-Story-Bridge': token},
+            json={'lease': claimed['lease'], 'text': llm_reply},
+        )
+        self.assertEqual(r_done.status_code, 200, r_done.get_json())
+        done_iq = r_done.get_json()['inquiry']
+        self.assertEqual(done_iq['status'], 'completed')
+        self.assertEqual(len(done_iq['added_items']), 1)
+        self.assertEqual(done_iq['added_items'][0]['id'], 'DYN-001')
+        self.assertGreaterEqual(len(done_iq['rejected_reasons']), 2)
+
+        # Shop now serves DYN-001 alongside static catalog, and redemption works
+        shop1 = client.get('/api/story/shop').get_json()
+        dyn = next((x for x in shop1['items'] if x['id'] == 'DYN-001'), None)
+        self.assertIsNotNone(dyn)
+        self.assertEqual(dyn['source'], 'ai_restock')
+
+        r_buy = client.post(
+            '/api/story/shop/redeem',
+            headers={'X-Story-Client': '1'},
+            json={
+                'request_id': 'buy-dyn-1',
+                'base_revision': shop1['revision'],
+                'save_epoch': shop1['save_epoch'],
+                'item_id': 'DYN-001',
+            },
+        )
+        self.assertEqual(r_buy.status_code, 200, r_buy.get_json())
+        self.assertEqual(r_buy.get_json()['receipt']['quantity'], 2)
+
+        # Delete DYN-001 via DELETE route
+        r_del = client.delete(
+            '/api/story/shop/dynamic/DYN-001',
+            headers={'X-Story-Client': '1'},
+            json={'save_epoch': shop1['save_epoch']},
+        )
+        self.assertEqual(r_del.status_code, 200, r_del.get_json())
+        shop2 = client.get('/api/story/shop').get_json()
+        self.assertFalse(any(x['id'] == 'DYN-001' for x in shop2['items']))
+
+    # 11. use_item: consumable buff active in same turn (halves SHAME_01 drop) + reusable_tool stays unconsumed
+    def test_use_item_consumable_buff_and_reusable_tool(self):
+        self._begin()
+        self._set_host_attr('积分', 150)
+        self._set_host_attr('商业嗅觉', 30)
+        engine = rr._engine(self.root, self.root)
+        mem_path = self.root / rr.FILES[0]
+        mem_path.write_text(
+            engine._simulate_panel(mem_path.read_text(encoding='utf-8'), {'沈知韫': {'好感': 50, '羞耻': 50}}),
+            encoding='utf-8',
+        )
+
+        # Redeem SHOP-009 (热感足部按摩精油, pack_qty=3, buff:温热精油:3) and SHOP-013 (reusable_tool)
+        snap = self.service.interaction_snapshot()
+        r_oil = self.service.redeem_shop({
+            'request_id': 'buy-oil-1',
+            'base_revision': snap['revision'],
+            'save_epoch': snap['save_epoch'],
+            'item_id': 'SHOP-009',
+        })
+        oil_id = r_oil['receipt']['item_id']
+        snap2 = self.service.interaction_snapshot()
+        r_tool = self.service.redeem_shop({
+            'request_id': 'buy-tool-1',
+            'base_revision': snap2['revision'],
+            'save_epoch': snap2['save_epoch'],
+            'item_id': 'SHOP-013',
+        })
+        tool_id = r_tool['receipt']['item_id']
+
+        # Turn 1: use_item on oil + SHAME_02 (violation_drop_08=-4 at aff=50, halved to -2 by 温热精油 buff active in same turn!)
+        req1 = self._make_req('CUSTOM', text='拿出热感足部按摩精油，帮沈知韫舒缓脚踝。')
+        req1['operation'] = {'code': 'use_item', 'item_id': oil_id, 'target': '沈知韫'}
+        self.service.create(req1)
+        task1 = self.service.claim()['task']
+        ev_text = '温热精油在沈知韫脚踝散开，她耳尖微红地轻颤了一下。'
+        res1 = self.service.result(task1['request_id'], self._make_response(
+            task1,
+            category='C',
+            time='09:30',
+            text=ev_text,
+            operation={'code': 'use_item', 'item_id': oil_id, 'target': '沈知韫'},
+            events=[{'group': 'shame_events', 'target': '沈知韫', 'tags': ['C烈度_中度'], 'evidence': ev_text}],
+        ))
+        self.assertEqual(res1['task']['status'], 'committed', res1)
+        self._play_all()
+
+        # Verify: oil qty decremented 3 -> 2, buff 温热精油 persisted at 2回合, SHAME_02 penalty halved!
+        world1 = ir.view(self.store)
+        oil_after = next(it for it in world1['items'] if it['id'] == oil_id)
+        self.assertEqual(oil_after['quantity'], 2)
+        mem_after = (self.root / rr.FILES[0]).read_text(encoding='utf-8')
+        self.assertIn('[温热精油] 剩余时效: 2回合', mem_after)
+        aff_after = engine._read_attr_value(mem_after, '沈知韫', '好感')
+        self.assertEqual(aff_after, 48)  # 50 - 2 (halved from -4!)
+
+        # Turn 2: use_item on reusable_tool (SHOP-013) -> quantity remains 1
+        req2 = self._make_req('CUSTOM', text='取出真丝蒙眼带与玉石滚轮，轻轻试探她的反应。')
+        req2['operation'] = {'code': 'use_item', 'item_id': tool_id, 'target': '沈知韫'}
+        self.service.create(req2)
+        task2 = self.service.claim()['task']
+        res2 = self.service.result(task2['request_id'], self._make_response(
+            task2,
+            category='B',
+            time='09:50',
+            text='丝滑冰凉的滚轮掠过她的耳际，她屏住呼吸。',
+            operation={'code': 'use_item', 'item_id': tool_id, 'target': '沈知韫'},
+        ))
+        self.assertEqual(res2['task']['status'], 'committed', res2)
+        self._play_all()
+        world2 = ir.view(self.store)
+        tool_after = next(it for it in world2['items'] if it['id'] == tool_id)
+        self.assertEqual(tool_after['quantity'], 1)
+
+    # 12. deploy_item -> move_player -> remote inspect_deployed (+ Turn 2 delta) -> retrieve_item lifecycle
+    def test_deploy_inspect_and_retrieve_device_lifecycle(self):
+        self._begin()
+        self._set_host_attr('积分', 150)
+        self._set_host_attr('商业嗅觉', 35)
+
+        snap = self.service.interaction_snapshot()
+        r_cam = self.service.redeem_shop({
+            'request_id': 'buy-cam-dev',
+            'base_revision': snap['revision'],
+            'save_epoch': snap['save_epoch'],
+            'item_id': 'SHOP-015',
+        })
+        cam_id = r_cam['receipt']['item_id']
+
+        # Turn 1: deploy_item at 徐家主宅
+        dep_op = {'code': 'deploy_item', 'item_id': cam_id, 'spot': '床头暗槽', 'hidden': True}
+        req1 = self._make_req('CUSTOM', text='趁无人留意把针孔摄像头藏进床头暗槽。')
+        req1['operation'] = dep_op
+        self.service.create(req1)
+        task1 = self.service.claim()['task']
+        res1 = self.service.result(task1['request_id'], self._make_response(
+            task1, category='B', time='09:20', text='微小的镜头悄无声息嵌进床头木缝。', operation=dep_op,
+        ))
+        self.assertEqual(res1['task']['status'], 'committed', res1)
+        self._play_all()
+
+        world1 = ir.view(self.store)
+        self.assertFalse(any(it['id'] == cam_id for it in world1['items']))
+        self.assertEqual(len(world1['deployed_items']), 1)
+        self.assertEqual(world1['deployed_items'][0]['location'], '徐家主宅')
+        self.assertEqual(world1['deployed_items'][0]['spot'], '床头暗槽')
+        items_txt = (self.root / rr.FILES[1]).read_text(encoding='utf-8')
+        self.assertIn('▼ 已部署装置区 ▼', items_txt)
+        self.assertIn('【安装点位】：床头暗槽', items_txt)
+
+        # Turn 2: move_player to 市中心顶层公寓
+        mv_op = {'code': 'move_player', 'destination': '市中心顶层公寓'}
+        req2 = self._make_req('CUSTOM', text='前往市中心顶层公寓')
+        req2['operation'] = mv_op
+        self.service.create(req2)
+        task2 = self.service.claim()['task']
+        res2 = self.service.result(task2['request_id'], self._make_response(
+            task2, category='A', time='09:50', text='车子停在公寓楼下，乘电梯上了顶层。', operation=mv_op,
+        ))
+        self.assertEqual(res2['task']['status'], 'committed', res2)
+        self._play_all()
+
+        # Verify retrieve_item from wrong location fails
+        bad_ret = self._make_req('CUSTOM', text='回收摄像头')
+        bad_ret['operation'] = {'code': 'retrieve_item', 'item_id': cam_id}
+        with self.assertRaises(rr.RoundError):
+            self.service.create(bad_ret)
+
+        # Turn 3: inspect_deployed from 市中心顶层公寓 succeeds and injects remote_cast + deployed_items_remote
+        insp_op = {'code': 'inspect_deployed', 'item_id': cam_id}
+        req3 = self._make_req('CUSTOM', text='打开加密监控端查看徐家主宅的实时画面。')
+        req3['operation'] = insp_op
+        self.service.create(req3)
+        task3 = self.service.claim()['task']
+        ctx3 = json.loads(self.service._blob(task3['request_id'], '.context.json').read_text(encoding='utf-8'))
+        env3 = json.loads(ctx3['turns'][0]['content'])
+        op_detail = (env3.get('operation_context') or {}).get('detail') or {}
+        self.assertEqual(op_detail.get('kind'), 'inspect_deployed')
+        self.assertEqual((op_detail.get('device') or {}).get('location'), '徐家主宅')
+        self.assertIsInstance(op_detail.get('remote_cast'), list)
+
+        # Verify Turn 2..N compiled user_delta emits deployed_items_remote via real StoryService.material()
+        mat3 = self.service.material(task3['request_id'], {
+            'lease': task3['lease'],
+            'chat_id': 'c-dev',
+            'participant_id': 'p-dev',
+            'delivery_version': 2,
+            'protocol_mode': 'dual_stream_v2',
+            'is_fresh_session': False,
+        })
+        delta_t2 = mat3['input_text']
+        self.assertIn('deployed_items_remote', delta_t2)
+        self.assertIn('床头暗槽', delta_t2)
+
+        res3 = self.service.result(task3['request_id'], self._make_response(
+            task3, category='B', time='10:10',
+            text='手机屏幕亮起，主宅卧室里暖灯微亮，隐约能看见沈知韫站在镜前整理披肩。',
+            operation=insp_op,
+        ))
+        self.assertEqual(res3['task']['status'], 'committed', res3)
+        self._play_all()
+
+        # Turn 4: move back to 徐家主宅 and retrieve_item -> restored to active items
+        mv_back = {'code': 'move_player', 'destination': '徐家主宅'}
+        req4 = self._make_req('CUSTOM', text='回到徐家主宅')
+        req4['operation'] = mv_back
+        self.service.create(req4)
+        task4 = self.service.claim()['task']
+        self.service.result(task4['request_id'], self._make_response(
+            task4, category='A', time='10:40', text='推门回到徐家主宅。', operation=mv_back,
+        ))
+        self._play_all()
+
+        ret_op = {'code': 'retrieve_item', 'item_id': cam_id}
+        req5 = self._make_req('CUSTOM', text='趁无人注意从床头暗槽取回针孔摄像头。')
+        req5['operation'] = ret_op
+        self.service.create(req5)
+        task5 = self.service.claim()['task']
+        res5 = self.service.result(task5['request_id'], self._make_response(
+            task5, category='A', time='10:50', text='指尖探入床头木缝，将装置收回随身口袋。', operation=ret_op,
+        ))
+        self.assertEqual(res5['task']['status'], 'committed', res5)
+        self._play_all()
+
+        world_end = ir.view(self.store)
+        self.assertEqual(len(world_end['deployed_items']), 0)
+        self.assertTrue(any(it['id'] == cam_id and it['quantity'] == 1 for it in world_end['items']))
 
 
 if __name__ == '__main__':

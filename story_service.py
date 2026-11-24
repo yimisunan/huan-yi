@@ -609,35 +609,44 @@ class StoryService:
                 cleaner._reset_files(self.root, keep_backup=True, request_id=body['request_id'])
                 data = json.loads(self.store._files()['data.json'] or b'{}')
                 self._clear_preview()
+                self._inquiries_path().unlink(missing_ok=True)
                 result = {'status': 'reset', 'save_epoch': self._save_epoch(), 'replayed': False, 'prologue':data.get('prologue')}
         self.hub.publish('save_reset', {'save_epoch': result['save_epoch']})
         return result
 
-    def interaction_snapshot(self, before=None):
+    DEFAULT_LIVE_LIMIT = 10
+
+    def _public_segment(self, value, current, progress):
+        public = {k: v for k, v in value.items() if k not in ('audit', 'before_world', 'resolution')}
+        if current and value['id'] == current['id'] and not progress['completed']:
+            public['messages'] = public['messages'][:progress['revealed']]
+            public['handoff'] = ''
+            public.pop('decision', None)
+            public.pop('settlement', None)
+        return public
+
+    def interaction_snapshot(self, before=None, limit=None):
         self.start()
+        page_limit = self.DEFAULT_LIVE_LIMIT
+        if limit is not None:
+            try:
+                page_limit = max(1, min(60, int(limit)))
+            except (TypeError, ValueError) as exc:
+                raise rr.RoundError('历史分页数量无效') from exc
+        boundary = None
+        if before is not None:
+            try:
+                boundary = int(before)
+            except (TypeError, ValueError) as exc:
+                raise rr.RoundError('历史游标无效') from exc
         with self.store._locked():
             state = self._read()
             self._expire(state)
             files = self.store._files()
             current = ir.segment(self.root, files)
             progress = ir.playback(self.root, current)
-            rows = ir.recent_rows(self.store, files)
-            if before is not None:
-                try:
-                    boundary = int(before)
-                except (TypeError, ValueError) as exc:
-                    raise rr.RoundError('历史游标无效') from exc
-                rows = [pair for pair in rows if int(pair[1].get('sequence', 0)) < boundary]
-            selected = rows[-60:]
-            history = []
-            for _p, value in selected:
-                public = {k: v for k, v in value.items() if k not in ('audit', 'before_world', 'resolution')}
-                if current and value['id'] == current['id'] and not progress['completed']:
-                    public['messages'] = public['messages'][:progress['revealed']]
-                    public['handoff'] = ''
-                    public.pop('decision', None)
-                    public.pop('settlement', None)
-                history.append(public)
+            selected, has_older = ir.recent_rows_page(self.store, files, before=boundary, limit=page_limit)
+            history = [self._public_segment(value, current, progress) for _p, value in selected]
             world = current['before_world'] if (current and not progress['completed'] and current.get('before_world')) else ir.view(self.store, files)
             settlement = current.get('settlement') if current and progress['completed'] else None
             latest_job = state['jobs'].get(state['latest'])
@@ -648,7 +657,7 @@ class StoryService:
                     if raw_preview:
                         preview = dict(raw_preview)
             return {'world': world, 'settlement':settlement, 'playback': progress, 'history': history,
-                    'has_older': len(rows) > len(selected), 'stream_preview': preview,
+                    'has_older': has_older, 'stream_preview': preview,
                     'preferences': ir.load_story_prefs(self.root),
                     'revision': rr._revision(files), 'state_version': self.store._ledger()['sequence'],
                     **self._status(state)}
@@ -662,19 +671,105 @@ class StoryService:
 
     def playback_progress(self, body):
         self.start()
-        rr._keys(body, {'save_epoch', 'segment_id', 'revealed', 'completed', 'catchup'}, 'playback',
+        rr._keys(body, {'save_epoch', 'segment_id', 'revealed', 'completed', 'catchup', 'compact'}, 'playback',
                  {'save_epoch', 'segment_id', 'revealed', 'completed'})
         catchup = bool(body.get('catchup', False))
+        compact = bool(body.get('compact', False))
         if 'catchup' in body and type(body['catchup']) is not bool:
             raise rr.RoundError('演播追平标记须为布尔值')
+        if 'compact' in body and type(body['compact']) is not bool:
+            raise rr.RoundError('演播精简标记须为布尔值')
         with self.store._locked():
             if body['save_epoch'] != self._save_epoch():
                 raise rr.ConflictError('已切换新档，旧演播进度无效')
-            row = ir.segment(self.root, self.store._files())
+            files = self.store._files()
+            row = ir.segment(self.root, files)
             if not row or row['id'] != body['segment_id']:
                 raise rr.ConflictError('本段已更新，旧演播进度无效')
-            ir.update_playback(self.store, row, body['revealed'], body['completed'], allow_catchup=catchup)
+            progress = ir.update_playback(self.store, row, body['revealed'], body['completed'], allow_catchup=catchup)
+            if compact:
+                state = self._read()
+                self._expire(state)
+                public_seg = self._public_segment(row, row, progress)
+                world = ir.view(self.store, files) if progress['completed'] else None
+                settlement = row.get('settlement') if progress['completed'] else None
+                return {
+                    'compact': True,
+                    'playback': progress,
+                    'history': [public_seg],
+                    'world': world,
+                    'settlement': settlement,
+                    'revision': rr._revision(files),
+                    'state_version': self.store._ledger()['sequence'],
+                    **self._status(state),
+                }
         return self.interaction_snapshot()
+
+    def _inquiries_path(self):
+        return self._path('shop_inquiries.json')
+
+    def _read_inquiries(self):
+        path = self._inquiries_path()
+        if not path.is_file():
+            return {'version': 1, 'latest': None, 'items': {}}
+        try:
+            raw = json.loads(path.read_bytes())
+        except Exception:
+            return {'version': 1, 'latest': None, 'items': {}}
+        if not isinstance(raw, dict) or not isinstance(raw.get('items'), dict):
+            return {'version': 1, 'latest': None, 'items': {}}
+        return raw
+
+    def _write_inquiries(self, data):
+        items = data.get('items') or {}
+        if len(items) > 20:
+            ordered = sorted(items.items(), key=lambda kv: float((kv[1] or {}).get('created_at') or 0))
+            data['items'] = dict(ordered[-20:])
+            if data.get('latest') not in data['items']:
+                data['latest'] = ordered[-1][0] if ordered else None
+        rr._atomic(self._inquiries_path(), rr._json(data))
+
+    def _expire_inquiries(self, data, *, save_epoch=None):
+        now = time.time()
+        changed = False
+        for iq in (data.get('items') or {}).values():
+            if not isinstance(iq, dict):
+                continue
+            status = iq.get('status')
+            if save_epoch and iq.get('save_epoch') and iq.get('save_epoch') != save_epoch and status in ('queued', 'claimed'):
+                iq['status'] = 'cancelled'
+                iq['error'] = '存档已切换，本次询货已取消'
+                iq['completed_at'] = now
+                changed = True
+                continue
+            if status == 'claimed' and (now - float(iq.get('claimed_at') or iq.get('created_at') or 0)) > LEASE_SECONDS:
+                iq['status'] = 'failed'
+                iq['error'] = 'AI 询货进货超时，请检查桥接状态后重试'
+                iq['completed_at'] = now
+                changed = True
+            elif status == 'queued' and (now - float(iq.get('created_at') or 0)) > 180:
+                iq['status'] = 'failed'
+                iq['error'] = '桥接长时间未认领询货请求，请确认 Operit 桥接已开启'
+                iq['completed_at'] = now
+                changed = True
+        return changed
+
+    @staticmethod
+    def _public_inquiry(iq):
+        if not isinstance(iq, dict):
+            return None
+        return {
+            'id': iq.get('id', ''),
+            'query': iq.get('query', ''),
+            'status': iq.get('status', ''),
+            'save_epoch': iq.get('save_epoch', ''),
+            'created_at': iq.get('created_at'),
+            'completed_at': iq.get('completed_at'),
+            'shopkeeper_reply': iq.get('shopkeeper_reply', ''),
+            'added_items': list(iq.get('added_items') or []),
+            'rejected_reasons': list(iq.get('rejected_reasons') or []),
+            'error': iq.get('error', ''),
+        }
 
     def shop_view(self):
         self.start()
@@ -685,40 +780,217 @@ class StoryService:
             points = engine._read_attr_value(memory, '系统宿主', '积分')
             shop_state = sp.parse_shop_echo_block(memory)
             catalog = sp.load_shop_catalog(self.root, optional=True)
+            st, _, _ = save_store.load_bundle(self.root, files)
+            dyn_items = list((st.get('shop') or {}).get('dynamic_catalog') or [])
+            host_biz, heroine_affs = sp.read_shop_unlock_metrics(engine, memory)
+            max_affection = max(heroine_affs.values()) if heroine_affs else 0
             row = ir.segment(self.root, files)
             prog = ir.playback(self.root, row)
             state = self._read()
             self._expire(state)
             busy = any(j['status'] in ACTIVE for j in state['jobs'].values())
             can_transact = (not busy) and (row is None or prog['completed'])
+            cur_epoch = self._save_epoch()
+            iq_store = self._read_inquiries()
+            if self._expire_inquiries(iq_store, save_epoch=cur_epoch):
+                self._write_inquiries(iq_store)
+            latest_iq = iq_store['items'].get(iq_store.get('latest'))
+            if latest_iq and latest_iq.get('save_epoch') != cur_epoch:
+                latest_iq = None
+            all_catalog_items = [
+                *[{**it, 'source': 'static'} for it in catalog['items']],
+                *[{**it, 'source': it.get('source') or 'ai_restock'} for it in dyn_items if isinstance(it, dict)],
+            ]
             items = []
-            for item in catalog['items']:
+            for item in all_catalog_items:
                 bought = shop_state['redeemed'].get(item['id'], 0)
-                cap = item['max_per_save']
+                cap = item.get('max_per_save')
                 remaining = None if cap is None else max(0, cap - bought)
+                chk = sp.evaluate_unlock_req(item.get('unlock_req'), host_biz, heroine_affs)
                 items.append({
                     **item,
                     'redeemed_count': bought,
                     'remaining': remaining,
                     'sold_out': cap is not None and bought >= cap,
                     'affordable': (points or 0) >= item['price'],
+                    'unlocked': chk['unlocked'],
+                    'unlock_reason': chk['reason'],
+                    'unlock_hint': chk['hint'],
                 })
             return {
                 'version': catalog['version'],
                 'tiers': catalog['tiers'],
+                'categories': catalog.get('categories', {}),
                 'items': items,
                 'points': points if points is not None else 0,
+                'host_biz': host_biz,
+                'max_affection': max_affection,
+                'dynamic_count': len(dyn_items),
+                'dynamic_limit': sp.SHOP_DYNAMIC_LIMIT,
+                'latest_inquiry': self._public_inquiry(latest_iq),
                 'recent': shop_state['recent'],
                 'can_transact': can_transact,
                 'busy': busy,
                 'revision': rr._revision(files),
-                'save_epoch': self._save_epoch(),
+                'save_epoch': cur_epoch,
             }
 
     def redeem_shop(self, body):
         result = sp.redeem_shop_item(self, body)
         self.hub.publish('committed', {'request_id': result['receipt']['request_id'], 'kind': 'shop_redeem'})
         return {**result, 'snapshot': self.interaction_snapshot()}
+
+    def inquire_shop(self, body):
+        self.start()
+        rr._keys(body, {'query', 'save_epoch'}, '商城AI询货', {'query', 'save_epoch'})
+        query = re.sub(r'\s+', ' ', str(body['query'] or '')).strip()
+        if not query or len(query) > 120:
+            raise rr.RoundError('询货描述须为 1～120 字的非空文本')
+        with self.store._locked():
+            cur_epoch = self._save_epoch()
+            if body['save_epoch'] != cur_epoch:
+                raise rr.ConflictError('当前存档已改变，请刷新后重试')
+            state = self._read()
+            self._expire(state)
+            if any(j['status'] in ACTIVE for j in state['jobs'].values()):
+                raise rr.ConflictError('当前有剧情行动正在处理，请待本段结算完成后再向商城询货')
+            iq_store = self._read_inquiries()
+            self._expire_inquiries(iq_store, save_epoch=cur_epoch)
+            if any(it.get('status') in ('queued', 'claimed') for it in iq_store['items'].values()):
+                raise rr.ConflictError('已有商城询货正在进货中，请稍候片刻')
+            iq_id = 'siq-' + secrets.token_hex(8)
+            iq = {
+                'id': iq_id,
+                'query': query,
+                'status': 'queued',
+                'save_epoch': cur_epoch,
+                'lease': None,
+                'created_at': time.time(),
+                'claimed_at': None,
+                'completed_at': None,
+                'shopkeeper_reply': '',
+                'added_items': [],
+                'rejected_reasons': [],
+                'error': '',
+            }
+            iq_store['items'][iq_id] = iq
+            iq_store['latest'] = iq_id
+            self._write_inquiries(iq_store)
+            pub = {'inquiry': self._public_inquiry(iq)}
+        self.hub.publish('shop_inquiry', {'id': iq_id, 'status': 'queued'}, wake_worker=True)
+        return pub
+
+    def shop_inquiry_status(self, iq_id):
+        self.start()
+        with self.store._locked():
+            iq_store = self._read_inquiries()
+            if self._expire_inquiries(iq_store, save_epoch=self._save_epoch()):
+                self._write_inquiries(iq_store)
+            iq = iq_store['items'].get(iq_id)
+            if not iq:
+                abort(404)
+            return {'inquiry': self._public_inquiry(iq)}
+
+    def claim_shop_inquiry(self, body=None):
+        self.start()
+        with self.store._locked():
+            state = self._read()
+            self._expire(state)
+            if any(j['status'] in ACTIVE for j in state['jobs'].values()):
+                return {'inquiry': None}
+            cur_epoch = self._save_epoch()
+            iq_store = self._read_inquiries()
+            changed = self._expire_inquiries(iq_store, save_epoch=cur_epoch)
+            queued = [
+                it for it in iq_store['items'].values()
+                if isinstance(it, dict) and it.get('status') == 'queued' and it.get('save_epoch') == cur_epoch
+            ]
+            if not queued:
+                if changed:
+                    self._write_inquiries(iq_store)
+                return {'inquiry': None}
+            queued.sort(key=lambda x: float(x.get('created_at') or 0))
+            iq = queued[-1]
+            iq['status'] = 'claimed'
+            iq['lease'] = secrets.token_hex(16)
+            iq['claimed_at'] = time.time()
+            self._write_inquiries(iq_store)
+            files = self.store._files()
+            prompt_pack = sp.build_shop_inquiry_prompt(self.root, files, iq['query'])
+            return {
+                'inquiry': {
+                    'id': iq['id'],
+                    'lease': iq['lease'],
+                    'query': iq['query'],
+                    'save_epoch': iq['save_epoch'],
+                    'system_prompt': prompt_pack['system_prompt'],
+                    'user_prompt': prompt_pack['user_prompt'],
+                }
+            }
+
+    def complete_shop_inquiry(self, iq_id, body):
+        self.start()
+        rr._keys(body, {'lease', 'text', 'payload', 'error'}, '商城询货提交', {'lease'})
+        event_payload = None
+        response = None
+        with self.store._locked():
+            iq_store = self._read_inquiries()
+            iq = iq_store['items'].get(iq_id)
+            if not iq:
+                abort(404)
+            if iq.get('status') in ('completed', 'failed', 'cancelled'):
+                return {'inquiry': self._public_inquiry(iq)}
+            lease = str(body.get('lease') or '')
+            if iq.get('status') != 'claimed' or not iq.get('lease') or not hmac.compare_digest(lease, str(iq['lease'])):
+                raise rr.ConflictError('商城询货租约无效或已过期')
+            err_text = str(body.get('error') or '').strip()
+            if err_text:
+                iq['status'] = 'failed'
+                iq['error'] = err_text[:400]
+                iq['completed_at'] = time.time()
+                self._write_inquiries(iq_store)
+                event_payload = {'inquiry_id': iq_id, 'status': 'failed', 'error': iq['error']}
+                response = {'inquiry': self._public_inquiry(iq)}
+            else:
+                raw_payload = body.get('payload') if body.get('payload') is not None else body.get('text')
+                try:
+                    res = sp.persist_dynamic_shop_items(
+                        self,
+                        raw_payload,
+                        query=iq['query'],
+                        expected_save_epoch=iq['save_epoch'],
+                    )
+                except rr.RoundError as exc:
+                    iq['status'] = 'failed'
+                    iq['error'] = str(exc)[:400]
+                    iq['completed_at'] = time.time()
+                    self._write_inquiries(iq_store)
+                    event_payload = {'inquiry_id': iq_id, 'status': 'failed', 'error': iq['error']}
+                    response = {'inquiry': self._public_inquiry(iq)}
+                else:
+                    iq['status'] = 'completed'
+                    iq['completed_at'] = time.time()
+                    iq['shopkeeper_reply'] = res['shopkeeper_reply']
+                    iq['added_items'] = res['added_items']
+                    iq['rejected_reasons'] = res['rejected_reasons']
+                    iq['error'] = ''
+                    self._write_inquiries(iq_store)
+                    event_payload = {
+                        'inquiry_id': iq_id,
+                        'status': 'completed',
+                        'added_count': len(res['added_items']),
+                    }
+                    response = {'inquiry': self._public_inquiry(iq), 'result': res}
+        if event_payload is not None:
+            self.hub.publish('shop_updated', event_payload)
+        return response
+
+    def delete_dynamic_shop_item(self, item_id, body=None):
+        self.start()
+        save_epoch = (body or {}).get('save_epoch') if isinstance(body, dict) else None
+        res = sp.delete_dynamic_shop_item(self, item_id, save_epoch=save_epoch)
+        self.hub.publish('shop_updated', {'removed_id': item_id})
+        return {**res, 'snapshot': self.interaction_snapshot()}
 
     def claim_task_reward(self, body):
         result = sp.claim_task_reward(self, body)
@@ -1334,6 +1606,12 @@ class StoryService:
             job = state['jobs'].get(state['latest'])
             if job and job.get('status') == 'queued':
                 has_task = True
+            if not has_task and not any(j['status'] in ACTIVE for j in state['jobs'].values()):
+                cur_epoch = self._save_epoch()
+                iq_store = self._read_inquiries()
+                if any(isinstance(it, dict) and it.get('status') == 'queued' and it.get('save_epoch') == cur_epoch
+                       for it in (iq_store.get('items') or {}).values()):
+                    has_task = True
             cmd = self._bridge_view(state).get('control')
             if cmd and cmd.get('status') == 'requested':
                 has_control = True
@@ -1810,7 +2088,7 @@ def register_story_routes(app, root, *, tts_prewarmer=None):
             service.authorize(request.headers.get('X-Story-Bridge'))
         elif request.method != 'GET' and request.headers.get('X-Story-Client') != '1':
             abort(403)
-        if request.method != 'GET' and not request.is_json:
+        if request.method not in ('GET', 'DELETE') and not request.is_json:
             abort(415)
 
     @app.after_request
@@ -1864,7 +2142,7 @@ def register_story_routes(app, root, *, tts_prewarmer=None):
 
     @app.get('/api/story/live')
     def interaction_snapshot():
-        return jsonify(service.interaction_snapshot(request.args.get('before')))
+        return jsonify(service.interaction_snapshot(request.args.get('before'), request.args.get('limit')))
 
     @app.get('/api/story/stream')
     def story_sse_stream():
@@ -1927,6 +2205,23 @@ def register_story_routes(app, root, *, tts_prewarmer=None):
     def shop_redeem():
         return jsonify(service.redeem_shop(body()))
 
+    @app.post('/api/story/shop/inquire')
+    def shop_inquire():
+        return jsonify(service.inquire_shop(body()))
+
+    @app.get('/api/story/shop/inquire/<iq_id>')
+    def shop_inquiry_status(iq_id):
+        return jsonify(service.shop_inquiry_status(iq_id))
+
+    @app.delete('/api/story/shop/dynamic/<item_id>')
+    def shop_dynamic_delete(item_id):
+        payload = request.get_json(silent=True) if request.is_json else None
+        if not isinstance(payload, dict):
+            payload = {}
+        if 'save_epoch' not in payload and request.args.get('save_epoch'):
+            payload['save_epoch'] = request.args.get('save_epoch')
+        return jsonify(service.delete_dynamic_shop_item(item_id, payload))
+
     @app.post('/api/story/task/claim')
     def task_claim():
         return jsonify(service.claim_task_reward(body()))
@@ -1970,6 +2265,15 @@ def register_story_routes(app, root, *, tts_prewarmer=None):
     @app.post('/api/story/worker/claim')
     def claim():
         return jsonify(service.claim(body()))
+
+    @app.post('/api/story/worker/shop-inquiry/claim')
+    def worker_claim_shop_inquiry():
+        payload = body() if request.get_data() else {}
+        return jsonify(service.claim_shop_inquiry(payload))
+
+    @app.post('/api/story/worker/shop-inquiry/<iq_id>/complete')
+    def worker_complete_shop_inquiry(iq_id):
+        return jsonify(service.complete_shop_inquiry(iq_id, body()))
 
     @app.post('/api/story/worker/<key>/material')
     def material(key):

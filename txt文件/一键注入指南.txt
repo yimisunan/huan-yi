@@ -301,7 +301,7 @@ Python负责排序、推流和盖戳；AI只提供当回合增量，并按后续
 - 同质化免疫_回合3：base_delta_01=0（base_delta 赋值/条件值）
 - 首次：条件/修饰标签；按既有通用规则处理
 - 生理_危险期：prob_01=2（prob 赋值/条件值）
-- 心理破冰_暧昧试探：cur_shame_01=75（cur_shame 比较阈值）；base_delta_02=2（base_delta 扣减）
+- 心理破冰_暧昧试探：cur_shame_01=75（cur_shame 比较阈值）；base_delta_02=3（base_delta 扣减）
 - 意外撞破_私密自渎：base_delta_01=6（base_delta 扣减）
 【注册表生成表结束】
 

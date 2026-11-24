@@ -11,7 +11,7 @@ if [ "${1:-}" = "--fast" ]; then
   SHADOW=/tmp/proj-shadow
   rsync -a --delete \
     --exclude .git --exclude .into-backup --exclude .operit \
-    --exclude 'scene_chat_dev/artifacts' --exclude 'txt文件/image' \
+    --exclude 'scene_chat_dev/artifacts' \
     ./ "$SHADOW"/ || exit 1
   cd "$SHADOW" || exit 1
 fi

@@ -136,7 +136,7 @@ class LivingDirectorV2Tests(unittest.TestCase):
                 self.assertTrue(ph['soft_omen'] and ph['hard_landing'])
 
         beats = cat['beats']
-        self.assertEqual(len(beats), 43)
+        self.assertEqual(len(beats), 49)
         erotic_beats = [b for b in beats if b.get('category') == 'erotic_accident']
         self.assertEqual(len(erotic_beats), 12)
         for b in beats:
@@ -546,7 +546,7 @@ class LivingDirectorV2Tests(unittest.TestCase):
             "const src = fs.readFileSync('scene_chat_dev/local.story.operit_bridge/main.js', 'utf8');"
             "const jStart = src.indexOf('function jsonMemberSpan');"
             "const jEnd = src.indexOf('function oversizedMemory');"
-            "const nStart = src.indexOf('function normalizeSettlementJson');"
+            "const nStart = src.indexOf('function extractBalancedJsonObjects');"
             "const nEnd = src.indexOf('function extractRawForeground');"
             "const fn = new Function(src.slice(jStart, jEnd) + '\\n' + src.slice(nStart, nEnd) + '; return normalizeSettlementJson;')();"
             "const sample = JSON.stringify({operation:'',handoff:'',checks:{intent:'a',knowledge:'b',action:'c',pace:'d'},"
@@ -636,6 +636,38 @@ class LivingDirectorV2Tests(unittest.TestCase):
         )
         self.assertTrue(roll_cooled['triggered'])
         self.assertNotEqual(roll_cooled.get('category'), 'erotic_accident')
+
+    def test_10_tier0_sensual_hooks_and_drought_boost(self):
+        cat = sp.load_world_beats(self.tmp)
+        sensual = [b for b in cat['beats'] if b.get('category') == 'sensual_hook']
+        self.assertEqual(len(sensual), 6)
+        mem = (self.tmp / rr.FILES[0]).read_text(encoding='utf-8')
+        self._set_track_weights({'thread_spark': 0, 'offstage_clock': 0, 'preset_beat': 100})
+        state_view = {'location': '徐家主宅', 'cast': ['沈知韫'], 'items': []}
+        runtime_eve = {'clock': {'day': 1, 'time': '21:30'}}
+        # Opening shame=100 still permits Tier 0 sensual_hook
+        roll_hook = sp.roll_director_beat(
+            self.tmp, state_view, mem, runtime_eve, '周二',
+            rng=FixedRng([0.01, 0.99, 0.99]),
+        )
+        self.assertTrue(roll_hook['triggered'])
+        self.assertEqual(roll_hook['category'], 'sensual_hook')
+        self.assertEqual(roll_hook['event_id'], 'BEAT-T0-SENSUAL-SHEN-FOOT-HOME')
+        sd = sp.format_surprise_directive(roll_hook)
+        self.assertEqual(sd.get('category'), 'sensual_hook')
+        self.assertIn('魅力微距契机', sd['rule'])
+        # Drought counter boosts probability and resets to 0 when sensual_hook triggers
+        m0 = sp.write_director_block(mem, {'sensual_drought': 0})
+        m5 = sp.write_director_block(mem, {'sensual_drought': 5})
+        p0 = sp.roll_director_beat(self.tmp, state_view, m0, runtime_eve, '周二', rng=FixedRng([0.99]))['probability']
+        p5 = sp.roll_director_beat(self.tmp, state_view, m5, runtime_eve, '周二', rng=FixedRng([0.99]))['probability']
+        self.assertGreater(p5, p0)
+        after_hook = sp.advance_director_state(
+            self.tmp, m5, location='徐家主宅', director_roll=roll_hook,
+            effective_progress=True, had_events=False, memory_fact='她拖鞋滑落',
+            active_cast=['沈知韫'], new_clock={'day': 1, 'time': '21:45'}, day_crossed=False,
+        )
+        self.assertEqual(sp.parse_director_block(after_hook)['sensual_drought'], 0)
 
 
 if __name__ == '__main__':

@@ -33,8 +33,24 @@
   const SHOP_TIER_LABELS = {
     low: '低阶小物（≤10 积分）',
     mid: '中阶好物（11～50 积分）',
-    high: '高阶臻品（≥100 积分）'
+    high: '高阶臻品（≥60 积分）'
   };
+
+  const SHOP_CATEGORY_ORDER = ['ai_restock', 'sensual', 'covert', 'daily'];
+  const SHOP_CATEGORY_LABELS = {
+    ai_restock: 'AI 定制进货',
+    sensual: '官能与亲密辅助',
+    covert: '隐秘探测装备',
+    daily: '日用与礼赠'
+  };
+  const USAGE_MODE_LABELS = {
+    gift: '可赠予',
+    consumable_host: '体力恢复',
+    consumable_target: '消耗生效',
+    reusable_tool: '反复工具',
+    deployable_device: '可部署装置'
+  };
+  const DEPLOY_SPOT_PRESETS = ['床头暗槽', '衣柜缝隙', '梳妆台背', '书架角落', '沙发侧缝'];
 
   const MAP_COORDS = {
     '徐家主宅':       { x: 180, y: 46,  short: '徐家主宅' },
@@ -60,12 +76,20 @@
   let settlementFolded = true, settlementDismissedId = '', deckCollapsed = false, customComposerExpanded = false, lastUiMode = '';
   let activeStream = null, speakingMessageId = '', lastVectorLocation = '';
   let streamPreview = null, earlyStreamPreview = null, handoffPreview = null, sse = null, sseOpen = false, sseRetryTimer = null;
-  let lastSseSeq = 0, sseRetryAttempt = 0;
+  let lastSseSeq = 0, sseRetryAttempt = 0, initialSyncDone = false;
   let fishKeyStatusPromise = null, fishKeyConfigured = null, fishMissingToastShown = false;
   let restoreTimer = null, restoreQueued = false, prefetchTimer = null, catchingUp = false;
   let curtainTrackedReqId = '', curtainHideTimer = null, backendPrefBusy = false;
   let bridgePrimaryTargetSig = '', bridgeSettleSlotSig = '', bridgeBindModelSig = '', bridgeBindSyncedKey = '';
   let shopCatalog = null, shopBusy = false, shopLoading = false, shopError = '';
+  let shopInquiryDraft = '', shopInquiryState = null, shopInquiryBusy = false, shopInquiryPollTimer = null;
+  let bagPickerState = null;
+  let panelsCacheSig = '', panelsCacheVal = null;
+  let lastFocusedBeats = [];
+  const visiblePlates = new Set();
+  let plateObserver = null;
+  const segmentDomCache = new Map();
+  let segmentDomCacheEpoch = '', segmentDomCachePlates = null, segmentDomCacheVaSig = '';
 
   const BRIDGE_SLOT_LABELS = {
     CHAT: 'CHAT（主聊天）',
@@ -301,13 +325,16 @@
     return storageOK;
   }
 
-  async function api(path, body) {
+  async function api(path, body, method = null) {
+    const reqMethod = method || (body === undefined ? 'GET' : 'POST');
+    const headers = reqMethod === 'GET' ? {} : { 'X-Story-Client': '1' };
+    if (body !== undefined) headers['Content-Type'] = 'application/json';
     return VoiceClient.requestJson('/api/story/' + path, {
       cache: 'no-store',
-      ...(body === undefined ? {} : {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Story-Client': '1' },
-        body: JSON.stringify(body)
+      ...(reqMethod === 'GET' ? {} : {
+        method: reqMethod,
+        headers,
+        ...(body === undefined ? {} : { body: JSON.stringify(body) })
       })
     }, 12000);
   }
@@ -355,6 +382,141 @@
       : Date.now().toString(36) + '-' + Math.random().toString(36).slice(2));
   }
 
+  function describeSystemEffect(eff) {
+    const s = String(eff || '').trim();
+    if (!s) return '';
+    let m = /^host_stamina:([1-9]\d*)$/.exec(s);
+    if (m) return '体力 +' + m[1];
+    m = /^buff:([^:]{1,20}):([1-9]\d*)(?::(.*))?$/.exec(s);
+    if (m) return '增益：' + m[1] + '（' + m[2] + '回合）';
+    m = /^(?:deploy_device|device):(camera|audio|aroma)$/.exec(s);
+    if (m) return m[1] === 'camera' ? '远程隐蔽画面' : (m[1] === 'audio' ? '远程隐蔽拾音' : '定时扩香装置');
+    m = /^costume:(.+)$/.exec(s);
+    if (m) return '穿搭效果：' + m[1];
+    return '';
+  }
+
+  function attachOperationToComposer({ operation, label, defaultAction }) {
+    pendingItemAttachment = { operation, label, defaultAction: defaultAction || '' };
+    bagPickerState = null;
+    if (!($('input')?.value || '').trim() && defaultAction) {
+      syncDraftInputs(defaultAction);
+      save();
+    }
+    renderSheetAttachBar();
+    if ($('worldDialog')?.open) $('worldDialog').close();
+    openComposerSheet({ focus: true });
+  }
+
+  function stopShopInquiryPoll() {
+    if (shopInquiryPollTimer !== null) {
+      clearTimeout(shopInquiryPollTimer);
+      shopInquiryPollTimer = null;
+    }
+  }
+
+  function scheduleShopInquiryPoll(iqId, delay = 1500) {
+    stopShopInquiryPoll();
+    if (!iqId) return;
+    shopInquiryPollTimer = setTimeout(() => {
+      shopInquiryPollTimer = null;
+      void pollShopInquiry(iqId);
+    }, delay);
+  }
+
+  async function pollShopInquiry(iqId) {
+    if (!iqId) return;
+    try {
+      const res = await api('shop/inquire/' + encodeURIComponent(iqId));
+      const iq = res?.inquiry || null;
+      if (iq) {
+        const prevStatus = shopInquiryState?.status;
+        shopInquiryState = iq;
+        if (iq.status === 'queued' || iq.status === 'claimed') {
+          scheduleShopInquiryPoll(iq.id, 1500);
+        } else {
+          stopShopInquiryPoll();
+          shopInquiryBusy = false;
+          await loadShop(true);
+          if (prevStatus !== iq.status) {
+            if (iq.status === 'completed') {
+              const cnt = (iq.added_items || []).length;
+              toast(cnt > 0 ? ('商城已定制进货 ' + cnt + ' 件新商品') : (iq.shopkeeper_reply || '询货已完成'));
+            } else if (iq.status === 'failed' && iq.error) {
+              toast('商城询货失败：' + iq.error);
+            }
+          }
+        }
+        if ($('worldDialog')?.open && activeHubTab === 'shop') renderWorld(true);
+      }
+    } catch (_) {
+      stopShopInquiryPoll();
+      shopInquiryBusy = false;
+    }
+  }
+
+  async function handleShopUpdatedEvent(event) {
+    let info = null;
+    try { info = JSON.parse(event?.data || '{}'); } catch (_) {}
+    stopShopInquiryPoll();
+    shopInquiryBusy = false;
+    if (info?.inquiry_id && shopInquiryState?.id === info.inquiry_id && info.status) {
+      await pollShopInquiry(info.inquiry_id);
+      return;
+    }
+    await loadShop(true);
+    scheduleRestore(30);
+  }
+
+  async function submitShopInquiry(queryText) {
+    const q = String(queryText || '').replace(/\s+/g, ' ').trim();
+    if (!q) {
+      toast('请先输入想向系统商城询问或定制进货的道具');
+      return;
+    }
+    if (!online || !cache.epoch || shopInquiryBusy || active()) return;
+    haptic(12);
+    shopInquiryBusy = true;
+    shopInquiryDraft = q;
+    renderWorld(true);
+    try {
+      const res = await api('shop/inquire', { query: q, save_epoch: cache.epoch });
+      shopInquiryState = res?.inquiry || null;
+      shopInquiryDraft = '';
+      if (shopInquiryState?.id) {
+        toast('已向系统商城发起定制询货，等待桥接进货…');
+        scheduleShopInquiryPoll(shopInquiryState.id, 1200);
+      } else {
+        shopInquiryBusy = false;
+      }
+    } catch (e) {
+      shopInquiryBusy = false;
+      toast(e.message || '发起询货失败，请稍后重试');
+    } finally {
+      renderWorld(true);
+    }
+  }
+
+  async function deleteDynamicShopItem(item) {
+    if (!item || !item.id || !canTransactDeterministic()) return;
+    haptic(10);
+    shopBusy = true;
+    renderWorld(true);
+    try {
+      const res = await api('shop/dynamic/' + encodeURIComponent(item.id), { save_epoch: cache.epoch }, 'DELETE');
+      if (res?.snapshot) absorb(res.snapshot);
+      else await restore();
+      toast('已下架动态商品「' + item.name + '」');
+      await loadShop(true);
+    } catch (e) {
+      toast(e.message || '下架失败，已刷新商城');
+      await loadShop(true);
+    } finally {
+      shopBusy = false;
+      renderWorld(true);
+    }
+  }
+
   async function loadShop(force = false) {
     if (shopLoading) return;
     if (!force && shopCatalog && shopCatalog.revision === snapshot?.revision && shopCatalog.save_epoch === cache.epoch) return;
@@ -363,6 +525,20 @@
     if ($('worldDialog')?.open && activeHubTab === 'shop') renderWorld(true);
     try {
       shopCatalog = await api('shop');
+      if (shopCatalog?.latest_inquiry) {
+        shopInquiryState = shopCatalog.latest_inquiry;
+        if (shopInquiryState.status === 'queued' || shopInquiryState.status === 'claimed') {
+          shopInquiryBusy = true;
+          scheduleShopInquiryPoll(shopInquiryState.id, 1500);
+        } else {
+          shopInquiryBusy = false;
+          stopShopInquiryPoll();
+        }
+      } else if (shopInquiryState && shopInquiryState.save_epoch !== cache.epoch) {
+        shopInquiryState = null;
+        shopInquiryBusy = false;
+        stopShopInquiryPoll();
+      }
     } catch (e) {
       shopError = e.message || '商城目录加载失败';
     } finally {
@@ -504,8 +680,11 @@
   }
 
   function parsePanels(lines = []) {
+    const arr = Array.isArray(lines) ? lines : [];
+    const sig = arr.join('\n');
+    if (panelsCacheVal && sig === panelsCacheSig) return panelsCacheVal;
     const result = {};
-    for (const raw of lines || []) {
+    for (const raw of arr) {
       const m = /^\[([^\]]+)\]\s*(.*)$/.exec(String(raw).trim());
       if (!m) continue;
       const key = m[1].trim();
@@ -533,6 +712,8 @@
       }
       result[key] = { key, raw, stats, ordered };
     }
+    panelsCacheSig = sig;
+    panelsCacheVal = result;
     return result;
   }
 
@@ -567,6 +748,12 @@
       if (any) return any;
     }
     return '/txt文件/image/' + encodeURIComponent(name) + '/' + file;
+  }
+
+  function withThumb(url, mode = 'avatar') {
+    if (!url || !mode || !String(url).startsWith('/txt文件/image/')) return url || '';
+    if (/[?&]thumb=/.test(url)) return url;
+    return url + (url.includes('?') ? '&' : '?') + 'thumb=' + encodeURIComponent(mode);
   }
 
   function getVisualAssets() {
@@ -762,7 +949,7 @@
       img.classList.remove('is-ready');
       stage?.classList.remove('has-scene-still');
     };
-    img.src = still.url;
+    img.src = withThumb(still.url, 'plate');
   }
 
   function buildNpcDossierData(name) {
@@ -802,8 +989,9 @@
     const hero = node('div', 'npc-dossier-hero');
     if (sceneStill?.url) {
       const bg = node('img');
-      bg.src = sceneStill.url;
+      bg.src = withThumb(sceneStill.url, 'plate');
       bg.alt = '';
+      bg.loading = 'lazy';
       bg.decoding = 'async';
       hero.append(bg);
     }
@@ -1098,7 +1286,7 @@
     const expandBtn = $('topPeekExpand');
     if (hero) {
       const asset = resolveCharacterAsset(hero);
-      img.src = asset?.url || image(hero, 'into.png');
+      img.src = withThumb(asset?.url || image(hero, 'into.png'), 'plate');
       img.style.objectPosition = asset?.pos || '50% 16%';
       $('topPeekTitle').textContent = hero;
       $('topPeekSub').textContent = (w?.location ? w.location + ' · ' : '') + (asset?.label || '剧照');
@@ -1110,7 +1298,7 @@
         showPortrait(hero, asset?.slot || '');
       };
     } else if (still) {
-      img.src = still.url;
+      img.src = withThumb(still.url, 'plate');
       img.style.objectPosition = '50% 50%';
       $('topPeekTitle').textContent = w?.location || '当前场景';
       $('topPeekSub').textContent = w?.cast?.length ? ('同席：' + w.cast.join('、')) : '此刻独处 · 电影空镜';
@@ -1149,9 +1337,10 @@
       const btn = node('button', 'side-focus-portrait');
       btn.type = 'button';
       const im = node('img');
-      im.src = asset?.url || image(focus, 'into.png');
+      im.src = withThumb(asset?.url || image(focus, 'into.png'), 'plate');
       im.alt = focus;
       im.style.objectPosition = asset?.pos || '50% 16%';
+      im.loading = 'lazy';
       im.decoding = 'async';
       const meta = node('div', 'side-focus-meta');
       meta.append(node('strong', '', focus), node('span', '', asset?.label || CHAR_META[focus]?.role || ''));
@@ -1175,8 +1364,9 @@
     const head = node('div', 'side-focus-scene-head');
     if (still?.url) {
       const im = node('img');
-      im.src = still.url;
+      im.src = withThumb(still.url, 'plate');
       im.alt = w.location || '';
+      im.loading = 'lazy';
       im.decoding = 'async';
       head.append(im);
     }
@@ -1222,8 +1412,135 @@
     }
   }
 
-  function insertInputBracket(prefix = '') {
-    const inp = $('input');
+  let composerSheetOpen = false;
+  let pendingItemAttachment = null; // Reserved for Phase 3 item attachment capsule
+
+  function isMobileViewport() {
+    if (typeof window.matchMedia === 'function') {
+      return window.matchMedia('(max-width: 859px)').matches;
+    }
+    return (window.innerWidth || 1024) < 860;
+  }
+
+  function activeComposerInput() {
+    if (composerSheetOpen && $('sheetInput')) return $('sheetInput');
+    return $('input');
+  }
+
+  function syncInputHeight(el = $('input')) {
+    if (!el || !el.style) return;
+    el.style.height = 'auto';
+    const cap = el === $('sheetInput') ? 210 : 180;
+    const h = el.scrollHeight || 36;
+    el.style.height = Math.min(h, cap) + 'px';
+  }
+
+  function syncDraftInputs(val, sourceEl = null) {
+    const text = String(val ?? '');
+    if ($('input') && sourceEl !== $('input')) $('input').value = text;
+    if ($('sheetInput') && sourceEl !== $('sheetInput')) $('sheetInput').value = text;
+    if ($('sheetCharCount')) $('sheetCharCount').textContent = text.length + ' / 2000';
+    cache.draft = text;
+  }
+
+  function getLatestContextLine() {
+    const turn = current();
+    const msgs = turn?.messages || [];
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      const m = msgs[i];
+      if (!m || !m.text) continue;
+      const prefix = m.speaker ? (m.speaker + '：') : '旁白：';
+      const clean = String(m.text)
+        .replace(/\[[^\]]{1,80}\]/g, '')
+        .replace(/[｛{]([^｜|}\r\n]+)[｜|][^｝}\r\n]+[｝}]/g, '$1')
+        .trim();
+      if (clean) return prefix + clean;
+    }
+    return '';
+  }
+
+  function renderSheetContextPeek() {
+    const peek = $('sheetContextPeek');
+    if (!peek) return;
+    const line = getLatestContextLine();
+    if (!line) {
+      peek.hidden = true;
+      peek.textContent = '';
+      return;
+    }
+    peek.hidden = false;
+    peek.textContent = line;
+    peek.classList.remove('is-expanded');
+  }
+
+  function renderSheetAttachBar() {
+    const bar = $('sheetAttachBar');
+    if (!bar) return;
+    if (!pendingItemAttachment) {
+      bar.hidden = true;
+      bar.replaceChildren();
+      return;
+    }
+    bar.hidden = false;
+    bar.replaceChildren();
+    const pill = node('span', 'sheet-attach-pill');
+    pill.append(node('span', '', pendingItemAttachment.label || '已挂载道具'));
+    const rm = node('button', '', '×');
+    rm.type = 'button';
+    rm.setAttribute('aria-label', '取消挂载道具');
+    rm.onclick = () => {
+      pendingItemAttachment = null;
+      renderSheetAttachBar();
+      controls();
+    };
+    pill.append(rm);
+    bar.append(pill);
+  }
+
+  function openComposerSheet(opts = {}) {
+    const sheet = $('composerSheet');
+    const bd = $('composerSheetBackdrop');
+    if (!sheet || !bd) return;
+    composerSheetOpen = true;
+    syncDraftInputs($('input')?.value ?? cache.draft ?? '');
+    renderSheetContextPeek();
+    renderSheetAttachBar();
+    renderBracketChips(snapshot?.world, true);
+    bd.hidden = false;
+    sheet.hidden = false;
+    document.body.classList.add('sheet-composer-open');
+    controls();
+    const target = $('sheetInput');
+    if (target) {
+      if (opts.insertBracket !== undefined) {
+        insertInputBracket(opts.insertBracket, target);
+      } else if (opts.focus !== false) {
+        requestAnimationFrame(() => {
+          target.focus();
+          const len = (target.value || '').length;
+          if (typeof target.setSelectionRange === 'function') target.setSelectionRange(len, len);
+          syncInputHeight(target);
+        });
+      } else {
+        syncInputHeight(target);
+      }
+    }
+  }
+
+  function closeComposerSheet() {
+    if (!composerSheetOpen) return;
+    composerSheetOpen = false;
+    if ($('composerSheet')) $('composerSheet').hidden = true;
+    if ($('composerSheetBackdrop')) $('composerSheetBackdrop').hidden = true;
+    document.body.classList.remove('sheet-composer-open');
+    $('sheetInput')?.blur?.();
+    syncInputHeight($('input'));
+    controls();
+    sizing();
+  }
+
+  function insertInputBracket(prefix = '', targetOverride = null) {
+    const inp = targetOverride || activeComposerInput();
     if (!inp) return;
     haptic(6);
     const val = inp.value || '';
@@ -1231,33 +1548,43 @@
     const end = inp.selectionEnd ?? start;
     const selected = val.slice(start, end);
     const snippet = '（' + prefix + selected + '）';
-    inp.value = val.slice(0, start) + snippet + val.slice(end);
-    cache.draft = inp.value;
+    const nextVal = val.slice(0, start) + snippet + val.slice(end);
+    syncDraftInputs(nextVal);
     save();
     inp.focus();
     const caret = start + 1 + prefix.length + selected.length;
-    inp.setSelectionRange(caret, caret);
+    if (typeof inp.setSelectionRange === 'function') inp.setSelectionRange(caret, caret);
+    syncInputHeight(inp);
     controls();
     sizing();
   }
 
-  function renderBracketChips(w) {
-    const bar = $('bracketChips');
+  function populateQuickChipsInto(bar, heldIds, catalog, isSheetBar) {
     if (!bar) return;
-    const heldIds = w?.intel?.held || [];
-    const catalog = w?.intel?.catalog || [];
-    const sig = heldIds.join(',');
+    const sig = heldIds.join(',') + (isSheetBar ? ':s' : ':b');
     if (bar.dataset.sig === sig && bar.childElementCount > 0) return;
     bar.dataset.sig = sig;
     bar.replaceChildren();
 
     const actChip = node('button', 'bracket-chip is-primary', '＋（）括号动作');
     actChip.type = 'button';
-    actChip.onclick = () => insertInputBracket('');
+    actChip.onclick = () => {
+      if (!isSheetBar && isMobileViewport() && !composerSheetOpen) {
+        openComposerSheet({ focus: true, insertBracket: '' });
+      } else {
+        insertInputBracket('', isSheetBar ? $('sheetInput') : null);
+      }
+    };
 
     const thChip = node('button', 'bracket-chip', '＋（）内心想法');
     thChip.type = 'button';
-    thChip.onclick = () => insertInputBracket('心底暗忖：');
+    thChip.onclick = () => {
+      if (!isSheetBar && isMobileViewport() && !composerSheetOpen) {
+        openComposerSheet({ focus: true, insertBracket: '心底暗忖：' });
+      } else {
+        insertInputBracket('心底暗忖：', isSheetBar ? $('sheetInput') : null);
+      }
+    };
 
     bar.append(actChip, thChip);
 
@@ -1268,16 +1595,59 @@
       chip.type = 'button';
       chip.onclick = () => {
         haptic(8);
-        const inp = $('input');
-        if (!inp) return;
-        inp.value = '（我把暗中掌握的「' + label + '」线索摊在眼前）这件事，你打算怎么解释？';
-        cache.draft = inp.value;
+        const text = '（我把暗中掌握的「' + label + '」线索摊在眼前）这件事，你打算怎么解释？';
+        syncDraftInputs(text);
         save();
-        inp.focus();
-        controls();
-        sizing();
+        if (!isSheetBar && isMobileViewport() && !composerSheetOpen) {
+          openComposerSheet({ focus: true });
+        } else {
+          const inp = isSheetBar ? $('sheetInput') : activeComposerInput();
+          if (inp) {
+            inp.focus();
+            syncInputHeight(inp);
+          }
+          controls();
+          sizing();
+        }
       };
       bar.append(chip);
+    }
+  }
+
+  function renderBracketChips(w, forceSheet = false) {
+    const heldIds = w?.intel?.held || [];
+    const catalog = w?.intel?.catalog || [];
+    populateQuickChipsInto($('bracketChips'), heldIds, catalog, false);
+    if (forceSheet || composerSheetOpen || $('sheetQuickChips')) {
+      populateQuickChipsInto($('sheetQuickChips'), heldIds, catalog, true);
+    }
+  }
+
+  function ensurePlateObserver() {
+    if (plateObserver || typeof IntersectionObserver === 'undefined') return plateObserver;
+    const stream = $('stream');
+    if (!stream) return null;
+    try {
+      plateObserver = new IntersectionObserver(entries => {
+        for (const ent of entries) {
+          if (ent.isIntersecting) visiblePlates.add(ent.target);
+          else visiblePlates.delete(ent.target);
+        }
+      }, { root: stream, rootMargin: '60px 0px' });
+    } catch (_) {
+      plateObserver = null;
+    }
+    return plateObserver;
+  }
+
+  function observePlateElement(el) {
+    if (!el || typeof el.querySelector !== 'function') return;
+    const obs = ensurePlateObserver();
+    if (!obs) return;
+    const img = el.classList?.contains('cinema-plate-img') ? el : el.querySelector('.cinema-plate-img');
+    if (img && img.dataset?.plateObserved !== '1') {
+      img.dataset.plateObserved = '1';
+      try { obs.observe(img); } catch (_) {}
     }
   }
 
@@ -1285,20 +1655,30 @@
     const msgBox = $('messages');
     const stream = $('stream');
     if (!msgBox || !stream) return;
+    for (const prev of lastFocusedBeats) prev.classList?.remove('is-focus-beat');
+    lastFocusedBeats = [];
     if (!prefs.readingDof) {
       msgBox.classList.remove('is-dof-on');
       return;
     }
-    const items = Array.from(msgBox.children).filter(el => el.classList.contains('msg') || el.classList.contains('cinema-plate'));
-    items.forEach(el => el.classList.remove('is-focus-beat'));
+    const children = msgBox.children || [];
+    let lastBeat = null, prevBeat = null, beatCount = 0;
+    for (let i = children.length - 1; i >= 0; i--) {
+      const el = children[i];
+      if (!el?.classList || (!el.classList.contains('msg') && !el.classList.contains('cinema-plate'))) continue;
+      beatCount += 1;
+      if (!lastBeat) lastBeat = el;
+      else if (!prevBeat) { prevBeat = el; break; }
+    }
     const nearBottom = (stream.scrollHeight - stream.scrollTop - stream.clientHeight) < 88;
-    const shouldDof = nearBottom && items.length > 1;
+    const shouldDof = nearBottom && beatCount > 1 && !!lastBeat;
     msgBox.classList.toggle('is-dof-on', shouldDof);
     if (shouldDof) {
-      items[items.length - 1].classList.add('is-focus-beat');
-      // If the penultimate element is the character plate immediately introducing the last beat, keep it crisp too
-      if (items.length >= 2 && items[items.length - 2].classList.contains('cinema-plate')) {
-        items[items.length - 2].classList.add('is-focus-beat');
+      lastBeat.classList.add('is-focus-beat');
+      lastFocusedBeats.push(lastBeat);
+      if (prevBeat && prevBeat.classList.contains('cinema-plate')) {
+        prevBeat.classList.add('is-focus-beat');
+        lastFocusedBeats.push(prevBeat);
       }
     }
   }
@@ -1311,13 +1691,20 @@
     const rect = stream.getBoundingClientRect();
     if (!rect.height) return;
     const center = rect.top + rect.height / 2;
-    stream.querySelectorAll('.cinema-plate-img').forEach(img => {
+    const targets = plateObserver
+      ? Array.from(visiblePlates)
+      : Array.from(stream.querySelectorAll('.cinema-plate-img'));
+    for (const img of targets) {
+      if (!img || !img.parentElement || (img.isConnected === false)) {
+        visiblePlates.delete(img);
+        continue;
+      }
       const r = img.parentElement.getBoundingClientRect();
-      if (r.bottom < rect.top - 40 || r.top > rect.bottom + 40) return;
+      if (r.bottom < rect.top - 40 || r.top > rect.bottom + 40) continue;
       const rel = ((r.top + r.height / 2) - center) / rect.height;
       const shift = Math.max(-12, Math.min(12, rel * 22));
       img.style.transform = 'scale(1.08) translateY(' + shift.toFixed(1) + 'px)';
-    });
+    }
   }
 
   function schedulePlateParallax() {
@@ -1617,14 +2004,28 @@
     $('resourceStatus').hidden = !pg;
 
     const hasUsableRecovery = $('recoveryItem').options.length > 1;
-    $('recoveryWrap').hidden = !hasUsableRecovery;
+    const hideMobileRecovery = isMobileViewport() && pg && pg.stamina > 30;
+    $('recoveryWrap').hidden = !hasUsableRecovery || hideMobileRecovery;
     $('form').classList.toggle('is-low-stamina', !!(pg && pg.stamina <= 45));
     $('useRecovery').disabled = ordinaryBlocked() || !$('recoveryItem').value || !pg || pg.item_budget <= 0 || pg.stamina >= 100;
 
-    const isPureRec = pureRecovery();
-    $('sendCost').textContent = isPureRec ? '免费恢复' : (pg ? '-15⚡' : '提交');
-    $('send').disabled = ordinaryBlocked() || (!isPureRec && !afford(15));
-    $('input').disabled = !ready || posting || progressing || !online || !storageOK || !!cache.pending || isAct;
+    const isPureRec = !pendingItemAttachment && pureRecovery();
+    const sendCostLabel = isPureRec ? '免费恢复' : (pg ? '-15⚡' : '提交');
+    const inputDisabled = !ready || posting || progressing || !online || !storageOK || !!cache.pending || isAct;
+    const draftStr = ($('input')?.value || '');
+    const hasDraftOrAttach = Boolean(draftStr.trim() || pendingItemAttachment);
+    const sendDisabled = ordinaryBlocked() || (!isPureRec && !afford(15));
+    $('sendCost').textContent = sendCostLabel;
+    $('send').disabled = sendDisabled;
+    $('input').disabled = inputDisabled;
+    if ($('expandComposerBtn')) $('expandComposerBtn').disabled = inputDisabled;
+    if ($('sheetInput')) $('sheetInput').disabled = inputDisabled;
+    if ($('sheetSendCost')) $('sheetSendCost').textContent = sendCostLabel;
+    if ($('sheetSendBtn')) $('sheetSendBtn').disabled = sendDisabled || !hasDraftOrAttach;
+    if ($('sheetCharCount')) $('sheetCharCount').textContent = draftStr.length + ' / 2000';
+    if ($('sheetBagBtn')) $('sheetBagBtn').disabled = base;
+    if ($('sheetMoveBtn')) $('sheetMoveBtn').disabled = ordinaryBlocked() || !afford(15);
+    if (composerSheetOpen && (!showDecisions || inputDisabled)) closeComposerSheet();
 
     $('actions').hidden = !ready || rest || previewOn;
     $('actions').disabled = ordinaryBlocked() || !afford(15);
@@ -2309,6 +2710,17 @@
     }
   }
 
+  const ZH_VOICE_TAG_TOKEN_RE = /^(?:轻声|低声|耳语|气音|停顿|长停顿|短停顿|停顿半拍|微颤|颤抖|轻颤|声颤|克制|疲惫|倦怠|冷冽|冷淡|沉稳|平静|平淡|叹息|轻叹|低叹|叹气|抽气|倒吸一口气|屏息|急促|喘息|喘气|微喘|轻喘|喘|沙哑|微哑|柔声|低语|压低|压低声音|哽咽|泣声|哭腔|含泪|虚弱|失力|余韵|轻笑|冷笑|低笑|笑声|微笑|慌乱|紧张|窘迫|羞耻|羞涩|试探|挑眉|疑惑|缓声|放慢|语速放慢|迟疑|犹豫|沉默|顿了顿|顿了一下|温柔|冷笑一声|微怒|压抑|强忍|隐忍|娇喘|呢喃|喃喃|[a-zA-Z][a-zA-Z0-9_\s-]{0,36})$/;
+
+  function isFishBracketTag(inner) {
+    const trimmed = String(inner || '').trim();
+    if (!trimmed || trimmed.length > 80) return false;
+    if (/^[a-zA-Z][a-zA-Z0-9_,\s-]{0,79}$/.test(trimmed)) return true;
+    if (classifyVoiceTag(trimmed)) return true;
+    const parts = trimmed.split(/[,，、;/\s]+/).map(s => s.trim()).filter(Boolean);
+    return parts.length > 0 && parts.every(p => ZH_VOICE_TAG_TOKEN_RE.test(p));
+  }
+
   function appendNpcRichText(container, rawText, speaker, kind, charStats) {
     const raw = String(rawText || '');
     const tagMatches = [...raw.matchAll(/\[([^\]\r\n]+)\]/g)];
@@ -2336,7 +2748,7 @@
     }
 
     const cleaned = raw
-      .replace(/\[[a-zA-Z][a-zA-Z0-9_,\s-]{0,79}\]/g, '')
+      .replace(/\[([^\]\r\n]{1,80})\]/g, (full, inner) => (isFishBracketTag(inner) ? '' : full))
       .replace(/<\/?(?:whisper|emphasis|soft|fast|slow|stress|forceful|chinese|english|japanese|korean|cantonese|french|german|spanish)>/gi, '')
       .replace(/<\|phoneme_start\|>[^<\r\n]{1,40}<\|phoneme_end\|>/g, '')
       .replace(/<\|[^|\r\n]+\|>/g, '')
@@ -2378,20 +2790,24 @@
   function quoteLineToInput(speaker, rawText) {
     const clean = stripVoiceTags(rawText || '').trim().replace(/\s+/g, ' ');
     const snippet = clean.length > 22 ? (clean.slice(0, 22) + '…') : clean;
-    const inp = $('input');
-    if (!inp) return;
+    if (!$('input')) return;
     haptic(8);
     if (deckCollapsed) {
       deckCollapsed = false;
       controls();
       sizing();
     }
-    inp.value = '（我看向' + speaker + '）「' + snippet + '」——';
-    cache.draft = inp.value;
+    const text = '（我看向' + speaker + '）「' + snippet + '」——';
+    syncDraftInputs(text);
     save();
-    inp.focus();
-    controls();
-    sizing();
+    if (isMobileViewport()) {
+      openComposerSheet({ focus: true });
+    } else {
+      syncInputHeight($('input'));
+      $('input').focus();
+      controls();
+      sizing();
+    }
     toast('已引用' + speaker + '的台词至输入框');
   }
 
@@ -2401,8 +2817,9 @@
     btn.dataset.plateId = 'scene:' + turnId + ':' + loc;
     const frame = node('div', 'cinema-plate-frame');
     const im = node('img', 'cinema-plate-img');
-    im.src = still.url;
+    im.src = withThumb(still.url, 'plate');
     im.alt = loc + '场景空镜';
+    im.loading = 'lazy';
     im.decoding = 'async';
     const tag = node('span', 'cinema-plate-tag', '场景空镜');
     const cap = node('div', 'cinema-plate-caption');
@@ -2425,9 +2842,10 @@
     btn.dataset.plateId = 'char:' + turnId + ':' + speaker + ':' + asset.slot;
     const frame = node('div', 'cinema-plate-frame');
     const im = node('img', 'cinema-plate-img');
-    im.src = asset.url;
+    im.src = withThumb(asset.url, 'plate');
     im.alt = speaker + '剧照';
     im.style.objectPosition = asset.pos || '50% 18%';
+    im.loading = 'lazy';
     im.decoding = 'async';
     const tag = node('span', 'cinema-plate-tag', asset.label || '登场定格');
     const cap = node('div', 'cinema-plate-caption');
@@ -2453,7 +2871,7 @@
       : (isLiveTurn && focusHero ? getLiveCharStats(focusHero) : null);
     const el = node(
       'article',
-      'msg ' + kind + (isPlayer ? ' player' : '') + noAvatarCls + (whisper ? ' is-whisper' : '') + (opts.isPreview ? ' is-preview' : '')
+      'msg ' + kind + (isPlayer ? ' player' : '') + noAvatarCls + (whisper ? ' is-whisper' : '') + (opts.isPreview ? ' is-preview' : '') + (opts.isHistoricTurn ? ' is-historic' : '')
     );
     el.dataset.messageId = id;
     el.dataset.renderKey = 'msg:' + id;
@@ -2485,8 +2903,9 @@
       if (charHasImg && !isNpcAction) {
         const im = node('img', 'avatar');
         const thumb = resolveCharacterAsset(speaker, { slot: 'into' });
-        im.src = thumb?.url || image(speaker, 'into.png');
+        im.src = withThumb(thumb?.url || image(speaker, 'into.png'), 'avatar');
         im.alt = '';
+        im.loading = 'lazy';
         im.decoding = 'async';
         im.onerror = () => {
           im.remove();
@@ -2503,8 +2922,9 @@
         if (charHasImg) {
           const mini = node('img', 'action-mini-avatar');
           const thumb = resolveCharacterAsset(speaker, { slot: 'into' });
-          mini.src = thumb?.url || image(speaker, 'into.png');
+          mini.src = withThumb(thumb?.url || image(speaker, 'into.png'), 'avatar');
           mini.alt = '';
+          mini.loading = 'lazy';
           mini.decoding = 'async';
           mini.style.cursor = 'pointer';
           mini.onerror = () => mini.remove();
@@ -2701,6 +3121,18 @@
     const includePlates = Boolean(opts.includePlates && filter === 'all' && prefs.cinemaPlates);
     const inHistory = Boolean(opts.inHistory);
     const w = snapshot?.world;
+    const va = w?.visual_assets;
+    const curVaSig = va
+      ? Object.keys(va.scenes || {}).sort().join(',') + '/' + Object.entries(va.characters || {}).sort(([a], [b]) => a.localeCompare(b)).map(([k, v]) => k + ':' + Object.keys(v || {}).sort().join(',')).join(';')
+      : '';
+    if (!inHistory && filter === 'all') {
+      if (segmentDomCacheEpoch !== cache.epoch || segmentDomCachePlates !== includePlates || segmentDomCacheVaSig !== curVaSig) {
+        segmentDomCache.clear();
+        segmentDomCacheEpoch = cache.epoch;
+        segmentDomCachePlates = includePlates;
+        segmentDomCacheVaSig = curVaSig;
+      }
+    }
     let prevKind = '';
     let lastPlateLoc = '';
     const seenCharSlot = new Map();
@@ -2710,13 +3142,38 @@
       const turnLoc = t.operation?.destination || t.location || (isLastTurn ? w?.location : '') || w?.location || '';
       const turnClock = t.settlement?.clock || (isLastTurn ? w?.progression?.runtime?.clock : null);
       const clockStr = turnClock ? formatGameClock(turnClock, isLastTurn ? (w?.weekday || '') : '') : '';
+      const canCacheTurn = filter === 'all' && !inHistory && !isLastTurn
+        && t.id !== snapshot?.playback?.segment_id
+        && !(handoffPreview && handoffPreview.segmentId === t.id);
+
+      let cacheKey = '';
+      if (canCacheTurn) {
+        const seenSig = Array.from(seenCharSlot.entries()).map(([k, v]) => k + '=' + v).join(',');
+        cacheKey = t.id + '|' + t.messages.length + '|' + (t.handoff || '') + '|' + (t.settlement ? '1' : '0')
+          + '|' + turnLoc + '|' + prevKind + '|' + lastPlateLoc + '|' + seenSig;
+        const cached = segmentDomCache.get(cacheKey);
+        if (cached) {
+          for (const nd of cached.nodes) out.push(nd);
+          prevKind = cached.endPrevKind;
+          lastPlateLoc = cached.endPlateLoc;
+          seenCharSlot.clear();
+          for (const [k, v] of cached.endSeen) seenCharSlot.set(k, v);
+          return;
+        }
+      }
+
+      const turnNodes = [];
+      const pushNode = el => {
+        if (canCacheTurn) turnNodes.push(el);
+        out.push(el);
+      };
 
       if (includePlates && turnLoc && turnLoc !== lastPlateLoc) {
         const still = resolveSceneStill(turnLoc, turnClock?.time);
         if (still) {
           const sp = buildScenePlate(turnLoc, still, clockStr, t.id);
           sp.dataset.renderKey = 'splate:' + t.id + ':' + turnLoc;
-          out.push(sp);
+          pushNode(sp);
           prevKind = 'plate';
         }
         lastPlateLoc = turnLoc;
@@ -2724,7 +3181,7 @@
       }
 
       if (filter === 'all' && t.selection?.option_id !== 'BEGIN') {
-        out.push(entry(t.input_kind === 'action' ? 'action' : 'dialogue', '徐志北', t.input, t.id + ':input', { inHistory }));
+        pushNode(entry(t.input_kind === 'action' ? 'action' : 'dialogue', '徐志北', t.input, t.id + ':input', { inHistory }));
         prevKind = 'player';
       }
 
@@ -2752,7 +3209,7 @@
               const sub = [turnLoc, clockStr].filter(Boolean).join(' · ') || (CHAR_META[m.speaker]?.role || '');
               const cp = buildCharPlate(m.speaker, asset, sub, t.id + ':' + i);
               cp.dataset.renderKey = 'cplate:' + t.id + ':' + i + ':' + m.speaker + ':' + asset.slot;
-              out.push(cp);
+              pushNode(cp);
               seenCharSlot.set(m.speaker, asset.slot);
               prevKind = 'plate';
             }
@@ -2760,24 +3217,36 @@
         }
 
         const showNarrationMark = m.kind !== 'narration' ? true : prevKind !== 'narration';
-        out.push(entry(m.kind, m.speaker, m.text, t.id + ':' + i, { showNarrationMark, inHistory, isHistoricTurn }));
+        pushNode(entry(m.kind, m.speaker, m.text, t.id + ':' + i, { showNarrationMark, inHistory, isHistoricTurn }));
         prevKind = m.kind;
       });
       if (filter === 'all' && !inHistory && isLastTurn) {
         buildDiscoCheckBanners(t, isLastTurn, w).forEach((banner, bIdx) => {
           banner.dataset.renderKey = 'disco:' + t.id + ':' + bIdx;
-          out.push(banner);
+          pushNode(banner);
         });
       }
       if (filter === 'all' && t.handoff) {
-        out.push(entry('handoff', '待处理', t.handoff, t.id + ':handoff', { inHistory }));
+        pushNode(entry('handoff', '待处理', t.handoff, t.id + ':handoff', { inHistory }));
         prevKind = 'handoff';
       }
       if (t.settlement && (filter === 'settlement' || t.id !== snapshot?.playback?.segment_id)) {
         const sc = settlementCard(t.settlement, false);
         sc.dataset.renderKey = 'settle:' + t.id;
-        out.push(sc);
+        pushNode(sc);
         prevKind = 'settlement';
+      }
+      if (canCacheTurn && cacheKey) {
+        if (segmentDomCache.size > 60) {
+          const firstKey = segmentDomCache.keys().next().value;
+          if (firstKey !== undefined) segmentDomCache.delete(firstKey);
+        }
+        segmentDomCache.set(cacheKey, {
+          nodes: turnNodes,
+          endPrevKind: prevKind,
+          endPlateLoc: lastPlateLoc,
+          endSeen: Array.from(seenCharSlot.entries())
+        });
       }
     });
 
@@ -3303,8 +3772,9 @@
     // 1. Hero Identity Card
     const hero = node('section', 'host-hero-card');
     const av = node('img', 'host-avatar');
-    av.src = image('徐志北', 'into.png');
+    av.src = withThumb(image('徐志北', 'into.png'), 'avatar');
     av.alt = '徐志北';
+    av.loading = 'lazy';
     av.decoding = 'async';
 
     const idBox = node('div', 'host-identity');
@@ -3480,14 +3950,19 @@
               controls();
               sizing();
             }
-            const inp = $('input');
+            const cur = ($('input')?.value || cache.draft || '').trim();
             const cue = '（亮出私下掌握的情报「' + it.name + '」作为筹码）';
-            inp.value = inp.value.trim() ? (inp.value.trim() + ' ' + cue) : cue;
-            cache.draft = inp.value;
+            const nextVal = cur ? (cur + ' ' + cue) : cue;
+            syncDraftInputs(nextVal);
             save();
-            controls();
-            sizing();
-            inp.focus();
+            if (isMobileViewport()) {
+              openComposerSheet({ focus: true });
+            } else {
+              syncInputHeight($('input'));
+              controls();
+              sizing();
+              $('input')?.focus();
+            }
             toast('已填入情报亮牌提示，确认补充行动后发送');
           };
           acts.append(cueBtn);
@@ -3539,8 +4014,9 @@
       const thumbWrap = node('span', 'roster-thumb-wrap');
       if (hasCharacterPortrait(name)) {
         const im = node('img', 'roster-thumb');
-        im.src = image(name, 'into.png');
+        im.src = withThumb(image(name, 'into.png'), 'avatar');
         im.alt = '';
+        im.loading = 'lazy';
         im.decoding = 'async';
         thumbWrap.append(im);
       } else {
@@ -3576,8 +4052,9 @@
       const slots = getCharacterSlots(name);
       const banner = node('div', 'char-banner');
       const img = node('img', 'char-banner-img');
-      img.src = slots.into || Object.values(slots)[0] || image(name, 'into.png');
+      img.src = withThumb(slots.into || Object.values(slots)[0] || image(name, 'into.png'), 'plate');
       img.alt = name;
+      img.loading = 'lazy';
       img.decoding = 'async';
       const scrim = node('div', 'char-banner-scrim');
       const overlay = node('div', 'char-banner-overlay');
@@ -3798,6 +4275,12 @@
       selectedMapPlace = locations.find(l => l !== currentLoc) || currentLoc;
     }
 
+    const devCountByLoc = {};
+    for (const dev of (w.deployed_items || [])) {
+      const dl = dev?.location || '';
+      if (dl) devCountByLoc[dl] = (devCountByLoc[dl] || 0) + 1;
+    }
+
     const canvasCard = node('section', 'map-canvas-card');
     canvasCard.append(buildCityMapSvg(locations, w.presence, currentLoc, selectedMapPlace, loc => {
       selectedMapPlace = loc;
@@ -3839,6 +4322,9 @@
       const main = node('div', 'location-card-main');
       const title = node('strong', '', loc);
       if (loc === currentLoc) title.append(node('span', 'quest-badge', '当前所在'));
+      if (devCountByLoc[loc]) {
+        title.append(node('span', 'map-device-badge', '📷 ' + devCountByLoc[loc] + ' 台装置'));
+      }
       main.append(title);
 
       const whoHere = Object.entries(w.presence || {}).filter(([, p]) => p.location === loc);
@@ -3955,14 +4441,15 @@
     const shopCta = node('button', 'bag-shop-cta');
     shopCta.type = 'button';
     const ctaLeft = node('span', 'bag-shop-cta-left');
-    ctaLeft.append(icon('shop', 'chip-svg'), node('span', '', '前往系统商城兑换道具 →'));
+    ctaLeft.append(icon('shop', 'chip-svg'), node('span', '', '前往系统商城兑换 / 定制进货 →'));
     shopCta.append(ctaLeft, node('small', '', '现有 ' + hostPoints + ' 积分 · 0 体力'));
     shopCta.onclick = () => openHub('shop');
     pane.append(shopCta);
 
-    // 3. Inventory Section (split into 随身持有 vs 已赠予纪念)
+    // 3. Inventory Section (3-section: 随身持有 / 已部署装置 / 已赠予纪念)
     const allItems = w.items || [];
     const heldItems = allItems.filter(it => (it.fields?.['当前状态'] || '仓库中') !== '已交付');
+    const deployedItems = Array.isArray(w.deployed_items) ? w.deployed_items : [];
     const deliveredList = Array.isArray(w.delivered_items)
       ? w.delivered_items.map(it => ({
           id: it.id,
@@ -3980,6 +4467,146 @@
       : [];
     const legacyGifted = allItems.filter(it => (it.fields?.['当前状态'] || '') === '已交付');
     const giftedItems = [...deliveredList, ...legacyGifted];
+    const castHere = Array.isArray(w.cast) ? w.cast : [];
+
+    const renderInlinePicker = (item, usageMode) => {
+      if (!bagPickerState || bagPickerState.itemId !== item.id) return null;
+      const box = node('div', 'bag-inline-picker');
+
+      if (bagPickerState.mode === 'use') {
+        const targets = [...castHere, '室内氛围'];
+        if (!targets.includes(bagPickerState.target)) bagPickerState.target = targets[0] || '室内氛围';
+        box.append(node('div', 'bag-picker-title', '选择作用目标'));
+        const chips = node('div', 'bag-picker-chips');
+        for (const t of targets) {
+          const b = node('button', 'bag-picker-chip' + (bagPickerState.target === t ? ' is-active' : ''), t);
+          b.type = 'button';
+          b.onclick = () => {
+            bagPickerState = { ...bagPickerState, target: t };
+            renderWorld(true);
+          };
+          chips.append(b);
+        }
+        box.append(chips);
+        const foot = node('div', 'bag-picker-foot');
+        const confirmBtn = node('button', 'btn-gold', '挂载并写行动 (-15⚡)');
+        confirmBtn.type = 'button';
+        confirmBtn.disabled = ordinaryBlocked() || !afford(15);
+        confirmBtn.onclick = () => {
+          const tgt = bagPickerState.target || '室内氛围';
+          attachOperationToComposer({
+            operation: { code: 'use_item', item_id: item.id, target: tgt },
+            label: '🧴 使用「' + item.name + '」→ ' + tgt,
+            defaultAction: tgt === '室内氛围'
+              ? ('（拿出' + item.name + '，在屋内启用营造氛围）')
+              : ('（拿出' + item.name + '，自然地对' + tgt + '使用）')
+          });
+        };
+        const cancelBtn = node('button', 'btn-outline', '取消');
+        cancelBtn.type = 'button';
+        cancelBtn.onclick = () => { bagPickerState = null; renderWorld(true); };
+        foot.append(confirmBtn, cancelBtn);
+        box.append(foot);
+      } else if (bagPickerState.mode === 'deploy') {
+        box.append(node('div', 'bag-picker-title', '安装位置（当前：' + (w.location || '当前地点') + '）'));
+        const chips = node('div', 'bag-picker-chips');
+        for (const sp of DEPLOY_SPOT_PRESETS) {
+          const b = node('button', 'bag-picker-chip' + (bagPickerState.spot === sp ? ' is-active' : ''), sp);
+          b.type = 'button';
+          b.onclick = () => {
+            bagPickerState = { ...bagPickerState, spot: sp };
+            renderWorld(true);
+          };
+          chips.append(b);
+        }
+        box.append(chips);
+        const spotInput = node('input', 'bag-picker-input');
+        spotInput.type = 'text';
+        spotInput.maxLength = 40;
+        spotInput.placeholder = '自定义安装点位（如：床头灯座后侧）';
+        spotInput.value = bagPickerState.spot || '';
+        spotInput.oninput = () => { bagPickerState.spot = spotInput.value; };
+        box.append(spotInput);
+
+        const hideLabel = node('label', 'bag-picker-check');
+        const hideChk = node('input');
+        hideChk.type = 'checkbox';
+        hideChk.checked = bagPickerState.hidden !== false;
+        hideChk.onchange = () => { bagPickerState.hidden = hideChk.checked; };
+        hideLabel.append(hideChk, node('span', '', '隐蔽部署（尽量避免被在场人察觉）'));
+        box.append(hideLabel);
+
+        const foot = node('div', 'bag-picker-foot');
+        const confirmBtn = node('button', 'btn-gold', '挂载部署行动 (-15⚡)');
+        confirmBtn.type = 'button';
+        confirmBtn.disabled = ordinaryBlocked() || !afford(15);
+        confirmBtn.onclick = () => {
+          const spot = String(spotInput.value || bagPickerState.spot || '隐蔽角落').trim() || '隐蔽角落';
+          const hidden = hideChk.checked;
+          attachOperationToComposer({
+            operation: { code: 'deploy_item', item_id: item.id, spot, hidden },
+            label: '📷 部署「' + item.name + '」@ ' + spot + (hidden ? '（隐蔽）' : ''),
+            defaultAction: '（' + (hidden ? '趁人不备，悄悄把' : '把') + item.name + '安装在' + (w.location || '此处') + '的「' + spot + '」）'
+          });
+        };
+        const cancelBtn = node('button', 'btn-outline', '取消');
+        cancelBtn.type = 'button';
+        cancelBtn.onclick = () => { bagPickerState = null; renderWorld(true); };
+        foot.append(confirmBtn, cancelBtn);
+        box.append(foot);
+      } else if (bagPickerState.mode === 'gift') {
+        if (!castHere.length) return null;
+        if (!castHere.includes(bagPickerState.recipient)) bagPickerState.recipient = castHere[0];
+        const maxQty = Math.max(1, Number(item.quantity) || 1);
+        const curQty = Math.max(1, Math.min(maxQty, Number(bagPickerState.qty) || 1));
+        bagPickerState.qty = curQty;
+        box.append(node('div', 'bag-picker-title', '选择在场接收人'));
+        const chips = node('div', 'bag-picker-chips');
+        for (const who of castHere) {
+          const b = node('button', 'bag-picker-chip' + (bagPickerState.recipient === who ? ' is-active' : ''), who);
+          b.type = 'button';
+          b.onclick = () => {
+            bagPickerState = { ...bagPickerState, recipient: who };
+            renderWorld(true);
+          };
+          chips.append(b);
+        }
+        box.append(chips);
+        if (maxQty > 1) {
+          const qtyRow = node('div', 'bag-picker-qty');
+          qtyRow.append(node('span', '', '赠予数量：'));
+          const minusBtn = node('button', 'bag-picker-chip', '−');
+          minusBtn.type = 'button';
+          minusBtn.disabled = curQty <= 1;
+          minusBtn.onclick = () => { bagPickerState = { ...bagPickerState, qty: Math.max(1, curQty - 1) }; renderWorld(true); };
+          const plusBtn = node('button', 'bag-picker-chip', '+');
+          plusBtn.type = 'button';
+          plusBtn.disabled = curQty >= maxQty;
+          plusBtn.onclick = () => { bagPickerState = { ...bagPickerState, qty: Math.min(maxQty, curQty + 1) }; renderWorld(true); };
+          qtyRow.append(minusBtn, node('strong', '', curQty + ' / ' + maxQty), plusBtn);
+          box.append(qtyRow);
+        }
+        const foot = node('div', 'bag-picker-foot');
+        const confirmBtn = node('button', 'btn-gold', '挂载赠予行动 (-15⚡)');
+        confirmBtn.type = 'button';
+        confirmBtn.disabled = ordinaryBlocked() || !afford(15);
+        confirmBtn.onclick = () => {
+          const who = bagPickerState.recipient || castHere[0];
+          const qty = bagPickerState.qty || 1;
+          attachOperationToComposer({
+            operation: { code: 'transfer_item', item_id: item.id, recipient: who, quantity: qty },
+            label: '🎁 赠予「' + item.name + (qty > 1 ? ('×' + qty) : '') + '」→ ' + who,
+            defaultAction: '（把' + (qty > 1 ? (qty + '份') : '') + item.name + '递给' + who + '）'
+          });
+        };
+        const cancelBtn = node('button', 'btn-outline', '取消');
+        cancelBtn.type = 'button';
+        cancelBtn.onclick = () => { bagPickerState = null; renderWorld(true); };
+        foot.append(confirmBtn, cancelBtn);
+        box.append(foot);
+      }
+      return box;
+    };
 
     const renderItemCard = item => {
       const pg = w.progression;
@@ -3990,8 +4617,18 @@
 
       const tags = node('div', 'item-tags');
       const status = item.fields?.['当前状态'] || '持有';
+      const eff = item.fields?.['系统效果'] || '';
+      const staminaMatch = /^host_stamina:([1-9]\d*)$/.exec(eff);
+      const canGift = item.giftable !== false && item.fields?.['可赠予'] !== '否';
+      const usageMode = item.usage_mode || item.fields?.['使用模式']
+        || (staminaMatch ? 'consumable_host' : (/^(?:deploy_device|device):(camera|audio|aroma)$/.test(eff) ? 'deployable_device' : (canGift ? 'gift' : 'reusable_tool')));
+
       tags.append(node('span', 'item-tag', status));
-      if (item.fields?.['类型']) tags.append(node('span', 'item-tag', item.fields['类型']));
+      if (USAGE_MODE_LABELS[usageMode]) {
+        tags.append(node('span', 'item-tag' + (usageMode === 'deployable_device' ? ' is-device' : ''), USAGE_MODE_LABELS[usageMode]));
+      } else if (item.fields?.['类型']) {
+        tags.append(node('span', 'item-tag', item.fields['类型']));
+      }
       if (item.remaining_turns !== null && item.remaining_turns !== undefined) {
         tags.append(node('span', 'item-tag is-timer', '剩余 ' + item.remaining_turns + ' 行动'));
       } else if (item.fields?.['剩余时效'] && !['无', ''].includes(item.fields['剩余时效'])) {
@@ -4000,10 +4637,9 @@
       if (item.fields?.['使用对象'] && !['', '无', '未使用'].includes(item.fields['使用对象'])) {
         tags.append(node('span', 'item-tag', '对象：' + item.fields['使用对象']));
       }
-      const eff = item.fields?.['系统效果'] || '';
-      const staminaMatch = /^host_stamina:([1-9]\d*)$/.exec(eff);
-      if (staminaMatch) {
-        tags.append(node('span', 'item-tag is-effect', '体力 +' + staminaMatch[1]));
+      const effLabel = describeSystemEffect(eff);
+      if (effLabel) {
+        tags.append(node('span', 'item-tag is-effect', effLabel));
       }
       card.append(tags);
 
@@ -4012,7 +4648,6 @@
       }
 
       const owned = status === '仓库中' && ['', '无', '未使用', '徐志北'].includes(item.fields?.['使用对象'] || '');
-      const canGift = item.giftable !== false && item.fields?.['可赠予'] !== '否';
       if (owned) {
         const acts = node('div', 'item-card-actions');
         if (staminaMatch) {
@@ -4027,26 +4662,103 @@
           };
           acts.append(useBtn);
         }
-        if (w.cast?.length && canGift) {
-          const giftBtn = node('button', 'btn-outline', '赠予在场人物');
+        if (usageMode === 'consumable_target' || usageMode === 'reusable_tool') {
+          const isOpen = bagPickerState?.itemId === item.id && bagPickerState?.mode === 'use';
+          const btn = node('button', isOpen ? 'btn-gold' : 'btn-outline', usageMode === 'consumable_target' ? '使用 / 作用目标' : '在行动中使用');
+          btn.type = 'button';
+          btn.disabled = ordinaryBlocked() || !afford(15);
+          btn.onclick = () => {
+            haptic(8);
+            bagPickerState = isOpen ? null : { mode: 'use', itemId: item.id, target: castHere[0] || '室内氛围' };
+            renderWorld(true);
+          };
+          acts.append(btn);
+        }
+        if (usageMode === 'deployable_device') {
+          const isOpen = bagPickerState?.itemId === item.id && bagPickerState?.mode === 'deploy';
+          const btn = node('button', isOpen ? 'btn-gold' : 'btn-outline', '安装到当前地点');
+          btn.type = 'button';
+          btn.disabled = ordinaryBlocked() || !afford(15);
+          btn.onclick = () => {
+            haptic(8);
+            bagPickerState = isOpen ? null : { mode: 'deploy', itemId: item.id, spot: DEPLOY_SPOT_PRESETS[0], hidden: true };
+            renderWorld(true);
+          };
+          acts.append(btn);
+        }
+        if (castHere.length && canGift && usageMode !== 'deployable_device') {
+          const isOpen = bagPickerState?.itemId === item.id && bagPickerState?.mode === 'gift';
+          const giftBtn = node('button', isOpen ? 'btn-gold' : 'btn-outline', '赠予在场人物');
           giftBtn.type = 'button';
           giftBtn.disabled = ordinaryBlocked() || !afford(15);
           giftBtn.onclick = () => {
             haptic(8);
-            $('worldDialog').close();
-            $('item').value = item.id;
-            controls();
-            $('actionStatus').textContent = '已选中「' + item.name + '」，请选择在场接收人。';
-            $('actionDialog').showModal();
+            bagPickerState = isOpen ? null : { mode: 'gift', itemId: item.id, recipient: castHere[0], qty: 1 };
+            renderWorld(true);
           };
           acts.append(giftBtn);
         }
         if (acts.children.length) card.append(acts);
+        const pickerEl = renderInlinePicker(item, usageMode);
+        if (pickerEl) card.append(pickerEl);
       }
       return card;
     };
 
-    if (!heldItems.length && !giftedItems.length) {
+    const renderDeployedCard = dev => {
+      const card = node('article', 'item-card deployed-device-card');
+      const top = node('div', 'item-card-top');
+      top.append(
+        node('span', 'item-card-name', dev.name),
+        node('span', 'item-tag is-device', (dev.location || '未知地点') + ' · ' + (dev.spot || '隐蔽点位'))
+      );
+      card.append(top);
+
+      const tags = node('div', 'item-tags');
+      tags.append(node('span', 'item-tag', dev.hidden !== false ? '隐蔽部署' : '明面摆放'));
+      if (dev.installed_clock) tags.append(node('span', 'item-tag', '部署于 ' + dev.installed_clock));
+      const effLabel = describeSystemEffect(dev.system_effect);
+      if (effLabel) tags.append(node('span', 'item-tag is-effect', effLabel));
+      card.append(tags);
+
+      if (dev.desc) card.append(node('p', 'item-desc', dev.desc));
+
+      const acts = node('div', 'item-card-actions');
+      const inspectBtn = node('button', 'btn-gold', '📱 远程查看画面');
+      inspectBtn.type = 'button';
+      inspectBtn.disabled = ordinaryBlocked() || !afford(15);
+      inspectBtn.onclick = () => {
+        haptic(10);
+        attachOperationToComposer({
+          operation: { code: 'inspect_deployed', item_id: dev.id },
+          label: '📱 远程查看「' + dev.name + '」（' + (dev.location || '') + '）',
+          defaultAction: '（拿出手机打开加密监控端，远程查看留在「' + (dev.location || '') + ' · ' + (dev.spot || '隐蔽点位') + '」的' + dev.name + '实时画面）'
+        });
+      };
+      acts.append(inspectBtn);
+
+      const sameLoc = dev.location === w.location;
+      const retBtn = node('button', 'btn-outline', '拆除回收');
+      retBtn.type = 'button';
+      retBtn.disabled = !sameLoc || ordinaryBlocked() || !afford(15);
+      if (!sameLoc) retBtn.title = '需先前往 ' + dev.location + ' 才可回收';
+      retBtn.onclick = () => {
+        haptic(10);
+        attachOperationToComposer({
+          operation: { code: 'retrieve_item', item_id: dev.id },
+          label: '🔧 回收「' + dev.name + '」',
+          defaultAction: '（趁无人注意，从「' + (dev.spot || '隐蔽点位') + '」取回' + dev.name + '收进随身口袋）'
+        });
+      };
+      acts.append(retBtn);
+      if (!sameLoc) {
+        acts.append(node('span', 'shop-reason-hint', '回收需先前往 ' + dev.location));
+      }
+      card.append(acts);
+      return card;
+    };
+
+    if (!heldItems.length && !deployedItems.length && !giftedItems.length) {
       const emptyBag = node('section', 'empty-card');
       emptyBag.append(icon('bag'), node('p', '', '行囊暂为空置，完成委托或前往系统商城兑换可获得道具'));
       pane.append(emptyBag);
@@ -4061,6 +4773,14 @@
         emptyHeld.append(icon('bag'), node('p', '', '当前没有随身未赠予的道具'));
         pane.append(emptyHeld);
       }
+
+      if (deployedItems.length) {
+        pane.append(node('div', 'bag-section-title', '已部署装置（' + deployedItems.length + '）'));
+        const dGrid = node('section', 'item-grid');
+        for (const dev of deployedItems) dGrid.append(renderDeployedCard(dev));
+        pane.append(dGrid);
+      }
+
       if (giftedItems.length) {
         const giftBox = node('details', 'settlement-details');
         giftBox.style.padding = '0 4px';
@@ -4082,6 +4802,8 @@
       void loadShop();
     }
     const hostPoints = panels['系统宿主']?.stats?.['积分']?.num ?? 0;
+    const hostBiz = shopCatalog?.host_biz ?? (panels['系统宿主']?.stats?.['商业嗅觉']?.num ?? 0);
+    const maxAff = shopCatalog?.max_affection ?? Math.max(0, ...PEOPLE.map(n => panels[n]?.stats?.['好感']?.num ?? 0));
     const points = shopCatalog && shopCatalog.revision === snapshot?.revision ? shopCatalog.points : hostPoints;
 
     // 1. Balance Hero Card
@@ -4092,7 +4814,7 @@
     balMain.append(
       balLabel,
       node('div', 'shop-balance-num', String(points)),
-      node('div', 'shop-balance-sub', '0 体力 · 即时入囊 · 不打断当前剧情')
+      node('div', 'shop-balance-sub', '商业嗅觉 ' + hostBiz + ' · 最高好感 ' + maxAff + ' · 0 体力即时入囊')
     );
     const bagBtn = node('button', 'btn-outline', '查看行囊');
     bagBtn.type = 'button';
@@ -4100,7 +4822,86 @@
     balCard.append(balMain, bagBtn);
     pane.append(balCard);
 
-    // 2. Loading / Error / Tiered Catalog
+    // 2. AI Dynamic Restock / Shop Inquiry Window
+    const iqCard = node('section', 'shop-inquiry-card');
+    const iqHead = node('div', 'shop-inquiry-head');
+    const dynCount = shopCatalog?.dynamic_count ?? (shopCatalog?.items || []).filter(it => it.source === 'ai_restock').length;
+    const dynLimit = shopCatalog?.dynamic_limit ?? 30;
+    iqHead.append(
+      node('strong', '', 'AI 定制询货 · 动态进货窗口'),
+      node('span', 'item-tag is-effect', '动态货架 ' + dynCount + '/' + dynLimit + ' · 0 体力')
+    );
+    iqCard.append(
+      iqHead,
+      node('p', 'shop-inquiry-sub', '想买目录外的官能助兴好物、居家穿搭或隐秘装备？直接问系统商城，AI 按当前数值档位合规进货上架。')
+    );
+
+    const iqForm = node('div', 'shop-inquiry-form');
+    const qInput = node('input', 'shop-inquiry-input');
+    qInput.type = 'text';
+    qInput.maxLength = 120;
+    qInput.placeholder = '例如：有没有适合深夜足部按摩的热感精油或蕾丝睡裙？';
+    qInput.value = shopInquiryDraft;
+    qInput.disabled = shopInquiryBusy;
+    qInput.oninput = () => { shopInquiryDraft = qInput.value; };
+    qInput.onkeydown = e => {
+      if (e.key === 'Enter' && !e.isComposing) {
+        e.preventDefault();
+        void submitShopInquiry(qInput.value);
+      }
+    };
+    const iqPending = shopInquiryBusy || ['queued', 'claimed'].includes(shopInquiryState?.status);
+    const iqBtn = node('button', 'btn-gold', iqPending ? '正在调货…' : '询问并进货');
+    iqBtn.type = 'button';
+    iqBtn.disabled = !online || iqPending || active();
+    iqBtn.onclick = () => void submitShopInquiry(qInput.value);
+    iqForm.append(qInput, iqBtn);
+    iqCard.append(iqForm);
+
+    const iqChips = node('div', 'shop-inquiry-chips');
+    for (const preset of [
+      '有没有适合足部按摩和肩颈推拿的温热精油？',
+      '有没有可以藏在卧室隐蔽角落的微型监控或拾音装置？',
+      '有没有质感轻薄的丝袜、居家真丝睡裙或亲密助兴小物？'
+    ]) {
+      const chip = node('button', 'bag-picker-chip', preset.replace(/^有没有/, '').replace(/？$/, ''));
+      chip.type = 'button';
+      chip.disabled = iqPending;
+      chip.onclick = () => {
+        shopInquiryDraft = preset;
+        qInput.value = preset;
+        qInput.focus();
+      };
+      iqChips.append(chip);
+    }
+    iqCard.append(iqChips);
+
+    if (!snapshot?.bridge_connected) {
+      iqCard.append(node('p', 'shop-inquiry-note', '提示：发起 AI 定制进货需保持 Operit 故事桥接（≥ 2.1.8）处于开启状态。'));
+    }
+    if (shopInquiryState) {
+      const st = shopInquiryState.status;
+      if (st === 'queued' || st === 'claimed') {
+        const banner = node('div', 'shop-inquiry-reply is-loading');
+        banner.append(node('span', '', '⏳ 正在向系统商城联络调货：「' + shopInquiryState.query + '」…'));
+        iqCard.append(banner);
+      } else if (st === 'completed') {
+        const banner = node('div', 'shop-inquiry-reply is-ok');
+        const names = (shopInquiryState.added_items || []).map(x => '「' + x.name + '」').join('、');
+        banner.append(
+          node('strong', '', shopInquiryState.shopkeeper_reply || '本次定制进货已完成并上架至「AI 定制进货」货架。'),
+          names ? node('span', '', '新上架：' + names) : node('span', '', '暂无新增商品（可能与现有货架重名或被安全闸门拦截）')
+        );
+        iqCard.append(banner);
+      } else if (st === 'failed' && shopInquiryState.error) {
+        const banner = node('div', 'shop-inquiry-reply is-err');
+        banner.append(node('span', '', '询货未完成：' + shopInquiryState.error));
+        iqCard.append(banner);
+      }
+    }
+    pane.append(iqCard);
+
+    // 3. Loading / Error / Categorized Catalog Shelves
     if (shopLoading && !shopCatalog) {
       const loadingCard = node('section', 'empty-card');
       loadingCard.append(icon('shop'), node('p', '', '正在读取系统商城货架……'));
@@ -4116,52 +4917,84 @@
     } else if (shopCatalog?.items?.length) {
       const redeemedMap = w.shop_state?.redeemed || {};
       const blockReason = transactBlockReason();
-      for (const tierKey of ['low', 'mid', 'high']) {
-        const tierItems = shopCatalog.items.filter(it => it.tier === tierKey);
-        if (!tierItems.length) continue;
+      const bucketOf = it => it.source === 'ai_restock'
+        ? 'ai_restock'
+        : (['sensual', 'covert', 'daily'].includes(it.category) ? it.category : 'daily');
+
+      for (const catKey of SHOP_CATEGORY_ORDER) {
+        const catItems = shopCatalog.items.filter(it => bucketOf(it) === catKey);
+        if (!catItems.length) continue;
         const group = node('section', 'shop-tier-group');
         const tHead = node('div', 'shop-tier-head');
+        const catTitle = (shopCatalog.categories && shopCatalog.categories[catKey]?.label)
+          || SHOP_CATEGORY_LABELS[catKey] || catKey;
         tHead.append(
-          node('h3', '', SHOP_TIER_LABELS[tierKey] || tierKey),
-          node('span', '', tierItems.length + ' 件可兑')
+          node('h3', '', catTitle),
+          node('span', '', catItems.length + ' 件')
         );
         group.append(tHead);
 
-        for (const item of tierItems) {
+        for (const item of catItems) {
           const bought = redeemedMap[item.id] ?? item.redeemed_count ?? 0;
           const cap = item.max_per_save;
           const soldOut = cap !== null && cap !== undefined && bought >= cap;
+          const unlocked = item.unlocked !== false;
           const enough = points >= item.price;
-          const canBuy = !soldOut && enough && canTransactDeterministic();
+          const canBuy = !soldOut && unlocked && enough && canTransactDeterministic();
+          const packQty = Number(item.pack_qty || 1);
 
-          const card = node('article', 'shop-item-card' + (soldOut ? ' is-soldout' : ''));
+          const card = node('article', 'shop-item-card' + (soldOut ? ' is-soldout' : '') + (!unlocked ? ' is-locked' : ''));
           const top = node('div', 'shop-item-top');
+          const nameWrap = node('span', 'shop-item-name', item.name + (packQty > 1 ? (' ×' + packQty) : ''));
           const pricePill = node('span', 'shop-price-pill');
           pricePill.append(icon('coin', 'chip-svg'), node('span', '', item.price + ' 积分'));
-          top.append(node('span', 'shop-item-name', item.name), pricePill);
+          top.append(nameWrap, pricePill);
           card.append(top);
 
           const tags = node('div', 'item-tags');
-          tags.append(node('span', 'item-tag', item.type || '道具'));
-          const effMatch = /^host_stamina:([1-9]\d*)$/.exec(item.system_effect || '');
-          if (effMatch) tags.append(node('span', 'item-tag is-effect', '体力 +' + effMatch[1]));
-          if (item.giftable) tags.append(node('span', 'item-tag', '可赠予在场人物'));
+          if (item.source === 'ai_restock') {
+            tags.append(node('span', 'item-tag is-effect', 'AI 定制'));
+          }
+          if (USAGE_MODE_LABELS[item.usage_mode]) {
+            tags.append(node('span', 'item-tag' + (item.usage_mode === 'deployable_device' ? ' is-device' : ''), USAGE_MODE_LABELS[item.usage_mode]));
+          } else {
+            tags.append(node('span', 'item-tag', item.type || '道具'));
+          }
+          const effLabel = describeSystemEffect(item.system_effect);
+          if (effLabel) tags.append(node('span', 'item-tag is-effect', effLabel));
+          if (item.giftable && item.usage_mode !== 'gift') tags.append(node('span', 'item-tag', '可赠予'));
           if (cap !== null && cap !== undefined) {
             tags.append(node('span', 'item-tag' + (soldOut ? ' is-soldout' : ''), soldOut ? ('已售罄 ' + bought + '/' + cap) : ('限兑 ' + bought + '/' + cap)));
+          }
+          if (!unlocked && item.unlock_hint) {
+            tags.append(node('span', 'item-tag is-locked', '🔒 ' + item.unlock_hint));
           }
           card.append(tags);
 
           if (item.desc) card.append(node('p', 'item-desc', item.desc));
 
           const footer = node('div', 'shop-item-footer');
-          const buyBtn = node('button', 'btn-gold', soldOut ? '已售罄' : (shopBusy ? '兑换中…' : ('兑换 · ' + item.price + ' 积分')));
+          const buyLabel = soldOut ? '已售罄'
+            : !unlocked ? '未解锁'
+            : shopBusy ? '兑换中…'
+            : ('兑换 · ' + item.price + ' 积分');
+          const buyBtn = node('button', 'btn-gold', buyLabel);
           buyBtn.type = 'button';
           buyBtn.disabled = !canBuy;
           buyBtn.onclick = () => void redeemShopItem(item);
           footer.append(buyBtn);
 
+          if (item.source === 'ai_restock') {
+            const delBtn = node('button', 'btn-outline is-tiny', '下架');
+            delBtn.type = 'button';
+            delBtn.disabled = !canTransactDeterministic();
+            delBtn.onclick = () => void deleteDynamicShopItem(item);
+            footer.append(delBtn);
+          }
+
           let reason = '';
           if (soldOut) reason = '已达本档限购上限';
+          else if (!unlocked) reason = item.unlock_reason || item.unlock_hint || '尚未满足解锁门槛';
           else if (!enough) reason = '还差 ' + (item.price - points) + ' 积分';
           else if (blockReason) reason = blockReason;
           if (reason) footer.append(node('span', 'shop-reason-hint', reason));
@@ -4177,7 +5010,7 @@
       pane.append(emptyShop);
     }
 
-    // 3. Recent Redemptions Ledger (persisted in 【商城与回响状态】)
+    // 4. Recent Redemptions Ledger (persisted in 【商城与回响状态】)
     const recent = (w.shop_state?.recent?.length ? w.shop_state.recent : shopCatalog?.recent) || [];
     if (recent.length) {
       const recBox = node('details', 'settlement-details shop-recent-box');
@@ -4419,6 +5252,10 @@
       shopBusy,
       shopLoading,
       shopError,
+      shopInquiryBusy,
+      shopInquiryId: shopInquiryState?.id || '',
+      shopInquiryStatus: shopInquiryState?.status || '',
+      bagPickerState,
       shopRev: shopCatalog?.revision || '',
       shopCount: shopCatalog?.items?.length || 0,
       bridge: snapshot?.bridge_connected,
@@ -4430,6 +5267,7 @@
         presence: w.presence,
         panels: w.panels,
         items: w.items,
+        deployed_items: w.deployed_items,
         delivered_items: w.delivered_items,
         buffs: w.buffs,
         vigilance: w.vigilance,
@@ -4599,6 +5437,7 @@
           const item = nextNodes[i];
           if (item?.classList?.contains('msg')) item.classList.add('is-fresh-enter');
           container.append(item);
+          if (item?.classList?.contains('cinema-plate')) observePlateElement(item);
         }
         return;
       }
@@ -4647,9 +5486,13 @@
         const want = resolved[i];
         const cur = container.children[i] || null;
         if (cur !== want) container.insertBefore(want, cur);
+        if (want?.classList?.contains('cinema-plate')) observePlateElement(want);
       }
     } else {
       container.replaceChildren(...resolved);
+      for (const want of resolved) {
+        if (want?.classList?.contains('cinema-plate')) observePlateElement(want);
+      }
     }
   }
 
@@ -4726,8 +5569,9 @@
         if (hasPort) {
           const wrap = node('span', 'person-avatar-wrap');
           const im = node('img');
-          im.src = image(name, 'into.png');
+          im.src = withThumb(image(name, 'into.png'), 'avatar');
           im.alt = '';
+          im.loading = 'lazy';
           im.decoding = 'async';
 
           const orbit = svgEl('svg', { viewBox: '0 0 44 44', class: 'speaker-orbit', 'aria-hidden': 'true' });
@@ -5006,7 +5850,7 @@
       let lastFresh = null;
       if (cache.epoch === epoch && snapshot?.playback?.segment_id === segmentId) {
         lastFresh = await api('live/progress', {
-          save_epoch: epoch, segment_id: segmentId, revealed: toRevealed, completed: false, catchup: true
+          save_epoch: epoch, segment_id: segmentId, revealed: toRevealed, completed: false, catchup: true, compact: true
         });
       }
       handoffPreview = null;
@@ -5029,13 +5873,27 @@
   }
 
   function absorb(fresh) {
+    initialSyncDone = true;
+    if (fresh && fresh.compact && snapshot && snapshot.save_epoch === fresh.save_epoch) {
+      fresh = {
+        ...snapshot,
+        playback: fresh.playback || snapshot.playback,
+        history: Array.isArray(fresh.history) ? fresh.history : [],
+        world: (fresh.world !== undefined && fresh.world !== null) ? fresh.world : snapshot.world,
+        settlement: fresh.settlement !== undefined ? fresh.settlement : snapshot.settlement,
+        revision: fresh.revision ?? snapshot.revision,
+        state_version: fresh.state_version ?? snapshot.state_version,
+        save_epoch: fresh.save_epoch,
+        has_older: snapshot.has_older
+      };
+    }
     const prevSegmentId = snapshot?.playback?.segment_id;
     const prevWasActive = active();
     const prevPreview = streamPreview;
     const prevPreviewRevealed = prevPreview ? (prevPreview.revealed || 0) : 0;
     if (cache.epoch && cache.epoch !== fresh.save_epoch) {
       cache = { epoch: fresh.save_epoch, draft: '', pending: null, voice: cache.voice };
-      $('input').value = '';
+      syncDraftInputs('');
       history = [];
       signature = '';
       worldSignature = '';
@@ -5114,7 +5972,7 @@
       $('stream').scrollTop = 0;
     } else {
       const map = new Map(history.map(t => [t.id, t]));
-      fresh.history.forEach(t => map.set(t.id, t));
+      (fresh.history || []).forEach(t => map.set(t.id, t));
       history = [...map.values()].sort((a, b) => a.sequence - b.sequence);
     }
     if (!audioMessage && fresh.playback?.revealed) {
@@ -5128,7 +5986,7 @@
     } else if (!prevSegmentId && fresh.playback?.segment_id) {
       lastEffectSegmentId = fresh.playback.segment_id;
     }
-    if (olderCursor === null) hasOlder = fresh.has_older;
+    if (olderCursor === null && typeof fresh.has_older === 'boolean') hasOlder = fresh.has_older;
     save();
     render();
     if (shouldSpeakFirstPreview && streamPreview?.messages?.[0]) {
@@ -5236,7 +6094,7 @@
     const revealed = Math.min(p.total, p.revealed + 1);
     const completed = p.revealed === p.total;
     try {
-      const fresh = await api('live/progress', { save_epoch: cache.epoch, segment_id: p.segment_id, revealed, completed });
+      const fresh = await api('live/progress', { save_epoch: cache.epoch, segment_id: p.segment_id, revealed, completed, compact: true });
       absorb(fresh);
       latest();
       if (!completed) {
@@ -5356,9 +6214,11 @@
       controls();
       return;
     }
-    if (optionId === 'CUSTOM' && !op) {
-      $('input').value = '';
-      $('input').style.height = 'auto';
+    if (optionId === 'CUSTOM') {
+      syncDraftInputs('');
+      if ($('input')) $('input').style.height = 'auto';
+      if ($('sheetInput')) $('sheetInput').style.height = 'auto';
+      if (composerSheetOpen) closeComposerSheet();
     }
     await dispatch();
   }
@@ -5423,6 +6283,10 @@
   if ($('customFormToggle')) {
     $('customFormToggle').onclick = () => {
       haptic(6);
+      if (isMobileViewport()) {
+        openComposerSheet({ focus: true });
+        return;
+      }
       customComposerExpanded = !customComposerExpanded;
       controls();
       requestAnimationFrame(() => {
@@ -5485,24 +6349,51 @@
     }
   });
 
-  $('form').onsubmit = async e => {
-    e.preventDefault();
-    const text = $('input').value;
-    if (baseBlocked() || !text.trim()) return;
+  async function submitDraftFromComposer(source = 'inline') {
+    const text = source === 'sheet' ? ($('sheetInput')?.value || '') : ($('input')?.value || '');
+    const attached = pendingItemAttachment;
+    if (baseBlocked() || (!text.trim() && !attached)) return;
     haptic(14);
-    if (!(await requestCommit({ text, optionId: 'CUSTOM', cost: 15 }))) {
-      $('input').focus();
+    const finalText = text.trim() || (attached?.defaultAction || '');
+    const isPureRec = !attached && /^\s*使用恢复道具\s*[：:]?\s*ITEM-\d+\s*[。！!]?\s*$/.test(finalText);
+    const cost = isPureRec ? 0 : 15;
+    if (!(await requestCommit({ text: finalText, optionId: 'CUSTOM', cost }))) {
+      if (source === 'sheet') $('sheetInput')?.focus();
+      else $('input')?.focus();
       return;
     }
-    void enqueue(text);
+    if (composerSheetOpen) closeComposerSheet();
+    const op = attached?.operation || null;
+    pendingItemAttachment = null;
+    renderSheetAttachBar();
+    void enqueue(finalText, op, 'CUSTOM');
+  }
+
+  let draftSyncTimer = null;
+  function scheduleDraftControlsSave() {
+    if (draftSyncTimer !== null) clearTimeout(draftSyncTimer);
+    draftSyncTimer = setTimeout(() => {
+      draftSyncTimer = null;
+      save();
+      controls();
+      sizing();
+    }, 150);
+  }
+
+  $('form').onsubmit = async e => {
+    e.preventDefault();
+    await submitDraftFromComposer('inline');
   };
+  $('input').addEventListener('focus', () => {
+    if (isMobileViewport() && !composerSheetOpen && !$('input').disabled) {
+      $('input').blur?.();
+      openComposerSheet({ focus: true });
+    }
+  });
   $('input').addEventListener('input', () => {
-    cache.draft = $('input').value;
-    save();
-    controls();
-    $('input').style.height = 'auto';
-    $('input').style.height = Math.min($('input').scrollHeight, 92) + 'px';
-    sizing();
+    syncDraftInputs($('input').value, $('input'));
+    syncInputHeight($('input'));
+    scheduleDraftControlsSave();
   });
   $('input').addEventListener('keydown', e => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -5511,16 +6402,64 @@
     }
   });
 
+  if ($('expandComposerBtn')) {
+    $('expandComposerBtn').onclick = () => {
+      haptic(6);
+      openComposerSheet({ focus: true });
+    };
+  }
+  if ($('sheetCloseBtn')) {
+    $('sheetCloseBtn').onclick = () => {
+      haptic(6);
+      closeComposerSheet();
+    };
+  }
+  if ($('composerSheetBackdrop')) {
+    $('composerSheetBackdrop').onclick = () => {
+      haptic(6);
+      closeComposerSheet();
+    };
+  }
+  if ($('sheetContextPeek')) {
+    $('sheetContextPeek').onclick = () => {
+      haptic(4);
+      $('sheetContextPeek').classList.toggle('is-expanded');
+    };
+  }
+  if ($('sheetInput')) {
+    $('sheetInput').addEventListener('input', () => {
+      syncDraftInputs($('sheetInput').value, $('sheetInput'));
+      syncInputHeight($('sheetInput'));
+      const hasContent = Boolean($('sheetInput').value.trim() || pendingItemAttachment);
+      if ($('sheetSendBtn')) {
+        const isPureRec = !pendingItemAttachment && pureRecovery();
+        $('sheetSendBtn').disabled = !hasContent || ordinaryBlocked() || (!isPureRec && !afford(15));
+      }
+      scheduleDraftControlsSave();
+    });
+    $('sheetInput').addEventListener('keydown', e => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter' && !e.isComposing) {
+        e.preventDefault();
+        void submitDraftFromComposer('sheet');
+      }
+    });
+  }
+  if ($('sheetSendBtn')) {
+    $('sheetSendBtn').onclick = () => void submitDraftFromComposer('sheet');
+  }
+
   $('refresh').onclick = async () => { haptic(8); await restore(); toast('已同步现场进度'); };
   $('checkPending').onclick = () => void restore();
   $('resendPending').onclick = dispatch;
   $('editPending').onclick = () => {
     if (!cache.pending || !missing || mismatch || posting || polling) return;
-    cache.draft = [cache.pending.action, cache.draft].filter(Boolean).join('\n');
+    const merged = [cache.pending.action, cache.draft].filter(Boolean).join('\n');
     cache.pending = null;
-    $('input').value = cache.draft;
+    syncDraftInputs(merged);
+    syncInputHeight($('input'));
     save();
     controls();
+    if (isMobileViewport()) openComposerSheet({ focus: true });
   };
   async function runRetry(resumeStage2) {
     if (baseBlocked() || !snapshot?.task?.request_id) return;
@@ -5543,6 +6482,20 @@
   };
   $('actions').onclick = openActionSheet;
   if ($('quickActionBtn')) $('quickActionBtn').onclick = openActionSheet;
+  if ($('sheetBagBtn')) {
+    $('sheetBagBtn').onclick = () => {
+      haptic(8);
+      closeComposerSheet();
+      openHub('bag');
+    };
+  }
+  if ($('sheetMoveBtn')) {
+    $('sheetMoveBtn').onclick = () => {
+      haptic(8);
+      closeComposerSheet();
+      openActionSheet();
+    };
+  }
 
   $('moveForm').onsubmit = async e => {
     e.preventDefault();
@@ -5808,7 +6761,7 @@
         if (sse !== es) return;
         sseOpen = true;
         sseRetryAttempt = 0;
-        scheduleRestore(30);
+        if (initialSyncDone) scheduleRestore(30);
       };
       es.addEventListener('ready', event => {
         try {
@@ -5827,6 +6780,7 @@
       es.addEventListener('task_state', event => { trackSseEventSeq(event); scheduleRestore(40); });
       es.addEventListener('bridge_state', event => { trackSseEventSeq(event); scheduleRestore(80); });
       es.addEventListener('save_reset', event => { trackSseEventSeq(event); scheduleRestore(20); });
+      es.addEventListener('shop_updated', event => { trackSseEventSeq(event); void handleShopUpdatedEvent(event); });
       es.onerror = () => {
         if (sse !== es) return;
         sseOpen = false;
@@ -5891,7 +6845,9 @@
   window.addEventListener('pointercancel', releaseHoldGaze);
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
-    if ($('gazeLens')?.classList.contains('is-open')) {
+    if (composerSheetOpen) {
+      closeComposerSheet();
+    } else if ($('gazeLens')?.classList.contains('is-open')) {
       closeGazeLens();
     } else if (topPeekOpen) {
       topPeekOpen = false;
@@ -5951,10 +6907,14 @@
     }
     const visualH = v ? v.height : curH;
     const visualOffset = v ? v.offsetTop : 0;
-    // Only apply --keyboard offset when browser did NOT already shrink layout viewport (resizes-visual)
-    const visualDelta = v ? Math.max(0, Math.round(curH - visualH - visualOffset)) : 0;
+    // Accurate delta for resizes-visual viewports (avoid cancelling offsetTop)
+    const visualDelta = v ? Math.max(0, Math.round(curH - visualH)) : 0;
     const layoutShrink = Math.max(0, Math.round(baseViewportHeight - visualH));
     const kbOpen = isEditableFocused() && (layoutShrink > 120 || visualDelta > 120);
+    if (visualH > 0) {
+      document.documentElement.style.setProperty('--vvh', Math.round(visualH) + 'px');
+    }
+    document.documentElement.style.setProperty('--vv-top', Math.max(0, Math.round(visualOffset)) + 'px');
     document.documentElement.style.setProperty('--keyboard', (visualDelta > 20 ? visualDelta : 0) + 'px');
     document.body.classList.toggle('kb-open', kbOpen);
     if (kbOpen && topPeekOpen) {
@@ -5968,7 +6928,11 @@
     visualViewport.addEventListener('scroll', viewport);
   }
   window.addEventListener('resize', viewport);
-  document.addEventListener('focusin', () => setTimeout(viewport, 60));
+  document.addEventListener('focusin', () => {
+    setTimeout(viewport, 60);
+    setTimeout(viewport, 180);
+    setTimeout(viewport, 360);
+  });
   document.addEventListener('focusout', () => setTimeout(viewport, 120));
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
@@ -5989,7 +6953,9 @@
 
   initAmbientRain();
   applyPrefs();
-  $('input').value = cache.draft;
+  viewport();
+  syncDraftInputs(cache.draft);
+  syncInputHeight($('input'));
   save();
   render();
   connectSSE();

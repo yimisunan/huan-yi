@@ -182,10 +182,27 @@ class InteractionChecks(unittest.TestCase):
 
     def test_no_24_exchange_limit_and_history_pagination(self):
         for n in range(65):self.store.submit(self.request('msg-'+str(n)))
-        first=self.service.interaction_snapshot();second=self.service.interaction_snapshot(first['history'][0]['sequence'])
-        self.assertEqual(len(first['history']),60);self.assertEqual(len(second['history']),5)
-        self.assertTrue(first['has_older']);self.assertFalse(second['has_older'])
+        first=self.service.interaction_snapshot()
+        self.assertEqual(len(first['history']),10);self.assertTrue(first['has_older'])
         self.assertEqual(first['world']['interaction']['count'],65)
+        second=self.service.interaction_snapshot(first['history'][0]['sequence'])
+        self.assertEqual(len(second['history']),10);self.assertTrue(second['has_older'])
+        self.assertLess(second['history'][-1]['sequence'],first['history'][0]['sequence'])
+        wide=self.service.interaction_snapshot(limit=60)
+        self.assertEqual(len(wide['history']),60);self.assertTrue(wide['has_older'])
+        tail=self.service.interaction_snapshot(wide['history'][0]['sequence'],limit=60)
+        self.assertEqual(len(tail['history']),5);self.assertFalse(tail['has_older'])
+        # O(limit) lazy disk read check: loading 10 rows from 65 records must not read all 65 files
+        opened=[]
+        orig_read_text=Path.read_text
+        def spy_read_text(p,*a,**kw):
+            if p.parent.name=='interaction' and p.name.endswith('.json') and p.name!='playback.json':
+                opened.append(p.name)
+            return orig_read_text(p,*a,**kw)
+        with patch.object(Path,'read_text',spy_read_text):
+            rows,has_older=ir.recent_rows_page(self.store,limit=10)
+        self.assertEqual(len(rows),10);self.assertTrue(has_older)
+        self.assertLessEqual(len(opened),11)
 
     def test_new_game_api_idempotent_and_rejects_inflight(self):
         self.store.submit(self.request())

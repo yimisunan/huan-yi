@@ -534,9 +534,15 @@ def process_desire_stamina_system(ds_events, memory_file, *, creampie_chars=None
             elif tag == _event_tag('DS_16'): raw_org_add += _event_param('DS_16', 'new_org_01')
             elif tag == _event_tag('DS_18'): has_self_relief = True
             
-        # 3. 多通道复合感官刺激（主通道全额 + 次通道 50% 协同，单回合上限 +5；羞耻 > 80 时视觉屏蔽）
-        if cur_shame > 80:
-            sensory_visual = 0
+        # 3. 多通道复合感官刺激（主通道全额 + 次通道 50% 协同，单回合上限 +5；羞耻 > 80 时视觉保留 +1 悸动底线，官能 Buff 下全额放行）
+        if cur_shame > 80 and sensory_visual > 0:
+            has_sensual_buff = bool(re.search(
+                rf"▶\s*{re.escape(char_name)}\s*\n(?:(?!▶).)*?\[(?:温热精油|暖香微醺|微醺燥热)\]",
+                content,
+                re.DOTALL,
+            ))
+            if not has_sensual_buff:
+                sensory_visual = min(sensory_visual, 1)
         s_vals = sorted([sensory_visual, sensory_smell, sensory_audio], reverse=True)
         sensory_add = min(5, int(round(s_vals[0] + 0.5 * (s_vals[1] + s_vals[2]))))
         new_des += sensory_add
@@ -693,6 +699,14 @@ def process_affection_system(affection_events, shame_events, memory_file, *, bus
             halved_caught = int(violation_drop / 2)
             print(f" [好感引擎] 🔥 {char_name} 触发【意外撞破_私密自渎·身体诚实闭环】：越界好感惩罚减半 {violation_drop} -> {halved_caught}")
             violation_drop = halved_caught
+
+        # 官能辅助道具 BUFF（温热精油/微醺燥热）：轻/中度越界（SHAME_01/02）好感惩罚减半
+        if violation_drop < 0 and (_event_tag('SHAME_01') in s_tags or _event_tag('SHAME_02') in s_tags):
+            char_buffs = parse_persistent_buffs(content).get(char_name) or []
+            if any(re.search(r'温热精油|微醺燥热', str(b.get('name', ''))) for b in char_buffs):
+                halved_buff = int(violation_drop / 2)
+                print(f" [好感引擎] 🕯️ {char_name} 触发【官能辅助 BUFF 缓和】：轻中度越界好感惩罚减半 {violation_drop} -> {halved_buff}")
+                violation_drop = halved_buff
 
         # 被动 Lv.2（认知欺诈滤镜）：C烈度越界好感惩罚减半，与商业杠杆独立叠加
         if cur_passive >= 2 and violation_drop < 0:
@@ -900,7 +914,7 @@ def update_persistent_buffs(memory_file, shame_events, new_buffs_dict=None):
 
     buff_block = re.sub(r"-\s*\[(.*?)\]\s*剩余时效:\s*(\d+)回合\s*\((.*?)\)", decrement_timer, buff_block)
 
-    # 3. 再挂载本轮前台 AI 手动请求的新 BUFF（道具或特殊剧情触发）
+    # 3. 再挂载本轮前台 AI 手动请求的新 BUFF（道具或特殊剧情触发；同名刷新不重复堆叠）
     if new_buffs_dict:
         for char, buff_str in new_buffs_dict.items():
             if buff_str:
@@ -908,8 +922,17 @@ def update_persistent_buffs(memory_file, shame_events, new_buffs_dict=None):
                 match_char = re.search(char_pattern, buff_block, re.DOTALL)
                 if match_char:
                     old_buffs = match_char.group(2).strip()
+                    name_m = re.match(r"^\[([^\]]+)\]", str(buff_str).strip())
+                    bname = name_m.group(1) if name_m else ""
                     if "无" in old_buffs or not old_buffs:
                         new_buffs = f"  - {buff_str}"
+                    elif bname and f"[{bname}]" in old_buffs:
+                        new_buffs = re.sub(
+                            rf"-\s*\[{re.escape(bname)}\][^\n]*",
+                            f"- {buff_str}",
+                            old_buffs,
+                            count=1,
+                        )
                     else:
                         new_buffs = old_buffs + "\n" + f"  - {buff_str}"
                     buff_block = re.sub(char_pattern, rf"\g<1>{new_buffs}\n", buff_block, flags=re.DOTALL)
@@ -2168,15 +2191,22 @@ def update_global_memory(current_round, memory_deltas, panel_changes):
         print(f" [√] 存档/全局记忆库.txt 异步引擎更新完成（回合 {current_round}）")
 
 
-# ============ 道具图鉴引擎（V3.0：save_store 单一真相 / 活跃·已交付·历史三区分离 / giftable） ============
+# ============ 道具图鉴引擎（V3.0：save_store 单一真相 / 活跃·已部署·已交付·历史四区分离 / giftable） ============
+ITEM_ANCHOR_DEPLOYED = "▼ 已部署装置区 ▼"
 ITEM_ANCHOR_DELIVERED = "▼ 已交付道具区 ▼"
 ITEM_ANCHOR_HISTORY = "▼ 已过期/已消耗道具历史区 ▼"
 _ITEM_BLOCK_RE = re.compile(r"【道具名称】：(?P<name>[^\n]+)\n(?P<body>[\s\S]*?)(?=\n\n【道具名称】|\n\n(?:=+|▼)|\Z)")
 
 
 def _active_item_zone(content):
-    """活跃道具区 = 文件头部到已交付区/历史区锚点之间（不含已交付与历史区）。"""
-    stops = [idx for idx in (content.find(ITEM_ANCHOR_DELIVERED), content.find(ITEM_ANCHOR_HISTORY)) if idx != -1]
+    """活跃道具区 = 文件头部到已部署/已交付/历史区锚点之间（不含已部署、已交付与历史区）。"""
+    stops = [
+        idx for idx in (
+            content.find(ITEM_ANCHOR_DEPLOYED),
+            content.find(ITEM_ANCHOR_DELIVERED),
+            content.find(ITEM_ANCHOR_HISTORY),
+        ) if idx != -1
+    ]
     return content[:min(stops)] if stops else content
 
 
@@ -2196,8 +2226,9 @@ def _find_item_block(content, name=None, item_id=None):
 def _parse_item_block(block):
     """解析单条道具记录 → {字段: 值}。"""
     item = {}
-    for key in ("道具ID", "类型", "描述", "数量", "获得回合", "当前状态", "位置",
-                "使用对象", "时效", "剩余时效", "过期规则", "使用记录", "备注", "系统效果", "可赠予"):
+    for key in ("道具ID", "类型", "使用模式", "描述", "数量", "获得回合", "当前状态", "位置",
+                "安装点位", "隐蔽部署", "部署时间", "使用对象", "时效", "剩余时效", "过期规则",
+                "使用记录", "备注", "系统效果", "可赠予"):
         m = re.search(rf"【{key}】：([^\n]*)", block)
         item[key] = m.group(1).strip() if m else ""
     return item
@@ -2237,16 +2268,22 @@ def _normalize_item(item, current_round):
         giftable = gift_raw.strip() not in ('否', 'false', 'False', '0', '不可赠予')
     else:
         giftable = not bool(sys_eff)
+    usage_mode = save_store.infer_usage_mode(sys_eff, giftable, item.get('usage_mode', ''))
 
     return {
         "id": str(item.get('id', '')).strip(),
         "name": item_name,
         "type": str(item.get('type', '临时性（消耗品）')).strip() or '临时性（消耗品）',
+        "category": flat(item.get('category', '')),
+        "usage_mode": usage_mode,
         "desc": flat(item.get('desc', '')),
         "quantity": max(1, _int_of(item.get('quantity', 1), 1)),
         "obtain_round": str(item.get('obtain_round', current_round)).strip(),
         "status": str(item.get('status', '仓库中')).strip() or '仓库中',
         "location": flat(item.get('location', '无')) or '无',
+        "spot": flat(item.get('spot', '')),
+        "hidden": bool(item.get('hidden', True)),
+        "installed_clock": flat(item.get('installed_clock', '')),
         "target": flat(item.get('target', '未使用')) or '未使用',
         "duration": duration_raw or '无',
         "remaining": remaining,
@@ -2272,11 +2309,15 @@ def _item_from_parsed(old, name=""):
         "name": name or old.get("道具名称", "") or "",
         "id": old.get("道具ID", ""),
         "type": old.get("类型", ""),
+        "usage_mode": save_store.infer_usage_mode(sys_eff, giftable, old.get("使用模式", "")),
         "desc": old.get("描述", ""),
         "quantity": _int_of(old.get("数量"), 1),
         "obtain_round": old.get("获得回合", ""),
         "status": old.get("当前状态", ""),
         "location": old.get("位置", ""),
+        "spot": old.get("安装点位", ""),
+        "hidden": old.get("隐蔽部署", "是") not in ("否", "false", "False", "0"),
+        "installed_clock": old.get("部署时间", ""),
         "target": old.get("使用对象", ""),
         "duration": old.get("时效", ""),
         "remaining": rem_str,
@@ -2293,9 +2334,11 @@ def _record_text(item):
     giftable = item.get("giftable")
     if type(giftable) is not bool:
         giftable = not bool(item.get("system_effect", ""))
+    usage_mode = save_store.infer_usage_mode(item.get("system_effect", ""), giftable, item.get("usage_mode", ""))
     record = f"""【道具名称】：{item['name']}
 【道具ID】：{item['id']}
 【类型】：{item['type']}
+【使用模式】：{usage_mode}
 【描述】：{item['desc']}
 【数量】：{item['quantity']}
 【获得回合】：{item['obtain_round']}
@@ -2383,9 +2426,9 @@ def _merge_usage(old_usage, addition):
 
 def update_item_catalog(current_round, new_item_entries):
     """
-    道具图鉴引擎（V3.0）：以 save_store 为唯一真相，严格隔离活跃区/已交付区/历史区；
-    - add 仅堆叠活跃区「仓库中」条目，绝不覆盖已交付赠礼；
-    - update 局部合并，严格保留未传的描述/备注/系统效果/使用记录/可赠予字段；
+    道具图鉴引擎（V3.0）：以 save_store 为唯一真相，严格隔离活跃区/已部署区/已交付区/历史区；
+    - add 仅堆叠活跃区「仓库中」同名条目，绝不覆盖已交付赠礼或已部署装置；
+    - update 局部合并，严格保留未传的描述/备注/系统效果/使用记录/可赠予/使用模式字段；
     - 同步单向渲染徐志北道具图鉴.txt 与全局记忆库.txt【道具倒计时】。
     """
     if not new_item_entries:
@@ -2425,7 +2468,12 @@ def update_item_catalog(current_round, new_item_entries):
         seq = int(items_box.get("next_seq", 1))
         existing_nums = [
             int(it["id"].split("-")[1])
-            for bucket in (items_box["active"], items_box["delivered"], items_box["history"])
+            for bucket in (
+                items_box["active"],
+                items_box.get("deployed", []),
+                items_box["delivered"],
+                items_box["history"],
+            )
             for it in bucket
             if re.fullmatch(r"ITEM-\d+", str(it.get("id") or ""))
         ]
@@ -3401,12 +3449,31 @@ def consume_story_recovery_item(item_id, recovery, memory_round):
     save_store.save_bundle(BASE_DIR, state, layers)
 
 
-def apply_interaction_operation(operation):
-    """Apply a prevalidated operation inside a RoundStore staging directory."""
+def _alloc_state_item_id(items_box):
+    seq = int(items_box.get('next_seq', 1))
+    existing_nums = [
+        int(it['id'].split('-')[1])
+        for bucket in (
+            items_box.get('active', []),
+            items_box.get('deployed', []),
+            items_box.get('delivered', []),
+            items_box.get('history', []),
+        )
+        for it in bucket
+        if re.fullmatch(r'ITEM-\d+', str(it.get('id') or ''))
+    ]
+    seq = max(seq, (max(existing_nums) + 1) if existing_nums else 1)
+    items_box['next_seq'] = seq + 1
+    return f'ITEM-{seq:03d}'
+
+
+def apply_interaction_operation(operation, *, clock_str=''):
+    """Apply a prevalidated operation inside a RoundStore staging directory. Returns optional metadata dict."""
     code = operation['code']
+    stamp = (clock_str.strip() + ' - ') if isinstance(clock_str, str) and clock_str.strip() else ''
     if code == 'move_player':
         update_presence({'徐志北': {'location': operation['destination'], 'reason': '玩家明确前往'}})
-        return
+        return {'code': code, 'destination': operation['destination']}
     if code == 'transfer_item':
         state, layers, _ = save_store.load_bundle(BASE_DIR)
         active = state['items']['active']
@@ -3416,17 +3483,133 @@ def apply_interaction_operation(operation):
         item = active[idx]
         if item.get('giftable') is False:
             raise ValueError('该道具为个人消耗/不可转赠物品，不能交付给他人')
-        delivered = copy.deepcopy(active.pop(idx))
+        cur_qty = max(1, int(item.get('quantity', 1)))
+        req_qty = operation.get('quantity')
+        give_qty = cur_qty if (req_qty is None or int(req_qty) >= cur_qty) else max(1, int(req_qty))
         place = state['presence']['徐志北']['location']
+        if give_qty < cur_qty:
+            item['quantity'] = cur_qty - give_qty
+            item['usage_record'] = _merge_usage(item.get('usage_record'), f"{stamp}赠予{operation['recipient']}×{give_qty}")
+            delivered = copy.deepcopy(item)
+            delivered['id'] = _alloc_state_item_id(state['items'])
+            delivered['quantity'] = give_qty
+        else:
+            delivered = copy.deepcopy(active.pop(idx))
         delivered['status'] = '已交付'
         delivered['target'] = operation['recipient']
         delivered['location'] = place
         delivered['remaining_turns'] = None
         delivered['remaining'] = '无'
-        delivered['usage_record'] = _merge_usage(delivered.get('usage_record'), '已整组交付给' + operation['recipient'])
-        state['items']['delivered'].insert(0, delivered)
+        note_str = f"{stamp}已交付给{operation['recipient']}（×{give_qty}）" if req_qty is not None else f"{stamp}已整组交付给{operation['recipient']}"
+        delivered['usage_record'] = _merge_usage(delivered.get('usage_record'), note_str)
+        state['items']['delivered'].insert(0, save_store.normalize_item_dict(delivered))
         save_store.save_bundle(BASE_DIR, state, layers)
-        return
+        return {'code': code, 'item_id': operation['item_id'], 'item_name': delivered['name'], 'quantity': give_qty, 'recipient': operation['recipient']}
+    if code == 'use_item':
+        state, layers, _ = save_store.load_bundle(BASE_DIR)
+        active = state['items']['active']
+        idx = next((i for i, it in enumerate(active) if it.get('id') == operation['item_id']), None)
+        if idx is None:
+            raise ValueError('待使用道具已不存在')
+        item = save_store.normalize_item_dict(active[idx])
+        if item.get('status') != '仓库中' or int(item.get('quantity', 0)) < 1:
+            raise ValueError('该道具当前不可使用')
+        mode = item.get('usage_mode', 'gift')
+        target = str(operation.get('target') or '').strip()
+        target_label = target or '当前场景'
+        is_consumable = (mode == 'consumable_target') or (mode == 'consumable_host') or ('消耗品' in str(item.get('type', '')) and mode != 'reusable_tool')
+        usage_note = f"{stamp}对{target_label}使用1份" if is_consumable else f"{stamp}在行动中使用（对象：{target_label}）"
+        if is_consumable:
+            cur_qty = int(item.get('quantity', 1))
+            if cur_qty <= 1:
+                done = copy.deepcopy(active.pop(idx))
+                done['status'] = '已消耗'
+                done['target'] = target or done.get('target', '未使用')
+                done['remaining_turns'] = None
+                done['remaining'] = '无'
+                done['usage_record'] = _merge_usage(done.get('usage_record'), usage_note)
+                state['items']['history'].insert(0, save_store.normalize_item_dict(done))
+            else:
+                item['quantity'] = cur_qty - 1
+                item['usage_record'] = _merge_usage(item.get('usage_record'), usage_note)
+                active[idx] = item
+        else:
+            item['usage_record'] = _merge_usage(item.get('usage_record'), usage_note)
+            active[idx] = item
+        save_store.save_bundle(BASE_DIR, state, layers)
+        return {
+            'code': code,
+            'item_id': item['id'],
+            'item_name': item['name'],
+            'usage_mode': mode,
+            'target': target,
+            'system_effect': item.get('system_effect', ''),
+        }
+    if code == 'deploy_item':
+        state, layers, _ = save_store.load_bundle(BASE_DIR)
+        active = state['items']['active']
+        deployed = state['items'].setdefault('deployed', [])
+        idx = next((i for i, it in enumerate(active) if it.get('id') == operation['item_id']), None)
+        if idx is None:
+            raise ValueError('待部署装置已不存在')
+        item = save_store.normalize_item_dict(active[idx])
+        if item.get('usage_mode') != 'deployable_device' and not str(item.get('system_effect', '')).startswith('deploy_device:'):
+            raise ValueError('该道具不是可部署的场景装置')
+        place = state['presence']['徐志北']['location']
+        spot = str(operation.get('spot') or '隐蔽角落').strip() or '隐蔽角落'
+        hidden = bool(operation.get('hidden', True))
+        cur_qty = int(item.get('quantity', 1))
+        if cur_qty > 1:
+            item['quantity'] = cur_qty - 1
+            item['usage_record'] = _merge_usage(item.get('usage_record'), f"{stamp}分出1台部署于{place}·{spot}")
+            active[idx] = item
+            dev = copy.deepcopy(item)
+            dev['id'] = _alloc_state_item_id(state['items'])
+            dev['quantity'] = 1
+        else:
+            dev = copy.deepcopy(active.pop(idx))
+            dev['quantity'] = 1
+        dev['status'] = '已部署'
+        dev['location'] = place
+        dev['spot'] = spot
+        dev['hidden'] = hidden
+        dev['installed_clock'] = clock_str.strip() if isinstance(clock_str, str) else ''
+        dev['detected_risk'] = 0
+        dev['usage_record'] = _merge_usage(dev.get('usage_record'), f"{stamp}{'暗中' if hidden else '公开'}部署于{place}·{spot}")
+        deployed.insert(0, save_store.normalize_item_dict(dev))
+        save_store.save_bundle(BASE_DIR, state, layers)
+        return {'code': code, 'item_id': dev['id'], 'item_name': dev['name'], 'location': place, 'spot': spot, 'hidden': hidden}
+    if code == 'retrieve_item':
+        state, layers, _ = save_store.load_bundle(BASE_DIR)
+        deployed = state['items'].setdefault('deployed', [])
+        idx = next((i for i, it in enumerate(deployed) if it.get('id') == operation['item_id']), None)
+        if idx is None:
+            raise ValueError('已部署装置不存在或已被回收')
+        dev = save_store.normalize_item_dict(deployed[idx])
+        place = state['presence']['徐志北']['location']
+        if dev.get('location') != place:
+            raise ValueError(f"须身处装置所在地（{dev.get('location')}）才能拆除回收")
+        rec = copy.deepcopy(deployed.pop(idx))
+        old_spot = rec.get('spot') or '原位'
+        rec['status'] = '仓库中'
+        rec['location'] = '随身'
+        rec['spot'] = ''
+        rec['installed_clock'] = ''
+        rec['usage_record'] = _merge_usage(rec.get('usage_record'), f"{stamp}从{place}·{old_spot}拆除回收")
+        state['items']['active'].append(save_store.normalize_item_dict(rec))
+        save_store.save_bundle(BASE_DIR, state, layers)
+        return {'code': code, 'item_id': rec['id'], 'item_name': rec['name'], 'location': place}
+    if code == 'inspect_deployed':
+        state, layers, _ = save_store.load_bundle(BASE_DIR)
+        deployed = state['items'].setdefault('deployed', [])
+        idx = next((i for i, it in enumerate(deployed) if it.get('id') == operation['item_id']), None)
+        if idx is None:
+            raise ValueError('要查看的已部署装置不存在')
+        dev = save_store.normalize_item_dict(deployed[idx])
+        dev['usage_record'] = _merge_usage(dev.get('usage_record'), f"{stamp}远程回看({dev.get('location')}·{dev.get('spot') or '隐蔽处'})")
+        deployed[idx] = dev
+        save_store.save_bundle(BASE_DIR, state, layers)
+        return {'code': code, 'item_id': dev['id'], 'item_name': dev['name'], 'location': dev.get('location', ''), 'spot': dev.get('spot', '')}
     raise ValueError('不支持的正式互动操作')
 
 

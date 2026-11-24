@@ -153,6 +153,7 @@ class VisualRuntimeTests(unittest.TestCase):
             self.assertIn('visual_assets', v)
             self.assertIn('徐家主宅', v['visual_assets']['scenes'])
             self.assertIn('沈知韫', v['visual_assets']['characters'])
+            self.assertNotIn('_thumbs', v['visual_assets']['characters'])
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
@@ -165,6 +166,20 @@ class VisualRuntimeTests(unittest.TestCase):
             self.assertEqual(resp_img.headers.get('Cache-Control'), 'public, max-age=86400')
             self.assertTrue(resp_img.data.startswith(b'RIFF'))
             self.assertIn(b'WEBP', resp_img.data[:16])
+
+        with client.get('/txt文件/image/沈知韫/into.png?thumb=avatar') as resp_av:
+            self.assertEqual(resp_av.status_code, 200)
+            self.assertEqual(resp_av.headers.get('Cache-Control'), 'public, max-age=86400')
+            self.assertTrue(resp_av.data.startswith(b'RIFF'))
+            self.assertIn(b'WEBP', resp_av.data[:16])
+            self.assertLess(len(resp_av.data), 80_000)
+
+        with client.get('/txt文件/image/沈知韫/into.png?thumb=plate') as resp_pl:
+            self.assertEqual(resp_pl.status_code, 200)
+            self.assertEqual(resp_pl.headers.get('Cache-Control'), 'public, max-age=86400')
+            self.assertTrue(resp_pl.data.startswith(b'RIFF'))
+            self.assertIn(b'WEBP', resp_pl.data[:16])
+            self.assertLess(len(resp_pl.data), 300_000)
 
         for path in ('/', '/story_client.js', '/story_client.css'):
             with client.get(path) as resp:
@@ -197,6 +212,10 @@ class VisualRuntimeTests(unittest.TestCase):
             'sideFocusCard',
             'bracketChips',
             'no-avatar',
+            'composerSheet',
+            'sheetInput',
+            'sheetQuickChips',
+            'withThumb',
         ):
             self.assertIn(required_token, js, f'Missing Concept 4+ contract token: {required_token}')
 
@@ -246,7 +265,7 @@ class VisualRuntimeTests(unittest.TestCase):
                 'revision': 'rev-1',
                 'save_epoch': 'epoch-1',
                 'world': world,
-                'playback': {'segment_id': 'seg-1', 'revealed': 6, 'total': 6, 'completed': True, 'bootstrap': False},
+                'playback': {'segment_id': 'seg-1', 'revealed': 7, 'total': 7, 'completed': True, 'bootstrap': False},
                 'history': [
                     {
                         'id': 'seg-1',
@@ -258,6 +277,7 @@ class VisualRuntimeTests(unittest.TestCase):
                             {'kind': 'narration', 'speaker': '', 'text': '壁灯映着雨夜长廊，滚烫的余温里她指尖轻颤。'},
                             {'kind': 'action', 'speaker': '沈知韫', 'text': '她｛表面端庄地合上账册｜腿根却因濡湿而暗暗绷紧｝。'},
                             {'kind': 'dialogue', 'speaker': '沈知韫', 'text': '[whisper] 这么晚还没睡？'},
+                            {'kind': 'dialogue', 'speaker': '沈知韫', 'text': '[轻声, 停顿] 进来说吧。'},
                             {'kind': 'dialogue', 'speaker': '徐承邺', 'text': '哥，书房的灯怎么还亮着。'},
                             {'kind': 'dialogue', 'speaker': '林秘书', 'text': '沈总，文件已经放桌上了。'},
                             {'kind': 'dialogue', 'speaker': '临时司机', 'text': '车已经停在正门外。'},
@@ -472,6 +492,32 @@ setTimeout(() => {
   if (!npcActionMsgs[0].querySelector('.action-mini-avatar')) { console.error('EXPECTED_ACTION_MINI_AVATAR'); process.exit(19); }
   if (!byId.get('stageCurtain')) { console.error('MISSING_STAGE_CURTAIN'); process.exit(20); }
   if (!byId.get('storySettlementThinkingMode')) { console.error('MISSING_SETTLEMENT_THINKING_MODE'); process.exit(21); }
+  // Assert Chinese acoustic tag [轻声, 停顿] is stripped from rendered prose
+  const allText = byId.get('messages')._walk(() => true).map(c => c.textContent || '').join(' ');
+  if (allText.includes('[轻声') || allText.includes('停顿]')) {
+    console.error('CHINESE_VOICE_TAG_LEAKED_INTO_PROSE:', allText);
+    process.exit(22);
+  }
+  // Assert avatars & plates carry thumb query params
+  const plateImgs = byId.get('messages')._walk(c => c.tagName === 'IMG' && c.classList.contains('cinema-plate-img'));
+  if (!plateImgs.length || !plateImgs.every(im => String(im.src || '').includes('thumb=plate'))) {
+    console.error('EXPECTED_PLATE_THUMB_PARAM');
+    process.exit(23);
+  }
+  const avatarImgs = byId.get('messages')._walk(c => c.tagName === 'IMG' && (c.classList.contains('avatar') || c.classList.contains('action-mini-avatar')));
+  if (!avatarImgs.length || !avatarImgs.every(im => String(im.src || '').includes('thumb=avatar'))) {
+    console.error('EXPECTED_AVATAR_THUMB_PARAM');
+    process.exit(24);
+  }
+  // Exercise #composerSheet open & quick bracket chip insertion
+  byId.get('expandComposerBtn').onclick();
+  if (byId.get('composerSheet').hidden) { console.error('COMPOSER_SHEET_DID_NOT_OPEN'); process.exit(25); }
+  const sheetChips = byId.get('sheetQuickChips').querySelectorAll('button');
+  if (sheetChips.length < 2) { console.error('MISSING_SHEET_QUICK_CHIPS'); process.exit(26); }
+  sheetChips[1].onclick();
+  if (!byId.get('sheetInput').value.includes('心底暗忖：')) { console.error('SHEET_THOUGHT_CHIP_FAILED'); process.exit(27); }
+  byId.get('sheetCloseBtn').onclick();
+  if (!byId.get('composerSheet').hidden) { console.error('COMPOSER_SHEET_DID_NOT_CLOSE'); process.exit(28); }
   console.log('JS_E2E_OK', JSON.stringify({
     mood: docEl.dataset.mood,
     plates: plates.length,
@@ -479,6 +525,7 @@ setTimeout(() => {
     avatarMsgs: avatarMsgs.length,
     npcActionMsgs: npcActionMsgs.length,
     chips: chips.length,
+    sheetChips: sheetChips.length,
     fluidSpans: fluidSpans.length,
     spasmSpans: spasmSpans.length,
     rubyNodes: rubyNodes.length,

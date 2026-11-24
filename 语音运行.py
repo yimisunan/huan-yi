@@ -1050,6 +1050,51 @@ PUBLIC_FILES = {
 IMAGE_EXTENSIONS = {'.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg', '.avif'}
 
 
+_THUMB_SPECS = {'avatar': (160, 82), 'plate': (720, 84)}
+
+
+def _resolve_image_thumb(root, image_root, target, thumb_mode):
+    if thumb_mode not in _THUMB_SPECS:
+        return target
+    try:
+        rel = target.relative_to(image_root)
+    except ValueError:
+        return target
+    if any(part.startswith(('.', '_')) for part in rel.parts):
+        return target
+    src_mtime = target.stat().st_mtime_ns
+    pre = image_root / '_thumbs' / rel.parent / f'{rel.stem}.{thumb_mode}.webp'
+    if pre.is_file():
+        try:
+            if pre.stat().st_mtime_ns >= src_mtime:
+                return pre
+        except OSError:
+            pass
+    try:
+        from PIL import Image
+    except Exception:
+        return pre if pre.is_file() else target
+    cache_dir = root / '.round-runtime' / 'thumbs'
+    cache_key = hashlib.sha1(f'{rel.as_posix()}:{src_mtime}:{thumb_mode}'.encode('utf-8')).hexdigest()[:20]
+    cached = cache_dir / f'{cache_key}.{thumb_mode}.webp'
+    if cached.is_file():
+        return cached
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        max_w, quality = _THUMB_SPECS[thumb_mode]
+        with Image.open(target) as im:
+            conv = im.convert('RGBA') if im.mode in ('RGBA', 'LA', 'P') else im.convert('RGB')
+            w, h = conv.size
+            if w > max_w:
+                conv = conv.resize((max_w, max(1, int(round(h * (max_w / w))))), Image.Resampling.LANCZOS)
+            tmp = cached.with_suffix('.tmp.webp')
+            conv.save(tmp, format='WEBP', quality=quality, method=4)
+            os.replace(tmp, cached)
+        return cached
+    except Exception:
+        return pre if pre.is_file() else target
+
+
 def _serve_public_file(filename):
     root = Path(BASE_DIR).resolve()
     target = (root / filename).resolve()
@@ -1059,7 +1104,12 @@ def _serve_public_file(filename):
             any(part.startswith('.') for part in Path(filename).parts) or
             not (filename in PUBLIC_FILES or image_allowed)):
         abort(404)
-    response = send_file(target)
+    serve_path = target
+    if image_allowed:
+        thumb_mode = (request.args.get('thumb') or '').strip().lower()
+        if thumb_mode in _THUMB_SPECS:
+            serve_path = _resolve_image_thumb(root, image_root, target, thumb_mode)
+    response = send_file(serve_path)
     if filename in {'main_template.html', 'voice_manager.html', 'voice_client.js', 'story_client.js', 'story_client.css', 'data.json'}:
         response.headers['Cache-Control'] = 'no-cache'
     elif image_allowed:

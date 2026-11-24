@@ -122,5 +122,19 @@ class PlaybackChecks(unittest.TestCase):
   self.store.submit(self.request('segment-two',{'segment_id':'segment-one','option_id':'A'},'询问今天还有什么安排。')) if False else None
   done=self.service.playback_progress({'save_epoch':self.service._save_epoch(),'segment_id':'segment-one','revealed':3,'completed':True})
   self.assertTrue(done['playback']['completed'])
+ def test_compact_progress_returns_single_segment_delta(self):
+  self.store.submit(self.request())
+  mid=self.service.playback_progress({'save_epoch':self.service._save_epoch(),'segment_id':'segment-one','revealed':1,'completed':False,'compact':True})
+  self.assertTrue(mid.get('compact'))
+  self.assertEqual(len(mid['history']),1)
+  self.assertEqual(len(mid['history'][0]['messages']),1)
+  self.assertIsNone(mid['world'])
+  self.service.playback_progress({'save_epoch':self.service._save_epoch(),'segment_id':'segment-one','revealed':2,'completed':False,'compact':True})
+  self.service.playback_progress({'save_epoch':self.service._save_epoch(),'segment_id':'segment-one','revealed':3,'completed':False,'compact':True})
+  end=self.service.playback_progress({'save_epoch':self.service._save_epoch(),'segment_id':'segment-one','revealed':3,'completed':True,'compact':True})
+  self.assertTrue(end.get('compact'))
+  self.assertTrue(end['playback']['completed'])
+  self.assertIsInstance(end['world'],dict)
+  self.assertEqual(len(end['history'][0]['decision']['options']),3)
 
 if __name__=='__main__':unittest.main(verbosity=2)
