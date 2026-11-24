@@ -40,7 +40,7 @@
           "violation_drop_05": 0,
           "violation_drop_06": 4,
           "cur_aff_07": 30,
-          "violation_drop_08": 4,
+          "violation_drop_08": 5,
           "violation_drop_09": 12
         },
         "parameter_usage": {
@@ -1085,6 +1085,19 @@
           "cur_sta_01": "cur_sta 恢复至上限（实际安稳整夜完成）"
         },
         "description": "实际安稳整夜完成后恢复至宿主体力上限，不叠加100；短休、零点与回合关闭不触发。",
+        "pattern": null,
+        "shared_parameters": []
+      },
+      {
+        "id": "HOST_16",
+        "tag": "优雅掌控_魅力精进",
+        "parameters": {
+          "cur_charm_01": 1
+        },
+        "parameter_usage": {
+          "cur_charm_01": "cur_charm 增加（上限100）"
+        },
+        "description": "优雅掌控_魅力精进；宿主在重大交锋、体面破局或深层主导中展现克制气场时提升魅力，数值不由模型计算。",
         "pattern": null,
         "shared_parameters": []
       }

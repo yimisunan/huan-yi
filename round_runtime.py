@@ -534,7 +534,10 @@ ROUND_CONDITION_FIELDS = {'intensity', 'effective_progress', 'scene', 'npc', 'ac
                           'stress_signals', 'breakout_triggered'}
 
 
-def _round_conditions(value, body):
+INTIMATE_B_ALLOWED_SHAME_TAGS = frozenset({'C烈度_轻度', 'C烈度_中度'})
+
+
+def _round_conditions(value, body, *, intimate_mode=False):
     _keys(value, ROUND_CONDITION_FIELDS, 'round_conditions', ROUND_CONDITION_FIELDS)
     if value['intensity'] not in ('A', 'B', 'C'):
         raise RoundError('round_conditions.intensity须为A/B/C，按已发生行为判断')
@@ -549,11 +552,104 @@ def _round_conditions(value, body):
     if (not isinstance(triggers, list) or not all(isinstance(k, str) and k in BREAKOUT_LIMITS for k in triggers)
             or len(triggers) != len(set(triggers))):
         raise RoundError('breakout_triggered须为不重复的四破局计数键数组')
-    if value['intensity'] != 'C' and any(tag.startswith('C烈度_') for tags in body['shame_events'].values() for tag in tags):
-        raise RoundError('A/B烈度条件与C烈度事件矛盾')
+    c_shame_tags = [tag for tags in body['shame_events'].values() for tag in tags if tag.startswith('C烈度_')]
+    if c_shame_tags:
+        if value['intensity'] == 'A':
+            raise RoundError('A烈度条件与C烈度事件矛盾')
+        if value['intensity'] == 'B':
+            if not intimate_mode:
+                raise RoundError('A/B烈度条件与C烈度事件矛盾')
+            disallowed = [t for t in c_shame_tags if t not in INTIMATE_B_ALLOWED_SHAME_TAGS]
+            if disallowed:
+                raise RoundError('亲密进行态B档仅允许C烈度_轻度/中度，深度/重度须走C档：' + '、'.join(disallowed))
     if value['npc'] is None and value['stress_signals']:
         raise RoundError('应激信号须有明确NPC')
     return value
+
+
+def _validate_scene_state(raw, active_cast, building_cast=None):
+    """Validate optional resolution.scene_state dict (privacy/sub_location/present_actors/attire/traces/inter_heroine/intimate_active)."""
+    if raw is None or raw == '':
+        return None
+    if not isinstance(raw, dict):
+        raise RoundError('resolution.scene_state须为对象或空值')
+    allowed_keys = {
+        'intimate_active', 'privacy', 'sub_location', 'present_actors',
+        'attire_updates', 'trace_adds', 'inter_heroine_deltas',
+    }
+    _keys(raw, allowed_keys, 'scene_state')
+    out = {}
+    if 'intimate_active' in raw and raw['intimate_active'] not in (None, ''):
+        if type(raw['intimate_active']) is not bool:
+            raise RoundError('scene_state.intimate_active须为布尔值')
+        out['intimate_active'] = raw['intimate_active']
+    if 'privacy' in raw and raw['privacy'] not in (None, ''):
+        priv = str(raw['privacy']).strip()
+        if priv not in save_store.PRIVACY_LEVELS:
+            raise RoundError('scene_state.privacy须为合法隐私枚举：' + '/'.join(save_store.PRIVACY_LEVELS))
+        out['privacy'] = priv
+    if 'sub_location' in raw and raw['sub_location'] not in (None, ''):
+        _text(raw['sub_location'], 'scene_state.sub_location', 48)
+        out['sub_location'] = raw['sub_location'].strip()
+    valid_pool = set(active_cast or ()) | set(building_cast or ())
+    if 'present_actors' in raw and raw['present_actors'] not in (None, ''):
+        pa = raw['present_actors']
+        if not isinstance(pa, list) or not all(isinstance(x, str) for x in pa):
+            raise RoundError('scene_state.present_actors须为角色名数组')
+        cleaned = [x.strip() for x in pa if x.strip() in (valid_pool or set(CONDITION_NPCS))]
+        out['present_actors'] = list(dict.fromkeys(cleaned))
+    if 'attire_updates' in raw and raw['attire_updates'] not in (None, ''):
+        au = raw['attire_updates']
+        if not isinstance(au, dict):
+            raise RoundError('scene_state.attire_updates须为对象')
+        clean_au = {}
+        for who, patch in au.items():
+            if who not in ROUND_NPCS or not isinstance(patch, dict):
+                continue
+            item = {}
+            if isinstance(patch.get('outfit'), str) and patch['outfit'].strip():
+                item['outfit'] = patch['outfit'].strip()[:64]
+            if patch.get('state') in save_store.ATTIRE_STATES:
+                item['state'] = patch['state']
+            if item:
+                clean_au[who] = item
+        if clean_au:
+            out['attire_updates'] = clean_au
+    if 'trace_adds' in raw and raw['trace_adds'] not in (None, ''):
+        ta = raw['trace_adds']
+        if not isinstance(ta, dict):
+            raise RoundError('scene_state.trace_adds须为对象')
+        clean_ta = {}
+        for who, arr in ta.items():
+            if who not in ROUND_NPCS or not isinstance(arr, list):
+                continue
+            kept = []
+            for tr in arr[:2]:
+                if not isinstance(tr, dict):
+                    continue
+                kind = str(tr.get('kind') or '').strip()[:24]
+                if not kind:
+                    continue
+                desc = str(tr.get('desc') or kind).strip()[:80]
+                turns = int(tr.get('turns') or 4) if isinstance(tr.get('turns'), int) else 4
+                kept.append({'kind': kind, 'desc': desc, 'turns': max(1, min(12, turns)), 'visible': bool(tr.get('visible', True))})
+            if kept:
+                clean_ta[who] = kept
+        if clean_ta:
+            out['trace_adds'] = clean_ta
+    if 'inter_heroine_deltas' in raw and raw['inter_heroine_deltas'] not in (None, ''):
+        ih = raw['inter_heroine_deltas']
+        if not isinstance(ih, dict):
+            raise RoundError('scene_state.inter_heroine_deltas须为对象')
+        clean_ih = {}
+        for pair, delta in ih.items():
+            if pair in save_store.INTER_HEROINE_PAIRS and isinstance(delta, int) and not isinstance(delta, bool):
+                step = max(-1, min(1, delta))
+                if step != 0:
+                    clean_ih[pair] = step
+        if clean_ih:
+            out['inter_heroine_deltas'] = clean_ih
+    return out or None
 
 
 def _current_micro(content):

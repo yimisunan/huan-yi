@@ -26,6 +26,12 @@
       "B": 10,
       "C": 15
     },
+    "intimate_continuation_costs": {
+      "A": 5,
+      "B": 7,
+      "C": 10
+    },
+    "intimate_min_beats_for_discount": 1,
     "custom_reserve": 15,
     "maximum": 100,
     "minimum_action": 5,

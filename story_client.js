@@ -5,7 +5,23 @@
   const PREF_KEY = 'abyss_ui_prefs_v1';
   const PEOPLE = ['沈知韫', '苏婉青', '徐念薇'];
   const LABELS = { A: '日常互动', B: '社交接触', C: '主动行为' };
+  const INTIMATE_LABELS = { A: '缓拍温存', B: '肢体加深', C: '强势冲刺' };
   const COSTS = { A: 5, B: 10, C: 15 };
+  const PRIVACY_LABELS = {
+    open_public: '',
+    semi_open: '半私密',
+    thin_wall: '隔墙潜行',
+    under_cover: '同席暗触',
+    locked_private: '反锁私密'
+  };
+  const ATTIRE_STATE_LABELS = {
+    neat: '',
+    disheveled: '衣着凌乱',
+    half_undressed: '半褪轻敞',
+    wet: '水渍濡湿',
+    torn: '衣料破损'
+  };
+  const SENSUAL_ITEM_RE = /精油|香薰|眼罩|滚轮|黑丝|睡裙|丝袜|按摩|催情|润滑|束缚|情趣|温热/;
   const HUD_RING_C = 2 * Math.PI * 14;
   const BIG_RING_C = 2 * Math.PI * 52;
   const INNER_RING_C = 2 * Math.PI * 41;
@@ -70,6 +86,10 @@
   let desktopFocusName = '', topPeekOpen = false, gazeLensLocked = false, parallaxRaf = 0;
   let gazeHoldActive = false, gazeHoldCleanup = null;
   let history = [], hasOlder = false, olderCursor = null, resetRequest = null;
+  let intentionalEpochSwitch = false;
+  let archiveTab = 'newgame', archivePrologues = null, archiveSaves = null;
+  let archiveFilterHero = 'all', archiveSelectedScenario = 'random', archiveBusy = false;
+  let archiveArmKey = '', archiveArmTimer = null;
   let audioSerial = 0, audioMessage = null, audioStatus = '', isSpeaking = false;
   let gesture = false, configPromise = null, voiceConfigCache = null, activeVoiceTier = 'free', lastTap = 0;
   let armedChoice = null, inkCommit = null;
@@ -83,6 +103,43 @@
   let curtainTrackedReqId = '', curtainHideTimer = null, backendPrefBusy = false;
   let bridgePrimaryTargetSig = '', bridgeSettleSlotSig = '', bridgeBindModelSig = '', bridgeBindSyncedKey = '';
   let shopCatalog = null, shopBusy = false, shopLoading = false, shopError = '';
+
+  function isIntimateActive(w = snapshot?.world) {
+    return Boolean(w?.intimate?.scene_active || w?.progression?.intimate_mode);
+  }
+
+  function activeCosts(w = snapshot?.world) {
+    const src = w?.intimate?.active_costs || w?.progression?.costs;
+    if (src && typeof src === 'object') {
+      return {
+        A: Number.isFinite(Number(src.A)) ? Number(src.A) : COSTS.A,
+        B: Number.isFinite(Number(src.B)) ? Number(src.B) : COSTS.B,
+        C: Number.isFinite(Number(src.C)) ? Number(src.C) : COSTS.C
+      };
+    }
+    return { ...COSTS };
+  }
+
+  function optionCost(optId, w = snapshot?.world) {
+    const c = activeCosts(w);
+    return c[optId] ?? COSTS[optId] ?? 0;
+  }
+
+  function optionLabel(optId, w = snapshot?.world) {
+    if (isIntimateActive(w) && INTIMATE_LABELS[optId]) return INTIMATE_LABELS[optId];
+    return LABELS[optId] || optId;
+  }
+
+  function rationalizationTier(st) {
+    if (!st) return null;
+    const intactDefense = st.shame >= 85 && st.depravity < 15 && st.passiveLv < 2;
+    if (intactDefense || st.affection <= 60) return null;
+    if (st.shame < 30) return { level: 'all', text: '合理化闭环 · 全档豁免', tone: 'rose' };
+    if (st.shame < 40) return { level: 'deep', text: '合理化闭环 · 深度豁免', tone: 'rose' };
+    if (st.shame < 50) return { level: 'medium', text: '合理化闭环 · 中度豁免', tone: 'rose' };
+    if (st.shame < 70) return { level: 'light', text: '合理化闭环 · 轻度豁免', tone: 'rose' };
+    return null;
+  }
   let shopInquiryDraft = '', shopInquiryState = null, shopInquiryBusy = false, shopInquiryPollTimer = null;
   let bagPickerState = null;
   let panelsCacheSig = '', panelsCacheVal = null;
@@ -855,7 +912,7 @@
       const vigRow = (w.vigilance?.targets || []).find(t => t.name === name);
       const highVig = (vigRow?.vigilance || 0) >= 50;
 
-      if (npcStam < 15) {
+      if (npcStam <= 15) {
         const hit = pick('mood_sleep', '深夜余韵');
         if (hit) return hit;
       }
@@ -1053,7 +1110,7 @@
     if (!st) return null;
     const hud = node('div', 'gaze-vitals-hud');
     const tagsRow = node('div', 'gaze-vitals-tags');
-    const passiveNames = ['无被动', '洞察之瞳', '认知欺诈滤镜', '疲劳诱导', '绝对掌控'];
+    const passiveNames = ['无被动', '洞察之瞳', '认知欺诈滤镜', '疲劳诱导', '防线支配'];
     tagsRow.append(node('span', 'gaze-vital-chip is-passive', `被动 Lv.${st.passiveLv} · ${passiveNames[st.passiveLv] || '洞察'}`));
     tagsRow.append(node('span', 'gaze-vital-chip' + (st.stamina <= 15 ? ' is-alert' : ''), `体力 ${st.stamina}`));
     if (st.pregnant) {
@@ -1412,7 +1469,7 @@
     }
     if (pg && fill && hold && valEl) {
       const st = Math.max(0, Math.min(100, pg.stamina));
-      const cost = COSTS[optId] || 0;
+      const cost = optionCost(optId) || 0;
       const after = Math.max(0, st - cost);
       hold.setAttribute('stroke-dashoffset', String(HUD_RING_C * (1 - st / 100)));
       fill.setAttribute('stroke-dashoffset', String(HUD_RING_C * (1 - after / 100)));
@@ -1567,9 +1624,40 @@
     sizing();
   }
 
-  function populateQuickChipsInto(bar, heldIds, catalog, isSheetBar) {
+  function heldSensualItems(w) {
+    const items = Array.isArray(w?.items) ? w.items : [];
+    return items.filter(it => {
+      if (!it || it.fields?.['当前状态'] !== '仓库中') return false;
+      const cat = String(it.category || it.fields?.['分类'] || '').toLowerCase();
+      if (cat === 'sensual') return true;
+      const blob = `${it.name || ''} ${it.fields?.['系统效果'] || ''} ${it.fields?.['说明'] || ''}`;
+      return SENSUAL_ITEM_RE.test(blob);
+    }).slice(0, 4);
+  }
+
+  function insertChipSnippet(snippet, isSheetBar) {
+    haptic(8);
+    const cur = (activeComposerInput()?.value || '');
+    const nextVal = cur ? (cur.trimEnd() + (cur.trimEnd().endsWith('）') ? '' : ' ') + snippet) : snippet;
+    syncDraftInputs(nextVal);
+    save();
+    if (!isSheetBar && isMobileViewport() && !composerSheetOpen) {
+      openComposerSheet({ focus: true });
+    } else {
+      const inp = isSheetBar ? $('sheetInput') : activeComposerInput();
+      if (inp) {
+        inp.focus();
+        syncInputHeight(inp);
+      }
+      controls();
+      sizing();
+    }
+  }
+
+  function populateQuickChipsInto(bar, heldIds, catalog, sensualItems, isSheetBar) {
     if (!bar) return;
-    const sig = heldIds.join(',') + (isSheetBar ? ':s' : ':b');
+    const sIds = (sensualItems || []).map(x => x.id + ':' + x.name).join(',');
+    const sig = heldIds.join(',') + '|' + sIds + (isSheetBar ? ':s' : ':b');
     if (bar.dataset.sig === sig && bar.childElementCount > 0) return;
     bar.dataset.sig = sig;
     bar.replaceChildren();
@@ -1594,7 +1682,18 @@
       }
     };
 
-    bar.append(actChip, thChip);
+    const domChip = node('button', 'bracket-chip is-intimate', '＋（强势压迫授权）');
+    domChip.type = 'button';
+    domChip.onclick = () => insertChipSnippet('（强势压迫授权）', isSheetBar);
+
+    bar.append(actChip, thChip, domChip);
+
+    for (const item of (sensualItems || [])) {
+      const chip = node('button', 'bracket-chip is-sensual', '✦ 道具：' + item.name);
+      chip.type = 'button';
+      chip.onclick = () => insertChipSnippet('（取用随身「' + item.name + '」）', isSheetBar);
+      bar.append(chip);
+    }
 
     for (const iid of heldIds) {
       const item = catalog.find(x => x.id === iid);
@@ -1625,9 +1724,10 @@
   function renderBracketChips(w, forceSheet = false) {
     const heldIds = w?.intel?.held || [];
     const catalog = w?.intel?.catalog || [];
-    populateQuickChipsInto($('bracketChips'), heldIds, catalog, false);
+    const sensual = heldSensualItems(w);
+    populateQuickChipsInto($('bracketChips'), heldIds, catalog, sensual, false);
     if (forceSheet || composerSheetOpen || $('sheetQuickChips')) {
-      populateQuickChipsInto($('sheetQuickChips'), heldIds, catalog, true);
+      populateQuickChipsInto($('sheetQuickChips'), heldIds, catalog, sensual, true);
     }
   }
 
@@ -2042,7 +2142,7 @@
     $('give').disabled = ordinaryBlocked() || !afford(15) || !$('item').value || !$('recipient').value;
 
     $('choices').querySelectorAll('button').forEach(b => {
-      b.disabled = ordinaryBlocked() || !afford(COSTS[b.dataset.option]);
+      b.disabled = ordinaryBlocked() || !afford(optionCost(b.dataset.option));
     });
 
     const advLabel = $('advanceLabel') || $('advance');
@@ -2096,7 +2196,9 @@
     $('retry').disabled = base;
     $('retry').textContent = task?.has_stage1_checkpoint ? '仅重试结算（免主模型费）' : '重试';
     $('older').disabled = posting || polling || progressing;
-    $('confirmNewGame').disabled = base;
+    if ($('confirmNewGame')) $('confirmNewGame').disabled = base || archiveBusy;
+    if ($('rerollPrologueBtn')) $('rerollPrologueBtn').disabled = base || archiveBusy;
+    if ($('saveSlotCreateBtn')) $('saveSlotCreateBtn').disabled = base || archiveBusy;
 
     const showCheck = !!cache.pending;
     const showResend = !!cache.pending && missing && !mismatch;
@@ -3099,6 +3201,68 @@
       const hadAffChange = charChanges.some(c => c.attribute === '好感');
       const hadStaDrop = charChanges.some(c => c.attribute === '体力' && c.delta < 0);
 
+      const physChecks = [];
+      if (st.pregnant) {
+        physChecks.push({
+          tier: 'seep',
+          badge: '孕期本能 · 防线坍缩',
+          text: `${who}腹中已孕育着禁忌的骨血，孕期敏感与既成事实将羞耻上限压在低位（羞耻 ${st.shame} / 上限35）。`
+        });
+      } else if (st.phys?.pregnancy_stage === 'latent') {
+        physChecks.push({
+          tier: 'deception',
+          badge: '生命微兆 · 潜伏着床',
+          text: `${who}尚未知晓体内已悄然受孕，莫名的困倦与小腹微酸正悄然瓦解她的敏锐戒备。`
+        });
+      }
+      if (st.phys?.masturbation_trace > 0) {
+        physChecks.push({
+          tier: 'seep',
+          badge: '暗中自渎 · 把柄余韵',
+          text: `${who}独处时借你气息暗中泄欲的余韵尚未散尽，面对你的目光时耳根发烫、底气尽失。`
+        });
+      }
+      if (st.hasFluidLock) {
+        physChecks.push({
+          tier: 'seep',
+          badge: '体液锁定 · 激素共振',
+          text: `深处残留的滚烫体液正持续灼烧${who}的理智，欲望被强行锁在 ${st.phys?.fluid_lock_floor || 58} 底线之上（当前欲望 ${st.desire}）。`
+        });
+      }
+      if (st.shame < 40 && st.affection > 75) {
+        physChecks.push({
+          tier: 'seep',
+          badge: '暗流渗漏 · 被动触发',
+          text: `高好感（${st.affection}）穿透低羞耻防线，无声的情欲暗流正在${who}心底自动滋长（欲望 ${st.desire}）。`
+        });
+      }
+
+      const passiveChecks = [];
+      const rat = rationalizationTier(st);
+      if (st.passiveLv >= 4) {
+        passiveChecks.push({
+          tier: 'deception',
+          badge: '防线支配 Lv.4 · 压迫生效',
+          text: `${who}的防线侵蚀加深（0.7×上限），且完好防线好感截断已被支配压迫豁免（羞耻 ${st.shame}）。`
+        });
+      }
+      if (st.passiveLv >= 2 && (hadShameDrop || rat)) {
+        const closedLoop = Boolean(rat && !hadAffChange && hadShameDrop);
+        passiveChecks.push({
+          tier: 'deception',
+          badge: closedLoop ? rat.text : '认知欺诈滤镜 Lv.2 · 检定生效',
+          text: closedLoop
+            ? `${who}的潜意识自动启动自我保护合理化，越界未损分毫好感（好感 ${st.affection}）。`
+            : `认知滤镜正在软化${who}的抵触情绪，越界带来的心理反扑被悄然折半。`
+        });
+      }
+      if (st.passiveLv >= 3 && (hadStaDrop || st.stamina <= 45)) {
+        passiveChecks.push({
+          tier: 'fatigue',
+          badge: '疲劳诱导 Lv.3 · 躯体代偿',
+          text: `交感神经高负荷紧绷正加倍抽空${who}的体力（当前体力 ${st.stamina} / 100）。`
+        });
+      }
       if (st.passiveLv >= 1) {
         let insight = '';
         if (st.shame > 80) {
@@ -3108,60 +3272,18 @@
         } else {
           insight = `${who}的心理防线近乎瓦解（羞耻 ${st.shame}），残存的客套只剩最后一层薄纱。`;
         }
-        banners.push({
+        passiveChecks.push({
           tier: 'insight',
           badge: `洞察之瞳 Lv.${st.passiveLv} · 检定成功`,
           text: insight
         });
       }
 
-      if (st.pregnant) {
-        banners.push({
-          tier: 'seep',
-          badge: '孕期本能 · 防线坍缩',
-          text: `${who}腹中已孕育着禁忌的骨血，孕期敏感与既成事实将羞耻上限压在低位（羞耻 ${st.shame} / 上限35）。`
-        });
-      } else if (st.phys?.pregnancy_stage === 'latent') {
-        banners.push({
-          tier: 'deception',
-          badge: '生命微兆 · 潜伏着床',
-          text: `${who}尚未知晓体内已悄然受孕，莫名的困倦与小腹微酸正悄然瓦解她的敏锐戒备。`
-        });
-      } else if (st.phys?.masturbation_trace > 0) {
-        banners.push({
-          tier: 'seep',
-          badge: '暗中自渎 · 把柄余韵',
-          text: `${who}独处时借你气息暗中泄欲的余韵尚未散尽，面对你的目光时耳根发烫、底气尽失。`
-        });
-      } else if (st.hasFluidLock) {
-        banners.push({
-          tier: 'seep',
-          badge: '体液锁定 · 激素共振',
-          text: `深处残留的滚烫体液正持续灼烧${who}的理智，欲望被强行锁在 ${st.phys?.fluid_lock_floor || 58} 底线之上（当前欲望 ${st.desire}）。`
-        });
-      } else if (st.passiveLv >= 2 && (hadShameDrop || (st.affection > 60 && st.shame < 65))) {
-        const closedLoop = (st.affection > 60 && st.shame < 65 && !hadAffChange && hadShameDrop);
-        banners.push({
-          tier: 'deception',
-          badge: closedLoop ? '认知欺诈 · 合理化闭环' : '认知欺诈滤镜 Lv.2 · 检定生效',
-          text: closedLoop
-            ? `${who}的潜意识自动启动自我保护合理化，越界未损分毫好感（好感 ${st.affection}）。`
-            : `认知滤镜正在软化${who}的抵触情绪，越界带来的心理反扑被悄然折半。`
-        });
-      } else if (st.passiveLv >= 3 && (hadStaDrop || st.stamina <= 45)) {
-        banners.push({
-          tier: 'fatigue',
-          badge: '疲劳诱导 Lv.3 · 躯体代偿',
-          text: `交感神经高负荷紧绷正加倍抽空${who}的体力（当前体力 ${st.stamina} / 100）。`
-        });
-      } else if (st.shame < 40 && st.affection > 75) {
-        banners.push({
-          tier: 'seep',
-          badge: '暗流渗漏 · 被动触发',
-          text: `高好感（${st.affection}）穿透低羞耻防线，无声的情欲暗流正在${who}心底自动滋长（欲望 ${st.desire}）。`
-        });
-      }
-
+      // Pair top physiology cue + top passive cue so neither occludes the other (up to 2 total)
+      if (physChecks.length) banners.push(physChecks[0]);
+      if (passiveChecks.length) banners.push(passiveChecks[0]);
+      if (banners.length < 2 && physChecks.length > 1) banners.push(physChecks[1]);
+      if (banners.length < 2 && passiveChecks.length > 1) banners.push(passiveChecks[1]);
       if (banners.length >= 2) break;
     }
 
@@ -5561,13 +5683,81 @@
     }
   }
 
+  function renderSceneAtmospherePills(w) {
+    const host = $('sceneAtmospherePills');
+    if (!host) return;
+    const im = w?.intimate;
+    if (!im || typeof im !== 'object') {
+      host.hidden = true;
+      host.replaceChildren();
+      return;
+    }
+    const pills = [];
+    const privLabel = PRIVACY_LABELS[im.privacy] || '';
+    if (privLabel) {
+      const noise = Number(im.noise_risk) || 0;
+      const noiseSuffix = (im.privacy === 'thin_wall' || im.privacy === 'under_cover') && noise >= 40
+        ? ` · 声响 ${noise}%` : '';
+      const subSuffix = im.sub_location ? ` · ${im.sub_location}` : '';
+      pills.push({ cls: 'privacy-pill is-' + im.privacy, text: privLabel + subSuffix + noiseSuffix });
+    }
+    if (im.scene_active) {
+      const beat = Math.max(1, Number(im.session_beats) || 1);
+      const c = activeCosts(w);
+      const disc = (c.B < COSTS.B || c.C < COSTS.C) ? ` · 折减 ${c.A}/${c.B}/${c.C}⚡` : '';
+      pills.push({ cls: 'privacy-pill is-intimate', text: `亲密慢燃 · 第${beat}拍${disc}` });
+    }
+    const cast = (Array.isArray(im.present_actors) && im.present_actors.length) ? im.present_actors : (w.cast || []);
+    const heroCast = cast.filter(n => PEOPLE.includes(n));
+    for (const who of heroCast) {
+      const att = im.attire?.[who];
+      const attLabel = att ? (ATTIRE_STATE_LABELS[att.state] || '') : '';
+      if (attLabel) {
+        pills.push({ cls: 'trace-chip is-attire', text: `${who} · ${attLabel}` });
+      }
+      const traces = Array.isArray(im.traces?.[who]) ? im.traces[who] : [];
+      for (const tr of traces.slice(0, 2)) {
+        if (!tr || !tr.kind) continue;
+        pills.push({ cls: 'trace-chip is-trace', text: `${who} · ${tr.kind}` });
+      }
+    }
+    if (heroCast.length >= 2 && im.inter_heroine) {
+      const stages = { 1: '暗生疑心', 2: '已察端倪', 3: '默契共谋' };
+      let maxStage = 0;
+      for (const [pair, lv] of Object.entries(im.inter_heroine)) {
+        const [a, b] = pair.split('->');
+        if (heroCast.includes(a) && heroCast.includes(b) && Number(lv) > maxStage) {
+          maxStage = Number(lv);
+        }
+      }
+      if (maxStage >= 1 && stages[maxStage]) {
+        pills.push({ cls: 'trace-chip is-tension', text: `同场暗流 · ${stages[maxStage]}` });
+      }
+    }
+    const sig = pills.map(x => x.cls + ':' + x.text).join('|');
+    if (host.dataset.sig === sig) {
+      host.hidden = pills.length === 0;
+      return;
+    }
+    host.dataset.sig = sig;
+    host.replaceChildren(...pills.slice(0, 6).map(x => node('span', x.cls, x.text)));
+    host.hidden = pills.length === 0;
+  }
+
   function render() {
     const w = snapshot?.world, p = snapshot?.playback;
-    $('policyNote').textContent = progression() ? 'A 5 · B 10 · C 15 体力 · 自定义暂扣15退差' : '按设定与存档推进 · 本段读完后抉择';
+    const c = activeCosts(w);
+    const intimateOn = isIntimateActive(w);
+    $('policyNote').textContent = progression()
+      ? (intimateOn
+        ? `亲密慢燃 · A ${c.A} · B ${c.B} · C ${c.C} 体力 · 自定义暂扣15退差`
+        : `A ${c.A} · B ${c.B} · C ${c.C} 体力 · 自定义暂扣15退差`)
+      : '按设定与存档推进 · 本段读完后抉择';
     $('sceneTitle').textContent = w?.location || '正在回到现场';
     $('sceneMeta').textContent = w ? (w.cast.length ? w.cast.join(' · ') + ' 在场' : '此刻独处') : '读取存档中…';
     $('revision').textContent = w ? w.interaction.count + ' 段已存剧情' : '';
     renderSceneVector(w?.location || '');
+    renderSceneAtmospherePills(w);
 
     // Dock & Topbar notification dots
     const hasBagNotice = !!(w?.tasks?.current || w?.tasks?.pending_item || w?.items?.length > 0);
@@ -5682,7 +5872,10 @@
     updateBackdrop();
 
     // Decision Choice Cards with Abyssal Scale Weight Preview & Diegetic Inline Confirm (Scheme A)
-    const turn = current(), decision = turn?.decision, decisionKey = p?.completed ? turn?.id : '';
+    const turn = current(), decision = turn?.decision;
+    const costSig = (intimateOn ? 'I1' : 'I0') + ':' + c.A + ',' + c.B + ',' + c.C;
+    const decisionKey = p?.completed && turn?.id ? (turn.id + '|' + costSig) : '';
+    if ($('choices')) $('choices').classList.toggle('is-intimate-mode', intimateOn);
     if ($('choices').dataset.key !== decisionKey) {
       disarmChoice();
       $('choices').dataset.key = decisionKey || '';
@@ -5691,7 +5884,7 @@
       if (decision) {
         $('decisionPrompt').textContent = decision.prompt;
         for (const opt of decision.options) {
-          const b = node('button', 'story-option');
+          const b = node('button', 'story-option' + (intimateOn ? ' is-intimate-opt' : ''));
           b.type = 'button';
           b.dataset.option = opt.id;
 
@@ -5701,7 +5894,7 @@
             ? opt.operation.destination : '';
           const resonance = deriveOptionResonance(opt.id, w);
           const head = node('span', 'option-head');
-          head.append(node('span', 'option-label', LABELS[opt.id] || opt.id));
+          head.append(node('span', 'option-label', optionLabel(opt.id, w)));
           if (moveDest) {
             head.append(node('span', 'option-move-badge', '前往 · ' + moveDest));
           }
@@ -5712,8 +5905,9 @@
           b.append(seal, body);
 
           if (progression()) {
-            const cost = node('span', 'option-cost');
-            cost.append(icon('energy', 'chip-svg'), node('span', '', String(COSTS[opt.id])));
+            const costVal = optionCost(opt.id, w);
+            const cost = node('span', 'option-cost' + (costVal < (COSTS[opt.id] || 0) ? ' is-discounted' : ''));
+            cost.append(icon('energy', 'chip-svg'), node('span', '', String(costVal)));
             b.append(cost);
           }
 
@@ -5756,14 +5950,17 @@
     if (!present.length) return null;
     const primary = present[0];
     const maxVig = Math.max(0, ...(w.vigilance?.targets || []).map(t => Number(t.vigilance) || 0));
+    const intimateOn = isIntimateActive(w);
 
     if (optId === 'A') {
       if (present.some(s => s.stamina <= 15)) return { text: '断电照护 · 温和收束', tone: 'jade' };
+      if (intimateOn) return { text: '缓拍挑逗 · 喘息过渡', tone: 'gold' };
       if (present.some(s => s.micro.momentary_ease)) return { text: '戒备已松 · 乘势定心', tone: 'jade' };
       if (maxVig >= 50) return { text: '稳妥周旋 · 避开耳目', tone: 'gold' };
       return null;
     }
     if (optId === 'B') {
+      if (intimateOn) return { text: '亲密加深 · 轻中度放行', tone: 'rose' };
       if (present.some(s => s.phys?.masturbation_trace > 0)) return { text: '自渎心虚 · 羞耻易溃', tone: 'rose' };
       if (present.some(s => s.phys?.pregnancy_stage === 'latent')) return { text: '早孕慵懒 · 防备松弛', tone: 'rose' };
       if (present.some(s => s.shame > 75)) return { text: '暧昧破冰 · 羞耻松动', tone: 'rose' };
@@ -5778,9 +5975,14 @@
       if (present.some(s => s.hasFluidLock)) return { text: '体液锁定 · 欲火难抑', tone: 'climax' };
       if (present.some(s => s.phys?.unrelieved_streak >= 1)) return { text: '欲求积压 · 渴望纾解', tone: 'rose' };
       if (present.some(s => s.phys?.cycle_phase === '危险期' && s.desire >= 50)) return { text: '危险期躁动 · 受孕高危', tone: 'climax' };
-      if (present.some(s => s.affection > 60 && s.shame < 55)) return { text: '合理化闭环 · 豁免掉分', tone: 'rose' };
+      const bestRat = present.map(rationalizationTier).filter(Boolean).sort((a, b) => {
+        const order = { all: 4, deep: 3, medium: 2, light: 1 };
+        return (order[b.level] || 0) - (order[a.level] || 0);
+      })[0];
+      if (bestRat) return { text: bestRat.text, tone: bestRat.tone };
+      if (present.some(s => s.passiveLv >= 4)) return { text: '防线支配 Lv.4 · 豁免完好截断', tone: 'gold' };
       if (present.some(s => s.passiveLv >= 2)) return { text: '认知滤镜 · 惩罚减半', tone: 'gold' };
-      if (present.some(s => s.shame >= 85 && s.depravity < 15)) return { text: '防线完好 · 强推易掉好感', tone: 'alert' };
+      if (present.some(s => s.shame >= 85 && s.depravity < 15 && s.passiveLv < 4)) return { text: '防线完好 · 强推易掉好感', tone: 'alert' };
       return null;
     }
     return null;
@@ -5942,7 +6144,9 @@
     const prevWasActive = active();
     const prevPreview = streamPreview;
     const prevPreviewRevealed = prevPreview ? (prevPreview.revealed || 0) : 0;
-    if (cache.epoch && cache.epoch !== fresh.save_epoch) {
+    const prevEpoch = cache.epoch;
+    const epochChanged = Boolean(prevEpoch && prevEpoch !== fresh.save_epoch);
+    if (epochChanged) {
       cache = { epoch: fresh.save_epoch, draft: '', pending: null, voice: cache.voice };
       syncDraftInputs('');
       history = [];
@@ -5955,7 +6159,19 @@
       earlyStreamPreview = null;
       handoffPreview = null;
       curtainTrackedReqId = '';
-      error = '已切换至新档，旧进度与行动已隔离。';
+      lastEffectSegmentId = '';
+      shopCatalog = null;
+      shopError = '';
+      shopInquiryState = null;
+      stopVoice();
+      clearAudioCache();
+      audioMessage = null;
+      if (intentionalEpochSwitch) {
+        intentionalEpochSwitch = false;
+        error = '';
+      } else {
+        error = '已切换至新档，旧进度与行动已隔离。';
+      }
     }
     const freshActive = ['preparing', 'queued', 'generating', 'validating', 'refund_pending'].includes(fresh.task?.status);
     let seamlessVoiceHandoff = false;
@@ -6010,13 +6226,8 @@
       stopVoice();
       audioMessage = null;
     }
-    const prevEpoch = cache.epoch;
     cache.epoch = fresh.save_epoch;
     snapshot = fresh;
-    if (prevEpoch && prevEpoch !== fresh.save_epoch) {
-      shopCatalog = null;
-      shopError = '';
-    }
     if (!fresh.playback?.segment_id && Array.isArray(fresh.history) && fresh.history.length === 0) {
       history = [];
       signature = '';
@@ -6390,7 +6601,7 @@
     if (optionId !== 'REST' && optionId !== 'BEGIN' && (
       resting() || !afford(optionId === 'CUSTOM'
         ? (/^\s*使用恢复道具\s*[：:]?\s*ITEM-\d+\s*[。！!]?\s*$/.test(text) ? 0 : 15)
-        : COSTS[optionId])
+        : optionCost(optionId))
     )) return;
     const selected = { segment_id: optionId === 'BEGIN' ? '' : snapshot.playback.segment_id, option_id: optionId };
     cache.pending = {
@@ -6725,31 +6936,407 @@
   $('item').onchange = controls;
   $('recipient').onchange = controls;
 
-  $('newGame').onclick = () => {
+  function clearArchiveArm() {
+    archiveArmKey = '';
+    if (archiveArmTimer) {
+      clearTimeout(archiveArmTimer);
+      archiveArmTimer = null;
+    }
+  }
+
+  function armArchiveAction(key) {
+    clearArchiveArm();
+    archiveArmKey = key;
+    archiveArmTimer = setTimeout(() => {
+      archiveArmKey = '';
+      archiveArmTimer = null;
+      renderArchiveDialog();
+    }, 5000);
+  }
+
+  function formatArchiveBytes(n) {
+    const num = Number(n) || 0;
+    if (num < 1024) return num + ' B';
+    if (num < 1024 * 1024) return (num / 1024).toFixed(1) + ' KB';
+    return (num / (1024 * 1024)).toFixed(2) + ' MB';
+  }
+
+  function formatHeroinesCompact(panelSummary) {
+    const hs = panelSummary?.heroines || {};
+    return PEOPLE.map(name => {
+      const row = hs[name] || {};
+      const short = name.slice(-1);
+      return `${short} 好${row['好感'] ?? 0}/羞${row['羞耻'] ?? 100}/堕${row['堕落'] ?? 0}`;
+    }).join(' · ');
+  }
+
+  function switchArchiveTab(tab) {
+    archiveTab = tab === 'saves' ? 'saves' : 'newgame';
+    clearArchiveArm();
+    $('archiveTabs')?.querySelectorAll('[data-archive-tab]').forEach(btn => {
+      btn.setAttribute('aria-selected', String(btn.dataset.archiveTab === archiveTab));
+    });
+    if ($('archiveTabNewGame')) $('archiveTabNewGame').hidden = archiveTab !== 'newgame';
+    if ($('archiveTabSaves')) $('archiveTabSaves').hidden = archiveTab !== 'saves';
+    renderArchiveDialog();
+  }
+
+  function renderArchiveNewGame() {
+    const data = archivePrologues;
+    const scenarios = Array.isArray(data?.scenarios) ? data.scenarios : [];
+    const actions = Number(data?.actions ?? snapshot?.world?.interaction?.actions ?? 0);
+    const canReroll = Boolean(data?.can_reroll ?? (actions === 0));
+    const curTitle = data?.current?.title || snapshot?.world?.prologue?.title || '未命名序幕';
+    const curSid = data?.current?.scenario_id || '';
+
+    const rerollRow = $('archiveRerollRow');
+    if (rerollRow) {
+      rerollRow.hidden = !canReroll;
+      if ($('archiveCurrentBrief')) {
+        $('archiveCurrentBrief').textContent = `当前序幕：${curTitle}（尚未行动）`;
+      }
+    }
+
+    const randomCard = $('archiveRandomCard');
+    if (randomCard) {
+      const isRand = !archiveSelectedScenario || archiveSelectedScenario === 'random';
+      randomCard.classList.toggle('is-selected', isRand);
+      randomCard.setAttribute('aria-pressed', String(isRand));
+    }
+
+    $('archiveHeroFilter')?.querySelectorAll('[data-hero]').forEach(pill => {
+      pill.classList.toggle('is-active', pill.dataset.hero === archiveFilterHero);
+    });
+
+    const grid = $('archiveScenarioGrid');
+    if (grid) {
+      grid.replaceChildren();
+      const filtered = scenarios.filter(sc => archiveFilterHero === 'all' || sc.heroine === archiveFilterHero);
+      if (!filtered.length) {
+        grid.append(node('p', 'muted archive-empty', scenarios.length ? '该筛选下暂无开局。' : '正在读取 10 幕开局池…'));
+      } else {
+        for (const sc of filtered) {
+          const btn = node('button', 'archive-scenario-card');
+          btn.type = 'button';
+          const selected = archiveSelectedScenario === sc.id;
+          btn.classList.toggle('is-selected', selected);
+          btn.setAttribute('aria-pressed', String(selected));
+          const head = node('div', 'archive-sc-head');
+          head.append(
+            node('span', 'archive-sc-hero', sc.heroine || '主线'),
+            node('span', 'archive-sc-meta', `${sc.weekday || ''} ${sc.time || ''} · ${sc.location || ''}`.trim())
+          );
+          const titleRow = node('div', 'archive-sc-title-row');
+          titleRow.append(node('strong', 'archive-sc-title', sc.title || sc.id));
+          if (sc.id === curSid) titleRow.append(node('span', 'archive-sc-now', '当前'));
+          btn.append(head, titleRow);
+          if (sc.summary) btn.append(node('p', 'archive-sc-summary', sc.summary));
+          btn.onclick = () => {
+            haptic(8);
+            archiveSelectedScenario = sc.id;
+            resetRequest = null;
+            clearArchiveArm();
+            renderArchiveNewGame();
+          };
+          grid.append(btn);
+        }
+      }
+    }
+
+    const confirmBtn = $('confirmNewGame');
+    const noteEl = $('archiveNewGameNote');
+    if (confirmBtn) {
+      const picked = scenarios.find(s => s.id === archiveSelectedScenario);
+      const isRand = !picked;
+      const armed = archiveArmKey === 'newgame';
+      confirmBtn.classList.toggle('is-armed', armed);
+      if (canReroll) {
+        confirmBtn.textContent = isRand ? '🎲 免费重摇随机序幕' : `免费切换至「${picked.title}」`;
+        if (noteEl) noteEl.textContent = '当前尚未产生正式行动，切换或重摇序幕不会生成多余空档备份。';
+      } else if (armed) {
+        confirmBtn.textContent = isRand ? '再次轻触确认 · 开启随机新档' : `再次轻触确认 · 开启「${picked.title}」`;
+        if (noteEl) noteEl.textContent = '旧档会自动保存至轻量存档槽，确认后立刻切换新局。';
+      } else {
+        confirmBtn.textContent = isRand ? '开启随机盲盒新档' : `开启「${picked.title}」新档`;
+        if (noteEl) noteEl.textContent = '开启新档前，当前进度将自动存入精简存档槽，随时可在「存档槽」页签一键回档。';
+      }
+    }
+  }
+
+  function renderArchiveSaves() {
+    const liveCard = $('archiveLiveCard');
+    const cur = archiveSaves?.current;
+    if (liveCard) {
+      liveCard.replaceChildren();
+      if (cur) {
+        const title = node('div', 'archive-live-head');
+        title.append(
+          node('span', 'archive-slot-badge is-live', '当前进度'),
+          node('strong', '', `第${cur.day || 1}天 ${cur.weekday || ''} ${cur.time || ''} · ${cur.location || '徐家主宅'}`.trim()),
+          node('span', 'archive-slot-sub', `${cur.actions || 0} 次行动`)
+        );
+        liveCard.append(title, node('p', 'archive-slot-vitals', formatHeroinesCompact(cur.panel_summary)));
+      } else {
+        liveCard.append(node('p', 'muted', '正在读取当前存档摘要…'));
+      }
+    }
+
+    const listEl = $('archiveSlotList');
+    if (!listEl) return;
+    listEl.replaceChildren();
+    const slots = Array.isArray(archiveSaves?.slots) ? archiveSaves.slots : [];
+    if (!slots.length) {
+      listEl.append(node('p', 'muted archive-empty', '尚无存档槽。你可以在上方备注并点击「＋ 存为新档槽」，或在重开新档时自动留存一份快照。'));
+      return;
+    }
+
+    const kindMeta = {
+      manual: { label: '手动档槽', cls: 'is-manual' },
+      auto_before_reset: { label: '重开前备份', cls: 'is-auto' },
+      auto_before_restore: { label: '回档前备份', cls: 'is-auto' },
+      legacy: { label: '旧版备份', cls: 'is-legacy' }
+    };
+
+    for (const slot of slots) {
+      const card = node('article', 'archive-slot-card');
+      const head = node('div', 'archive-slot-head');
+      const km = kindMeta[slot.kind] || kindMeta.auto_before_reset;
+      head.append(
+        node('span', 'archive-slot-badge ' + km.cls, km.label),
+        node('strong', 'archive-slot-label', slot.label || slot.id),
+        node('span', 'archive-slot-time', slot.created_at || '')
+      );
+      const metaLine = node('p', 'archive-slot-meta',
+        `第${slot.day || 1}天 ${slot.weekday || ''} ${slot.time || ''} · ${slot.location || ''} · ${slot.actions || 0}次行动 · ${formatArchiveBytes(slot.size_bytes)}`.replace(/\s+·\s+·/g, ' · ')
+      );
+      const vitalsLine = node('p', 'archive-slot-vitals', formatHeroinesCompact(slot.panel_summary));
+
+      const actionsRow = node('div', 'archive-slot-actions');
+      const restoreKey = 'restore:' + slot.id;
+      const deleteKey = 'delete:' + slot.id;
+      const restoreBtn = node('button', 'btn-outline archive-slot-btn' + (archiveArmKey === restoreKey ? ' is-armed' : ''),
+        archiveArmKey === restoreKey ? '确认回档（自动留存现档）' : '一键回档');
+      restoreBtn.type = 'button';
+      restoreBtn.disabled = archiveBusy || baseBlocked();
+      restoreBtn.onclick = async () => {
+        if (archiveBusy || baseBlocked()) return;
+        haptic(12);
+        if (archiveArmKey !== restoreKey) {
+          armArchiveAction(restoreKey);
+          renderArchiveSaves();
+          return;
+        }
+        clearArchiveArm();
+        archiveBusy = true;
+        posting = true;
+        $('newGameStatus').textContent = '';
+        controls();
+        renderArchiveSaves();
+        intentionalEpochSwitch = true;
+        try {
+          const reqId = 'restore-' + (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36));
+          await api('saves/restore', {
+            save_epoch: cache.epoch,
+            slot_id: slot.id,
+            confirm: 'restore_save',
+            request_id: reqId
+          });
+          $('newGameDialog').close();
+          toast('已回档至「' + (slot.label || slot.id) + '」');
+        } catch (e) {
+          intentionalEpochSwitch = false;
+          $('newGameStatus').textContent = e.message;
+        } finally {
+          archiveBusy = false;
+          posting = false;
+          await restore({ preserveError: true });
+          if ($('newGameDialog').open) await refreshArchiveData();
+        }
+      };
+
+      const delBtn = node('button', 'btn-danger-outline archive-slot-btn is-del' + (archiveArmKey === deleteKey ? ' is-armed' : ''),
+        archiveArmKey === deleteKey ? '确认删除？' : '删除');
+      delBtn.type = 'button';
+      delBtn.disabled = archiveBusy || baseBlocked();
+      delBtn.onclick = async () => {
+        if (archiveBusy || baseBlocked()) return;
+        haptic(10);
+        if (archiveArmKey !== deleteKey) {
+          armArchiveAction(deleteKey);
+          renderArchiveSaves();
+          return;
+        }
+        clearArchiveArm();
+        archiveBusy = true;
+        $('newGameStatus').textContent = '';
+        controls();
+        renderArchiveSaves();
+        try {
+          const res = await api('saves/' + encodeURIComponent(slot.id), { save_epoch: cache.epoch }, 'DELETE');
+          if (archiveSaves && Array.isArray(res?.slots)) archiveSaves.slots = res.slots;
+          toast('已删除存档槽');
+        } catch (e) {
+          $('newGameStatus').textContent = e.message;
+        } finally {
+          archiveBusy = false;
+          controls();
+          renderArchiveSaves();
+        }
+      };
+
+      actionsRow.append(restoreBtn, delBtn);
+      card.append(head, metaLine, vitalsLine, actionsRow);
+      listEl.append(card);
+    }
+  }
+
+  function renderArchiveDialog() {
+    renderArchiveNewGame();
+    renderArchiveSaves();
+  }
+
+  async function refreshArchiveData() {
+    try {
+      const [pro, sav] = await Promise.all([api('prologues'), api('saves')]);
+      archivePrologues = pro;
+      archiveSaves = sav;
+      renderArchiveDialog();
+    } catch (e) {
+      $('newGameStatus').textContent = '读取档案室失败：' + e.message;
+    }
+  }
+
+  function openArchiveDialog(initialTab = 'newgame') {
     haptic(10);
-    $('worldDialog').close();
+    if ($('worldDialog')?.open) $('worldDialog').close();
     $('newGameStatus').textContent = '';
     resetRequest = null;
+    archiveSelectedScenario = 'random';
+    archiveFilterHero = 'all';
+    clearArchiveArm();
+    switchArchiveTab(initialTab);
     $('newGameDialog').showModal();
     controls();
-  };
-  $('confirmNewGame').onclick = async () => {
-    if (baseBlocked()) return;
-    haptic(16);
-    posting = true;
-    controls();
-    resetRequest = resetRequest || {
-      request_id: 'reset-' + (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)),
-      save_epoch: cache.epoch,
-      confirm: 'new_game'
+    void refreshArchiveData();
+  }
+
+  $('newGame').onclick = () => openArchiveDialog('newgame');
+  if ($('archiveQuickBtn')) $('archiveQuickBtn').onclick = () => openArchiveDialog('newgame');
+
+  $('archiveTabs')?.querySelectorAll('[data-archive-tab]').forEach(btn => {
+    btn.onclick = () => {
+      haptic(6);
+      switchArchiveTab(btn.dataset.archiveTab);
     };
+  });
+
+  if ($('archiveRandomCard')) {
+    $('archiveRandomCard').onclick = () => {
+      haptic(8);
+      archiveSelectedScenario = 'random';
+      resetRequest = null;
+      clearArchiveArm();
+      renderArchiveNewGame();
+    };
+  }
+
+  $('archiveHeroFilter')?.querySelectorAll('[data-hero]').forEach(pill => {
+    pill.onclick = () => {
+      haptic(6);
+      archiveFilterHero = pill.dataset.hero || 'all';
+      renderArchiveNewGame();
+    };
+  });
+
+  if ($('rerollPrologueBtn')) {
+    $('rerollPrologueBtn').onclick = async () => {
+      if (baseBlocked() || archiveBusy) return;
+      haptic(12);
+      archiveBusy = true;
+      posting = true;
+      $('newGameStatus').textContent = '';
+      controls();
+      intentionalEpochSwitch = true;
+      try {
+        const res = await api('new-game', {
+          request_id: 'reroll-' + (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)),
+          save_epoch: cache.epoch,
+          confirm: 'new_game',
+          reroll_only: true
+        });
+        $('newGameDialog').close();
+        toast('已免费重摇序幕：' + (res?.prologue?.title || '新开局'));
+      } catch (e) {
+        intentionalEpochSwitch = false;
+        $('newGameStatus').textContent = e.message;
+      } finally {
+        archiveBusy = false;
+        posting = false;
+        await restore({ preserveError: true });
+      }
+    };
+  }
+
+  if ($('saveSlotCreateBtn')) {
+    $('saveSlotCreateBtn').onclick = async () => {
+      if (baseBlocked() || archiveBusy) return;
+      haptic(12);
+      const inp = $('saveSlotLabelInput');
+      const label = (inp?.value || '').trim();
+      archiveBusy = true;
+      $('newGameStatus').textContent = '';
+      controls();
+      try {
+        const res = await api('saves/snapshot', { save_epoch: cache.epoch, label });
+        if (inp) inp.value = '';
+        if (archiveSaves && Array.isArray(res?.slots)) archiveSaves.slots = res.slots;
+        else await refreshArchiveData();
+        toast('已存为档槽：' + (res?.slot?.label || '手动存档'));
+      } catch (e) {
+        $('newGameStatus').textContent = e.message;
+      } finally {
+        archiveBusy = false;
+        controls();
+        renderArchiveSaves();
+      }
+    };
+  }
+
+  $('confirmNewGame').onclick = async () => {
+    if (baseBlocked() || archiveBusy) return;
+    const actions = Number(archivePrologues?.actions ?? snapshot?.world?.interaction?.actions ?? 0);
+    const canReroll = Boolean(archivePrologues?.can_reroll ?? (actions === 0));
+    if (!canReroll && archiveArmKey !== 'newgame') {
+      haptic(10);
+      armArchiveAction('newgame');
+      renderArchiveNewGame();
+      return;
+    }
+    clearArchiveArm();
+    haptic(16);
+    archiveBusy = true;
+    posting = true;
+    $('newGameStatus').textContent = '';
+    controls();
+    const chosen = archiveSelectedScenario && archiveSelectedScenario !== 'random' ? archiveSelectedScenario : 'random';
+    resetRequest = resetRequest || {
+      request_id: (canReroll ? 'reroll-' : 'reset-') + (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)),
+      save_epoch: cache.epoch,
+      confirm: 'new_game',
+      scenario_id: chosen,
+      ...(canReroll ? { reroll_only: true } : {})
+    };
+    intentionalEpochSwitch = true;
     try {
-      await api('new-game', resetRequest);
+      const res = await api('new-game', resetRequest);
+      resetRequest = null;
       $('newGameDialog').close();
-      toast('已开启全新存档');
+      toast((canReroll ? '已切换序幕：' : '已开启新档：') + (res?.prologue?.title || '随机盲盒'));
     } catch (e) {
+      intentionalEpochSwitch = false;
       $('newGameStatus').textContent = e.message + '；可按原编号再次确认。';
     } finally {
+      archiveBusy = false;
       posting = false;
       await restore({ preserveError: true });
     }

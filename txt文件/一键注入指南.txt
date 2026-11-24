@@ -284,7 +284,7 @@ Python负责排序、推流和盖戳；AI只提供当回合增量，并按后续
 【注册表生成表开始】
 【SHAME_EVENTS】C烈度_轻度 / C烈度_中度 / C烈度_深度 / C烈度_重度 / 外射_体表面部 / 内射_常规 / 内射_首次核爆 / 死亡查岗_抗拒期 / 无意识被侵_苏醒发现 / 确诊怀孕 / 无意识锁定 / 事件死寂锁定 / 解离保护 / 耻感反弹_苏醒 / 同质化免疫_回合2 / 同质化免疫_回合3 / 首次 / 生理_危险期 / 心理破冰_暧昧试探 / 意外撞破_私密自渎
 - C烈度_轻度：base_delta_01=2（base_delta 扣减）；cur_aff_02=60（cur_aff 比较阈值）；cur_shame_03=70（cur_shame 比较阈值）；violation_drop_04=0（violation_drop 扣减）；violation_drop_05=1（violation_drop 扣减）；cur_aff_06=30（cur_aff 比较阈值）；violation_drop_07=2（violation_drop 扣减）；violation_drop_08=4（violation_drop 扣减）
-- C烈度_中度：base_delta_01=3（base_delta 扣减）；base_delta_02=2（base_delta 扣减）；cur_aff_03=60（cur_aff 比较阈值）；cur_shame_04=50（cur_shame 比较阈值）；violation_drop_05=0（violation_drop 扣减）；violation_drop_06=4（violation_drop 扣减）；cur_aff_07=30（cur_aff 比较阈值）；violation_drop_08=4（violation_drop 扣减）；violation_drop_09=12（violation_drop 扣减）
+- C烈度_中度：base_delta_01=3（base_delta 扣减）；base_delta_02=2（base_delta 扣减）；cur_aff_03=60（cur_aff 比较阈值）；cur_shame_04=50（cur_shame 比较阈值）；violation_drop_05=0（violation_drop 扣减）；violation_drop_06=4（violation_drop 扣减）；cur_aff_07=30（cur_aff 比较阈值）；violation_drop_08=5（violation_drop 扣减）；violation_drop_09=12（violation_drop 扣减）
 - C烈度_深度：base_delta_01=4（base_delta 扣减）；base_delta_02=3（base_delta 扣减）；cur_aff_03=60（cur_aff 比较阈值）；cur_shame_04=40（cur_shame 比较阈值）；violation_drop_05=0（violation_drop 扣减）；violation_drop_06=7（violation_drop 扣减）；cur_aff_07=30（cur_aff 比较阈值）；violation_drop_08=9（violation_drop 扣减）；violation_drop_09=16（violation_drop 扣减）
 - C烈度_重度：base_delta_01=6（base_delta 扣减）；base_delta_02=4（base_delta 扣减）；cur_aff_03=60（cur_aff 比较阈值）；cur_shame_04=30（cur_shame 比较阈值）；violation_drop_05=0（violation_drop 扣减）；violation_drop_06=10（violation_drop 扣减）；cur_aff_07=30（cur_aff 比较阈值）；violation_drop_08=15（violation_drop 扣减）；violation_drop_09=20（violation_drop 扣减）；violation_drop_10=0（violation_drop 比较阈值）
 - 外射_体表面部：base_delta_01=3（base_delta 扣减）
@@ -357,7 +357,7 @@ Python负责排序、推流和盖戳；AI只提供当回合增量，并按后续
 【注册表生成表结束】
 
 【注册表生成表开始】
-【HOST_EVENTS】侵蚀_认知撕裂 / 侵蚀_生理战栗 / 侵蚀_防线坍塌 / 侵蚀_首次核爆 / 日常_信任建立 / 日常_情感共振 / 日常_连续守护5回合 / 日常_温和累进 / 商业_信息获取 / 商业_权力博弈 / 商业_战略突破 / 兑换道具_X / 体力_日常消耗 / 体力_激烈交欢 / 体力_次日休息
+【HOST_EVENTS】侵蚀_认知撕裂 / 侵蚀_生理战栗 / 侵蚀_防线坍塌 / 侵蚀_首次核爆 / 日常_信任建立 / 日常_情感共振 / 日常_连续守护5回合 / 日常_温和累进 / 商业_信息获取 / 商业_权力博弈 / 商业_战略突破 / 兑换道具_X / 体力_日常消耗 / 体力_激烈交欢 / 体力_次日休息 / 优雅掌控_魅力精进
 - 侵蚀_认知撕裂：track1_pts_01=2（track1['pts'] 增加）；track1_exp_02=1（track1['exp'] 增加）
 - 侵蚀_生理战栗：track1_pts_01=8（track1['pts'] 增加）；track1_exp_02=5（track1['exp'] 增加）
 - 侵蚀_防线坍塌：track1_pts_01=30（track1['pts'] 增加）；track1_exp_02=20（track1['exp'] 增加）
@@ -373,6 +373,7 @@ Python负责排序、推流和盖戳；AI只提供当回合增量，并按后续
 - 体力_日常消耗：cur_sta_01=5（cur_sta 扣减）
 - 体力_激烈交欢：cur_sta_01=15（cur_sta 扣减）
 - 体力_次日休息：cur_sta_01=100（cur_sta 恢复至上限（实际安稳整夜完成））
+- 优雅掌控_魅力精进：cur_charm_01=1（cur_charm 增加（上限100））
 【注册表生成表结束】
 
 【注册表生成表开始】

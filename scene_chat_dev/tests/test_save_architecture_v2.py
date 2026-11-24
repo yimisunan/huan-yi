@@ -405,7 +405,7 @@ class SaveArchitectureV2Tests(unittest.TestCase):
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
 
-        self.assertEqual(len(opening.SCENARIOS), 8)
+        self.assertEqual(len(opening.SCENARIOS), 10)
         for scenario in opening.SCENARIOS:
             sid = scenario['id']
             with self.subTest(scenario=sid):
@@ -430,21 +430,21 @@ class SaveArchitectureV2Tests(unittest.TestCase):
     # 6. Task pending_items queue preserved across immediate TASK-002 issuance + sequential claiming
     def test_06_task_pending_items_queue_preserved_across_new_task_issuance(self):
         with self.store._locked():
-            opening.initialize_prologue(self.tmp, 'task-queue', opening.SCENARIOS[0]['id'])
+            opening.initialize_prologue(self.tmp, 'task-queue', 'zhiyun_sunday_noon')
         self.svc = StoryService(self.tmp)
         self.store = self.svc.store
         complete_current_playback(self.svc)
 
-        # Give host 2 points so +2 completes TASK-001 (target 4)
+        # Give host 4 points so +2 completes TASK-001 (target 6 for zhiyun_sunday_noon)
         st, ly, _ = save_store.load_bundle(self.tmp)
-        st['panels']['系统宿主']['积分'] = 2
+        st['panels']['系统宿主']['积分'] = 4
         save_store.save_bundle(self.tmp, st, ly)
 
         ev_text = '她安静听完你的安排，微微颔首。'
         run_action_turn(
             self.svc, text=ev_text, option_id='A', category='A',
             messages=[{'kind': 'narration', 'speaker': '', 'text': ev_text}],
-            clock={'day': 1, 'time': '23:15'},
+            clock={'day': 1, 'time': '12:05'},
             events=[{'group': 'host_events', 'target': '系统宿主', 'tags': ['日常_信任建立'], 'evidence': ev_text}],
             req_id='tq-1',
         )

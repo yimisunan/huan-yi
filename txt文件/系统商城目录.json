@@ -237,7 +237,7 @@
       "desc": "双面重磅真丝全遮光眼罩配天然岫玉冰感按摩滚轮，可反复随身携带使用；遮蔽视线后冰凉玉石划过锁骨、腕骨与脚踝，放大每一次呼吸与触碰。",
       "duration": "无",
       "expire_rule": "无",
-      "system_effect": "",
+      "system_effect": "buff:感官放大:2:遮光与冰玉温差放大触觉与听觉敏锐度，视觉羞耻穿透且轻中度越界掉好感减半",
       "giftable": false,
       "max_per_save": 1,
       "unlock_req": {

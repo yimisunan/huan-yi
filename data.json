@@ -3,7 +3,7 @@
     "actions": 0,
     "count": 1,
     "last_sequence": 1,
-    "segment_id": "prologue-49ae0065ff989240c9764c2bfbf2408a"
+    "segment_id": "prologue-2c87ddbaf8ce87d4d610ecc9440da27f"
   },
   "options_text": "",
   "presence": {
@@ -25,27 +25,30 @@
     }
   },
   "prologue": {
-    "request_id": "reset-20261124_020101_98bb459dfe814e6a8a7688564c4623d5",
+    "heroine": "全员家宴",
+    "privacy": "open_public",
+    "request_id": "reset-20261124_154453_6f70ead9f71946b5a5fc951186d32edd",
     "scenario_id": "zhiyun_sunday_noon",
+    "sub_location": "主宅餐厅",
     "title": "周日午间 · 主宅餐厅 · 家庭",
     "weekday": "周日"
   },
-  "request_id": "prologue-49ae0065ff989240c9764c2bfbf2408a",
+  "request_id": "prologue-2c87ddbaf8ce87d4d610ecc9440da27f",
   "round": 1,
   "sceneTitle": "徐家主宅",
   "state_version": 1,
   "storyNodes": [
     {
-      "text": "周日十一时五十分，徐家主宅餐厅。家庭午餐尚未开席，长桌上茶具温热。沈知韫着淡紫色缎面薄纱居家服居中，徐念薇着浅蓝色泡泡袖居家裙坐在较远一侧，苏婉青一身浅黄短裙配白开衫外出装依周日惯例到宅，手边放着伴手礼；徐志北站在桌旁，席间礼貌与暗流并存。",
+      "text": "瓷壶倾出热茶的轻响散在周日午间餐厅里，茶雾混着三道截然不同的气息——沈知韫的冷调幽兰、徐念薇指间的淡皂香，以及苏婉青落座时拂过的柔顺甜香。桌布边沿下，穿淡紫缎面居家服的沈知韫脚尖轻搭拖鞋露出一截白皙足背；另一侧徐念薇修长冷白的手指扣着骨瓷杯耳，腕骨清瘦；依周日惯例赴宅的苏婉青俯身搁下伴手礼，浅黄短裙领口被 36D 撑得微紧。徐志北指腹被热茶杯壁烫了一下，目光在三人神色间掠过。",
       "type": "narration"
     },
     {
-      "text": "她扫过一圈餐桌，目光在苏婉青手边的伴手礼和念薇略远一格的座椅间掠过，自己拉开主位座椅。",
+      "text": "她扫过一圈餐桌，目光在苏婉青手边的伴手礼和念薇握杯的手指间掠过，自己拉开主位座椅，脚下露趾拖鞋轻蹭过地毯边沿。",
       "type": "narration"
     },
     {
       "speaker": "沈知韫",
-      "text": "[warm but guarded] 都到齐了，先落座吧。厨房那边还要一会儿，志北坐妈手边。",
+      "text": "[沉稳从容] 都到齐了，先落座吧。厨房那边还要一会儿，志北坐妈手边。",
       "type": "dialogue"
     }
   ],

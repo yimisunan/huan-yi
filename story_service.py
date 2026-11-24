@@ -580,11 +580,52 @@ class StoryService:
                     'items_text': (files[rr.FILES[1]] or b'').decode('utf-8'),
                     **self._status(state)}
 
+    def _load_cleaner_module(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('_game_cleaner', self.root / '存档清理器.py')
+        cleaner = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cleaner)
+        return cleaner
+
+    def _load_opening_module(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('_registered_opening', self.root / '存档开局随机盲盒.py')
+        opening = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(opening)
+        return opening
+
+    def _assert_idle_for_save_mutation(self, state, experimental, action_label):
+        if experimental is not None:
+            with experimental.db() as db:
+                experimental.expire(db)
+                if db.execute("SELECT 1 FROM jobs WHERE status IN ('queued','generating')").fetchone():
+                    raise rr.ConflictError(f'实验入口仍有请求在处理，请结束后再{action_label}')
+        blocking_statuses = ACTIVE - {'refund_pending'}
+        if any(j['status'] in blocking_statuses for j in state['jobs'].values()) or self._bridge_view(state).get('busy'):
+            raise rr.ConflictError(f'仍有行动在处理，请等待完成并暂停桥接后再{action_label}')
+
     def new_game(self, body):
         self.start()
-        rr._keys(body, {'request_id', 'save_epoch', 'confirm'}, 'new_game', {'request_id', 'save_epoch', 'confirm'})
+        rr._keys(
+            body,
+            {'request_id', 'save_epoch', 'confirm', 'scenario_id', 'reroll_only'},
+            'new_game',
+            {'request_id', 'save_epoch', 'confirm'},
+        )
         if body['confirm'] != 'new_game' or not isinstance(body['request_id'], str) or not re.fullmatch(r'[A-Za-z0-9-]{1,100}', body['request_id']):
             raise rr.RoundError('新档确认信息无效')
+        raw_sid = body.get('scenario_id')
+        if raw_sid is not None and not isinstance(raw_sid, str):
+            raise rr.RoundError('开局剧本编号无效')
+        scenario_id = (raw_sid or '').strip()
+        if scenario_id in ('', 'random'):
+            scenario_id = None
+        elif not re.fullmatch(r'[a-z0-9_]{1,64}', scenario_id):
+            raise rr.RoundError('开局剧本编号格式无效')
+        reroll_only = bool(body.get('reroll_only', False))
+        if 'reroll_only' in body and not isinstance(body['reroll_only'], bool):
+            raise rr.RoundError('reroll_only 须为布尔值')
+
         experimental = getattr(self, 'experimental', None)
         from contextlib import nullcontext
         exp_ctx = experimental.lock if experimental is not None else nullcontext()
@@ -593,30 +634,185 @@ class StoryService:
                 epoch = self._save_epoch()
                 ep = self.store._path('.round-runtime/save-epoch.json')
                 if ep.exists() and json.loads(ep.read_bytes()).get('request_id') == body['request_id']:
-                    return {'status': 'reset', 'save_epoch': epoch, 'replayed': True}
+                    data = json.loads(self.store._files().get('data.json') or b'{}')
+                    return {'status': 'reset', 'save_epoch': epoch, 'replayed': True, 'prologue': data.get('prologue')}
                 if epoch != body['save_epoch']:
                     raise rr.ConflictError('当前存档已改变，请刷新后重新确认新档')
                 state = self._read()
                 self._expire(state)
-                if experimental is not None:
-                    with experimental.db() as db:
-                        experimental.expire(db)
-                        if db.execute("SELECT 1 FROM jobs WHERE status IN ('queued','generating')").fetchone():
-                            raise rr.ConflictError('实验入口仍有请求在处理，请结束后再开新档')
-                blocking_statuses = ACTIVE - {'refund_pending'}
-                if any(j['status'] in blocking_statuses for j in state['jobs'].values()) or self._bridge_view(state).get('busy'):
-                    raise rr.ConflictError('仍有行动在处理，请等待完成并暂停桥接后再开新档')
-                import importlib.util
-                spec = importlib.util.spec_from_file_location('_game_cleaner', self.root / '存档清理器.py')
-                cleaner = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(cleaner)
-                cleaner._reset_files(self.root, keep_backup=True, request_id=body['request_id'])
+                self._assert_idle_for_save_mutation(state, experimental, '开新档')
+                cleaner = self._load_cleaner_module()
+                opening = self._load_opening_module()
+                scenarios = opening.list_scenarios()
+                valid_ids = [s['id'] for s in scenarios]
+                if scenario_id is not None and scenario_id not in valid_ids:
+                    raise rr.RoundError('未知开局剧本：' + scenario_id)
+                cur_summary = cleaner.current_save_summary(self.root)
+                keep_backup = True
+                chosen_sid = scenario_id
+                if reroll_only:
+                    if int(cur_summary.get('actions') or 0) > 0:
+                        raise rr.ConflictError('已有正式行动，无法免费重摇序幕，请使用重开新档')
+                    keep_backup = False
+                    if chosen_sid is None:
+                        cur_sid = cur_summary.get('scenario_id')
+                        pool = [sid for sid in valid_ids if sid != cur_sid] or valid_ids
+                        idx = int(hashlib.sha256(body['request_id'].encode('utf-8')).hexdigest()[:8], 16) % len(pool)
+                        chosen_sid = pool[idx]
+                try:
+                    reset_res = cleaner._reset_files(
+                        self.root,
+                        keep_backup=keep_backup,
+                        request_id=body['request_id'],
+                        scenario_id=chosen_sid,
+                    )
+                except ValueError as exc:
+                    raise rr.RoundError(str(exc)) from exc
+                except RuntimeError as exc:
+                    raise rr.ConflictError(str(exc)) from exc
                 data = json.loads(self.store._files()['data.json'] or b'{}')
                 self._clear_preview()
-                self._inquiries_path().unlink(missing_ok=True)
-                result = {'status': 'reset', 'save_epoch': self._save_epoch(), 'replayed': False, 'prologue':data.get('prologue')}
+                result = {
+                    'status': 'reset',
+                    'save_epoch': self._save_epoch(),
+                    'replayed': False,
+                    'reroll_only': reroll_only,
+                    'prologue': data.get('prologue'),
+                    'slot': reset_res.get('slot'),
+                }
         self.hub.publish('save_reset', {'save_epoch': result['save_epoch']})
         return result
+
+    def list_prologues(self):
+        self.start()
+        with self.store._locked():
+            cleaner = self._load_cleaner_module()
+            opening = self._load_opening_module()
+            summary = cleaner.current_save_summary(self.root)
+            data = json.loads(self.store._files().get('data.json') or b'{}')
+            actions = int(summary.get('actions') or 0)
+            return {
+                'scenarios': opening.list_scenarios(),
+                'current': data.get('prologue'),
+                'actions': actions,
+                'can_reroll': actions == 0,
+                'save_epoch': self._save_epoch(),
+            }
+
+    def list_saves(self):
+        self.start()
+        with self.store._locked():
+            cleaner = self._load_cleaner_module()
+            return {
+                'current': cleaner.current_save_summary(self.root),
+                'slots': cleaner.list_save_slots(self.root),
+                'save_epoch': self._save_epoch(),
+            }
+
+    def snapshot_save(self, body):
+        self.start()
+        rr._keys(body, {'save_epoch', 'label'}, 'snapshot_save', {'save_epoch'})
+        label = body.get('label', '')
+        if label is not None and not isinstance(label, str):
+            raise rr.RoundError('存档备注须为字符串')
+        if len(str(label or '').strip()) > 60:
+            raise rr.RoundError('存档备注不能超过 60 字')
+        with self.store._locked():
+            epoch = self._save_epoch()
+            if epoch != body['save_epoch']:
+                raise rr.ConflictError('当前存档已改变，请刷新后重试')
+            state = self._read()
+            self._expire(state)
+            self._assert_idle_for_save_mutation(state, getattr(self, 'experimental', None), '保存档槽')
+            cleaner = self._load_cleaner_module()
+            try:
+                slot = cleaner.create_save_slot(self.root, label=str(label or '').strip(), kind='manual')
+            except ValueError as exc:
+                raise rr.RoundError(str(exc)) from exc
+            return {
+                'status': 'saved',
+                'slot': slot,
+                'slots': cleaner.list_save_slots(self.root),
+                'save_epoch': epoch,
+            }
+
+    def restore_save(self, body):
+        self.start()
+        rr._keys(
+            body,
+            {'save_epoch', 'slot_id', 'confirm', 'request_id'},
+            'restore_save',
+            {'save_epoch', 'slot_id', 'confirm'},
+        )
+        if body['confirm'] != 'restore_save' or not isinstance(body['slot_id'], str) or not body['slot_id'].strip():
+            raise rr.RoundError('回档确认信息无效')
+        req_id = body.get('request_id')
+        if req_id is not None and (not isinstance(req_id, str) or not re.fullmatch(r'[A-Za-z0-9-]{1,100}', req_id)):
+            raise rr.RoundError('回档请求编号无效')
+        slot_id = body['slot_id'].strip()
+        experimental = getattr(self, 'experimental', None)
+        from contextlib import nullcontext
+        exp_ctx = experimental.lock if experimental is not None else nullcontext()
+        with exp_ctx:
+            with self.store._locked():
+                epoch = self._save_epoch()
+                ep = self.store._path('.round-runtime/save-epoch.json')
+                cleaner = self._load_cleaner_module()
+                if req_id and ep.exists() and json.loads(ep.read_bytes()).get('request_id') == req_id:
+                    return {
+                        'status': 'restored',
+                        'slot_id': slot_id,
+                        'save_epoch': epoch,
+                        'replayed': True,
+                        'summary': cleaner.current_save_summary(self.root),
+                    }
+                if epoch != body['save_epoch']:
+                    raise rr.ConflictError('当前存档已改变，请刷新后重新确认回档')
+                state = self._read()
+                self._expire(state)
+                self._assert_idle_for_save_mutation(state, experimental, '回档')
+                try:
+                    res = cleaner.restore_save_slot(
+                        self.root,
+                        slot_id,
+                        auto_backup_current=True,
+                        request_id=req_id,
+                    )
+                except ValueError as exc:
+                    raise rr.RoundError(str(exc)) from exc
+                except RuntimeError as exc:
+                    raise rr.ConflictError(str(exc)) from exc
+                self._clear_preview()
+                result = {
+                    **res,
+                    'replayed': False,
+                    'slots': cleaner.list_save_slots(self.root),
+                }
+        self.hub.publish('save_reset', {'save_epoch': result['save_epoch']})
+        return result
+
+    def delete_save(self, slot_id, body):
+        self.start()
+        if not isinstance(body, dict) or not body.get('save_epoch'):
+            raise rr.RoundError('缺少 save_epoch')
+        with self.store._locked():
+            epoch = self._save_epoch()
+            if epoch != body['save_epoch']:
+                raise rr.ConflictError('当前存档已改变，请刷新后重试')
+            state = self._read()
+            self._expire(state)
+            self._assert_idle_for_save_mutation(state, getattr(self, 'experimental', None), '删除档槽')
+            cleaner = self._load_cleaner_module()
+            try:
+                cleaner.delete_save_slot(self.root, slot_id)
+            except ValueError as exc:
+                raise rr.RoundError(str(exc)) from exc
+            return {
+                'status': 'deleted',
+                'slot_id': slot_id,
+                'slots': cleaner.list_save_slots(self.root),
+                'save_epoch': epoch,
+            }
 
     DEFAULT_LIVE_LIMIT = 10
 
@@ -2143,6 +2339,31 @@ def register_story_routes(app, root, *, tts_prewarmer=None):
     @app.post('/api/story/new-game')
     def new_game():
         return jsonify(service.new_game(body()))
+
+    @app.get('/api/story/prologues')
+    def story_prologues():
+        return jsonify(service.list_prologues())
+
+    @app.get('/api/story/saves')
+    def story_saves():
+        return jsonify(service.list_saves())
+
+    @app.post('/api/story/saves/snapshot')
+    def story_saves_snapshot():
+        return jsonify(service.snapshot_save(body()))
+
+    @app.post('/api/story/saves/restore')
+    def story_saves_restore():
+        return jsonify(service.restore_save(body()))
+
+    @app.delete('/api/story/saves/<slot_id>')
+    def story_saves_delete(slot_id):
+        payload = request.get_json(silent=True) if request.is_json else None
+        if not isinstance(payload, dict):
+            payload = {}
+        if 'save_epoch' not in payload and request.args.get('save_epoch'):
+            payload['save_epoch'] = request.args.get('save_epoch')
+        return jsonify(service.delete_save(slot_id, payload))
 
     @app.get('/api/story/live')
     def interaction_snapshot():

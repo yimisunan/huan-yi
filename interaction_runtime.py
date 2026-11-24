@@ -477,8 +477,13 @@ def view(store, files=None):
     data = json.loads(files.get('data.json') or b'{}')
     runtime = sp.state(store.root, files) if sp.enabled(store.root) else None
     weekday = sp.derive_weekday(data, memory, (runtime or {}).get('clock'))
+    intl_snap = copy.deepcopy(bundle_state.get('intimate') or save_store.default_intimate())
+    tier_costs = sp.active_costs(store.root, files) if runtime is not None else dict(sp.COSTS)
+    intl_snap['active_costs'] = tier_costs
     progression = {'runtime': runtime, 'stamina': sp.stamina(store.root, files),
-                   'costs': sp.COSTS, 'item_budget': 20 - runtime['item_recovered']} if runtime is not None else None
+                   'costs': tier_costs, 'base_costs': sp.COSTS,
+                   'intimate_mode': bool(intl_snap.get('scene_active')),
+                   'item_budget': 20 - runtime['item_recovered']} if runtime is not None else None
     intel_cat = sp.load_intel_catalog(store.root, optional=True)
     intel_state = sp.parse_intel_block(memory)
     interaction_meta = data.get('interaction')
@@ -518,10 +523,17 @@ def view(store, files=None):
             'fluid_lock_turns': fl_turns,
             'fluid_lock_floor': engine.fluid_lock_floor_for_turns(fl_turns),
         }
+    delivered_intimate_gifts = {}
+    for hname in save_store.HEROINES:
+        glist = list(((intl_snap.get('attire') or {}).get(hname) or {}).get('gifted_items') or [])
+        if glist:
+            delivered_intimate_gifts[hname] = glist
     return {'progression': progression, 'weekday': weekday, 'location': location, 'cast': cast,
             'presence': presence, 'panels': panels, 'items': items,
             'deployed_items': deployed_items,
             'delivered_items': delivered_items,
+            'delivered_intimate_gifts': delivered_intimate_gifts,
+            'intimate': intl_snap,
             'buffs': parsed_buffs,
             'micro_states': parse_micro_states(memory),
             'physiology': physiology,
@@ -915,6 +927,7 @@ def _project_memory_header(header, *, cast=None, is_single=True):
     for anchor in ('【回合计数器】', '【商城与回响状态】', '【商业情报与杠杆状态】', '【世界导演状态】', '【回合生命周期】'):
         text = re.sub(rf'\n*{re.escape(anchor)}[\s\S]*?(?=\n【|\Z)', '', text)
     if not is_single:
+        text = re.sub(r'\n*【情欲与空间态势】[\s\S]*?(?=\n【|\Z)', '', text)
         # Foreground writer sanitization: hide raw 发现几率, offstage NPC coordinates, and host points/EXP.
         text = re.sub(r'\s*\|\s*发现几率\s*\d+%?', '', text)
         if cast is not None:
@@ -1152,14 +1165,24 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
     if resolved and resolved['code'] == 'move_player':
         effective['location'] = resolved['destination']
         effective['cast'] = scene_cast(state['presence'], mem_text, resolved['destination'])
+        effective['intimate'] = {
+            **(effective.get('intimate') or save_store.default_intimate()),
+            'scene_active': False, 'session_beats': 0, 'privacy': 'open_public',
+            'sub_location': '', 'present_actors': [], 'noise_risk': 0,
+        }
+    eff_intl = effective.get('intimate') or {}
+    eff_present = [a for a in (eff_intl.get('present_actors') or []) if a in effective['cast']]
+    history_audience = eff_present if eff_present else effective['cast']
+    remote_vitals_targets = list(op_detail.get('remote_cast') or []) if (op_detail and op_detail.get('kind') == 'inspect_deployed') else []
+    effective['remote_vitals_targets'] = remote_vitals_targets
     limits=sp.memory_policy(story.root)
     all_rows = recent_rows(story.store, files)
     visible_rows = []
     visible_archive_paths = []
     for pair in all_rows:
         path, turn = pair
-        input_visible = all(n in turn.get('input_known_by', turn.get('known_by', [])) for n in effective['cast'])
-        reply_visible = all(n in turn.get('messages_known_by', turn.get('known_by', [])) for n in effective['cast'])
+        input_visible = all(n in turn.get('input_known_by', turn.get('known_by', [])) for n in history_audience)
+        reply_visible = all(n in turn.get('messages_known_by', turn.get('known_by', [])) for n in history_audience)
         if not (input_visible or reply_visible):
             continue
         if path is not None:
@@ -1254,7 +1277,9 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
             'rules': (story.root / RULE).read_text(encoding='utf-8'),
             'sovereignty': (story.root / 'txt文件/全局执行法典.md').read_text(encoding='utf-8'),
             'characters': characters, 'relationships': relationships, 'knowledge_rules': relevant,
-            'scenario': {'location': effective['location'], 'cast': effective['cast'], 'presence': state['presence']},
+            'scenario': {'location': effective['location'], 'cast': effective['cast'],
+                         'present_actors': history_audience, 'presence': state['presence'],
+                         'remote_vitals_targets': remote_vitals_targets},
             'operation_policy': {'locations': state['policy']['locations'],'location_aliases':location_aliases(story.root),
                 'templates': [
                     {'code': 'move_player', 'destination': '登记地点'},
@@ -1306,12 +1331,13 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
                 'checks': {'intent': '具体依据', 'knowledge': '本场信息边界', 'action': '操作与正文一致或无动作', 'pace': '本段推进及此处交还控制权的依据'}}
     if charged:
         contract['resolution'] = sp.contract(story.root,preview_cost['kind'], (selected or {}).get('option_id'))
+    intimate_mode_now = bool(eff_intl.get('scene_active'))
     envelope = {'entry_mode': MODE, 'packet': {'path': relative, 'through_line': len(raw.decode().splitlines()), 'read_ranges':packet_read_ranges(raw)},
                 'reading_tools':list(LIVE_READ_TOOLS),'previous_validation_error':previous_error,
                 'continuity':{'source':'正式存档与accepted_history','rule':'本次资料包含当前正式记忆、已接受原文及原行动；旧会话未提交草稿不属于事实。重试承接同一冻结点，不跳到下一行动。'},
                 'required_memory_reads':projection['required'],'required_history_reads':required_history,
                 'operation_context':{'requested':resolved,'input_evidence':intent,'source_location':state['location'],'location_aliases':location_aliases(story.root), **({'detail': op_detail} if op_detail else {})},
-                **({'resolution_policy':sp.resolution_policy(preview_cost['kind'], (selected or {}).get('option_id'))} if charged else {}),
+                **({'resolution_policy':sp.resolution_policy(preview_cost['kind'], (selected or {}).get('option_id'), intimate_mode=intimate_mode_now)} if charged else {}),
                 'output_contract': contract, 'instruction': '先执行读取阶段：逐一照用packet.path和packet.read_ranges中的start_line/end_line调用read_file_part，读完每一段；header显示请求范围不代表正文已齐，核对实际返回的末行。需要时补齐截断正文，文件末尾空白不作为未读正文。再读required_memory_reads与required_history_reads，最后生成完整JSON；只允许reading_tools和本任务文件路径，grep_code只定位不计正文覆盖，禁止list_files/find_files或读取许可外文件；其余旧事实按本任务精确行号或归档索引补读。返回单个裸JSON，生成连贯剧情及decision中的A/B/C；无需演完一场戏，不写旧完整回合、L1或SYSTEM_LOG。'}
     if charged:
         envelope['instruction'] += ' 必须同时返回resolution并逐项遵循resolution_policy：普通付费action即使只澄清或未发生移动也必须交完整conditions对象，字段名称不改；SYSTEM才允许无条件。已预检的operation_context.requested直接对应玩家原文与登记别名，不再猜地点。只分类和提供依据，不计算成本/最终面板；免费休息为SYSTEM且实际休息推进，睡眠有正文起止，不以短休冒充整夜。判档/事件/事实/时间只按当前资料；不能把人物系统数值或玩家私有记忆写成NPC知情。'
@@ -1485,10 +1511,19 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
     live_state = view(story.store, prompt_files)
     bundle_state, _, _ = save_store.load_bundle(story.root, prompt_files)
     scenario = packet_data.get('scenario', {})
+    req_op_v2 = (packet_data.get('operation') or {}).get('requested')
+    eff_intl_v2 = copy.deepcopy(live_state.get('intimate') or save_store.default_intimate())
+    if isinstance(req_op_v2, dict) and req_op_v2.get('code') == 'move_player':
+        eff_intl_v2.update({
+            'scene_active': False, 'session_beats': 0, 'privacy': 'open_public',
+            'sub_location': '', 'present_actors': [], 'noise_risk': 0,
+        })
     effective_state = {
         **live_state,
         'location': scenario.get('location', live_state['location']),
         'cast': scenario.get('cast', live_state['cast']),
+        'intimate': eff_intl_v2,
+        'remote_vitals_targets': list(scenario.get('remote_vitals_targets') or []),
         'mechanics': copy.deepcopy(bundle_state.get('mechanics') or {}),
     }
     cast = effective_state['cast']

@@ -218,7 +218,11 @@
         "relaxed": [
           "妈妈"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "妈妈",
+          "知韫"
+        ]
       },
       "address": {
         "formal": [
@@ -228,7 +232,11 @@
           "妈",
           "妈妈"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "妈妈",
+          "知韫"
+        ]
       }
     },
     "son": {
@@ -240,7 +248,10 @@
         "relaxed": [
           "儿子"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "儿子"
+        ]
       },
       "address": {
         "formal": [
@@ -249,7 +260,11 @@
         "relaxed": [
           "儿子"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "儿子",
+          "志北"
+        ]
       }
     },
     "adoptive_mother": {
@@ -261,7 +276,10 @@
         "relaxed": [
           "妈妈"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "妈妈"
+        ]
       },
       "address": {
         "formal": [
@@ -271,7 +289,10 @@
           "妈",
           "妈妈"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "妈妈"
+        ]
       }
     },
     "adopted_son": {
@@ -283,7 +304,10 @@
         "relaxed": [
           "儿子"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "儿子"
+        ]
       },
       "address": {
         "formal": [
@@ -292,7 +316,10 @@
         "relaxed": [
           "儿子"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "儿子"
+        ]
       }
     },
     "adopted_daughter": {
@@ -304,7 +331,10 @@
         "relaxed": [
           "女儿"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "女儿"
+        ]
       },
       "address": {
         "formal": [
@@ -313,7 +343,10 @@
         "relaxed": [
           "女儿"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "女儿"
+        ]
       }
     },
     "father": {
@@ -325,7 +358,8 @@
         "relaxed": [
           "爸爸"
         ],
-        "business": []
+        "business": [],
+        "intimate": []
       },
       "address": {
         "formal": [
@@ -335,7 +369,8 @@
           "爸",
           "爸爸"
         ],
-        "business": []
+        "business": [],
+        "intimate": []
       }
     },
     "husband": {
@@ -343,7 +378,8 @@
       "self": {
         "formal": [],
         "relaxed": [],
-        "business": []
+        "business": [],
+        "intimate": []
       },
       "address": {
         "formal": [
@@ -352,7 +388,10 @@
         "relaxed": [
           "老公"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "老公"
+        ]
       }
     },
     "wife": {
@@ -360,7 +399,8 @@
       "self": {
         "formal": [],
         "relaxed": [],
-        "business": []
+        "business": [],
+        "intimate": []
       },
       "address": {
         "formal": [
@@ -369,7 +409,10 @@
         "relaxed": [
           "老婆"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "老婆"
+        ]
       }
     },
     "mother_in_law": {
@@ -381,7 +424,8 @@
         "relaxed": [
           "妈"
         ],
-        "business": []
+        "business": [],
+        "intimate": []
       },
       "address": {
         "formal": [
@@ -391,7 +435,8 @@
           "妈",
           "妈妈"
         ],
-        "business": []
+        "business": [],
+        "intimate": []
       }
     },
     "daughter_in_law": {
@@ -401,7 +446,8 @@
           "儿媳"
         ],
         "relaxed": [],
-        "business": []
+        "business": [],
+        "intimate": []
       },
       "address": {
         "formal": [
@@ -410,7 +456,8 @@
         "relaxed": [
           "儿媳"
         ],
-        "business": []
+        "business": [],
+        "intimate": []
       }
     },
     "elder_brother": {
@@ -423,7 +470,8 @@
           "哥",
           "哥哥"
         ],
-        "business": []
+        "business": [],
+        "intimate": []
       },
       "address": {
         "formal": [
@@ -433,7 +481,8 @@
           "哥",
           "哥哥"
         ],
-        "business": []
+        "business": [],
+        "intimate": []
       }
     },
     "younger_brother": {
@@ -445,7 +494,10 @@
         "relaxed": [
           "弟弟"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "弟弟"
+        ]
       },
       "address": {
         "formal": [
@@ -454,7 +506,11 @@
         "relaxed": [
           "弟弟"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "弟弟",
+          "志北"
+        ]
       }
     },
     "elder_sister": {
@@ -467,7 +523,11 @@
           "姐",
           "姐姐"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "姐姐",
+          "念薇"
+        ]
       },
       "address": {
         "formal": [
@@ -477,7 +537,11 @@
           "姐",
           "姐姐"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "姐姐",
+          "念薇"
+        ]
       }
     },
     "younger_sister": {
@@ -489,7 +553,8 @@
         "relaxed": [
           "妹妹"
         ],
-        "business": []
+        "business": [],
+        "intimate": []
       },
       "address": {
         "formal": [
@@ -498,7 +563,8 @@
         "relaxed": [
           "妹妹"
         ],
-        "business": []
+        "business": [],
+        "intimate": []
       }
     },
     "sister_in_law": {
@@ -510,7 +576,11 @@
         "relaxed": [
           "嫂子"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "嫂子",
+          "婉青"
+        ]
       },
       "address": {
         "formal": [
@@ -520,7 +590,11 @@
           "嫂子",
           "嫂嫂"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "嫂子",
+          "婉青"
+        ]
       }
     },
     "husbands_younger_brother": {
@@ -528,7 +602,8 @@
       "self": {
         "formal": [],
         "relaxed": [],
-        "business": []
+        "business": [],
+        "intimate": []
       },
       "address": {
         "formal": [
@@ -537,7 +612,11 @@
         "relaxed": [
           "小叔"
         ],
-        "business": []
+        "business": [],
+        "intimate": [
+          "小叔",
+          "志北"
+        ]
       }
     },
     "husbands_younger_sister": {
@@ -545,7 +624,8 @@
       "self": {
         "formal": [],
         "relaxed": [],
-        "business": []
+        "business": [],
+        "intimate": []
       },
       "address": {
         "formal": [
@@ -554,7 +634,8 @@
         "relaxed": [
           "小姑"
         ],
-        "business": []
+        "business": [],
+        "intimate": []
       }
     }
   },
@@ -574,7 +655,8 @@
         "business": [
           "苏老师",
           "少奶奶"
-        ]
+        ],
+        "intimate": []
       }
     },
     {
@@ -593,7 +675,8 @@
         "business": [
           "沈董",
           "董事长"
-        ]
+        ],
+        "intimate": []
       }
     }
   ],
@@ -613,6 +696,6 @@
   },
   "selection": {
     "optional": true,
-    "rule": "称谓均为合法候选，不是必用台词。正式/放松/商务按实际话轮选择，可用我、姓名或省略；亲属自称只对明确听话者成立，不把叙述称呼复制为自称。"
+    "rule": "称谓均为合法候选，不是必用台词。正式/放松/商务按实际话轮选择，可用我、姓名或省略；intimate 私密称谓仅在低羞耻/高堕落私密独处或背德暗流场生效，公开场与旁人在场仍须守正统亲属称谓；亲属自称只对明确听话者成立，不把叙述称呼复制为自称。"
   }
 }

@@ -136,9 +136,10 @@ class LivingDirectorV2Tests(unittest.TestCase):
                 self.assertTrue(ph['soft_omen'] and ph['hard_landing'])
 
         beats = cat['beats']
-        self.assertEqual(len(beats), 49)
+        self.assertEqual(len(beats), 61)
         erotic_beats = [b for b in beats if b.get('category') == 'erotic_accident']
-        self.assertEqual(len(erotic_beats), 12)
+        self.assertEqual(len(erotic_beats), 17)
+        self.assertIn('sensual_spark_matrix', cat)
         for b in beats:
             self.assertIn(b.get('channel'), channels, f"beat {b.get('id')} missing valid channel")
             self.assertNotIn('系统提示', b.get('objective_event', ''))
@@ -640,7 +641,7 @@ class LivingDirectorV2Tests(unittest.TestCase):
     def test_10_tier0_sensual_hooks_and_drought_boost(self):
         cat = sp.load_world_beats(self.tmp)
         sensual = [b for b in cat['beats'] if b.get('category') == 'sensual_hook']
-        self.assertEqual(len(sensual), 6)
+        self.assertEqual(len(sensual), 12)
         mem = (self.tmp / rr.FILES[0]).read_text(encoding='utf-8')
         self._set_track_weights({'thread_spark': 0, 'offstage_clock': 0, 'preset_beat': 100})
         state_view = {'location': '徐家主宅', 'cast': ['沈知韫'], 'items': []}

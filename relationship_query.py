@@ -7,7 +7,7 @@ from pathlib import Path
 SOURCE = 'txt文件/关系称谓库.json'
 VIEW = 'txt文件/关系称谓查询.jsonl'
 RESOLVER = 'relationship_query.py'
-OCCASIONS = ('formal', 'relaxed', 'business')
+OCCASIONS = ('formal', 'relaxed', 'business', 'intimate')
 
 
 ELDER_ROLES = frozenset({'mother', 'adoptive_mother', 'mother_in_law', 'father'})
@@ -182,7 +182,7 @@ class RelationshipRegistry:
     def query(self, speaker, listeners, occasion):
         self._entity(speaker, speaking=True)
         if not isinstance(occasion, str) or occasion not in OCCASIONS:
-            self._fail('场合须为formal/relaxed/business')
+            self._fail('场合须为formal/relaxed/business/intimate')
         if listeners is None:
             listeners = []
         if (not isinstance(listeners, list) or len(listeners) > len(self.data['entities'])

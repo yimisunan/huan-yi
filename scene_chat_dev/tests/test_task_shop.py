@@ -350,9 +350,10 @@ class TaskAndShopTests(unittest.TestCase):
         self.assertEqual(self._read_host_attr('体力'), 55)
         self.assertEqual(sp.state(self.root, self.store._files())['item_recovered'], 10)
 
-    # 4. All 8 opening prologues deterministically mount starter TASK-001
+    # 4. All 10 opening prologues deterministically mount diversified starter TASK-001
     def test_all_eight_prologues_mount_starter_task_001(self):
-        self.assertEqual(len(opening.SCENARIOS), 8)
+        self.assertEqual(len(opening.SCENARIOS), 10)
+        seen_attrs = set()
         for scenario in opening.SCENARIOS:
             with tempfile.TemporaryDirectory(prefix='tmp_open_task-', dir=ROOT / 'scene_chat_dev/tmp') as td:
                 r = fixture(td, progression=True)
@@ -362,15 +363,18 @@ class TaskAndShopTests(unittest.TestCase):
                 mem = (r / rr.FILES[0]).read_text(encoding='utf-8')
                 engine = rr._engine(r, r)
                 tblock = engine._parse_task_block(mem)
+                exp = opening.OPENING_TASKS[scenario['id']]
                 self.assertIsNotNone(tblock['current'], scenario['id'])
                 self.assertEqual(tblock['current']['id'], 'TASK-001')
-                self.assertEqual(tblock['current']['target'], '系统宿主')
-                self.assertEqual(tblock['current']['attr'], '积分')
-                self.assertEqual(tblock['current']['value'], 4)
+                self.assertEqual(tblock['current']['target'], exp['target'])
+                self.assertEqual(tblock['current']['attr'], exp['attr'])
+                self.assertEqual(tblock['current']['value'], exp['value'])
                 self.assertEqual(tblock['current']['tier'], 'small')
                 self.assertEqual(tblock['current']['status'], '进行中')
+                seen_attrs.add(exp['attr'])
                 # Ensure 【商城与回响状态】 still intact right next to 【任务状态】
                 self.assertIn('【商城与回响状态】', mem)
+        self.assertTrue({'积分', '商业嗅觉', '好感'}.issubset(seen_attrs))
 
         # Unfinished prologue playback blocks deterministic shop redeem
         with self.store._locked():
@@ -388,20 +392,20 @@ class TaskAndShopTests(unittest.TestCase):
     # 5. Task completion -> echo -> one-click claim + same-turn pending_item + new task regression
     def test_task_completion_echo_claim_and_same_turn_chain(self):
         with self.store._locked():
-            opening.initialize_prologue(self.root, 'quest-flow', opening.SCENARIOS[0]['id'])
+            opening.initialize_prologue(self.root, 'quest-flow', 'zhiyun_sunday_noon')
         self._play_all()
-        self._set_host_attr('积分', 2)
+        self._set_host_attr('积分', 4)
 
-        # Trigger host_events (+2 points) to cross TASK-001 target (4)
+        # Trigger host_events (+2 points) to cross TASK-001 target (6 for zhiyun_sunday_noon)
         ev_text = '她安静听完你的安排，微微颔首。'
         self._accept_paid(
-            time='23:15',
+            time='12:05',
             text=ev_text,
             events=[{'group': 'host_events', 'target': '系统宿主', 'tags': ['日常_信任建立'], 'evidence': ev_text}],
         )
         snap = self._play_all()
         self.assertTrue(snap['settlement']['task_completed'])
-        self.assertEqual(self._read_host_attr('积分'), 19)  # 2 + 2 + 15
+        self.assertEqual(self._read_host_attr('积分'), 21)  # 4 + 2 + 15
         self.assertTrue(snap['world']['tasks']['pending_item'].startswith('TASK-001'))
         mem_after_complete = (self.root / rr.FILES[0]).read_text(encoding='utf-8')
         echoes = sp.parse_shop_echo_block(mem_after_complete)['echoes']

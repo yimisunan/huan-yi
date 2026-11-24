@@ -209,7 +209,7 @@ class LegacyWorld:
         for anchor in ('【当前激活微状态】', '【当前持久化状态与BUFF】', '【回合计数器】', '【监视状态】', '【道具倒计时】', '【回合生命周期】'):
             rows = span(anchor)
             states[anchor] = origin(rr.FILES[0], rows[0][0], rows[-1][0], '\n'.join(v for _, v in rows)) if rows else None
-        for opt_anchor in ('【商城与回响状态】', '【商业情报与杠杆状态】', '【世界导演状态】'):
+        for opt_anchor in ('【商城与回响状态】', '【商业情报与杠杆状态】', '【情欲与空间态势】', '【世界导演状态】'):
             if any(line.strip() == opt_anchor for line in lines):
                 rows = span(opt_anchor)
                 states[opt_anchor] = origin(rr.FILES[0], rows[0][0], rows[-1][0], '\n'.join(v for _, v in rows)) if rows else None
@@ -230,8 +230,9 @@ class LegacyWorld:
             try:
                 layers_meta = json.loads(texts[save_store.MEMORY_LAYERS_PATH])
                 prologue_from_json = bool(layers_meta.get('prologue_active'))
+                layer_map = layers_meta.get('layers') if isinstance(layers_meta.get('layers'), dict) else layers_meta
                 for lkey in ('L1', 'L2', 'L3', 'L4'):
-                    for j_entry in layers_meta.get(lkey, []) if isinstance(layers_meta.get(lkey), list) else []:
+                    for j_entry in layer_map.get(lkey, []) if isinstance(layer_map.get(lkey), list) else []:
                         if not isinstance(j_entry, dict):
                             continue
                         kb = j_entry.get('known_by')

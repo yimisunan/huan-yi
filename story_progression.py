@@ -730,7 +730,7 @@ def load_world_beats(root, optional=True):
         if optional:
             return {
                 'version': 1, 'beats': [], 'channels': dict(DIRECTOR_DEFAULT_CHANNELS),
-                'spark_matrix': {}, 'offstage_clocks': {}, 'source': rel,
+                'spark_matrix': {}, 'sensual_spark_matrix': {}, 'offstage_clocks': {}, 'source': rel,
             }
         raise rr.RoundError('缺少世界变故库：' + rel)
     raw = rr.load_request(path.read_text(encoding='utf-8'))
@@ -739,12 +739,14 @@ def load_world_beats(root, optional=True):
         raise rr.RoundError('世界变故库结构无效')
     channels = raw.get('channels') if isinstance(raw.get('channels'), dict) else dict(DIRECTOR_DEFAULT_CHANNELS)
     spark_matrix = raw.get('spark_matrix') if isinstance(raw.get('spark_matrix'), dict) else {}
+    sensual_spark_matrix = raw.get('sensual_spark_matrix') if isinstance(raw.get('sensual_spark_matrix'), dict) else {}
     offstage_clocks = raw.get('offstage_clocks') if isinstance(raw.get('offstage_clocks'), dict) else {}
     return {
         'version': int(raw.get('version', 1)),
         'beats': beats,
         'channels': channels,
         'spark_matrix': spark_matrix,
+        'sensual_spark_matrix': sensual_spark_matrix,
         'offstage_clocks': offstage_clocks,
         'source': rel,
     }
@@ -1214,6 +1216,18 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
         if any(it['id'] not in istate['held'] and it['id'] not in istate['consumed'] and host_biz >= it['min_biz']
                for it in icat.get('items', [])):
             p_tension += 0.08
+    intl_state = (state or {}).get('intimate') if isinstance((state or {}).get('intimate'), dict) else {}
+    present_actors = [a for a in (intl_state.get('present_actors') or []) if a in cast]
+    eff_present = set(present_actors) if present_actors else set(cast)
+    cur_privacy = str(intl_state.get('privacy') or 'open_public')
+    attire_map = intl_state.get('attire') if isinstance(intl_state.get('attire'), dict) else {}
+    deployed_items = [d for d in ((state or {}).get('deployed_items') or []) if isinstance(d, dict)]
+    high_risk_devs_here = [
+        d for d in deployed_items
+        if d.get('location') == location and int(d.get('detected_risk') or 0) >= 60
+    ]
+    if high_risk_devs_here:
+        p_tension += 0.12
     p_tension = min(0.35, p_tension)
 
     clock = (runtime or {}).get('clock')
@@ -1264,8 +1278,19 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
     track_pool = []
 
     # --- Track 1: Living Threads × Combinatorial Spark Matrix (Mythic GME + PbtA) ---
-    actions = spark_cfg.get('actions') or []
-    textures = spark_cfg.get('textures') or []
+    sensual_spark_cfg = catalog.get('sensual_spark_matrix') if isinstance(catalog.get('sensual_spark_matrix'), dict) else {}
+    use_sensual_spark = bool(
+        sensual_spark_cfg
+        and has_heroine_here
+        and (intl_state.get('scene_active') or sensual_drought >= 2)
+    )
+    actions = list(spark_cfg.get('actions') or [])
+    textures = list(spark_cfg.get('textures') or [])
+    if use_sensual_spark:
+        if sensual_spark_cfg.get('actions'):
+            actions = list(sensual_spark_cfg['actions']) + actions
+        if sensual_spark_cfg.get('textures'):
+            textures = list(sensual_spark_cfg['textures']) + textures
     moves_cfg = spark_cfg.get('moves') or {}
     soft_moves = moves_cfg.get('soft') or []
     hard_moves = moves_cfg.get('hard') or []
@@ -1295,6 +1320,7 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
     has_mature_seed_beat = False
     has_erotic_beat = False
     has_sensual_beat = False
+    has_device_risk_beat = False
     drought_boost = 1.0 + min(0.90, max(0, sensual_drought - 2) * 0.30)
     for beat in catalog.get('beats', []):
         bid = beat.get('id', '')
@@ -1311,6 +1337,23 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
         req_cast = beat.get('required_cast') or []
         if any(c not in cast for c in req_cast):
             continue
+        # 撞破/半掩房门类变故仅允许初抵本场景(scene_turns<=1)或目标不在当前房间内(eff_present外)触发，防止正面对面共处时空间瞬移穿帮
+        if 'requires_door_catch' in beat:
+            is_door_catch = bool(beat.get('requires_door_catch'))
+        else:
+            is_door_catch = bid.startswith(('BEAT-T2-EROTIC-', 'BEAT-T3-EROTIC-', 'BEAT-T4-EROTIC-'))
+        if is_door_catch and scene_turns >= 2:
+            if req_cast and all(c in eff_present for c in req_cast):
+                continue
+        req_priv = beat.get('requires_privacy') or []
+        if req_priv and cur_privacy not in req_priv:
+            continue
+        if beat.get('requires_gifted_outfit'):
+            if not req_cast or not any((attire_map.get(c) or {}).get('gifted_items') for c in req_cast):
+                continue
+        if beat.get('requires_high_risk_device'):
+            if not high_risk_devs_here:
+                continue
         slots = beat.get('time_slots') or ['any']
         if 'any' not in slots and slot not in slots:
             continue
@@ -1367,6 +1410,9 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
         elif is_sensual_beat:
             has_sensual_beat = True
             w *= 1.45 * drought_boost
+        if beat.get('requires_high_risk_device'):
+            has_device_risk_beat = True
+            w *= 2.80
         beat_chan = str(beat.get('channel') or '').strip()
         if beat_chan and beat_chan in recent_channel_set:
             w *= (0.45 if (is_erotic_beat or is_sensual_beat) else 0.15)
@@ -1377,9 +1423,27 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
             w *= 1.5
         preset_candidates.append((beat, w))
 
+    if high_risk_devs_here and not has_device_risk_beat:
+        top_dev = max(high_risk_devs_here, key=lambda d: int(d.get('detected_risk') or 0))
+        spot_txt = top_dev.get('spot') or '隐蔽角落'
+        dev_name = top_dev.get('name') or '隐蔽装置'
+        synth_beat = {
+            'id': f"BEAT-DYN-DEVICE-RISK-{top_dev.get('id', 'DEV')}",
+            'tier': 'tier2',
+            'category': 'covert_risk',
+            'channel': 'object_trace',
+            'cooldown': 4,
+            'once': False,
+            'objective_event': (
+                f"室内光线扫过{spot_txt}，暗藏的「{dev_name}」在微弱反光或整理擦拭间隙险些被在场人注意，空气骤然收紧，需决定借动作遮掩、转移视线还是顺势拆除。"
+            ),
+        }
+        preset_candidates.append((synth_beat, 42.0))
+        has_device_risk_beat = True
+
     w_t3_base = float(track_cfg.get('preset_beat', 25))
     if w_t3_base > 0 and preset_candidates:
-        t3_mult = 1.8 if has_mature_seed_beat else (1.35 if (has_erotic_beat or has_sensual_beat) else 1.0)
+        t3_mult = 1.8 if (has_mature_seed_beat or has_device_risk_beat) else (1.35 if (has_erotic_beat or has_sensual_beat) else 1.0)
         if sensual_drought >= 3 and (has_erotic_beat or has_sensual_beat):
             t3_mult = max(t3_mult, 1.85)
         track_pool.append(('preset_beat', w_t3_base * t3_mult))
@@ -2000,6 +2064,29 @@ def item_quote(root, files, item_id):
             'effect':int(effect[1]),'recovery':gain,'quantity':1,'remaining_budget':20-runtime['item_recovered']-gain}
 
 
+def active_costs(root, files=None):
+    """Return active A/B/C stamina costs (applies slow-burn intimate continuation discount when in an active intimate session)."""
+    cfg = config(root)
+    res = cfg.get('resource') or {}
+    base = dict(COSTS)
+    if files is None:
+        return base
+    try:
+        st_obj, _, _ = save_store.load_bundle(Path(root), files)
+        intl = (st_obj.get('intimate') or {})
+        min_beats = int(res.get('intimate_min_beats_for_discount', 1))
+        if intl.get('scene_active') and int(intl.get('session_beats', 0) or 0) >= min_beats:
+            disc = res.get('intimate_continuation_costs') or {}
+            return {
+                'A': int(disc.get('A', base['A'])),
+                'B': int(disc.get('B', base['B'])),
+                'C': int(disc.get('C', base['C'])),
+            }
+    except Exception:
+        pass
+    return base
+
+
 def quote(root, files, selected, text, command=None):
     config(root)
     if selected is None:
@@ -2024,11 +2111,13 @@ def quote(root, files, selected, text, command=None):
     elif option=='BEGIN':kind='begin'
     elif item:kind='item'
     else:kind='action'
-    amount=COSTS.get(option,15) if kind=='action' else 0
+    tier_costs = active_costs(root, files)
+    amount=tier_costs.get(option, tier_costs['C']) if kind=='action' else 0
     if current < amount:
         raise rr.RoundError('体力不足以预扣本档费用，请选择可用档位或提前使用恢复道具')
     value={'status':'active','scheme':'fixed_tiers','kind':kind,'attribute':'体力','total':amount,
-           'before':current,'after':current-amount,'policy_version':2,'option_id':option}
+           'before':current,'after':current-amount,'policy_version':2,'option_id':option,
+           'intimate_discount': tier_costs != COSTS}
     if kind=='item':value['item']=item_quote(root,files,item['item_id'])
     return value
 
@@ -2107,7 +2196,7 @@ def refund(service,tasks,job,status,error):
 def resolution(root,files,body):
     value=body['resolution']
     required={'category','basis','clock','events','memory','conditions','sleep','task','items'}
-    rr._keys(value,required | {'intel_used','director_echo'},'resolution',required)
+    rr._keys(value,required | {'intel_used','director_echo','scene_state'},'resolution',required)
     selected=body['selection'];reservation=body['audit'].get('reservation')
     if not isinstance(reservation,dict) or reservation.get('status')!='held':
         raise rr.RoundError('缺少由正式任务写入器登记的预扣')
@@ -2166,12 +2255,28 @@ def resolution(root,files,body):
         memory_text(text,'memory.transfer',limits[{'l1_to_l2_condensed':'l2_chars','l2_to_l3_summary':'l3_chars','l3_to_l4_summary':'l4_chars'}[key]])
     engine=rr._engine(Path(root),Path(root))
     memory_raw=files[rr.FILES[0]].decode('utf-8')
+    bundle_st, _, _ = save_store.load_bundle(Path(root), files)
+    intl_now = bundle_st.get('intimate') or save_store.default_intimate()
+    intimate_mode = bool(intl_now.get('scene_active'))
     presence=engine.parse_presence_from_memory(memory_raw)
     place=body['operation'].get('destination') if body.get('operation') and body['operation']['code']=='move_player' else presence['徐志北']['location']
     active_cast={n for n,info in presence.items() if n!='徐志北' and info['location']==place}
     if ((place=='徐家主宅' and re.search(r'^徐承邺位置：\s*(?:徐家主宅|徐家住宅)\b',memory_raw,re.M))
             or (place=='市中心顶层公寓' and re.search(r'^徐承邺位置：\s*市中心顶层公寓\b',memory_raw,re.M))):
         active_cast.add('徐承邺')
+    remote_cast = set()
+    op_body = body.get('operation')
+    if isinstance(op_body, dict) and op_body.get('code') == 'inspect_deployed':
+        dev_id = op_body.get('item_id')
+        dev_obj = next((d for d in (bundle_st.get('items', {}).get('deployed') or []) if d.get('id') == dev_id), None)
+        if dev_obj and dev_obj.get('location'):
+            dloc = dev_obj['location']
+            remote_cast = {n for n, info in presence.items() if n != '徐志北' and info['location'] == dloc}
+    remote_allowed_tags = {
+        'ds_events': {engine._event_tag('DS_18')},
+        'depravity_events': {engine._event_tag('DEPRAVITY_10')},
+        'shame_events': {engine._event_tag('SHAME_20')},
+    }
     grouped={key:[] if key=='host_events' else {} for key in engine._load_event_registry()['groups']}
     if not isinstance(value['events'],list) or len(value['events'])>40:
         raise rr.RoundError('事件须为最多40组的数组')
@@ -2193,8 +2298,11 @@ def resolution(root,files,body):
         elif group=='depravity_events' and target=='徐承邺' and dep02_tag in tags:
             pass
         elif target!='系统宿主' and target not in active_cast:
-            valid_cast = '、'.join(sorted(active_cast)) or '无'
-            raise rr.RoundError(f'事件对象不在本段实际场内：{target}（当前合法在场角色：{valid_cast}；请核对target或删除场外人物事件）')
+            if target in remote_cast and group in remote_allowed_tags and set(tags) <= remote_allowed_tags[group]:
+                pass
+            else:
+                valid_cast = '、'.join(sorted(active_cast)) or '无'
+                raise rr.RoundError(f'事件对象不在本段实际场内：{target}（当前合法在场角色：{valid_cast}；请核对target或删除场外人物事件）')
         rr._text(event['evidence'],'event.evidence',1200)
         if not _evidence_matches(event['evidence'],texts):
             raise rr.RoundError('事件必须引用本段实际正文，不以选项或计划作已发生依据（请从 foreground_messages 的 text 中原样逐字截取子串作为 evidence）')
@@ -2203,6 +2311,17 @@ def resolution(root,files,body):
         if group=='host_events':grouped[group].extend(tags)
         else:grouped[group].setdefault(target,[]).extend(tags)
     rr._validate_event_fields(Path(root),engine,grouped)
+    if kind == 'action':
+        player_in_txt = str(body.get('input') or body.get('action') or '')
+        force_blackout_auth = bool(re.search(r'[（(][^）)]*(?:强行|强制|继续|不管断电|趁虚)[^）)]*[）)]', player_in_txt))
+        if not force_blackout_auth:
+            deep_heavy_tags = {engine._event_tag('SHAME_03'), engine._event_tag('SHAME_04')}
+            for who, stags in grouped['shame_events'].items():
+                if who in save_store.HEROINES and (set(stags) & deep_heavy_tags):
+                    cur_npc_sta = int(((bundle_st.get('panels') or {}).get(who) or {}).get('体力', 100) or 0)
+                    if cur_npc_sta <= 15:
+                        raise rr.RoundError(f'{who}当前处于生理断电期（体力{cur_npc_sta}≤15），未获玩家括号强行授权前禁止继续施加深度/重度越界，请改为照料、低语余韵或收束场景')
+    scene_state = rr._validate_scene_state(value.get('scene_state'), active_cast, building_cast=active_cast) if kind == 'action' else None
     intel_used_raw=value.get('intel_used')
     intel_used=None
     if intel_used_raw not in (None,''):
@@ -2238,7 +2357,7 @@ def resolution(root,files,body):
     if kind=='action':
         if not isinstance(value['conditions'],dict):
             raise rr.RoundError('普通付费行动的resolution.conditions必须是完整对象，即使只作澄清或未移动；字段为intensity/effective_progress/scene/npc/action_changed/stress_signals/breakout_triggered，无NPC仅npc为null')
-        try:rr._round_conditions(value['conditions'],grouped)
+        try:rr._round_conditions(value['conditions'],grouped,intimate_mode=intimate_mode)
         except rr.RoundError as exc:raise rr.RoundError('resolution.conditions字段不符：'+str(exc)) from exc
         if value['conditions']['intensity']!=value['category']:
             raise rr.RoundError('有效行动烈度须与本次实际判档一致')
@@ -2330,11 +2449,13 @@ def resolution(root,files,body):
         parse_director_block(memory_raw),
         is_action=(kind=='action'),
     )
-    final_cost=COSTS[value['category']] if kind=='action' else 0
+    tier_costs=active_costs(root,files)
+    final_cost=tier_costs[value['category']] if kind=='action' else 0
     return {'runtime':runtime,'cost':cost,'refund':cost['total']-final_cost,'net':final_cost,
             'events':grouped,'clock':clock,'elapsed':0 if start is None else end-start,'sleep':sleep,
             'intel_used':intel_used,'director_echo':director_echo,'active_cast':sorted(active_cast),
-            'insomnia_targets':sorted(insomnia_targets)}
+            'insomnia_targets':sorted(insomnia_targets),'scene_state':scene_state,
+            'intimate_mode':intimate_mode,'remote_cast':sorted(remote_cast)}
 
 
 def panel_values(engine,text):
@@ -2387,9 +2508,28 @@ def apply_staged(store,engine,stage,body,files,parsed):
     events=parsed['events'];lifecycle=None;states=None;counts=None
     task_completed=False;task_issued=False;completed_task_info=None
     leverage_triggered=None;intel_consumed=None;schedule_moves=[]
+    charm_gained_now=False
     active_cast=parsed.get('active_cast') or []
-    # 记录本幕实际发生时的同席知情者（先于离场日程移动，确保 messages_known_by 不掺入后到的场外 NPC）
-    scene_known_by=['徐志北',*active_cast] if kind!='item' else ['徐志北']
+    st_pre,_,_=save_store.load_bundle(stage)
+    intl_pre=st_pre.get('intimate') or save_store.default_intimate()
+    scene_state=parsed.get('scene_state')
+    op_now_all=body.get('operation')
+    moved_now=bool(isinstance(op_now_all,dict) and op_now_all.get('code')=='move_player')
+    if isinstance(scene_state,dict) and 'present_actors' in scene_state and isinstance(scene_state['present_actors'],list):
+        present_actors=[a for a in scene_state['present_actors'] if a in active_cast]
+    elif (not moved_now) and intl_pre.get('present_actors'):
+        present_actors=[a for a in intl_pre['present_actors'] if a in active_cast]
+        if not present_actors and active_cast:
+            present_actors=list(active_cast)
+    else:
+        present_actors=list(active_cast)
+    eff_privacy=(
+        (scene_state.get('privacy') if isinstance(scene_state,dict) and scene_state.get('privacy') in save_store.PRIVACY_LEVELS else None)
+        or ('open_public' if moved_now else intl_pre.get('privacy'))
+        or 'open_public'
+    )
+    # 记录本幕实际发生时的房间级同席知情者（隔离同栋楼未入室角色，防止私密戏泄密）
+    scene_known_by=['徐志北',*present_actors] if kind!='item' else ['徐志北']
     if kind=='action':
         # 0. 若本轮玩家通过 use_item 启用带 buff: 效果的道具，先预挂 (turns+1) 回合使本轮结算即刻享受缓冲，随后 update_persistent_buffs 统一 -1 落定为满额 turns
         op_now=body.get('operation')
@@ -2402,18 +2542,32 @@ def apply_staged(store,engine,stage,body,files,parsed):
                 if len(bparts)==4 and bparts[2].isdigit():
                     bname,bturns,bdesc=bparts[1].strip(),max(1,int(bparts[2])),bparts[3].strip()
                     op_target=str(op_now.get('target') or '').strip()
-                    recipients=[op_target] if op_target in save_store.HEROINES else [c for c in active_cast if c in save_store.HEROINES]
+                    recipients=[op_target] if op_target in save_store.HEROINES else [c for c in present_actors if c in save_store.HEROINES]
                     if recipients:
                         pre_buff_map={who:f'[{bname}] 剩余时效: {bturns + 1}回合 (效果: {bdesc})' for who in recipients}
                         rr._atomic(memory_path,_inject_buff_no_tick(memory_path.read_text(encoding='utf-8'),pre_buff_map).encode('utf-8'))
         # Lifecycle units are accepted paid actions, independently of memory rounds.
         action=runtime['action_index']+1
         pre_mem=memory_path.read_text(encoding='utf-8')
-        auto_micro=derive_micro_state_changes(engine,events,value['conditions'],active_cast,pre_mem)
+        auto_micro=derive_micro_state_changes(engine,events,value['conditions'],present_actors,pre_mem)
         lifecycle_body={'current_round':action,'memory_deltas':{'round_conditions':value['conditions']},
                         'micro_state_changes':auto_micro,'counter_updates':{},'system_log':'',**copy.deepcopy(events)}
-        derived,lifecycle,states,counts=rr._derive_lifecycle(engine,lifecycle_body,pre_mem,active_cast=active_cast)
+        derived,lifecycle,states,counts=rr._derive_lifecycle(engine,lifecycle_body,pre_mem,active_cast=present_actors)
         events={k:derived[k] for k in events};runtime['action_index']=action
+        # 魅力精进(HOST_16)严格防刷冷却：每场景最多触发 1 次（切换地点或跨夜后重置）
+        host16_tag=engine._event_tag('HOST_16')
+        if host16_tag and host16_tag in events.get('host_events',[]):
+            if bool((st_pre.get('mechanics') or {}).get('charm_scene_used')) and not moved_now:
+                events['host_events']=[t for t in events['host_events'] if t!=host16_tag]
+            else:
+                seen_h16=False
+                dedup_h=[]
+                for t in events['host_events']:
+                    if t==host16_tag:
+                        if seen_h16: continue
+                        seen_h16=True;charm_gained_now=True
+                    dedup_h.append(t)
+                events['host_events']=dedup_h
         if any(t.startswith('兑换道具_') for t in events['host_events']):
             points=engine._read_attr_value(memory_path.read_text(encoding='utf-8'),'系统宿主','积分')
             if sum(int(t.split('_')[1]) for t in events['host_events'] if t.startswith('兑换道具_'))>points:raise rr.RoundError('兑换积分不足，未接受道具或扣费')
@@ -2429,8 +2583,9 @@ def apply_staged(store,engine,stage,body,files,parsed):
         ev_meta=rr._engine_call(
             engine.apply_story_events,events,value['task'],runtime['memory_round'],
             business_leverage=use_leverage,current_day=parsed['clock']['day'],
-            active_cast=active_cast,pre_event_content=pre_mem,
+            active_cast=present_actors,pre_event_content=pre_mem,
             insomnia_targets=parsed.get('insomnia_targets'),defer_task=True,
+            privacy=eff_privacy,
         )
         if isinstance(ev_meta,dict) and isinstance(ev_meta.get('normalized_events'),dict):
             events=ev_meta['normalized_events']
@@ -2700,7 +2855,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
             runtime['last_closed']=runtime['memory_round'];runtime['memory_round']+=1;runtime['closed_by']=body['request_id'];closed=True
         runtime['phase']='ready' if parsed['sleep']['kind']=='overnight' and final>=5 else 'resting'
     else:runtime['phase']='ready'
-    # 最终统一同步 P2 JSON 真相与单向可读视图（含最新 runtime/weekday）
+    # 最终统一同步 P2 JSON 真相与单向可读视图（含最新 runtime/weekday 与 intimate 空间/痕迹/暗流态）
     st_final,ly_final,_=save_store.load_bundle(stage)
     st_final['runtime'].update({
         'clock':copy.deepcopy(runtime['clock']),
@@ -2712,6 +2867,21 @@ def apply_staged(store,engine,stage,body,files,parsed):
         'action_index':runtime['action_index'],
         'closed_by':runtime['closed_by'],
     })
+    intimate_meta={'stealth_alert':False,'high_risk_devices':[]}
+    if kind!='item':
+        intimate_meta=engine.advance_intimate_state(
+            st_final,
+            events,
+            scene_state=scene_state,
+            active_cast=present_actors,
+            building_cast=active_cast,
+            sleep_kind=parsed['sleep']['kind'],
+            location_changed=moved_now,
+        )
+        if parsed['sleep']['kind']=='overnight' or moved_now:
+            st_final.setdefault('mechanics',{})['charm_scene_used']=False
+        elif charm_gained_now:
+            st_final.setdefault('mechanics',{})['charm_scene_used']=True
     if merged:
         ly_final['prologue_active']=False
     save_store.save_bundle(stage,st_final,ly_final)
@@ -2728,24 +2898,26 @@ def apply_staged(store,engine,stage,body,files,parsed):
              'schedule_moves':schedule_moves,'leverage_triggered':leverage_triggered,'intel_consumed':intel_consumed,
              'memory_round':runtime['memory_round'],
              'closed_round':runtime['last_closed'] if closed else None,'phase':runtime['phase'],'item_budget':20-runtime['item_recovered'],
-             'sleep_completed':parsed['sleep']['kind']=='overnight','_scene_known_by':scene_known_by}
+             'sleep_completed':parsed['sleep']['kind']=='overnight','_scene_known_by':scene_known_by,
+             'intimate_meta':intimate_meta}
     return runtime,receipt
 
 
-def category_policy(kind, option_id=None):
+def category_policy(kind, option_id=None, *, intimate_mode=False):
     if kind != 'action':
         return {'mode':'system', 'required_category':'SYSTEM',
                 'instruction':'本次为免费系统过渡，resolution.category只能为SYSTEM。'}
     if option_id in COSTS:
+        extra = ' 当前处于亲密进行态：固定B档允许依据正文实际触碰记录 C烈度_轻度 或 C烈度_中度（深度/重度仍须走C档），A档仍禁C烈度_*。' if intimate_mode else ''
         return {'mode':'fixed_option', 'required_category':option_id,
-                'instruction':f'本次玩家已选固定{option_id}选项，resolution.category必须原样返回{option_id}，不能按正文重新判档或降价。按已授权原行动生成，不因档位提高接触、情绪或剧情烈度，不保证成功。conditions.intensity按现有契约与category一致，不据此虚构事件。'}
+                'instruction':f'本次玩家已选固定{option_id}选项，resolution.category必须原样返回{option_id}，不能按正文重新判档或降价。按已授权原行动生成，不因档位提高接触、情绪或剧情烈度，不保证成功。conditions.intensity按现有契约与category一致，不据此虚构事件。{extra}'}
     return {'mode':'custom', 'required_category':None,
             'instruction':'本次为自定义行动，resolution.category按实际成立行为判A/B/C并给出依据，不得使用SYSTEM；费用由程序计算。'}
 
 
-def resolution_policy(kind, option_id=None):
-    return {'kind':kind,'conditions_required':kind=='action',
-            'category_policy':category_policy(kind, option_id),
+def resolution_policy(kind, option_id=None, *, intimate_mode=False):
+    return {'kind':kind,'conditions_required':kind=='action','intimate_mode':bool(intimate_mode),
+            'category_policy':category_policy(kind, option_id, intimate_mode=intimate_mode),
             'conditions_fields':['intensity','effective_progress','scene','npc','action_changed','stress_signals','breakout_triggered'],
             'instruction':'普通付费行动必须提交七字段conditions对象；澄清/未移动也填，按事实用false，不改字段名；无NPC仅npc为空。免费SYSTEM的conditions为空。'}
 

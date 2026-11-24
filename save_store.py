@@ -98,6 +98,53 @@ def default_director():
     }
 
 
+PRIVACY_LEVELS = ('open_public', 'semi_open', 'thin_wall', 'under_cover', 'locked_private')
+PRIVACY_LABELS = {
+    'open_public': '公共开放',
+    'semi_open': '虚掩半开放',
+    'thin_wall': '隔墙有人',
+    'under_cover': '同席暗触',
+    'locked_private': '反锁私密',
+}
+ATTIRE_STATES = ('neat', 'disheveled', 'half_undressed', 'wet', 'torn')
+ATTIRE_LABELS = {
+    'neat': '整洁',
+    'disheveled': '凌乱滑落',
+    'half_undressed': '半褪暴露',
+    'wet': '潮湿贴肤',
+    'torn': '破损撕裂',
+}
+INTER_HEROINE_PAIRS = (
+    '沈知韫->苏婉青', '沈知韫->徐念薇',
+    '苏婉青->沈知韫', '苏婉青->徐念薇',
+    '徐念薇->沈知韫', '徐念薇->苏婉青',
+)
+INTER_HEROINE_LABELS = {
+    0: '无觉察',
+    1: '疑心端倪',
+    2: '撞破掌握',
+    3: '默契共谋',
+}
+
+
+def default_intimate():
+    return {
+        'scene_active': False,
+        'session_beats': 0,
+        'session_orgasms': {name: 0 for name in HEROINES},
+        'privacy': 'open_public',
+        'sub_location': '',
+        'present_actors': [],
+        'noise_risk': 0,
+        'attire': {
+            name: {'outfit': 'default', 'state': 'neat', 'gifted_items': []}
+            for name in HEROINES
+        },
+        'traces': {name: [] for name in HEROINES},
+        'inter_heroine': {pair: 0 for pair in INTER_HEROINE_PAIRS},
+    }
+
+
 def default_mechanics():
     return {
         'su_affection_85_unlocked': False,
@@ -142,6 +189,7 @@ def default_state():
             '连续守护回合': 0,
         },
         'mechanics': default_mechanics(),
+        'intimate': default_intimate(),
         'vigilance': {
             '位置': '外地',
             '目标': {
@@ -415,6 +463,58 @@ def normalize_state(raw):
         else:
             mech['pregnancy_latent_until'][name] = max(0, _parse_int(raw_latent.get(name), 0))
         mech['masturbation_trace'][name] = max(0, _parse_int(raw_mast.get(name), 0))
+    # Intimate / Privacy / Attire / Traces / Inter-Heroine
+    raw_int = raw.get('intimate') if isinstance(raw.get('intimate'), dict) else {}
+    intl = base['intimate']
+    intl['scene_active'] = bool(raw_int.get('scene_active', False))
+    intl['session_beats'] = max(0, _parse_int(raw_int.get('session_beats'), 0)) if intl['scene_active'] else 0
+    raw_sorg = raw_int.get('session_orgasms') if isinstance(raw_int.get('session_orgasms'), dict) else {}
+    for name in HEROINES:
+        intl['session_orgasms'][name] = max(0, _parse_int(raw_sorg.get(name), 0)) if intl['scene_active'] else 0
+    priv = str(raw_int.get('privacy') or 'open_public').strip()
+    intl['privacy'] = priv if priv in PRIVACY_LEVELS else 'open_public'
+    intl['sub_location'] = str(raw_int.get('sub_location') or '').strip()[:48]
+    raw_actors = raw_int.get('present_actors')
+    if isinstance(raw_actors, list):
+        valid_actors = set(HEROINES) | {'徐承邺'}
+        intl['present_actors'] = list(dict.fromkeys(
+            str(a).strip() for a in raw_actors if isinstance(a, str) and str(a).strip() in valid_actors
+        ))
+    intl['noise_risk'] = max(0, min(100, _parse_int(raw_int.get('noise_risk'), 0)))
+    raw_attire = raw_int.get('attire') if isinstance(raw_int.get('attire'), dict) else {}
+    for name in HEROINES:
+        ra = raw_attire.get(name) if isinstance(raw_attire.get(name), dict) else {}
+        outfit = str(ra.get('outfit') or 'default').strip()[:64] or 'default'
+        astate = str(ra.get('state') or 'neat').strip()
+        if astate not in ATTIRE_STATES:
+            astate = 'neat'
+        gifted = ra.get('gifted_items')
+        clean_gifted = list(dict.fromkeys(
+            str(g).strip()[:64] for g in (gifted or []) if isinstance(g, str) and str(g).strip()
+        ))[:12] if isinstance(gifted, list) else []
+        intl['attire'][name] = {'outfit': outfit, 'state': astate, 'gifted_items': clean_gifted}
+    raw_traces = raw_int.get('traces') if isinstance(raw_int.get('traces'), dict) else {}
+    for name in HEROINES:
+        tlist = raw_traces.get(name)
+        clean_traces = []
+        if isinstance(tlist, list):
+            for tr in tlist:
+                if not isinstance(tr, dict):
+                    continue
+                kind = str(tr.get('kind') or '').strip()[:24]
+                desc = str(tr.get('desc') or kind).strip()[:80]
+                turns = _parse_int(tr.get('turns'), 0)
+                if kind and turns > 0:
+                    clean_traces.append({
+                        'kind': kind,
+                        'desc': desc,
+                        'turns': min(24, turns),
+                        'visible': bool(tr.get('visible', True)),
+                    })
+        intl['traces'][name] = clean_traces[-6:]
+    raw_ih = raw_int.get('inter_heroine') if isinstance(raw_int.get('inter_heroine'), dict) else {}
+    for pair in INTER_HEROINE_PAIRS:
+        intl['inter_heroine'][pair] = max(0, min(3, _parse_int(raw_ih.get(pair), 0)))
     # Vigilance
     raw_vig = raw.get('vigilance') if isinstance(raw.get('vigilance'), dict) else {}
     if raw_vig.get('位置'):
@@ -605,6 +705,7 @@ def _parse_legacy_items(item_text):
                 'id': item_id,
                 'name': name,
                 'type': fields.get('类型', '永久性'),
+                'category': fields.get('分类', ''),
                 'usage_mode': fields.get('使用模式', ''),
                 'desc': fields.get('描述', '未填写'),
                 'quantity': _parse_int(fields.get('数量'), 1),
@@ -614,6 +715,7 @@ def _parse_legacy_items(item_text):
                 'spot': fields.get('安装点位', ''),
                 'hidden': fields.get('隐蔽部署', '是'),
                 'installed_clock': fields.get('部署时间', ''),
+                'detected_risk': _parse_int(fields.get('暴露风险'), 0),
                 'target': fields.get('使用对象', '未使用'),
                 'duration': fields.get('时效', '无'),
                 'remaining': rem_str or '无',
@@ -1061,12 +1163,16 @@ def render_memory_txt(state, mem_layers):
     lines.append('')
 
     lines.append('【道具倒计时】')
-    timers = [it for it in state['items']['active'] if it.get('remaining_turns') is not None]
+    timers = [
+        it for it in (*state['items']['active'], *state['items'].get('deployed', []))
+        if it.get('remaining_turns') is not None
+    ]
     if not timers:
         lines.append('（空）')
     else:
         for it in timers:
-            lines.append(f"{it['id']}：{it['remaining_turns']}回合 | 名称：{it['name']} | 状态：进行中")
+            tag = '已部署' if it.get('status') == '已部署' else '进行中'
+            lines.append(f"{it['id']}：{it['remaining_turns']}回合 | 名称：{it['name']} | 状态：{tag}")
     lines.append('')
 
     shop = state['shop']
@@ -1099,6 +1205,45 @@ def render_memory_txt(state, mem_layers):
     lines.append(f"商业杠杆预备：已预备({intel['leverage_armed']})" if intel['leverage_armed'] else '商业杠杆预备：未启用')
     lines.append('')
 
+    intl = state.get('intimate') or default_intimate()
+    has_intimate_notes = (
+        intl.get('scene_active')
+        or intl.get('privacy', 'open_public') != 'open_public'
+        or bool(intl.get('sub_location'))
+        or int(intl.get('noise_risk') or 0) > 0
+        or any(
+            (intl.get('attire', {}).get(h) or {}).get('state', 'neat') != 'neat'
+            or (intl.get('attire', {}).get(h) or {}).get('outfit', 'default') != 'default'
+            or bool((intl.get('attire', {}).get(h) or {}).get('gifted_items'))
+            or bool(intl.get('traces', {}).get(h))
+            for h in HEROINES
+        )
+        or any(int(v or 0) > 0 for v in (intl.get('inter_heroine') or {}).values())
+    )
+    if has_intimate_notes:
+        lines.append('【情欲与空间态势】')
+        priv_lbl = PRIVACY_LABELS.get(intl.get('privacy', 'open_public'), '公共开放')
+        sub_loc = intl.get('sub_location') or '主区'
+        mode_lbl = f"亲密进行中(第{intl.get('session_beats', 0)}拍)" if intl.get('scene_active') else '常规态'
+        actors_lbl = '、'.join(intl.get('present_actors') or []) or '按地点常规在场'
+        lines.append(f"场景：{sub_loc} | 隐私：{priv_lbl} | 状态：{mode_lbl} | 声响风险：{int(intl.get('noise_risk') or 0)} | 同室：{actors_lbl}")
+        for h in HEROINES:
+            att = (intl.get('attire') or {}).get(h) or {}
+            trs = (intl.get('traces') or {}).get(h) or []
+            bits = []
+            if att.get('outfit', 'default') != 'default' or att.get('state', 'neat') != 'neat':
+                bits.append(f"衣着={att.get('outfit', 'default')}({ATTIRE_LABELS.get(att.get('state', 'neat'), '整洁')})")
+            if att.get('gifted_items'):
+                bits.append('已获赠=' + '、'.join(att['gifted_items']))
+            if trs:
+                bits.append('痕迹=' + '、'.join(f"{t['kind']}({t['turns']}轮)" for t in trs))
+            if bits:
+                lines.append(f"  {h}：" + '；'.join(bits))
+        ih_active = [f"{k}:{INTER_HEROINE_LABELS.get(int(v), str(v))}" for k, v in (intl.get('inter_heroine') or {}).items() if int(v or 0) > 0]
+        if ih_active:
+            lines.append('  女主暗流：' + ' | '.join(ih_active))
+        lines.append('')
+
     lines.append('【世界导演状态】')
     lines.append(json.dumps(state['director'], ensure_ascii=False, sort_keys=True, separators=(',', ':')))
     lines.append('')
@@ -1126,18 +1271,24 @@ def _format_item_record(it):
         f"【道具名称】：{it['name']}",
         f"【道具ID】：{it['id']}",
         f"【类型】：{it['type']}",
+    ]
+    if it.get('category'):
+        lines.append(f"【分类】：{it['category']}")
+    lines.extend([
         f"【使用模式】：{it['usage_mode']}",
         f"【描述】：{it['desc']}",
         f"【数量】：{it['quantity']}",
         f"【获得回合】：{it['obtain_round']}",
         f"【当前状态】：{it['status']}",
         f"【位置】：{it['location']}",
-    ]
+    ])
     if it.get('spot') or it.get('status') == '已部署':
         lines.append(f"【安装点位】：{it.get('spot') or '隐蔽角落'}")
         lines.append(f"【隐蔽部署】：{'是' if it.get('hidden', True) else '否'}")
         if it.get('installed_clock'):
             lines.append(f"【部署时间】：{it['installed_clock']}")
+        if int(it.get('detected_risk') or 0) > 0:
+            lines.append(f"【暴露风险】：{int(it['detected_risk'])}")
     lines.extend([
         f"【使用对象】：{it['target']}",
         f"【时效】：{it['duration']}",
@@ -1189,25 +1340,11 @@ def render_items_txt(state):
         '==================================================\n\n'
         + _section(items['history'], '（当前为空）')
         + '\n\n==================================================\n'
-        '▼ 格式模板区 ▼（仅供引擎格式参考，禁止读取此区域内容作为道具）\n'
+        '▼ 格式模板区 ▼（由 save_store 维护，只读说明）\n'
         '==================================================\n\n'
-        '【道具名称】：\n'
-        '【道具ID】：（引擎自动生成，如 ITEM-001）\n'
-        '【类型】：永久性 / 临时性 / 临时性（消耗品）\n'
-        '【使用模式】：gift / consumable_host / consumable_target / reusable_tool / deployable_device\n'
-        '【描述】：\n'
-        '【数量】：（缺省1；同名仓库中条目堆叠累加）\n'
-        '【获得回合】：\n'
-        '【当前状态】：仓库中 / 已使用 / 已部署 / 已交付\n'
-        '【位置】：（永久性或已部署必填，临时性填「无」）\n'
-        '【使用对象】：（临时性或已交付必填，未使用填「未使用」）\n'
-        '【时效】：（临时性必填，填数字回合，例：12）\n'
-        '【剩余时效】：（引擎自动维护，例：11回合；归零自动移入历史区）\n'
-        '【过期规则】：\n'
-        '【使用记录】：\n'
-        '【备注】：\n'
-        '【系统效果】：（host_stamina:正整数 / buff:名称:回合:效果 / deploy_device:camera|audio|aroma）\n'
-        '【可赠予】：是 / 否\n'
+        '字段顺序：道具名称 / 道具ID / 类型 / 分类 / 使用模式 / 描述 / 数量 / 获得回合 / 当前状态 / 位置 / 安装点位 / 隐蔽部署 / 部署时间 / 暴露风险 / 使用对象 / 时效 / 剩余时效 / 过期规则 / 使用记录 / 备注 / 系统效果 / 可赠予。\n'
+        '使用模式：gift / consumable_host / consumable_target / reusable_tool / deployable_device。\n'
+        '系统效果：host_stamina:正整数 / buff:名称:回合:效果 / deploy_device:camera|audio|aroma。\n'
     )
 
 

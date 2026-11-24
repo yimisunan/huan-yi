@@ -161,7 +161,41 @@ async function run() {
     assert.match(storySource, /function stageInkCommit\(/);
     assert.match(storySource, /function recallInkCommit\(/);
 
-    console.log('PASS story_client & main_template: 4-speaker allowlist, Drama 3 director tag hiding, cache invalidation, Scheme A+B zero-modal confirm');
+    // Verify v3 Archive Center, tiered rationalization, multi-banner Disco checks, Lv.4 防线支配, <=15, save_epoch & CSS integrity
+    const ratFn = storySource.match(/function rationalizationTier\([\s\S]*?\n  \}/)[0];
+    vm.runInContext(ratFn, storyCtx);
+    assert.equal(storyCtx.rationalizationTier({ affection: 75, shame: 25, depravity: 20, passiveLv: 2 })?.text, '合理化闭环 · 全档豁免');
+    assert.equal(storyCtx.rationalizationTier({ affection: 75, shame: 35, depravity: 20, passiveLv: 2 })?.text, '合理化闭环 · 深度豁免');
+    assert.equal(storyCtx.rationalizationTier({ affection: 75, shame: 45, depravity: 20, passiveLv: 2 })?.text, '合理化闭环 · 中度豁免');
+    assert.equal(storyCtx.rationalizationTier({ affection: 75, shame: 65, depravity: 20, passiveLv: 2 })?.text, '合理化闭环 · 轻度豁免');
+    assert.equal(storyCtx.rationalizationTier({ affection: 75, shame: 88, depravity: 5, passiveLv: 2 }), null);
+    assert.equal(storyCtx.rationalizationTier({ affection: 55, shame: 35, depravity: 20, passiveLv: 2 }), null);
+
+    assert.ok(!storySource.includes("'绝对掌控'"), 'Lv.4 passive name must be 防线支配, not 绝对掌控');
+    assert.match(storySource, /'防线支配'/);
+    assert.match(storySource, /if \(npcStam <= 15\)/);
+    assert.match(storySource, /const physChecks = \[\];[\s\S]*?const passiveChecks = \[\];/);
+    assert.match(storySource, /const prevEpoch = cache\.epoch;[\s\S]*?shopCatalog = null;[\s\S]*?clearAudioCache\(\);[\s\S]*?if \(intentionalEpochSwitch\)/);
+    assert.match(storySource, /api\('prologues'\)/);
+    assert.match(storySource, /api\('saves'\)/);
+    assert.match(storySource, /api\('saves\/snapshot'/);
+    assert.match(storySource, /api\('saves\/restore'/);
+
+    for (const id of [
+        'newGameDialog', 'archiveTabs', 'archiveTabNewGame', 'archiveTabSaves',
+        'archiveRandomCard', 'archiveScenarioGrid', 'rerollPrologueBtn',
+        'saveSlotLabelInput', 'saveSlotCreateBtn', 'archiveSlotList',
+        'sceneAtmospherePills', 'archiveQuickBtn'
+    ]) {
+        assert.ok(mainHtml.includes(`id="${id}"`), `main_template.html missing #${id}`);
+    }
+    const cssSource = fs.readFileSync(path.join(root, 'story_client.css'), 'utf8');
+    assert.equal((cssSource.match(/\{/g) || []).length, (cssSource.match(/\}/g) || []).length, 'story_client.css braces must be balanced');
+    assert.match(cssSource, /\.msg\[data-defense="melted"\]/);
+    assert.match(cssSource, /\.msg\[data-defense="guarded"\]/);
+    assert.match(cssSource, /\.archive-dialog/);
+
+    console.log('PASS story_client & main_template: 4-speaker allowlist, Drama 3 director tag hiding, cache invalidation, Scheme A+B confirm, v3 Archive Center & intimate HUD');
     console.log('All frontend checks passed; external requests: 0');
 }
 run().catch(error => { console.error(error.stack); process.exitCode = 1; });

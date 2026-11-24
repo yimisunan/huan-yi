@@ -162,6 +162,7 @@
         <span id="revision"></span>
         <p class="scope-note" id="policyNote">A 5 · B 10 · C 15 体力</p>
         <div class="scene-links">
+          <button id="archiveQuickBtn" type="button" class="text-link-btn">档案室</button>
           <button id="connection" type="button" class="text-link-btn">桥接状态</button>
           <a href="/admin" target="_blank" rel="noopener" class="text-link-btn">声学工坊</a>
         </div>
@@ -170,6 +171,7 @@
 
     <!-- Pure Unobstructed Story Reading Stage -->
     <main id="stream" tabindex="0" aria-label="轻触阅读现场剧情">
+      <div id="sceneAtmospherePills" class="scene-atmosphere-pills" hidden aria-live="polite"></div>
       <button id="older" type="button" class="older-pill" hidden>
         <svg viewBox="0 0 24 24" class="chip-svg" aria-hidden="true"><path d="M12 19V5m-5 5 5-5 5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <span>回溯更早剧情</span>
@@ -482,7 +484,7 @@
     <div id="worldContent" class="hub-body"></div>
 
     <div id="worldDangerFooter" class="hub-danger-footer" hidden>
-      <button id="newGame" type="button" class="btn-danger-outline">开启新档（自动保留旧档副本）</button>
+      <button id="newGame" type="button" class="btn-outline archive-entry-btn">档案室（存档槽 / 序幕新局）</button>
     </div>
   </dialog>
 
@@ -718,26 +720,68 @@
     </div>
   </dialog>
 
-  <!-- New Game Confirmation Dialog -->
-  <dialog id="newGameDialog" class="sheet-dialog confirm-dialog" aria-labelledby="newGameHeading">
+  <!-- Unified Archive Center Dialog (Prologue Blindbox/Selector + Save Slots) -->
+  <dialog id="newGameDialog" class="sheet-dialog archive-dialog" aria-labelledby="newGameHeading">
     <div class="sheet-handle" aria-hidden="true"><span></span></div>
     <div class="dialog-head">
       <div class="dialog-title-group">
-        <span class="eyebrow">重铸天平</span>
-        <h2 id="newGameHeading">开启全新存档</h2>
+        <span class="eyebrow">重铸天平 · 存档与开局</span>
+        <h2 id="newGameHeading">档案室</h2>
       </div>
-      <button type="button" class="close-btn" data-close aria-label="取消">
+      <button type="button" class="close-btn" data-close aria-label="关闭">
         <svg viewBox="0 0 24 24" class="hud-svg"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       </button>
     </div>
-    <div class="confirm-body">
-      <p>将重置当前剧情、行囊库存、委托任务与交流记录。人物设定、规则与语音配置均完整保留，旧档会自动备份一份恢复副本。</p>
-      <p class="muted">确认后将从 8 个开局场景中随机抽取序幕，立即进入点按演播。</p>
-      <p id="newGameStatus" class="status-warn" role="status"></p>
+
+    <div id="archiveTabs" class="hub-tabs archive-tabs" role="tablist" aria-label="档案室页签">
+      <button type="button" class="hub-tab" role="tab" data-archive-tab="newgame" aria-selected="true">新开局 · 序幕盲盒</button>
+      <button type="button" class="hub-tab" role="tab" data-archive-tab="saves" aria-selected="false">存档槽 · 一键回档</button>
     </div>
-    <div class="confirm-actions">
-      <button type="button" class="btn-outline" data-close>暂不重置</button>
-      <button id="confirmNewGame" type="button" class="cta-gold">确认开启新档</button>
+
+    <p id="newGameStatus" class="status-warn archive-status" role="status"></p>
+
+    <div id="archiveTabNewGame" class="archive-panel">
+      <div id="archiveRerollRow" class="archive-reroll-bar" hidden>
+        <div class="archive-reroll-info">
+          <strong id="archiveCurrentBrief">当前序幕 · 尚未行动</strong>
+          <small>第 1 幕零行动时可免费重摇或切换序幕，不产生空档备份。</small>
+        </div>
+        <button id="rerollPrologueBtn" type="button" class="btn-outline archive-reroll-btn">🎲 免费重摇</button>
+      </div>
+
+      <button id="archiveRandomCard" type="button" class="archive-random-card is-selected" aria-pressed="true">
+        <span class="archive-card-badge">默认</span>
+        <strong class="archive-card-title">🎲 随机盲盒开局（10 幕池）</strong>
+        <span class="archive-card-desc">从 10 幕精修序幕中随机抽取一幕立即入戏；旧档自动存入精简存档槽。</span>
+      </button>
+
+      <details id="archiveScenarioDetails" class="archive-details">
+        <summary>指定女主与开局场景（10 幕可选）</summary>
+        <div id="archiveHeroFilter" class="archive-filter-bar" role="group" aria-label="按女主筛选开局">
+          <button type="button" class="archive-filter-pill is-active" data-hero="all">全部</button>
+          <button type="button" class="archive-filter-pill" data-hero="沈知韫">沈知韫</button>
+          <button type="button" class="archive-filter-pill" data-hero="苏婉青">苏婉青</button>
+          <button type="button" class="archive-filter-pill" data-hero="徐念薇">徐念薇</button>
+          <button type="button" class="archive-filter-pill" data-hero="全员家宴">全员家宴</button>
+        </div>
+        <div id="archiveScenarioGrid" class="archive-scenario-grid" aria-live="polite"></div>
+      </details>
+
+      <p id="archiveNewGameNote" class="muted archive-footnote">确认开启新档前，当前进度会自动存入轻量存档槽，随时可在「存档槽」页签一键回档。</p>
+      <div class="confirm-actions">
+        <button type="button" class="btn-outline" data-close>取消</button>
+        <button id="confirmNewGame" type="button" class="cta-gold">开启随机盲盒新档</button>
+      </div>
+    </div>
+
+    <div id="archiveTabSaves" class="archive-panel" hidden>
+      <div class="archive-snapshot-form">
+        <label for="saveSlotLabelInput" class="sr-only">新存档槽备注</label>
+        <input id="saveSlotLabelInput" type="text" maxlength="60" placeholder="给当前进度写个备注（如：主宅雨夜前）">
+        <button id="saveSlotCreateBtn" type="button" class="cta-gold">＋ 存为新档槽</button>
+      </div>
+      <div id="archiveLiveCard" class="archive-live-card" aria-live="polite"></div>
+      <div id="archiveSlotList" class="archive-slot-list" aria-live="polite"></div>
     </div>
   </dialog>
 

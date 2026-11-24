@@ -28,6 +28,7 @@
     "recent_channels": [],
     "scene_location": "徐家主宅",
     "scene_turns": 0,
+    "sensual_drought": 0,
     "turns_since_beat": 99
   },
   "intel": {
@@ -36,9 +37,57 @@
     "leverage_armed": "",
     "su_ab_contacts": 0
   },
+  "intimate": {
+    "attire": {
+      "徐念薇": {
+        "gifted_items": [],
+        "outfit": "default",
+        "state": "neat"
+      },
+      "沈知韫": {
+        "gifted_items": [],
+        "outfit": "default",
+        "state": "neat"
+      },
+      "苏婉青": {
+        "gifted_items": [],
+        "outfit": "default",
+        "state": "neat"
+      }
+    },
+    "inter_heroine": {
+      "徐念薇->沈知韫": 0,
+      "徐念薇->苏婉青": 0,
+      "沈知韫->徐念薇": 0,
+      "沈知韫->苏婉青": 0,
+      "苏婉青->徐念薇": 0,
+      "苏婉青->沈知韫": 0
+    },
+    "noise_risk": 0,
+    "present_actors": [
+      "沈知韫",
+      "徐念薇",
+      "苏婉青"
+    ],
+    "privacy": "open_public",
+    "scene_active": false,
+    "session_beats": 0,
+    "session_orgasms": {
+      "徐念薇": 0,
+      "沈知韫": 0,
+      "苏婉青": 0
+    },
+    "sub_location": "主宅餐厅",
+    "traces": {
+      "徐念薇": [],
+      "沈知韫": [],
+      "苏婉青": []
+    }
+  },
   "items": {
     "active": [],
     "delivered": [],
+    "deployed": [],
     "history": [],
     "next_seq": 1
   },
@@ -179,9 +228,9 @@
     }
   },
   "rendered_sha256": {
-    "data_runtime": "371d4bce45c5d80d111fd2f9f31048ded61759953a86dc52ed96fb91cf9163b2",
-    "items_txt": "bece6607845af835accec7f9d318f4399b60423174d193a4f0afddc5617f451b",
-    "memory_txt": "62668310c83027734054c8d669524b7157ec4bf135225419d4781db5f2364d96"
+    "data_runtime": "ccf63827d166ceee6540d22589a87031b914a9b61d99e91ab89c414f4fcbfacc",
+    "items_txt": "6b7263cae6f8e90eb04cf3a09ac41c96225362a44d9d0032cb74334eea6ec666",
+    "memory_txt": "d6b1293881b785d9e4b5307df70e7df56bdb4544c11427e11881a43380ed8dab"
   },
   "runtime": {
     "action_index": 0,
@@ -192,20 +241,25 @@
     "closed_by": "",
     "item_recovered": 0,
     "last_closed": 0,
-    "last_segment_id": "prologue-49ae0065ff989240c9764c2bfbf2408a",
+    "last_segment_id": "prologue-2c87ddbaf8ce87d4d610ecc9440da27f",
     "last_sequence": 1,
     "memory_round": 1,
     "phase": "ready",
     "prologue": {
-      "request_id": "reset-20261124_020101_98bb459dfe814e6a8a7688564c4623d5",
+      "heroine": "全员家宴",
+      "privacy": "open_public",
+      "request_id": "reset-20261124_154453_6f70ead9f71946b5a5fc951186d32edd",
       "scenario_id": "zhiyun_sunday_noon",
+      "sub_location": "主宅餐厅",
       "title": "周日午间 · 主宅餐厅 · 家庭",
       "weekday": "周日"
     },
     "weekday": "周日"
   },
   "shop": {
+    "dynamic_catalog": [],
     "echoes": [],
+    "next_dyn_seq": 1,
     "recent": [],
     "redeemed": {}
   },
@@ -220,7 +274,7 @@
       "target": "系统宿主",
       "tier": "small",
       "title": "同席家宴",
-      "value": 4
+      "value": 6
     },
     "history": [],
     "pending_items": []

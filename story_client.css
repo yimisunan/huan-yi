@@ -3719,6 +3719,20 @@ html[data-theme="ivory"] .micro-state-chip.is-alert { color: #9e2626; }
   opacity: 0.86;
   border-left-style: dotted;
 }
+.msg[data-defense="melted"] > .text {
+  border-left-color: rgba(214, 178, 120, 0.72);
+  box-shadow: 0 2px 14px rgba(214, 178, 120, 0.12), inset 0 1px 0 rgba(246, 226, 184, 0.08);
+}
+.msg[data-defense="guarded"] > .text {
+  border-left-color: rgba(164, 172, 182, 0.42);
+}
+html[data-theme="ivory"] .msg[data-defense="melted"] > .text {
+  border-left-color: rgba(176, 124, 52, 0.72);
+  box-shadow: 0 2px 12px rgba(176, 124, 52, 0.12);
+}
+html[data-theme="ivory"] .msg[data-defense="guarded"] > .text {
+  border-left-color: rgba(118, 124, 134, 0.44);
+}
 
 /* 9.4 Disco Elysium Style Passive Skill Check Banners */
 .disco-check-banner {
@@ -4708,3 +4722,419 @@ html[data-theme="ivory"] .map-device-badge {
     flex-direction: column;
   }
 }
+
+/* ============================================================
+   11. Scene Atmosphere Pills, Intimate Options & Archive Center
+   ============================================================ */
+
+.scene-atmosphere-pills {
+  position: sticky;
+  top: 6px;
+  z-index: 6;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 10px;
+  padding: 5px 10px;
+  max-width: 680px;
+  border-radius: 999px;
+  background: rgba(18, 15, 13, 0.72);
+  border: 1px solid rgba(214, 178, 120, 0.22);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+.scene-atmosphere-pills[hidden] { display: none; }
+.privacy-pill,
+.trace-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  line-height: 1.45;
+  letter-spacing: 0.25px;
+  white-space: nowrap;
+}
+.privacy-pill {
+  border: 1px solid rgba(214, 178, 120, 0.36);
+  background: rgba(214, 178, 120, 0.12);
+  color: var(--gold-bright, #f0d7a3);
+}
+.privacy-pill.is-thin_wall,
+.privacy-pill.is-under_cover {
+  border-color: rgba(232, 134, 122, 0.48);
+  background: rgba(232, 134, 122, 0.14);
+  color: #f4b7ae;
+}
+.privacy-pill.is-intimate {
+  border-color: rgba(236, 126, 156, 0.5);
+  background: rgba(236, 126, 156, 0.14);
+  color: #f7c2d1;
+}
+.trace-chip {
+  border: 1px solid rgba(228, 156, 141, 0.34);
+  background: rgba(228, 156, 141, 0.1);
+  color: #ecc0b7;
+}
+.trace-chip.is-tension {
+  border-color: rgba(155, 192, 214, 0.42);
+  background: rgba(155, 192, 214, 0.12);
+  color: #c7e1f0;
+}
+html[data-theme="ivory"] .scene-atmosphere-pills {
+  background: rgba(250, 245, 236, 0.86);
+  border-color: rgba(150, 112, 58, 0.24);
+}
+html[data-theme="ivory"] .privacy-pill { color: #7e5921; background: rgba(184, 138, 68, 0.12); }
+html[data-theme="ivory"] .privacy-pill.is-thin_wall,
+html[data-theme="ivory"] .privacy-pill.is-under_cover,
+html[data-theme="ivory"] .privacy-pill.is-intimate { color: #8c2c44; background: rgba(196, 78, 108, 0.1); }
+html[data-theme="ivory"] .trace-chip { color: #7c3b34; background: rgba(186, 98, 86, 0.1); }
+html[data-theme="ivory"] .trace-chip.is-tension { color: #2b5a78; background: rgba(74, 128, 162, 0.11); }
+
+/* Intimate Slow-Burn Choice & Quick Chips */
+#choices.is-intimate-mode .story-option.is-intimate-opt {
+  border-color: rgba(232, 140, 156, 0.3);
+}
+.option-cost.is-discounted {
+  color: #f3c4ce;
+  border-color: rgba(236, 132, 156, 0.42);
+  background: rgba(236, 132, 156, 0.14);
+}
+html[data-theme="ivory"] .option-cost.is-discounted {
+  color: #8f2950;
+  background: rgba(196, 78, 118, 0.12);
+}
+.bracket-chip.is-intimate {
+  border-color: rgba(232, 136, 146, 0.42);
+  color: #f2bcc2;
+}
+.bracket-chip.is-sensual {
+  border-color: rgba(214, 178, 120, 0.44);
+  color: var(--gold-bright, #edd29d);
+}
+html[data-theme="ivory"] .bracket-chip.is-intimate { color: #8c2f3c; border-color: rgba(176, 68, 82, 0.36); }
+html[data-theme="ivory"] .bracket-chip.is-sensual { color: #7c561e; border-color: rgba(164, 118, 46, 0.38); }
+
+/* Unified Archive Center Dialog (#newGameDialog) */
+.archive-entry-btn {
+  width: 100%;
+  border-color: rgba(214, 178, 120, 0.42);
+  color: var(--gold-bright, var(--gold));
+}
+.archive-dialog {
+  width: min(94vw, 620px);
+  max-height: min(88dvh, 760px);
+}
+.archive-tabs {
+  margin: 4px 0 8px;
+}
+.archive-status {
+  min-height: 0;
+  margin: 0 0 8px;
+}
+.archive-status:empty { display: none; }
+.archive-panel {
+  display: grid;
+  gap: 12px;
+  overflow-y: auto;
+  max-height: calc(min(88dvh, 760px) - 150px);
+  padding-right: 2px;
+}
+.archive-panel[hidden] { display: none; }
+.archive-reroll-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(155, 192, 214, 0.35);
+  background: rgba(155, 192, 214, 0.08);
+}
+.archive-reroll-bar[hidden] { display: none; }
+.archive-reroll-info {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.archive-reroll-info strong {
+  font-size: 13px;
+  color: var(--ink);
+}
+.archive-reroll-info small {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.archive-reroll-btn {
+  flex-shrink: 0;
+  min-height: 34px;
+  padding: 6px 12px;
+  font-size: 12px;
+}
+.archive-random-card {
+  position: relative;
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line-strong, var(--line));
+  background: var(--surface-2, var(--surface));
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease;
+}
+.archive-random-card.is-selected {
+  border-color: var(--gold);
+  background: linear-gradient(145deg, rgba(214, 178, 120, 0.16), var(--surface-2, var(--surface)));
+  box-shadow: 0 0 0 1px rgba(214, 178, 120, 0.28);
+}
+.archive-card-badge {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  font-size: 10.5px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--gold-soft);
+  color: var(--gold-bright, var(--gold));
+}
+.archive-card-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.archive-card-desc {
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.archive-details {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+.archive-details > summary {
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.archive-details > summary::after {
+  content: '▾';
+  font-size: 12px;
+  color: var(--muted);
+  transition: transform 0.18s ease;
+}
+.archive-details[open] > summary::after {
+  transform: rotate(180deg);
+}
+.archive-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 10px 0;
+}
+.archive-filter-pill {
+  min-height: 28px;
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11.8px;
+  cursor: pointer;
+}
+.archive-filter-pill.is-active {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+  color: var(--gold-bright, var(--ink));
+}
+.archive-scenario-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+  gap: 8px;
+}
+.archive-scenario-card {
+  display: grid;
+  gap: 4px;
+  text-align: left;
+  padding: 10px 11px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease;
+}
+.archive-scenario-card.is-selected {
+  border-color: var(--gold);
+  background: linear-gradient(145deg, rgba(214, 178, 120, 0.14), var(--surface));
+}
+.archive-sc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+}
+.archive-sc-hero {
+  color: var(--gold-bright, var(--gold));
+  font-weight: 600;
+}
+.archive-sc-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.archive-sc-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+.archive-sc-now {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(155, 192, 214, 0.16);
+  color: #b4d8ee;
+}
+.archive-sc-summary {
+  margin: 0;
+  font-size: 11.6px;
+  line-height: 1.45;
+  color: var(--muted);
+}
+.archive-footnote {
+  margin: 0;
+  font-size: 12px;
+}
+.archive-snapshot-form {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.archive-snapshot-form input {
+  flex: 1;
+  min-width: 0;
+  min-height: 38px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong, var(--line));
+  background: var(--surface-2, var(--surface));
+  color: var(--ink);
+  font-size: 13px;
+}
+.archive-snapshot-form button {
+  flex-shrink: 0;
+  min-height: 38px;
+  padding: 7px 14px;
+  font-size: 12.5px;
+}
+.archive-live-card,
+.archive-slot-card {
+  display: grid;
+  gap: 6px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+}
+.archive-live-card {
+  border-color: rgba(214, 178, 120, 0.34);
+  background: rgba(214, 178, 120, 0.06);
+}
+.archive-live-head,
+.archive-slot-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.archive-slot-label {
+  font-size: 13.2px;
+  color: var(--ink);
+}
+.archive-slot-time,
+.archive-slot-sub {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--muted);
+}
+.archive-slot-badge {
+  font-size: 10.5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.archive-slot-badge.is-live,
+.archive-slot-badge.is-manual {
+  background: rgba(214, 178, 120, 0.18);
+  color: var(--gold-bright, var(--gold));
+}
+.archive-slot-badge.is-auto {
+  background: rgba(155, 192, 214, 0.16);
+  color: #b7d9ee;
+}
+.archive-slot-badge.is-legacy {
+  background: rgba(180, 170, 160, 0.16);
+  color: var(--muted);
+}
+.archive-slot-meta,
+.archive-slot-vitals {
+  margin: 0;
+  font-size: 11.8px;
+  color: var(--muted);
+  line-height: 1.45;
+}
+.archive-slot-list {
+  display: grid;
+  gap: 8px;
+}
+.archive-slot-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+.archive-slot-btn {
+  min-height: 32px;
+  padding: 5px 12px;
+  font-size: 12px;
+}
+.archive-slot-btn.is-armed,
+.cta-gold.is-armed {
+  border-color: #e69a74;
+  background: linear-gradient(135deg, #c96846, #a84932);
+  color: #fff8f0;
+  box-shadow: 0 0 0 2px rgba(230, 154, 116, 0.28);
+}
+.archive-empty {
+  margin: 6px 0;
+  font-size: 12.2px;
+  text-align: center;
+}
+html[data-theme="ivory"] .archive-sc-now,
+html[data-theme="ivory"] .archive-slot-badge.is-auto {
+  color: #2b5a78;
+}
+@media (max-width: 560px) {
+  .archive-snapshot-form {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .archive-reroll-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .archive-scenario-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
