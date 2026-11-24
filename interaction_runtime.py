@@ -237,6 +237,40 @@ def records(store):
     return sorted(p for p in folder.glob('*.json') if re.fullmatch(r'\d{12}\.json', p.name))
 
 
+def recent_rows_page(store, files=None, *, before=None, limit=10):
+    """Lazily read only the exact paginated slice of history segments (O(limit) disk reads, not O(total))."""
+    limit = max(1, int(limit or 10))
+    recent_map = {}
+    _, _, recent = save_store.load_bundle(store.root, files)
+    for item in recent.get('segments') or []:
+        if isinstance(item, dict) and isinstance(item.get('sequence'), int) and item['sequence'] >= 1:
+            recent_map[item['sequence']] = item
+    disk_map = {}
+    for p in records(store):
+        try:
+            disk_map[int(p.stem)] = p
+        except ValueError:
+            continue
+    all_seqs = sorted(set(recent_map.keys()) | set(disk_map.keys()))
+    if before is not None:
+        all_seqs = [seq for seq in all_seqs if seq < before]
+    has_older = len(all_seqs) > limit
+    page_seqs = all_seqs[-limit:]
+    rows = []
+    for seq in page_seqs:
+        p = disk_map.get(seq)
+        if p is not None:
+            try:
+                row = rr.load_request(p.read_text(encoding='utf-8'))
+                rows.append((p, row))
+                continue
+            except Exception:
+                pass
+        if seq in recent_map:
+            rows.append((None, copy.deepcopy(recent_map[seq])))
+    return rows, has_older
+
+
 def recent_rows(store, files=None):
     """Merge local .round-runtime/interaction archive with self-contained 存档/近期演播.json."""
     by_seq = {}
@@ -280,6 +314,7 @@ def scene_cast(presence, memory_text, location):
 
 _VISUAL_EXT_PRIORITY = {'.webp': 7, '.avif': 6, '.jpg': 5, '.jpeg': 4, '.png': 3, '.gif': 2, '.svg': 1}
 _SCENE_TIME_SLOTS = frozenset({'day', 'night', 'dawn', 'dusk'})
+_VISUAL_ASSETS_CACHE = {}
 
 
 def parse_micro_states(memory_text):
@@ -290,13 +325,30 @@ def parse_micro_states(memory_text):
         return {name: {k: False for k in rr.MICRO_STATES} for name in rr.ROUND_NPCS}
 
 
+def _visual_dir_sig(image_root):
+    try:
+        sig = [image_root.stat().st_mtime_ns]
+        for entry in sorted(image_root.iterdir(), key=lambda p: p.name):
+            if entry.name.startswith(('.', '_')) or not entry.is_dir():
+                continue
+            sig.append((entry.name, entry.stat().st_mtime_ns))
+        return tuple(sig)
+    except OSError:
+        return None
+
+
 def scan_visual_assets(root):
     """Auto-discover scenes/ and character visual assets under txt文件/image/ (newest mtime wins across extensions)."""
-    image_root = Path(root) / 'txt文件' / 'image'
+    image_root = (Path(root) / 'txt文件' / 'image').resolve()
     scenes = {}
     characters = {}
     if not image_root.is_dir():
         return {'scenes': scenes, 'characters': characters}
+    dir_sig = _visual_dir_sig(image_root)
+    cache_key = str(image_root)
+    cached = _VISUAL_ASSETS_CACHE.get(cache_key)
+    if dir_sig is not None and cached and cached[0] == dir_sig:
+        return copy.deepcopy(cached[1])
 
     def _pick(bucket, key, path, rel_parts):
         ext = path.suffix.lower()
@@ -317,7 +369,7 @@ def scan_visual_assets(root):
     if scenes_dir.is_dir():
         scene_buckets = {}
         for f in sorted(scenes_dir.iterdir(), key=lambda p: p.name):
-            if f.name.startswith('.') or not f.is_file():
+            if f.name.startswith(('.', '_')) or not f.is_file():
                 continue
             stem = f.stem
             if '_' in stem:
@@ -334,11 +386,11 @@ def scan_visual_assets(root):
         scenes = {place: {slot: pair[1] for slot, pair in slots.items()} for place, slots in scene_buckets.items()}
 
     for entry in sorted(image_root.iterdir(), key=lambda p: p.name):
-        if entry.name.startswith('.') or entry.name == 'scenes' or not entry.is_dir():
+        if entry.name.startswith(('.', '_')) or entry.name == 'scenes' or not entry.is_dir():
             continue
         char_bucket = {}
         for f in sorted(entry.iterdir(), key=lambda p: p.name):
-            if f.name.startswith('.') or not f.is_file():
+            if f.name.startswith(('.', '_')) or not f.is_file():
                 continue
             slot = f.stem.strip()
             if not slot:
@@ -347,7 +399,12 @@ def scan_visual_assets(root):
         if char_bucket:
             characters[entry.name] = {slot: pair[1] for slot, pair in char_bucket.items()}
 
-    return {'scenes': scenes, 'characters': characters}
+    result = {'scenes': scenes, 'characters': characters}
+    if dir_sig is not None:
+        if len(_VISUAL_ASSETS_CACHE) >= 16:
+            _VISUAL_ASSETS_CACHE.clear()
+        _VISUAL_ASSETS_CACHE[cache_key] = (dir_sig, copy.deepcopy(result))
+    return result
 
 
 def view(store, files=None):
@@ -370,11 +427,36 @@ def view(store, files=None):
         t_info = timers.get(iid)
         rec = active_by_id.get(iid) or {}
         giftable = rec.get('giftable', fields.get('可赠予', '是') != '否')
+        usage_mode = rec.get('usage_mode') or save_store.infer_usage_mode(
+            fields.get('系统效果', ''), bool(giftable), fields.get('使用模式', '')
+        )
         items.append({'id': iid, 'name': m.group('name').strip(),
                       'quantity': engine._int_of(fields['数量'], 1),
                       'remaining_turns': t_info['turns'] if t_info else None,
                       'giftable': bool(giftable),
+                      'usage_mode': usage_mode,
+                      'category': rec.get('category', ''),
                       'fields': fields})
+    deployed_items = [
+        {
+            'id': it['id'],
+            'name': it['name'],
+            'quantity': it.get('quantity', 1),
+            'usage_mode': it.get('usage_mode', 'deployable_device'),
+            'category': it.get('category', 'covert'),
+            'location': it.get('location', ''),
+            'spot': it.get('spot', '隐蔽角落'),
+            'hidden': bool(it.get('hidden', True)),
+            'installed_clock': it.get('installed_clock', ''),
+            'detected_risk': int(it.get('detected_risk', 0) or 0),
+            'desc': it.get('desc', ''),
+            'system_effect': it.get('system_effect', ''),
+            'usage_record': it.get('usage_record', ''),
+            'status': it.get('status', '已部署'),
+        }
+        for it in bundle_state['items'].get('deployed', [])
+        if isinstance(it, dict) and it.get('id')
+    ]
     delivered_items = [
         {
             'id': it['id'],
@@ -438,6 +520,7 @@ def view(store, files=None):
         }
     return {'progression': progression, 'weekday': weekday, 'location': location, 'cast': cast,
             'presence': presence, 'panels': panels, 'items': items,
+            'deployed_items': deployed_items,
             'delivered_items': delivered_items,
             'buffs': parsed_buffs,
             'micro_states': parse_micro_states(memory),
@@ -483,12 +566,17 @@ def travel_intent(root, text):
 
 
 def operation(root, files, proposed, text='', explicit=False):
-    """Only player travel and transfer of a complete held stack are currently supported."""
+    """Validate player travel, transfer, item usage, device deployment, retrieval, and remote inspection."""
     if proposed is None:
         return None
-    rr._keys(proposed, {'code', 'destination', 'item_id', 'recipient'}, 'operation', {'code'})
+    rr._keys(
+        proposed,
+        {'code', 'destination', 'item_id', 'recipient', 'quantity', 'target', 'spot', 'hidden'},
+        'operation',
+        {'code'},
+    )
     if proposed['code'] == 'use_recovery_item' and sp.enabled(root):
-        rr._keys(proposed, {'code','item_id'}, 'use_recovery_item', {'code','item_id'})
+        rr._keys(proposed, {'code', 'item_id'}, 'use_recovery_item', {'code', 'item_id'})
         match = sp.PURE_ITEM.fullmatch(text)
         if not match or match[1] != proposed['item_id']:
             raise rr.RoundError('道具操作必须是明确ID的纯使用恢复指令')
@@ -498,20 +586,21 @@ def operation(root, files, proposed, text='', explicit=False):
     mem_text = files[rr.FILES[0]].decode('utf-8')
     presence = engine.parse_presence_from_memory(mem_text)
     player_place = presence['徐志北']['location']
+    cast_here = scene_cast(presence, mem_text, player_place)
     code = proposed['code']
     if code == 'move_player':
         rr._keys(proposed, {'code', 'destination'}, 'move_player', {'code', 'destination'})
         target = proposed['destination']
         if target not in policy(root)['locations'] or target == player_place:
             raise rr.RoundError('目的地未开放或已经位于该地点')
-        intent=travel_intent(root,text) if not explicit else None
-        if not explicit and (not intent or intent['operation']['destination']!=target):
+        intent = travel_intent(root, text) if not explicit else None
+        if not explicit and (not intent or intent['operation']['destination'] != target):
             raise rr.RoundError('移动缺少玩家明确目的地与行动依据')
         return copy.deepcopy(proposed)
     if code == 'transfer_item':
-        rr._keys(proposed, {'code', 'item_id', 'recipient'}, 'transfer_item', {'code', 'item_id', 'recipient'})
+        rr._keys(proposed, {'code', 'item_id', 'recipient', 'quantity'}, 'transfer_item', {'code', 'item_id', 'recipient'})
         who = proposed['recipient']
-        if who not in scene_cast(presence, mem_text, player_place):
+        if who not in cast_here:
             raise rr.RoundError('接收人必须实际在场')
         catalog = (files[rr.FILES[1]] or b'').decode('utf-8')
         if not isinstance(proposed['item_id'], str) or not re.fullmatch(r'ITEM-\d+', proposed['item_id']):
@@ -535,11 +624,73 @@ def operation(root, files, proposed, text='', explicit=False):
         if non_giftable:
             raise rr.RoundError('该道具为宿主专用不可赠予物品')
         qty = engine._int_of(fields.get('数量', '1'), 1)
+        if 'quantity' in proposed and proposed['quantity'] is not None:
+            rr._integer(proposed['quantity'], 'transfer_item.quantity', 1)
+            if proposed['quantity'] > qty:
+                raise rr.RoundError('交付数量超过当前库存')
         if not explicit and (who not in text or not re.search(r'交给|送给|递给|赠给|送出', text)
                              or item_name not in text
-                             or (qty > 1 and not re.search(r'整组|全部|所有', text))):
+                             or (qty > 1 and proposed.get('quantity') is None and not re.search(r'整组|全部|所有', text))):
             raise rr.RoundError('交付缺少玩家明确接收人依据')
         return copy.deepcopy(proposed)
+    if code == 'use_item':
+        rr._keys(proposed, {'code', 'item_id', 'target'}, 'use_item', {'code', 'item_id'})
+        if not isinstance(proposed['item_id'], str) or not re.fullmatch(r'ITEM-\d+', proposed['item_id']):
+            raise rr.RoundError('道具编号无效')
+        bundle_state, _, _ = save_store.load_bundle(root, files)
+        rec = next((it for it in bundle_state['items'].get('active', []) if it.get('id') == proposed['item_id']), None)
+        if rec is None or rec.get('status') != '仓库中' or int(rec.get('quantity', 0)) < 1:
+            raise rr.RoundError('该活跃道具不存在或不可使用')
+        if rec.get('usage_mode') == 'consumable_host' or str(rec.get('system_effect', '')).startswith('host_stamina:'):
+            raise rr.RoundError('宿主体力恢复道具请通过免费恢复入口使用')
+        target = str(proposed.get('target') or '').strip()
+        if target and target not in ('室内', '当前场景', '全员') and target not in cast_here:
+            raise rr.RoundError('道具作用目标必须实际在场')
+        if not explicit and rec['name'] not in text:
+            raise rr.RoundError('使用道具缺少玩家原文依据')
+        out = {'code': 'use_item', 'item_id': proposed['item_id']}
+        if target:
+            out['target'] = target
+        return out
+    if code == 'deploy_item':
+        rr._keys(proposed, {'code', 'item_id', 'spot', 'hidden'}, 'deploy_item', {'code', 'item_id'})
+        if not isinstance(proposed['item_id'], str) or not re.fullmatch(r'ITEM-\d+', proposed['item_id']):
+            raise rr.RoundError('装置编号无效')
+        bundle_state, _, _ = save_store.load_bundle(root, files)
+        rec = next((it for it in bundle_state['items'].get('active', []) if it.get('id') == proposed['item_id']), None)
+        if rec is None or rec.get('status') != '仓库中' or int(rec.get('quantity', 0)) < 1:
+            raise rr.RoundError('待部署装置不存在或不可用')
+        if rec.get('usage_mode') != 'deployable_device' and not str(rec.get('system_effect', '')).startswith('deploy_device:'):
+            raise rr.RoundError('该道具不是可部署的场景装置')
+        spot = str(proposed.get('spot') or '隐蔽角落').strip() or '隐蔽角落'
+        if len(spot) > 40 or '\n' in spot or '\r' in spot:
+            raise rr.RoundError('安装点位须为40字内单行文本')
+        hidden = proposed.get('hidden', True)
+        if type(hidden) is not bool:
+            raise rr.RoundError('隐蔽部署标记须为布尔值')
+        if not explicit and rec['name'] not in text:
+            raise rr.RoundError('部署装置缺少玩家原文依据')
+        return {'code': 'deploy_item', 'item_id': proposed['item_id'], 'spot': spot, 'hidden': hidden}
+    if code == 'retrieve_item':
+        rr._keys(proposed, {'code', 'item_id'}, 'retrieve_item', {'code', 'item_id'})
+        if not isinstance(proposed['item_id'], str) or not re.fullmatch(r'ITEM-\d+', proposed['item_id']):
+            raise rr.RoundError('已部署装置编号无效')
+        bundle_state, _, _ = save_store.load_bundle(root, files)
+        dev = next((it for it in bundle_state['items'].get('deployed', []) if it.get('id') == proposed['item_id']), None)
+        if dev is None:
+            raise rr.RoundError('未找到该已部署装置')
+        if dev.get('location') != player_place:
+            raise rr.RoundError(f"须先回到装置所在地点（{dev.get('location')}）才能拆除回收")
+        return {'code': 'retrieve_item', 'item_id': proposed['item_id']}
+    if code == 'inspect_deployed':
+        rr._keys(proposed, {'code', 'item_id'}, 'inspect_deployed', {'code', 'item_id'})
+        if not isinstance(proposed['item_id'], str) or not re.fullmatch(r'ITEM-\d+', proposed['item_id']):
+            raise rr.RoundError('已部署装置编号无效')
+        bundle_state, _, _ = save_store.load_bundle(root, files)
+        dev = next((it for it in bundle_state['items'].get('deployed', []) if it.get('id') == proposed['item_id']), None)
+        if dev is None:
+            raise rr.RoundError('未找到可远程查看的已部署装置')
+        return {'code': 'inspect_deployed', 'item_id': proposed['item_id']}
     raise rr.RoundError('未登记的正式行动；请先明确可执行范围')
 
 
@@ -893,17 +1044,108 @@ def packet_read_ranges(raw):
     return ranges
 
 
+def _describe_operation_context(resolved, state, bundle_state, mem_text):
+    """Build rich deterministic context for explicit item/device operations so Stage 1 narrates accurate physical facts."""
+    if not isinstance(resolved, dict):
+        return None
+    code = resolved.get('code')
+    active_list = (bundle_state.get('items') or {}).get('active') or []
+    deployed_list = (bundle_state.get('items') or {}).get('deployed') or []
+    if code == 'inspect_deployed':
+        dev = next((it for it in deployed_list if it.get('id') == resolved.get('item_id')), None)
+        if not dev:
+            return None
+        dev_loc = dev.get('location', '')
+        remote_cast = scene_cast(state.get('presence') or {}, mem_text, dev_loc)
+        eff = str(dev.get('system_effect') or '')
+        feed_kind = '远程监听实时录音' if 'audio' in eff else ('远程感知室内状态' if 'aroma' in eff else '加密手机端远程查看针孔实时画面')
+        return {
+            'kind': 'inspect_deployed',
+            'device': {
+                'id': dev['id'], 'name': dev['name'], 'location': dev_loc,
+                'spot': dev.get('spot') or '隐蔽角落', 'hidden': bool(dev.get('hidden', True)),
+                'installed_clock': dev.get('installed_clock', ''), 'desc': dev.get('desc', ''),
+            },
+            'remote_location': dev_loc,
+            'remote_cast': remote_cast,
+            'instruction': (
+                f"玩家正通过{feed_kind}，目标装置「{dev['name']}」暗藏于【{dev_loc} · {dev.get('spot') or '隐蔽角落'}】。"
+                f"此刻该地点真实在场人物为：{('、'.join(remote_cast) if remote_cast else '空无一人')}。"
+                "请用 [N] 旁白与 [A:徐志北] 细腻描写主角透过屏幕/耳机窥见的该处实时私密画面或听到的真实动静（遵循信息差，严禁把远程人物写成 [D:远程人物] 台词行，远处人声一律在 [N] 中用引号自然呈现）。"
+            ),
+        }
+    if code == 'deploy_item':
+        item = next((it for it in active_list if it.get('id') == resolved.get('item_id')), None)
+        if not item:
+            return None
+        spot = resolved.get('spot') or '隐蔽角落'
+        hidden = bool(resolved.get('hidden', True))
+        return {
+            'kind': 'deploy_item',
+            'item': {'id': item['id'], 'name': item['name'], 'desc': item.get('desc', ''), 'system_effect': item.get('system_effect', '')},
+            'location': state.get('location', ''),
+            'spot': spot,
+            'hidden': hidden,
+            'instruction': (
+                f"玩家将「{item['name']}」{'暗中隐蔽' if hidden else '公开'}安装于【{state.get('location', '')} · {spot}】。"
+                + ("当前室内有他人在场，须描写主角借动作掩护悄然落位的紧张感与被瞥见风险，不直接戳破。" if (hidden and state.get('cast')) else "可自然描写安装固定与调试成功的触感细节。")
+            ),
+        }
+    if code == 'retrieve_item':
+        dev = next((it for it in deployed_list if it.get('id') == resolved.get('item_id')), None)
+        if not dev:
+            return None
+        return {
+            'kind': 'retrieve_item',
+            'device': {'id': dev['id'], 'name': dev['name'], 'location': dev.get('location', ''), 'spot': dev.get('spot', '')},
+            'instruction': f"玩家在【{dev.get('location', '')} · {dev.get('spot') or '原位'}】将先前部署的「{dev['name']}」悄然拆除收回随身。",
+        }
+    if code == 'use_item':
+        item = next((it for it in active_list if it.get('id') == resolved.get('item_id')), None)
+        if not item:
+            return None
+        target = resolved.get('target') or '当前场景'
+        eff = str(item.get('system_effect') or '')
+        return {
+            'kind': 'use_item',
+            'item': {
+                'id': item['id'], 'name': item['name'], 'usage_mode': item.get('usage_mode', ''),
+                'desc': item.get('desc', ''), 'system_effect': eff,
+            },
+            'target': target,
+            'instruction': (
+                f"玩家在本轮行动中正式动用随身道具「{item['name']}」（目标：{target}；质感：{item.get('desc', '')[:90]}）。"
+                + (f"该道具触发持续效果【{eff}】，请落实触感、气味、温热/潮红等生理微距描写。" if eff.startswith('buff:') else "请将道具实物触感与用法自然融入本幕互动。")
+            ),
+        }
+    if code == 'transfer_item':
+        item = next((it for it in active_list if it.get('id') == resolved.get('item_id')), None)
+        if not item:
+            return None
+        qty = resolved.get('quantity') or item.get('quantity', 1)
+        return {
+            'kind': 'transfer_item',
+            'item': {'id': item['id'], 'name': item['name'], 'desc': item.get('desc', '')},
+            'recipient': resolved.get('recipient', ''),
+            'quantity': qty,
+            'instruction': f"玩家将「{item['name']}」×{qty} 亲手赠予在场的 {resolved.get('recipient', '')}（{item.get('desc', '')[:80]}）；请具体描写递交时的手部接触、拆看反应与角色性格回应。",
+        }
+    return None
+
+
 def packet(story, prepared, key, text, command=None, previous_error='', selected=None, reservation=None):
     """Deterministic source extracts, scoped knowledge and original accepted messages."""
     from scene_chat import SceneService, encode_packet
     helper = SceneService(story.root, story)
     files = {n: v.encode('utf-8') if v is not None else None for n, v in prepared['snapshot'].items()}
     state = view(story.store, files)
+    bundle_state, _, _ = save_store.load_bundle(story.root, files)
     mem_text = (files[rr.FILES[0]] or b'').decode('utf-8')
     intent=travel_intent(story.root,text)
     if command is None and intent and intent['operation']['destination']!=state['location']:
         command=copy.deepcopy(intent['operation'])
     resolved = operation(story.root, files, command, text, explicit=True) if command else None
+    op_detail = _describe_operation_context(resolved, state, bundle_state, mem_text)
     charged = sp.enabled(story.root)
     preview_cost = reservation['quote'] if charged and reservation else quote(story.root, files, resolved)
     effective = copy.deepcopy(state)
@@ -941,6 +1183,10 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
     last_cand_path = candidates[-1][0][0] if candidates else None
     required_history = [str(last_cand_path.relative_to(story.root))] if (last_cand_path is not None and last_cand_path not in included) else []
     refs = helper.references(text, history)
+    if op_detail and op_detail.get('kind') == 'inspect_deployed':
+        for rc_name in (op_detail.get('remote_cast') or []):
+            if not any(r['name'] == rc_name for r in refs):
+                refs.append({'name': rc_name, 'matched_aliases': [], 'basis': 'remote_device_feed'})
     if not any(r['name'] == '徐志北' for r in refs):
         refs.append({'name': '徐志北', 'matched_aliases': [], 'basis': 'host_sovereignty'})
     sources, characters, relationships = helper.sources(effective['cast'], refs)
@@ -1010,9 +1256,16 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
             'characters': characters, 'relationships': relationships, 'knowledge_rules': relevant,
             'scenario': {'location': effective['location'], 'cast': effective['cast'], 'presence': state['presence']},
             'operation_policy': {'locations': state['policy']['locations'],'location_aliases':location_aliases(story.root),
-                'templates': [{'code': 'move_player', 'destination': '登记地点'},
-                              {'code': 'transfer_item', 'item_id': 'ITEM-编号', 'recipient': '在场人物'}]},
-            'player_private_state': {'memory': projection['text'], 'items': state['items'], 'tasks': state['tasks'],
+                'templates': [
+                    {'code': 'move_player', 'destination': '登记地点'},
+                    {'code': 'transfer_item', 'item_id': 'ITEM-编号', 'recipient': '在场人物'},
+                    {'code': 'use_item', 'item_id': 'ITEM-编号', 'target': '在场人物或室内'},
+                    {'code': 'deploy_item', 'item_id': 'ITEM-编号', 'spot': '安装点位', 'hidden': True},
+                    {'code': 'retrieve_item', 'item_id': 'ITEM-编号'},
+                    {'code': 'inspect_deployed', 'item_id': 'ITEM-编号'},
+                ]},
+            'player_private_state': {'memory': projection['text'], 'items': state['items'],
+                'deployed_items': state.get('deployed_items', []), 'tasks': state['tasks'],
                 'memory_context':{'selected':projection['selected'],'omitted_count':projection['omitted_count'],
                     'index':projection['index'],'full_index':memory_index,'required_reads':projection['required'],'limits':limits,
                     'rule':'仅含完整源条目的预算内视图，不代表其余事实消失；旧记忆为玩家私有，不能传播NPC未知秘密。需旧事实时据精确行号补读。'}},
@@ -1025,7 +1278,9 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
                   'event_registry':rr._engine(story.root,story.root)._load_event_registry(),
                   'memory_transfer_sources':{}} if charged else None),
               'story_pacing': '依据当前人物、既有事务、矛盾及玩家意图推进连贯剧情，在真实抉择处交还；偶尔可短答，不固定一两句，不等整场结束，不按字数填充。',
-            'operation': {'requested': resolved,'input_evidence':intent,'source_location':state['location'], 'rule': '玩家明确操作已预检；仅确认执行后的现场反应，不改参数。自由输入最多提议一个有原文依据的登记操作。'},
+            'operation': {'requested': resolved,'input_evidence':intent,'source_location':state['location'],
+                **({'detail': op_detail} if op_detail else {}),
+                'rule': '玩家明确操作已预检；仅确认执行后的现场反应，不改参数。自由输入最多提议一个有原文依据的登记操作。'},
             'resource_policy': state['policy']['resource'], 'cost_preview': preview_cost,
             'history_archive': {'paths': omitted_archive[-limits['index_entries']:], 'omitted_count':len(omitted_archive),
                 'index':archive_index,'required_reads':required_history,
@@ -1046,7 +1301,7 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
     rr._atomic(story.store._path(relative), raw)
     contract = {'messages': [{'kind': 'dialogue|action|narration', 'speaker': '在场人物或旁白空串', 'text': '本段剧情'}],
                  'decision': {'prompt': '本段真实抉择', 'options': [{'id': k, 'text': '当前可行的下一步行为'} for k in OPTION_NAMES]},
-                'operation': 'null或一个合法move_player/transfer_item对象；不填成本或任意状态patch',
+                'operation': 'null或一个合法move_player/transfer_item/use_item/deploy_item/retrieve_item/inspect_deployed对象；不填成本或任意状态patch',
                 'handoff': '无待处理时空字符串',
                 'checks': {'intent': '具体依据', 'knowledge': '本场信息边界', 'action': '操作与正文一致或无动作', 'pace': '本段推进及此处交还控制权的依据'}}
     if charged:
@@ -1055,7 +1310,7 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
                 'reading_tools':list(LIVE_READ_TOOLS),'previous_validation_error':previous_error,
                 'continuity':{'source':'正式存档与accepted_history','rule':'本次资料包含当前正式记忆、已接受原文及原行动；旧会话未提交草稿不属于事实。重试承接同一冻结点，不跳到下一行动。'},
                 'required_memory_reads':projection['required'],'required_history_reads':required_history,
-                'operation_context':{'requested':resolved,'input_evidence':intent,'source_location':state['location'],'location_aliases':location_aliases(story.root)},
+                'operation_context':{'requested':resolved,'input_evidence':intent,'source_location':state['location'],'location_aliases':location_aliases(story.root), **({'detail': op_detail} if op_detail else {})},
                 **({'resolution_policy':sp.resolution_policy(preview_cost['kind'], (selected or {}).get('option_id'))} if charged else {}),
                 'output_contract': contract, 'instruction': '先执行读取阶段：逐一照用packet.path和packet.read_ranges中的start_line/end_line调用read_file_part，读完每一段；header显示请求范围不代表正文已齐，核对实际返回的末行。需要时补齐截断正文，文件末尾空白不作为未读正文。再读required_memory_reads与required_history_reads，最后生成完整JSON；只允许reading_tools和本任务文件路径，grep_code只定位不计正文覆盖，禁止list_files/find_files或读取许可外文件；其余旧事实按本任务精确行号或归档索引补读。返回单个裸JSON，生成连贯剧情及decision中的A/B/C；无需演完一场戏，不写旧完整回合、L1或SYSTEM_LOG。'}
     if charged:

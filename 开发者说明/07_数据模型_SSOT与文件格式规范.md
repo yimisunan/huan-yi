@@ -131,10 +131,10 @@ flowchart LR
 - 每条固定 13 键：`id`, `name`, `content`, `keywords[]`, `useRegex`, `caseSensitive`, `constantActive`, `enabled`, `priority`, `scanDepth`, `position`, `role`, `injectDepth`。
 - 索引 key 通过正文内 `※索引key※ <prefix>.<name>` 声明（缺标时回退 `name.split('（', 1)[0]`）。共 **7 条 `constantActive: true`**（`lore.命名锁`, `lore.驻地`, `narrative.pace`, `narrative.dialogue_tts`, `sys.breakout`, `sys.task`, `char.徐志北`）+ **16 条按需/门控条目**（含新增双通道门控条目 `narrative.intimate`）。
 
-### 2.5 `txt文件/系统商城目录.json`（3 档 8 件商品）
-- 顶层：`{"version": 1, "tiers": {"low"|"mid"|"high": {"label", "min_price", "max_price"}}, "items": [ShopItem, ...]}`。
-- 单商品固定键：`id`（`^SHOP-\d+$`）、`name`、`tier`（`low`/`mid`/`high`）、`price`（须落入对应档位区间：`low: 1–10`、`mid: 11–50`、`high: 100–9999`）、`type`、`desc`、`duration`、`expire_rule`、`system_effect`（仅允许 `""` 或 `host_stamina:<正整数>`）、`giftable`（布尔）、`max_per_save`（`null` 或正整数）。
-- **硬红线校验**：`story_progression.load_shop_catalog()` 强制禁止任意字段出现延长/冻结/缩短/修改道具或 BUFF 时效的文案或效果。
+### 2.5 `txt文件/系统商城目录.json`（3 档 3 类 16 件商品 + 动态货架）
+- 顶层：`{"version": 1, "tiers": {"low"|"mid"|"high": {"label", "min_price", "max_price"}}, "categories": {"sensual"|"covert"|"daily": {"label"}}, "items": [ShopItem, ...]}`。
+- 单商品固定键：`id`（`^SHOP-\d+$` / 动态 `^DYN-\d+$`）、`name`、`tier`（`low: 1–10`、`mid: 11–50`、`high: 60–999999`）、`price`、`type`、`desc`、`duration`、`expire_rule`、`system_effect`（`""` / `host_stamina:<正整数>` / `buff:<名>:<1-4>:<说明>` / `deploy_device:<camera|audio|aroma>`）、`giftable`（布尔）、`max_per_save`（`null` 或正整数）；可选字段 `category`（`sensual`/`covert`/`daily`）、`usage_mode`（`gift`/`consumable_host`/`consumable_target`/`reusable_tool`/`deployable_device`）、`pack_qty`（单次兑换入囊件数）、`unlock_req`（`{min_biz, min_any_affection, mode}` 叠加门槛）。
+- **硬红线校验**：`story_progression.load_shop_catalog()` 与 `validate_dynamic_shop_items()` 强制禁止毒品/迷药/催情药剂/烟草/精神控制及篡改时效的文案或效果。
 
 ### 2.6 `txt文件/商业情报目录.json`（3 条一次性商业情报）
 - 顶层：`{"version": 1, "leverage_min_biz": 60, "items": [IntelItem, ...]}`。
@@ -145,7 +145,7 @@ flowchart LR
 - `channels`（8 类规范媒介通道）：`phone_msg`、`door_visit`、`object_trace`、`sensory_slip`、`third_party`、`schedule_clash`、`conversation_twist`、`offstage_ripple`。
 - `spark_matrix`：25 个张力动词 `actions[]` × 25 个带 `channel` 标签的生活质感 `textures[{label, channel}]`（625 组组合火花），配 `moves.soft`（6 条）与 `moves.hard`（5 条）。
 - `offstage_clocks`：4 条角色暗钟（`CLK_XCY` / `CLK_SZY` / `CLK_XNW` / `CLK_SWQ`），每条含 `owner`、`max_segments=4`、`soft_at=3`、`k01_guard` 与 2 个循环阶段 `phases[{label, channel_hint, soft_omen, hard_landing}]`。
-- `beats`（**42 条**精选支点事件，含 30 条常规支点 + 12 条 `category: "erotic_accident"` 四阶香艳突发意外）：单条含 `id`、`tier`（`tier1`/`tier2`/`tier3`/`tier4`）、`category`、`channel`（属于 8 类规范通道）、`locations[]`、`required_cast[]`、`time_slots[]`、`min_vigilance`、`min_biz`、可选生理门控字段（`min_affection`/`max_shame`/`min_desire`/`min_depravity`/`requires_unrelieved`）、`weight`、`cooldown`、`once`、`seed_to_add`、`requires_seed`、`objective_event`。
+- `beats`（**48 条**精选支点事件，含 30 条常规支点 + 6 条 Tier-0 `category: "sensual_hook"` 感官契机 + 12 条 `category: "erotic_accident"` 四阶香艳突发意外）：单条含 `id`、`tier`（`tier0`–`tier4`）、`category`、`channel`、`locations[]`、`required_cast[]`、`time_slots[]`、`min_vigilance`、`min_biz`、可选生理门控字段、`weight`、`cooldown`、`once`、`seed_to_add`、`requires_seed`、`objective_event`。
 
 ---
 
@@ -185,10 +185,10 @@ flowchart LR
 
 `存档/` 为完全自包含的累积事实层，单目录迁移即可在无 `.round-runtime/` 与 `data.json` 时零 500 恢复运行态：
 
-- **`存档/save_state.json`（唯一机器状态真相）**：包含 `version: 2`、`panels`（5 角色数值）、`presence`、`micro_states`、`buffs`、`counters`、**`mechanics`**（`su_affection_85_unlocked`、`secrets_unlocked`、`nap_last_day`、`insomnia_applied`、`first_triggers`、`c_streak`）、`vigilance`、`tasks`（含 `pending_items` 队列）、`items`（`next_seq` + `active` / `delivered` / `history` 三分仓 + `giftable`）、`shop`、`intel`、`director`、`lifecycle`、`runtime`（`clock`/`weekday`/`memory_round`/`last_closed`/`phase`/`item_recovered`/`action_index`/`closed_by`/`last_sequence`/`last_segment_id`/`prologue`）及 **`rendered_sha256`**（外部手动编辑 `.txt` 漂移检测指纹）。
+- **`存档/save_state.json`（唯一机器状态真相）**：包含 `version: 2`、`panels`、`presence`、`micro_states`、`buffs`、`counters`、**`mechanics`**、`vigilance`、`tasks`（含 `pending_items` 队列）、`items`（`next_seq` + **`active` / `deployed` / `delivered` / `history` 四分仓** + `giftable` / `category` / `usage_mode` / `spot` / `hidden` / `installed_clock`）、`shop`（`redeemed` / `recent` / `echoes` / **`dynamic_catalog`** / `next_dyn_seq`）、`intel`、`director`（含 **`sensual_drought`**）、`lifecycle`、`runtime` 及 **`rendered_sha256`**（外部编辑 `.txt` 漂移检测指纹，漂移同步时严格保留 `shop.dynamic_catalog` / `next_dyn_seq` / `items.deployed`）。
 - **`存档/四层记忆.json`**：持久化结构化 `L1–L4` 条目、`prologue_active` 布尔标志（彻底取代会污染正文的 `PROLOGUE` 隐藏标记行）与知情元数据。
 - **`存档/近期演播.json`**：滚动保存最新 **12 幕** 已接受演播原文与 `playback` 播放游标；刻意置于 `round_runtime.FILES` 之外，避免单纯推进播放进度改变世界版本指纹。
-- **旧纯 `.txt` 兼容与漂移检测**：`save_store.load_bundle()` 在缺少 JSON 时自动无损迁移旧纯 `.txt` 存档；若检测到用户或旧工具直接修改了 `.txt`（哈希不等于 `rendered_sha256`），自动重新导入被改动的 `.txt` 区块并严格保留 JSON 专属 `mechanics`。
+- **旧纯 `.txt` 兼容与漂移检测**：`save_store.load_bundle()` 在缺少 JSON 时自动无损迁移旧纯 `.txt` 存档；若检测到用户或旧工具直接修改了 `.txt`（哈希不等于 `rendered_sha256`），自动重新导入被改动的 `.txt` 区块并严格保留 JSON 专属 `mechanics` 与动态货架。
 
 ### 3.3 `存档/全局记忆库.txt`（单向自动渲染的 13 大固定区块）
 由 `save_store.render_memory_txt()` 单向渲染供人工与手动入口查阅（已移除冗余的 `▶ 上回合历史快照` 与序幕隐藏标记行），**区块锚点顺序严格固定**：
@@ -211,8 +211,8 @@ flowchart LR
     - `▲ 第三层：【近期事实缓存区】`（≤10 条）
     - `▲ 第四层：【深渊纪元浓缩区】`（无上限）
 
-### 3.4 `存档/徐志北道具图鉴.txt`（V3.0 单向自动渲染；原次要 NPC 名册已退役）
-- **道具图鉴 V3.0**：由 `save_store.render_items_txt()` 单向渲染，以 `▼ 活跃道具区 ▼`、`▼ 已交付道具区 ▼`、`▼ 已过期/已消耗道具历史区 ▼`、`▼ 格式模板区 ▼` 四锚点切分。单道具 16 行固定键值：在原有 15 项基础上新增 **`【可赠予】：是 / 否`**（对应 `giftable`，后端硬拦截不可赠予物品的 `transfer_item`）；已交付道具独立隔离，商城重购同名绝不覆盖历史交付记录。
+### 3.4 `存档/徐志北道具图鉴.txt`（V3.0 单向自动渲染；含已部署装置区）
+- **道具图鉴 V3.0**：由 `save_store.render_items_txt()` 单向渲染，以 `▼ 活跃道具区 ▼`、`▼ 已部署装置区 ▼`、`▼ 已交付道具区 ▼`、`▼ 已过期/已消耗道具历史区 ▼`、`▼ 格式模板区 ▼` 五锚点切分（含 `【使用模式】`、`【安装点位】`、`【隐蔽部署】`、`【部署时间】` 与 `【可赠予】`），兼容 `scene_world.py` 边界识别；已交付道具独立隔离，商城重购同名绝不覆盖历史交付记录。
 - **次要 NPC 名册已退役**：原 `存档/次要NPC名册.txt` 已移除，偶发配角由四层记忆与活体导演线头自然承载；`execute_injection(..., npc_entries=...)` 与 `update_npc_roster()` 保留为安全兼容空操作。
 
 ### 3.5 `voice_config.json`、`语音仓库/voice_repo.json` 与 `legacy_visibility.json`

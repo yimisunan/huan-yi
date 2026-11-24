@@ -13,8 +13,25 @@
     },
     "high": {
       "label": "高阶臻品",
-      "min_price": 100,
+      "min_price": 60,
       "max_price": 9999
+    }
+  },
+  "categories": {
+    "sensual": {
+      "label": "官能辅助",
+      "desc": "升温助兴、触感破冰与居家贴身礼赠",
+      "order": 1
+    },
+    "covert": {
+      "label": "隐秘装备",
+      "desc": "可暗中部署于场景、远程回看或回收的隐蔽装置",
+      "order": 2
+    },
+    "daily": {
+      "label": "日用礼赠",
+      "desc": "体力补给、商务破冰与体面日常礼盒",
+      "order": 3
     }
   },
   "items": [
@@ -22,6 +39,8 @@
       "id": "SHOP-001",
       "name": "清神薄荷糖",
       "tier": "low",
+      "category": "daily",
+      "usage_mode": "consumable_host",
       "price": 8,
       "type": "临时性（消耗品）",
       "desc": "薄荷与陈皮调制的醒神糖盒，微凉利口，疲惫时含一颗可提振精神。",
@@ -35,6 +54,8 @@
       "id": "SHOP-002",
       "name": "手工茉莉冷萃茶包",
       "tier": "low",
+      "category": "daily",
+      "usage_mode": "gift",
       "price": 10,
       "type": "永久性",
       "desc": "分装雅致的小盒冷萃花茶，清淡不甜腻，适合作为日常小礼递给同席人物。",
@@ -48,6 +69,8 @@
       "id": "SHOP-003",
       "name": "精品黑咖啡浓缩液",
       "tier": "mid",
+      "category": "daily",
+      "usage_mode": "consumable_host",
       "price": 16,
       "type": "临时性（消耗品）",
       "desc": "便携装冷萃黑咖啡浓缩液，口感醇苦利落，可快速补足当夜免费恢复额度。",
@@ -61,6 +84,8 @@
       "id": "SHOP-004",
       "name": "定制松木香氛手帕",
       "tier": "mid",
+      "category": "daily",
+      "usage_mode": "gift",
       "price": 25,
       "type": "永久性",
       "desc": "精纺素色棉麻手帕，熏有极淡的雪松与白茶余香，体面克制，适合随身或赠人。",
@@ -74,6 +99,8 @@
       "id": "SHOP-005",
       "name": "精装艺术画册《静物光影》",
       "tier": "mid",
+      "category": "daily",
+      "usage_mode": "gift",
       "price": 30,
       "type": "永久性",
       "desc": "小众外版油画静物集，印刷考究，适合带往画室或赠予爱好绘画者自然开启话题。",
@@ -87,6 +114,8 @@
       "id": "SHOP-006",
       "name": "商业简报摘录夹",
       "tier": "mid",
+      "category": "daily",
+      "usage_mode": "gift",
       "price": 35,
       "type": "永久性",
       "desc": "汇总近期公开行业数据与并购案例的精装摘录夹，仅含公开商业资料，便于切入商谈。",
@@ -100,6 +129,8 @@
       "id": "SHOP-007",
       "name": "古董银质袖扣礼盒",
       "tier": "high",
+      "category": "daily",
+      "usage_mode": "gift",
       "price": 100,
       "type": "永久性",
       "desc": "低调精致的银质工艺袖扣礼盒，分量与质感兼备，适合在重要场合体面递交。",
@@ -113,6 +144,8 @@
       "id": "SHOP-008",
       "name": "私人典藏白茶饼（十年陈）",
       "tier": "high",
+      "category": "daily",
+      "usage_mode": "gift",
       "price": 120,
       "type": "永久性",
       "desc": "陈香温润的福鼎老白茶礼盒，无论主宅品茗或商务会客皆显郑重，可赠予同席人物。",
@@ -121,6 +154,156 @@
       "system_effect": "",
       "giftable": true,
       "max_per_save": 1
+    },
+    {
+      "id": "SHOP-009",
+      "name": "热感幽兰按摩精油",
+      "tier": "mid",
+      "category": "sensual",
+      "usage_mode": "consumable_target",
+      "pack_qty": 3,
+      "price": 12,
+      "type": "临时性（消耗品）",
+      "desc": "入肤即微微生热的冷压幽兰与甜杏仁按摩油，一盒3份；揉按足弓、肩颈或手腕时顺滑生热，极易化开防备并带来绵长悸动。",
+      "duration": "无",
+      "expire_rule": "消耗归零后归档",
+      "system_effect": "buff:温热精油:2:触感升温与按摩破冰，轻中度越界好感惩罚减半",
+      "giftable": false,
+      "max_per_save": 3
+    },
+    {
+      "id": "SHOP-010",
+      "name": "暖调白麝香香薰蜡烛",
+      "tier": "mid",
+      "category": "sensual",
+      "usage_mode": "consumable_target",
+      "pack_qty": 2,
+      "price": 16,
+      "type": "临时性（消耗品）",
+      "desc": "手作琥珀玻璃杯香薰蜡烛，一盒2支；点燃后室内浮动温润的白麝香与雪松暖意，让紧绷的呼吸与防线在暖光里悄然松弛。",
+      "duration": "无",
+      "expire_rule": "消耗归零后归档",
+      "system_effect": "buff:暖香微醺:2:室内嗅觉渐变升温，在场女主防备缓松且视觉刺激不衰减",
+      "giftable": false,
+      "max_per_save": 3
+    },
+    {
+      "id": "SHOP-011",
+      "name": "高定超薄暗纹丝袜礼盒",
+      "tier": "mid",
+      "category": "sensual",
+      "usage_mode": "gift",
+      "pack_qty": 1,
+      "price": 28,
+      "type": "永久性",
+      "desc": "意大利工坊 8D 超薄哑光丝袜礼盒，附脚踝暗纹提花与蕾丝防滑边；丝滑紧致如第二层肌肤，适合私下赠予并顺势谈起穿着贴合度。",
+      "duration": "无",
+      "expire_rule": "无",
+      "system_effect": "",
+      "giftable": true,
+      "max_per_save": 2,
+      "unlock_req": {
+        "min_any_affection": 55
+      }
+    },
+    {
+      "id": "SHOP-012",
+      "name": "真丝蕾丝居家睡裙礼盒",
+      "tier": "mid",
+      "category": "sensual",
+      "usage_mode": "gift",
+      "pack_qty": 1,
+      "price": 32,
+      "type": "永久性",
+      "desc": "香槟米与酒红双色可选的 22 姆米斜裁重磅真丝吊带睡裙，领口与侧摆镶法式睫毛蕾丝，垂坠贴身勾勒曲线，适合独处或夜晚赠礼。",
+      "duration": "无",
+      "expire_rule": "无",
+      "system_effect": "",
+      "giftable": true,
+      "max_per_save": 2,
+      "unlock_req": {
+        "min_any_affection": 60
+      }
+    },
+    {
+      "id": "SHOP-013",
+      "name": "真丝遮光眼罩与冰玉滚轮",
+      "tier": "mid",
+      "category": "sensual",
+      "usage_mode": "reusable_tool",
+      "pack_qty": 1,
+      "price": 36,
+      "type": "永久性",
+      "desc": "双面重磅真丝全遮光眼罩配天然岫玉冰感按摩滚轮，可反复随身携带使用；遮蔽视线后冰凉玉石划过锁骨、腕骨与脚踝，放大每一次呼吸与触碰。",
+      "duration": "无",
+      "expire_rule": "无",
+      "system_effect": "",
+      "giftable": false,
+      "max_per_save": 1,
+      "unlock_req": {
+        "min_biz": 10,
+        "min_any_affection": 65,
+        "mode": "any"
+      }
+    },
+    {
+      "id": "SHOP-014",
+      "name": "无色微醺桃露（催化滴剂）",
+      "tier": "mid",
+      "category": "sensual",
+      "usage_mode": "consumable_target",
+      "pack_qty": 2,
+      "price": 42,
+      "type": "临时性（消耗品）",
+      "desc": "清甜近乎无味的浓缩水蜜桃植物暖体滴剂，一盒2剂；兑入温茶、红酒或气泡水中数分钟即可催生微醺燥热与耳根潮红，但不丧失自主意识。",
+      "duration": "无",
+      "expire_rule": "消耗归零后归档",
+      "system_effect": "buff:微醺燥热:3:脸颊潮红呼吸发烫，羞耻防线松动且轻中度越界好感惩罚减半",
+      "giftable": false,
+      "max_per_save": 2,
+      "unlock_req": {
+        "min_biz": 15,
+        "min_any_affection": 55,
+        "mode": "all"
+      }
+    },
+    {
+      "id": "SHOP-015",
+      "name": "纽扣式微型针孔摄像头",
+      "tier": "high",
+      "category": "covert",
+      "usage_mode": "deployable_device",
+      "pack_qty": 1,
+      "price": 65,
+      "type": "永久性",
+      "desc": "哑光伪装成衣物纽扣或装饰螺钉的超微型广角镜头，低光高清、无线直连加密手机端；可暗中部署于室内角落，离场后亦能随时远程查看实时画面。",
+      "duration": "无",
+      "expire_rule": "无",
+      "system_effect": "deploy_device:camera",
+      "giftable": false,
+      "max_per_save": 3,
+      "unlock_req": {
+        "min_biz": 25
+      }
+    },
+    {
+      "id": "SHOP-016",
+      "name": "超薄磁吸微型录音器",
+      "tier": "mid",
+      "category": "covert",
+      "usage_mode": "deployable_device",
+      "pack_qty": 1,
+      "price": 48,
+      "type": "永久性",
+      "desc": "厚度不足 3 毫米的哑黑磁吸式声控微型拾音器，吸附于书桌底板、床头暗槽或梳妆台背面极难察觉，可随时远程回听该处动静与对话。",
+      "duration": "无",
+      "expire_rule": "无",
+      "system_effect": "deploy_device:audio",
+      "giftable": false,
+      "max_per_save": 2,
+      "unlock_req": {
+        "min_biz": 20
+      }
     }
   ]
 }

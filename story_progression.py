@@ -18,9 +18,16 @@ SHOP_ANCHOR = '【商城与回响状态】'
 SHOP_CATALOG_DEFAULT = 'txt文件/系统商城目录.json'
 SHOP_RECENT_LIMIT = 8
 SHOP_ECHO_LIMIT = 4
-SHOP_TIER_RANGES = {'low': (1, 10), 'mid': (11, 50), 'high': (100, 999999)}
+SHOP_TIER_RANGES = {'low': (1, 10), 'mid': (11, 50), 'high': (60, 999999)}
+SHOP_DYNAMIC_LIMIT = 30
+VALID_SYSTEM_EFFECT_RE = re.compile(
+    r'^(?:host_stamina:[1-9]\d{0,3}|buff:[^:\r\n|]{2,12}:[1-4]:[^:\r\n|]{4,60}|deploy_device:(?:camera|audio|aroma))$'
+)
 SHOP_FORBIDDEN_DURATION_RE = re.compile(
     r'(?:延长|冻结|缩短|设定|暂停|修改|刷新|重置|清除).{0,6}(?:持续时间|状态时间|时效|倒计时|冷却|体液锁定|BUFF)'
+)
+SHOP_FORBIDDEN_DYN_RE = re.compile(
+    r'毒品|海洛因|冰毒|大麻|鸦片|可卡因|迷药|迷晕|春药|催情(?:药|粉|散|水|剂)|蒙汗药|下药|致幻|麻醉药|吸烟|香烟|烟草|尼古丁|电子烟|洗脑|催眠控制|强制服从|绝对服从|精神控制|奴役芯片|extend_duration|永久修改(?:属性|好感|堕落|羞耻)'
 )
 INTEL_ANCHOR = '【商业情报与杠杆状态】'
 INTEL_CATALOG_DEFAULT = 'txt文件/商业情报目录.json'
@@ -140,7 +147,7 @@ def parse_shop_echo_block(content):
     rm = re.search(r'^已兑统计：([^\n]+)', block, re.M)
     if rm and rm.group(1).strip() not in ('（无）', '(无)', '无', ''):
         for seg in rm.group(1).split('|'):
-            pm = re.fullmatch(r'\s*(SHOP-\d+)[×x*](\d+)\s*', seg)
+            pm = re.fullmatch(r'\s*((?:SHOP|DYN)-\d+)[×x*](\d+)\s*', seg)
             if pm:
                 state_out['redeemed'][pm.group(1)] = int(pm.group(2))
     rec_m = re.search(r'^最近兑换：\n((?: [^\n]+\n?)*)', block, re.M)
@@ -240,24 +247,89 @@ def shop_catalog_path(root):
     return SHOP_CATALOG_DEFAULT
 
 
+def _normalize_unlock_req(raw_req):
+    if raw_req is None:
+        return None
+    if not isinstance(raw_req, dict):
+        raise rr.RoundError('商城商品 unlock_req 须为对象或 null')
+    rr._keys(raw_req, {'min_biz', 'min_any_affection', 'mode'}, 'shop.unlock_req')
+    out = {}
+    if 'min_biz' in raw_req and raw_req['min_biz'] is not None:
+        rr._integer(raw_req['min_biz'], 'unlock_req.min_biz', 0)
+        if raw_req['min_biz'] > 0:
+            out['min_biz'] = min(100, int(raw_req['min_biz']))
+    if 'min_any_affection' in raw_req and raw_req['min_any_affection'] is not None:
+        rr._integer(raw_req['min_any_affection'], 'unlock_req.min_any_affection', 0)
+        if raw_req['min_any_affection'] > 0:
+            out['min_any_affection'] = min(100, int(raw_req['min_any_affection']))
+    if not out:
+        return None
+    mode = str(raw_req.get('mode') or 'all').strip().lower()
+    if mode not in ('all', 'any'):
+        raise rr.RoundError('shop.unlock_req.mode 须为 all 或 any')
+    if len(out) > 1:
+        out['mode'] = mode
+    return out
+
+
+def read_shop_unlock_metrics(engine, memory_text):
+    biz = engine._read_attr_value(memory_text, '系统宿主', '商业嗅觉')
+    host_biz = max(0, int(biz)) if biz is not None else 0
+    affs = {}
+    for hname in save_store.HEROINES:
+        val = engine._read_attr_value(memory_text, hname, '好感')
+        affs[hname] = max(0, int(val)) if val is not None else 0
+    return host_biz, affs
+
+
+def evaluate_unlock_req(unlock_req, host_biz, heroine_affs):
+    if not unlock_req or not isinstance(unlock_req, dict):
+        return {'unlocked': True, 'reason': '', 'hint': ''}
+    min_biz = int(unlock_req.get('min_biz') or 0)
+    min_aff = int(unlock_req.get('min_any_affection') or 0)
+    max_aff = max(heroine_affs.values()) if isinstance(heroine_affs, dict) and heroine_affs else 0
+    mode = str(unlock_req.get('mode') or 'all').strip().lower()
+    checks = []
+    parts = []
+    if min_biz > 0:
+        ok_b = host_biz >= min_biz
+        checks.append(ok_b)
+        parts.append(f'商业嗅觉 ≥ {min_biz}（当前 {host_biz}）')
+    if min_aff > 0:
+        ok_a = max_aff >= min_aff
+        checks.append(ok_a)
+        parts.append(f'任一女主好感 ≥ {min_aff}（最高 {max_aff}）')
+    if not checks:
+        return {'unlocked': True, 'reason': '', 'hint': ''}
+    unlocked = any(checks) if mode == 'any' else all(checks)
+    joiner = ' 或 ' if mode == 'any' else ' 且 '
+    hint = '需' + joiner.join(parts)
+    return {
+        'unlocked': unlocked,
+        'reason': '' if unlocked else f'尚未满足解锁门槛：{hint}',
+        'hint': hint,
+    }
+
+
 def load_shop_catalog(root, optional=False):
     """Load and strictly validate the authoritative deterministic shop catalog."""
     rel = shop_catalog_path(root)
     path = Path(root) / rel
     if not path.is_file():
         if optional:
-            return {'version': 1, 'tiers': {}, 'items': [], 'source': rel}
+            return {'version': 1, 'tiers': {}, 'categories': {}, 'items': [], 'source': rel}
         raise rr.RoundError('缺少权威系统商城目录：' + rel)
     raw = rr.load_request(path.read_text(encoding='utf-8'))
-    rr._keys(raw, {'version', 'tiers', 'items'}, '系统商城目录', {'version', 'items'})
+    rr._keys(raw, {'version', 'tiers', 'categories', 'items'}, '系统商城目录', {'version', 'items'})
     if raw.get('version') != 1 or not isinstance(raw.get('items'), list):
         raise rr.RoundError('系统商城目录版本或结构无效')
     seen_ids = set()
     seen_names = set()
     required_item = {'id', 'name', 'tier', 'price', 'type', 'desc', 'duration', 'expire_rule', 'system_effect', 'giftable', 'max_per_save'}
+    optional_item = {'category', 'usage_mode', 'pack_qty', 'unlock_req'}
     normalized = []
     for entry in raw['items']:
-        rr._keys(entry, required_item, '商城商品', required_item)
+        rr._keys(entry, required_item | optional_item, '商城商品', required_item)
         sid = entry['id']
         if not isinstance(sid, str) or not re.fullmatch(r'SHOP-\d+', sid) or sid in seen_ids:
             raise rr.RoundError('商城商品ID无效或重复: ' + str(sid))
@@ -279,23 +351,261 @@ def load_shop_catalog(root, optional=False):
         duration = rr._text(entry['duration'], 'shop.duration', 20).strip()
         expire_rule = rr._text(entry['expire_rule'], 'shop.expire_rule', 80).strip()
         eff = entry['system_effect']
-        if not isinstance(eff, str) or (eff and not re.fullmatch(r'host_stamina:[1-9]\d{0,3}', eff)):
+        if not isinstance(eff, str) or (eff and not VALID_SYSTEM_EFFECT_RE.fullmatch(eff)):
             raise rr.RoundError('商城商品系统效果未登记: ' + str(eff))
         if type(entry['giftable']) is not bool:
             raise rr.RoundError('商城商品giftable须为布尔值')
         cap = entry['max_per_save']
         if cap is not None:
             rr._integer(cap, 'shop.max_per_save', 1)
+        pack_qty = entry.get('pack_qty', 1)
+        rr._integer(pack_qty, 'shop.pack_qty', 1)
+        if pack_qty > 10:
+            raise rr.RoundError('商城商品单次兑换份数上限为10: ' + sid)
+        category = str(entry.get('category') or 'daily').strip() or 'daily'
+        if category not in ('daily', 'sensual', 'covert'):
+            raise rr.RoundError('商城商品分类非法: ' + category)
+        usage_mode = save_store.infer_usage_mode(eff, entry['giftable'], entry.get('usage_mode', ''))
+        if entry.get('usage_mode') and entry['usage_mode'] not in save_store.VALID_USAGE_MODES:
+            raise rr.RoundError('商城商品使用模式非法: ' + str(entry['usage_mode']))
+        unlock_req = _normalize_unlock_req(entry.get('unlock_req'))
         for field_text in (name, desc, expire_rule):
             if SHOP_FORBIDDEN_DURATION_RE.search(field_text):
                 raise rr.RoundError('商城商品违反红线（禁止修改状态持续时间）: ' + sid)
         normalized.append({
-            'id': sid, 'name': name, 'tier': tier, 'price': price, 'type': item_type,
-            'desc': desc, 'duration': duration, 'expire_rule': expire_rule,
-            'system_effect': eff, 'giftable': entry['giftable'], 'max_per_save': cap,
+            'id': sid, 'name': name, 'tier': tier, 'category': category,
+            'usage_mode': usage_mode, 'pack_qty': pack_qty, 'price': price,
+            'type': item_type, 'desc': desc, 'duration': duration,
+            'expire_rule': expire_rule, 'system_effect': eff,
+            'giftable': entry['giftable'], 'max_per_save': cap,
+            'unlock_req': unlock_req, 'source': 'static',
         })
     tiers = raw.get('tiers') if isinstance(raw.get('tiers'), dict) else {}
-    return {'version': 1, 'tiers': copy.deepcopy(tiers), 'items': normalized, 'source': rel}
+    categories = raw.get('categories') if isinstance(raw.get('categories'), dict) else {}
+    return {'version': 1, 'tiers': copy.deepcopy(tiers), 'categories': copy.deepcopy(categories), 'items': normalized, 'source': rel}
+
+
+def _extract_json_object_text(raw_text):
+    if isinstance(raw_text, dict):
+        return raw_text
+    if not isinstance(raw_text, str) or not raw_text.strip():
+        raise rr.RoundError('AI进货返回为空')
+    cleaned = re.sub(r'<think>[\s\S]*?</think>', '', raw_text, flags=re.I).strip()
+    candidates = []
+    for fm in re.finditer(r'```(?:json)?\s*([\s\S]*?)```', cleaned, flags=re.I):
+        if fm.group(1).strip():
+            candidates.append(fm.group(1).strip())
+    candidates.append(cleaned)
+    first_brace = cleaned.find('{')
+    last_brace = cleaned.rfind('}')
+    if first_brace != -1 and last_brace > first_brace:
+        candidates.append(cleaned[first_brace:last_brace + 1])
+    for cand in candidates:
+        try:
+            obj = json.loads(cand)
+            if isinstance(obj, dict):
+                return obj
+        except ValueError:
+            continue
+    raise rr.RoundError('AI进货返回不是合法 JSON 对象')
+
+
+def build_shop_inquiry_prompt(root, files, query):
+    """Build stateless system+user prompt for AI shopkeeper restock inquiry (zero liveSession pollution)."""
+    catalog = load_shop_catalog(root, optional=True)
+    st, _, _ = save_store.load_bundle(root, files)
+    host_panel = st.get('panels', {}).get('系统宿主') or {}
+    host_pts = int(host_panel.get('积分', 0) or 0)
+    host_biz = int(host_panel.get('商业嗅觉', 0) or 0)
+    affs = {h: int((st.get('panels', {}).get(h) or {}).get('好感', 0) or 0) for h in save_store.HEROINES}
+    existing_names = [it['name'] for it in catalog.get('items', [])] + [
+        it.get('name', '') for it in (st.get('shop', {}).get('dynamic_catalog') or []) if isinstance(it, dict) and it.get('name')
+    ]
+    system_prompt = (
+        '你是「深渊天平」现代都市成人向互动叙事的系统商城采购员。'
+        '玩家正在询货窗询问是否有某类道具，请贴合现代都市现实感与角色魅力（沈知韫黑丝美足/熟女高管、苏婉青36D丰腴茶室/公寓、徐念薇纤纤美手/画室少女）为货架定制进货 1～3 件新道具。\n'
+        '硬性规则：\n'
+        '1. 只输出单个裸 JSON 对象，禁止代码围栏与前后解释，结构为：\n'
+        '   {"shopkeeper_reply":"给玩家的简短进货回应(≤80字)","items":[{...}]}\n'
+        '2. items 含 1～3 件不与已有商品重名的新道具，每件含字段：\n'
+        '   - name: 4～18字商品中文名\n'
+        '   - category: "sensual"（官能辅助/情趣/服饰/按摩/香氛）| "covert"（隐秘监测/录音/追踪）| "daily"（日用礼赠）\n'
+        '   - usage_mode: "gift"（可赠予穿戴或纪念）| "consumable_target"（一次性/多份消耗，对目标或室内生效）| "reusable_tool"（反复随身工具）| "deployable_device"（安装于场景并可远程回看）\n'
+        '   - price: 整数积分（日用/小物 10～35；官能消耗/礼盒/工具 14～50；高阶隐秘装置或稀缺礼盒 60～130）\n'
+        '   - pack_qty: 1～3（消耗品可 2～3 份，永久品固定 1）\n'
+        '   - desc: 20～140字，写明材质、感官质感与具体玩法用途\n'
+        '   - system_effect: 仅限 ""、"buff:简短名(2-10字):回合(1-3):简短效果(6-45字)"、"deploy_device:camera"、"deploy_device:audio"、"deploy_device:aroma"；绝不填 host_stamina 或 extend_duration\n'
+        '   - unlock_req: null 或 {"min_biz":0~40,"min_any_affection":0~75,"mode":"all"|"any"}（隐秘装置建议 min_biz 20~35，进阶情趣/催化建议叠加好感或嗅觉门槛）\n'
+        '   - max_per_save: 1～3\n'
+        '3. 绝对红线：严禁生成毒品、烟草/吸烟相关物品、洗脑/催眠强制服从类道具、直接篡改属性或延长/冻结状态时效与体液锁定的作弊道具；鼓励合法现实感的成人情趣服饰、丝袜、精油、香氛、眼罩、情调助兴小物与隐秘摄录装备。'
+    )
+    user_payload = {
+        'player_query': str(query or '').strip()[:120],
+        'host_status': {'points': host_pts, 'commercial_sense': host_biz, 'max_heroine_affection': max(affs.values()) if affs else 0},
+        'existing_item_names': existing_names[-40:],
+    }
+    return {
+        'system_prompt': system_prompt,
+        'user_prompt': json.dumps(user_payload, ensure_ascii=False, separators=(',', ':')),
+    }
+
+
+def validate_dynamic_shop_items(raw_payload, existing_names, next_seq, *, query=''):
+    """Deterministically validate, sanitize, price-clamp, and redline-filter AI restocked items."""
+    obj = _extract_json_object_text(raw_payload)
+    reply = _clean_single_line(obj.get('shopkeeper_reply') or '')[:120]
+    raw_items = obj.get('items')
+    if not isinstance(raw_items, list) or not raw_items:
+        raise rr.RoundError('AI进货未返回任何有效商品条目')
+    seen_names = {str(n).strip().casefold() for n in (existing_names or ()) if str(n).strip()}
+    seq = max(1, int(next_seq or 1))
+    clean_items = []
+    rejected = []
+
+    for entry in raw_items[:4]:
+        if not isinstance(entry, dict):
+            rejected.append('条目非对象')
+            continue
+        name = _clean_single_line(entry.get('name') or '')[:32]
+        desc = _clean_single_line(entry.get('desc') or '')[:180]
+        if len(name) < 2 or len(desc) < 8:
+            rejected.append(f'{name or "空名"}:名称或描述过短')
+            continue
+        if name.casefold() in seen_names:
+            rejected.append(f'{name}:与现有货架重名')
+            continue
+        raw_eff = _clean_single_line(entry.get('system_effect') or '')
+        combined_text = f'{name} {desc} {raw_eff}'
+        if SHOP_FORBIDDEN_DURATION_RE.search(combined_text) or SHOP_FORBIDDEN_DYN_RE.search(combined_text):
+            rejected.append(f'{name}:触碰禁售红线（毒品/烟草/精神控制/时效作弊）')
+            continue
+        usage_mode = str(entry.get('usage_mode') or '').strip()
+        if usage_mode not in ('gift', 'consumable_target', 'reusable_tool', 'deployable_device'):
+            if raw_eff.startswith('deploy_device:'):
+                usage_mode = 'deployable_device'
+            elif raw_eff.startswith('buff:'):
+                usage_mode = 'consumable_target'
+            else:
+                usage_mode = 'gift'
+        category = str(entry.get('category') or '').strip()
+        if category not in ('sensual', 'covert', 'daily'):
+            category = 'covert' if usage_mode == 'deployable_device' else 'sensual'
+        # Validate and sanitize system_effect (never allow host_stamina on AI restocked items)
+        eff = ''
+        if raw_eff.startswith('host_stamina:'):
+            eff = ''
+        elif raw_eff and VALID_SYSTEM_EFFECT_RE.fullmatch(raw_eff):
+            if raw_eff.startswith('buff:'):
+                parts = raw_eff.split(':', 3)
+                bname = parts[1].strip()[:12]
+                bturns = max(1, min(3, int(parts[2])))
+                bdesc = parts[3].strip()[:55]
+                eff = f'buff:{bname}:{bturns}:{bdesc}'
+            elif raw_eff.startswith('deploy_device:'):
+                eff = raw_eff
+        if usage_mode == 'deployable_device' and not eff.startswith('deploy_device:'):
+            eff = 'deploy_device:audio' if re.search(r'录音|拾音|窃听|麦克风', combined_text) else (
+                'deploy_device:aroma' if re.search(r'扩香|香薰机|香氛机', combined_text) else 'deploy_device:camera'
+            )
+        if usage_mode != 'deployable_device' and eff.startswith('deploy_device:'):
+            usage_mode = 'deployable_device'
+            category = 'covert'
+        # Deterministic price clamping + tier alignment (avoiding 51..59 gap)
+        try:
+            raw_price = int(entry.get('price'))
+        except (TypeError, ValueError):
+            raw_price = 28
+        if usage_mode == 'deployable_device':
+            price = max(60, min(140, raw_price))
+            tier = 'high'
+        elif usage_mode == 'consumable_target':
+            price = max(14, min(50, raw_price))
+            tier = 'mid'
+        elif usage_mode == 'reusable_tool':
+            price = max(20, min(50, raw_price))
+            tier = 'mid'
+        else:
+            price = max(10, min(120, raw_price))
+            if 51 <= price <= 59:
+                price = 60
+            tier = 'low' if price <= 10 else ('mid' if price <= 50 else 'high')
+        try:
+            pack_qty = int(entry.get('pack_qty') or 1)
+        except (TypeError, ValueError):
+            pack_qty = 1
+        pack_qty = max(1, min(3, pack_qty)) if usage_mode == 'consumable_target' else 1
+        try:
+            max_cap = int(entry.get('max_per_save') or 2)
+        except (TypeError, ValueError):
+            max_cap = 2
+        max_cap = max(1, min(3, max_cap))
+        # Sanitize & floor-enforce unlock_req
+        req_in = entry.get('unlock_req') if isinstance(entry.get('unlock_req'), dict) else {}
+        min_biz = 0
+        min_aff = 0
+        try:
+            min_biz = max(0, min(50, int(req_in.get('min_biz') or 0)))
+        except (TypeError, ValueError):
+            min_biz = 0
+        try:
+            min_aff = max(0, min(80, int(req_in.get('min_any_affection') or 0)))
+        except (TypeError, ValueError):
+            min_aff = 0
+        mode_req = str(req_in.get('mode') or 'all').strip().lower()
+        if mode_req not in ('all', 'any'):
+            mode_req = 'all'
+        if usage_mode == 'deployable_device':
+            min_biz = max(min_biz, 20)
+        elif eff.startswith('buff:'):
+            bturns = int(eff.split(':', 3)[2])
+            if bturns >= 3 and min_biz < 12 and min_aff < 50:
+                min_biz = 12
+        unlock_req = None
+        if min_biz > 0 or min_aff > 0:
+            unlock_req = {}
+            if min_biz > 0:
+                unlock_req['min_biz'] = min_biz
+            if min_aff > 0:
+                unlock_req['min_any_affection'] = min_aff
+            if len(unlock_req) > 1:
+                unlock_req['mode'] = mode_req
+        did = f'DYN-{seq:03d}'
+        seq += 1
+        seen_names.add(name.casefold())
+        is_cons = (usage_mode == 'consumable_target')
+        clean_items.append({
+            'id': did,
+            'name': name,
+            'tier': tier,
+            'category': category,
+            'usage_mode': usage_mode,
+            'pack_qty': pack_qty,
+            'price': price,
+            'type': '临时性（消耗品）' if is_cons else '永久性',
+            'desc': desc,
+            'duration': '无',
+            'expire_rule': '消耗归零后归档' if is_cons else '无',
+            'system_effect': eff,
+            'giftable': (usage_mode == 'gift'),
+            'max_per_save': max_cap,
+            'unlock_req': unlock_req,
+            'source': 'ai_restock',
+            'query': _clean_single_line(query)[:80],
+        })
+        if len(clean_items) >= 3:
+            break
+
+    if not clean_items:
+        detail = '；'.join(rejected[:3]) if rejected else '无符合规范的条目'
+        raise rr.RoundError('本次询货商品均未通过安全与平衡校验：' + detail)
+    if not reply:
+        reply = f"已为你调货上架 {len(clean_items)} 件新品：{'、'.join(it['name'] for it in clean_items)}。"
+    return {
+        'shopkeeper_reply': reply,
+        'items': clean_items,
+        'next_dyn_seq': seq,
+        'rejected_reasons': rejected,
+    }
 
 
 def intel_catalog_path(root):
@@ -448,6 +758,7 @@ def _default_director_state():
         'scene_location': '',
         'scene_turns': 0,
         'clock_tick_acc': 0,
+        'sensual_drought': 0,
         'last_time_slot': '',
         'event_cooldowns': {},
         'consumed_once': [],
@@ -473,7 +784,7 @@ def parse_director_block(content):
         return out
     if not isinstance(raw, dict):
         return out
-    for int_k in ('calm_streak', 'global_cooldown', 'turns_since_beat', 'scene_turns', 'clock_tick_acc'):
+    for int_k in ('calm_streak', 'global_cooldown', 'turns_since_beat', 'scene_turns', 'clock_tick_acc', 'sensual_drought'):
         val = raw.get(int_k)
         if type(val) is int and val >= 0:
             out[int_k] = val
@@ -554,6 +865,7 @@ def write_director_block(content, dstate):
         'scene_location': str(dstate.get('scene_location') or ''),
         'scene_turns': max(0, int(dstate.get('scene_turns', 0))),
         'clock_tick_acc': max(0, int(dstate.get('clock_tick_acc', 0))),
+        'sensual_drought': max(0, int(dstate.get('sensual_drought', 0))),
         'last_time_slot': str(dstate.get('last_time_slot') or '') if dstate.get('last_time_slot') in ('', 'morning', 'afternoon', 'evening', 'night') else '',
         'event_cooldowns': {k: int(v) for k, v in (dstate.get('event_cooldowns') or {}).items() if int(v) > 0},
         'consumed_once': list(dict.fromkeys(str(x) for x in (dstate.get('consumed_once') or []) if x)),
@@ -785,19 +1097,24 @@ def format_surprise_directive(director_roll, catalog=None):
             sd['banned_channels'] = banned
         return sd
     # Default: Track 3 curated preset_beat (also 100% compatible with legacy v1 frozen rolls)
-    is_erotic = director_roll.get('category') == 'erotic_accident'
+    cat = director_roll.get('category') or ''
+    is_erotic = cat == 'erotic_accident'
+    is_sensual = cat == 'sensual_hook'
     sd = {
         'mode': 'preset_beat',
         'tier': director_roll.get('tier', 'tier1'),
         'objective_event': director_roll.get('objective_event', ''),
         'rule': (
             '本幕真实突发的香艳/私密意外：细腻刻画视觉、气味、体温与角色的羞耻慌乱或生理失控反应，在关键分歧点戛然而止并把进退选择权交给段末decision；禁提系统/随机/概率/导演词，禁替主角做决定，严守K01知情边界。'
-            if is_erotic else
-            '本幕真实发生的客观外部变数：自然织入剧情并触发人物反应；禁提系统/随机/概率/导演词，禁替主角做决定，严守K01知情边界。'
+            if is_erotic else (
+                '本幕真实发生的日常魅力微距契机：自然织入在场女主的标志性形体细节（美足/美手/36D）、近距气味与徐志北的生理克制反应，把拉近距离或顺势试探的选择权交给段末decision；禁提系统/随机/概率/导演词，禁替主角做决定，严守K01知情边界。'
+                if is_sensual else
+                '本幕真实发生的客观外部变数：自然织入剧情并触发人物反应；禁提系统/随机/概率/导演词，禁替主角做决定，严守K01知情边界。'
+            )
         ),
     }
-    if is_erotic:
-        sd['category'] = 'erotic_accident'
+    if is_erotic or is_sensual:
+        sd['category'] = cat
     if director_roll.get('linked_seed'):
         sd['linked_foreshadowing'] = director_roll['linked_seed']
     if banned:
@@ -864,6 +1181,7 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
     char_stats = _parse_director_heroine_stats(memory_text, counters)
     cooldowns = dstate['event_cooldowns']
     erotic_cd = int(cooldowns.get('__EROTIC_CATEGORY__', 0))
+    sensual_drought = max(0, int(dstate.get('sensual_drought', 0)))
 
     p_tension = 0.0
     max_vig = 0
@@ -887,7 +1205,7 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
     if erotic_cd <= 0 and location in ('徐家主宅', '市中心顶层公寓', '工作室', '公司'):
         for cname in cast:
             cst = char_stats.get(cname)
-            if cst and (cst['des'] >= 55 or cst['fluid_lock'] or cst['unrelieved'] >= 1 or (cst['aff'] >= 60 and cst['sha'] <= 82)):
+            if cst and (cst['des'] >= 30 or cst['fluid_lock'] or cst['unrelieved'] >= 1 or (cst['aff'] >= 50 and cst['sha'] <= 86)):
                 p_tension += 0.10
                 break
     if host_biz >= 10:
@@ -920,13 +1238,15 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
         elif cst['p'] >= soft_at and not cst['so']:
             ready_clocks.append((cid, meta, cst, 'soft', 1.2))
     p_clock = 0.10 if has_hard_clock else (0.06 if ready_clocks else 0.0)
+    has_heroine_here = any(c in char_stats for c in cast) and location in ('徐家主宅', '市中心顶层公寓', '工作室', '公司')
+    p_sensual_drought = min(0.36, max(0, sensual_drought - 2) * 0.12) if has_heroine_here else 0.0
 
     if dstate['global_cooldown'] > 0:
         prob = 0.0
     else:
         penalty = float(cfg.get('soft_cooldown_penalty', 0.25)) if dstate['turns_since_beat'] <= 2 else 0.0
         prob = max(0.0, min(float(cfg.get('max_prob', 0.85)),
-                            base + p_stag + p_tension + p_context + p_seed + p_clock - penalty))
+                            base + p_stag + p_tension + p_context + p_seed + p_clock + p_sensual_drought - penalty))
 
     gen = rng if rng is not None else secrets.SystemRandom()
     if prob <= 0.0 or gen.random() >= prob:
@@ -974,11 +1294,15 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
     preset_candidates = []
     has_mature_seed_beat = False
     has_erotic_beat = False
+    has_sensual_beat = False
+    drought_boost = 1.0 + min(0.90, max(0, sensual_drought - 2) * 0.30)
     for beat in catalog.get('beats', []):
         bid = beat.get('id', '')
         if not bid or bid in consumed or cooldowns.get(bid, 0) > 0:
             continue
-        is_erotic_beat = beat.get('category') == 'erotic_accident'
+        bcat = beat.get('category', '')
+        is_erotic_beat = bcat == 'erotic_accident'
+        is_sensual_beat = bcat == 'sensual_hook'
         if is_erotic_beat and erotic_cd > 0:
             continue
         locs = beat.get('locations') or []
@@ -992,7 +1316,7 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
             continue
         if max_vig < int(beat.get('min_vigilance', 0)) or host_biz < int(beat.get('min_biz', 0)):
             continue
-        # Physiological & relationship gates (used by four-tier erotic accidents)
+        # Physiological & relationship gates (used by Tier 0 sensual hooks and four-tier erotic accidents)
         min_aff = int(beat.get('min_affection', 0))
         max_sha = int(beat.get('max_shame', 100))
         min_des = int(beat.get('min_desire', 0))
@@ -1039,10 +1363,13 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
             w *= 1.40
         if is_erotic_beat:
             has_erotic_beat = True
-            w *= (1.85 if req_unrel else 1.55)
+            w *= (1.85 if req_unrel else 1.55) * drought_boost
+        elif is_sensual_beat:
+            has_sensual_beat = True
+            w *= 1.45 * drought_boost
         beat_chan = str(beat.get('channel') or '').strip()
         if beat_chan and beat_chan in recent_channel_set:
-            w *= (0.45 if is_erotic_beat else 0.15)
+            w *= (0.45 if (is_erotic_beat or is_sensual_beat) else 0.15)
         if req_seed and req_seed in mature_seed_ids:
             w *= 3.0
             has_mature_seed_beat = True
@@ -1052,7 +1379,9 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
 
     w_t3_base = float(track_cfg.get('preset_beat', 25))
     if w_t3_base > 0 and preset_candidates:
-        t3_mult = 1.8 if has_mature_seed_beat else (1.35 if has_erotic_beat else 1.0)
+        t3_mult = 1.8 if has_mature_seed_beat else (1.35 if (has_erotic_beat or has_sensual_beat) else 1.0)
+        if sensual_drought >= 3 and (has_erotic_beat or has_sensual_beat):
+            t3_mult = max(t3_mult, 1.85)
         track_pool.append(('preset_beat', w_t3_base * t3_mult))
 
     if not track_pool:
@@ -1371,6 +1700,11 @@ def advance_director_state(root, memory_text, *, location, director_roll, effect
     else:
         meaningful = bool(effective_progress or had_events or loc_changed or len((memory_fact or '').strip()) >= 24)
         dstate['calm_streak'] = 0 if meaningful else (dstate['calm_streak'] + 1)
+
+    if roll.get('triggered') and roll.get('category') in ('sensual_hook', 'erotic_accident'):
+        dstate['sensual_drought'] = 0
+    else:
+        dstate['sensual_drought'] = min(12, int(dstate.get('sensual_drought', 0)) + 1)
 
     return write_director_block(memory_text, dstate)
 
@@ -1948,7 +2282,7 @@ def resolution(root,files,body):
                 if not isinstance(text,(bool,str)):raise rr.RoundError('道具giftable须为布尔或文本')
             elif not isinstance(text,str) or '\n' in text or '\r' in text:raise rr.RoundError('道具字段须为单行文本')
         if entry['action'] not in ('add','consume','update','archive'):raise rr.RoundError('道具动作无效')
-        if entry.get('system_effect') and not re.fullmatch(r'host_stamina:[1-9]\d{0,3}',entry['system_effect']):raise rr.RoundError('道具系统效果未登记')
+        if entry.get('system_effect') and not VALID_SYSTEM_EFFECT_RE.fullmatch(entry['system_effect']):raise rr.RoundError('道具系统效果未登记')
         if entry['action']=='update':
             raise rr.RoundError('当前正式入口不允许任意覆写已有道具字段')
         if entry['action']=='add':
@@ -2015,6 +2349,35 @@ def panel_values(engine,text):
     return result
 
 
+def _inject_buff_no_tick(memory_text, target_buffs):
+    """Mount item BUFFs onto memory_text without decrementing existing BUFF timers."""
+    if not target_buffs or '【当前持久化状态与BUFF】' not in memory_text:
+        return memory_text
+    parts = re.split(r'(【当前持久化状态与BUFF】[\s\S]*?)(?=\n={10,}|\n▲ 第一层|$)', memory_text, maxsplit=1)
+    if len(parts) < 2:
+        return memory_text
+    block = parts[1]
+    for char, buff_str in target_buffs.items():
+        if not buff_str:
+            continue
+        char_pattern = rf'(▶\s*{re.escape(char)}\s*\n)(.*?)(?=\n▶|\n$|\Z)'
+        m = re.search(char_pattern, block, re.DOTALL)
+        if not m:
+            continue
+        old_buffs = m.group(2).strip()
+        name_m = re.match(r'^\[([^\]]+)\]', str(buff_str).strip())
+        bname = name_m.group(1) if name_m else ''
+        if '无' in old_buffs or not old_buffs:
+            new_buffs = f'  - {buff_str}'
+        elif bname and f'[{bname}]' in old_buffs:
+            new_buffs = re.sub(rf'-\s*\[{re.escape(bname)}\][^\n]*', f'- {buff_str}', old_buffs, count=1)
+        else:
+            new_buffs = old_buffs + '\n' + f'  - {buff_str}'
+        block = re.sub(char_pattern, rf'\g<1>{new_buffs}\n', block, flags=re.DOTALL)
+    parts[1] = block
+    return ''.join(parts)
+
+
 def apply_staged(store,engine,stage,body,files,parsed):
     runtime=copy.deepcopy(parsed['runtime']);value=body['resolution'];kind=parsed['cost']['kind']
     memory_path=stage/rr.FILES[0]
@@ -2028,6 +2391,21 @@ def apply_staged(store,engine,stage,body,files,parsed):
     # 记录本幕实际发生时的同席知情者（先于离场日程移动，确保 messages_known_by 不掺入后到的场外 NPC）
     scene_known_by=['徐志北',*active_cast] if kind!='item' else ['徐志北']
     if kind=='action':
+        # 0. 若本轮玩家通过 use_item 启用带 buff: 效果的道具，先预挂 (turns+1) 回合使本轮结算即刻享受缓冲，随后 update_persistent_buffs 统一 -1 落定为满额 turns
+        op_now=body.get('operation')
+        if isinstance(op_now,dict) and op_now.get('code')=='use_item':
+            st_op,_,_=save_store.load_bundle(stage)
+            op_item=next((it for it in (st_op.get('items',{}).get('active') or []) if it.get('id')==op_now.get('item_id')),None)
+            eff_str=str((op_item or {}).get('system_effect') or '')
+            if eff_str.startswith('buff:'):
+                bparts=eff_str.split(':',3)
+                if len(bparts)==4 and bparts[2].isdigit():
+                    bname,bturns,bdesc=bparts[1].strip(),max(1,int(bparts[2])),bparts[3].strip()
+                    op_target=str(op_now.get('target') or '').strip()
+                    recipients=[op_target] if op_target in save_store.HEROINES else [c for c in active_cast if c in save_store.HEROINES]
+                    if recipients:
+                        pre_buff_map={who:f'[{bname}] 剩余时效: {bturns + 1}回合 (效果: {bdesc})' for who in recipients}
+                        rr._atomic(memory_path,_inject_buff_no_tick(memory_path.read_text(encoding='utf-8'),pre_buff_map).encode('utf-8'))
         # Lifecycle units are accepted paid actions, independently of memory rounds.
         action=runtime['action_index']+1
         pre_mem=memory_path.read_text(encoding='utf-8')
@@ -2176,7 +2554,9 @@ def apply_staged(store,engine,stage,body,files,parsed):
             updated_memory_text=append_echo(updated_memory_text,'task_completed',completed_task_info['id'],summary)
         if updated_memory_text!=memory_text_now:
             rr._atomic(memory_path,updated_memory_text.encode('utf-8'))
-    if body['operation'] and kind!='item':rr._engine_call(engine.apply_interaction_operation,body['operation'])
+    if body['operation'] and kind!='item':
+        op_clock=_clock_label({'clock':parsed['clock']})
+        rr._engine_call(engine.apply_interaction_operation,body['operation'],clock_str=op_clock)
     item_receipt=None
     if kind=='item':
         item_receipt=parsed['cost']['item']
@@ -2292,9 +2672,9 @@ def apply_staged(store,engine,stage,body,files,parsed):
             if not ins_map.get(hname,False):
                 sta_gain=32 if secret_relief else 40
                 ov_patch[hname]['体力']=min(100,cur_h_sta+sta_gain)
-                if cur_h_dep<30 and not secret_relief:
+                if cur_h_dep<30 and not secret_relief and cur_h_des<15:
                     shame_cap=35 if st_ov['panels'][hname].get('怀孕') else max(0,100-int(cur_h_dep*0.6))
-                    ov_patch[hname]['羞耻']=min(shame_cap,cur_h_shame+2)
+                    ov_patch[hname]['羞耻']=min(shame_cap,cur_h_shame+1)
             st_ov['mechanics']['insomnia_applied'][hname]=False
         for ch,ch_vals in ov_patch.items():
             for ak,av in ch_vals.items():
@@ -2583,13 +2963,16 @@ def redeem_shop_item(service,body):
         if guard['replayed']:
             return {'status':'committed','receipt':guard['receipt'],'replayed':True}
         item_id=body['item_id']
-        if not isinstance(item_id,str) or not re.fullmatch(r'SHOP-\d+',item_id):
+        if not isinstance(item_id,str) or not re.fullmatch(r'(?:SHOP|DYN)-\d+',item_id):
             raise rr.RoundError('商城商品ID无效')
         catalog=load_shop_catalog(service.root,optional=False)
-        product=next((x for x in catalog['items'] if x['id']==item_id),None)
+        files=guard['files']
+        st_cur,_,_=save_store.load_bundle(service.root,files)
+        dyn_items=list((st_cur.get('shop') or {}).get('dynamic_catalog') or [])
+        all_products=[*catalog['items'],*dyn_items]
+        product=next((x for x in all_products if x.get('id')==item_id),None)
         if product is None:
             raise rr.RoundError('系统商城中未找到该商品：'+item_id)
-        files=guard['files']
         stage=Path(tempfile.mkdtemp(prefix='work-',dir=service.store.runtime))
         try:
             for name,raw in files.items():
@@ -2598,9 +2981,13 @@ def redeem_shop_item(service,body):
             engine=rr._engine(service.root,stage)
             memory_path=stage/rr.FILES[0]
             memory=memory_path.read_text(encoding='utf-8')
+            host_biz,heroine_affs=read_shop_unlock_metrics(engine,memory)
+            unlock_chk=evaluate_unlock_req(product.get('unlock_req'),host_biz,heroine_affs)
+            if not unlock_chk['unlocked']:
+                raise rr.RoundError(unlock_chk['reason'])
             shop_state=parse_shop_echo_block(memory)
             bought=shop_state['redeemed'].get(product['id'],0)
-            if product['max_per_save'] is not None and bought>=product['max_per_save']:
+            if product.get('max_per_save') is not None and bought>=product['max_per_save']:
                 raise rr.RoundError(f"「{product['name']}」已达本档限购上限（{product['max_per_save']}次）")
             points=engine._read_attr_value(memory,'系统宿主','积分')
             if points is None:
@@ -2613,21 +3000,25 @@ def redeem_shop_item(service,body):
             runtime=state(service.root,files) if enabled(service.root) else {'memory_round':1,'clock':None}
             memory_round=max(1,int(runtime.get('memory_round') or 1))
             clock_str=_clock_label(runtime)
-            location='无' if '临时性' in product['type'] else '随身'
+            pack_qty=max(1,int(product.get('pack_qty') or 1))
+            usage_mode=save_store.infer_usage_mode(product.get('system_effect',''),bool(product.get('giftable',True)),product.get('usage_mode',''))
+            location='无' if ('临时性' in product['type'] and usage_mode=='consumable_host') else '随身'
             entry={
                 'name':product['name'],
                 'type':product['type'],
+                'category':product.get('category','daily'),
+                'usage_mode':usage_mode,
                 'desc':product['desc'],
-                'quantity':1,
+                'quantity':pack_qty,
                 'status':'仓库中',
                 'location':location,
                 'target':'未使用',
-                'duration':product['duration'],
-                'expire_rule':product['expire_rule'],
-                'usage_record':f'{clock_str} - 系统商城兑换入囊',
+                'duration':product.get('duration','无'),
+                'expire_rule':product.get('expire_rule','无'),
+                'usage_record':f'{clock_str} - 系统商城兑换入囊（×{pack_qty}）' if pack_qty>1 else f'{clock_str} - 系统商城兑换入囊',
                 'remark':f"系统商城兑换（{product['id']}）· 消耗{product['price']}积分 · {clock_str}",
-                'system_effect':product['system_effect'],
-                'giftable':bool(product['giftable']),
+                'system_effect':product.get('system_effect',''),
+                'giftable':bool(product.get('giftable',False)),
                 'action':'add',
             }
             rr._engine_call(engine.update_item_catalog,memory_round,[entry])
@@ -2638,12 +3029,12 @@ def redeem_shop_item(service,body):
             shop_state=parse_shop_echo_block(memory)
             shop_state['redeemed'][product['id']]=bought+1
             seq_tag=guard['ledger']['sequence']+1
-            shop_state['recent'].insert(0,f"{clock_str} | {product['id']} | {product['name']}×1 | -{product['price']}积分 | {catalog_item_id}")
+            shop_state['recent'].insert(0,f"{clock_str} | {product['id']} | {product['name']}×{pack_qty} | -{product['price']}积分 | {catalog_item_id}")
             shop_state['recent']=shop_state['recent'][:SHOP_RECENT_LIMIT]
             memory=write_shop_echo_block(memory,shop_state)
             memory=append_echo(
                 memory,'shop_redeemed',f"{product['id']}@{seq_tag}",
-                f"商城兑换「{product['name']}」×1（-{product['price']}积分，{catalog_item_id}）",
+                f"商城兑换「{product['name']}」×{pack_qty}（-{product['price']}积分，{catalog_item_id}）",
             )
             rr._atomic(memory_path,memory.encode('utf-8'))
             receipt=_publish_deterministic_stage(service,guard,stage,{
@@ -2651,6 +3042,7 @@ def redeem_shop_item(service,body):
                 'shop_id':product['id'],
                 'item_id':catalog_item_id,
                 'item_name':product['name'],
+                'quantity':pack_qty,
                 'price':product['price'],
                 'points_before':points,
                 'points_after':points_after,
@@ -2658,6 +3050,81 @@ def redeem_shop_item(service,body):
             return {'status':'committed','receipt':receipt,'replayed':False}
         finally:
             shutil.rmtree(stage)
+
+
+def persist_dynamic_shop_items(service, raw_payload, *, query='', expected_save_epoch=None):
+    """Validate AI restock output and atomically append DYN-* items to save_state.json via RoundStore WAL."""
+    with service.store._locked():
+        if expected_save_epoch and expected_save_epoch != service._save_epoch():
+            raise rr.ConflictError('存档已切换，本次AI进货已作废')
+        tasks = service._read()
+        service._expire(tasks)
+        if any(j['status'] in ACTIVE_JOB_STATUSES for j in tasks['jobs'].values()):
+            raise rr.ConflictError('当前有剧情行动正在处理，请待本段结算完成后再重新询货')
+        files = service.store._files()
+        catalog = load_shop_catalog(service.root, optional=True)
+        st, ly, _ = save_store.load_bundle(service.root, files)
+        existing_dyn = list((st.get('shop') or {}).get('dynamic_catalog') or [])
+        existing_names = [it['name'] for it in catalog.get('items', [])] + [
+            it.get('name', '') for it in existing_dyn if isinstance(it, dict) and it.get('name')
+        ]
+        next_seq = int((st.get('shop') or {}).get('next_dyn_seq') or 1)
+        validated = validate_dynamic_shop_items(raw_payload, existing_names, next_seq, query=query)
+        merged_dyn = (existing_dyn + validated['items'])[-SHOP_DYNAMIC_LIMIT:]
+        st['shop']['dynamic_catalog'] = merged_dyn
+        st['shop']['next_dyn_seq'] = validated['next_dyn_seq']
+        ledger = service.store._ledger()
+        sequence = ledger['sequence'] + 1
+        after = dict(files)
+        data = json.loads(after.get('data.json') or b'{}')
+        data['state_version'] = sequence
+        after['data.json'] = rr._json(data)
+        st['runtime']['last_sequence'] = max(int(st['runtime'].get('last_sequence') or 0), sequence)
+        after.update(save_store.render_bundle_bytes(st, ly, data_dict=data))
+        revision = rr._revision(after)
+        ledger['sequence'] = sequence
+        after[rr.META] = rr._json(ledger)
+        service.store._commit_files(after)
+        return {
+            'shopkeeper_reply': validated['shopkeeper_reply'],
+            'added_items': validated['items'],
+            'rejected_reasons': validated['rejected_reasons'],
+            'revision': revision,
+            'state_version': sequence,
+        }
+
+
+def delete_dynamic_shop_item(service, item_id, *, save_epoch=None):
+    """Atomically remove an AI-restocked DYN-* item from save_state.json via RoundStore WAL."""
+    if not isinstance(item_id, str) or not re.fullmatch(r'DYN-\d+', item_id):
+        raise rr.RoundError('仅支持移除动态进货商品（DYN-编号）')
+    with service.store._locked():
+        if save_epoch and save_epoch != service._save_epoch():
+            raise rr.ConflictError('存档已切换，请刷新后再试')
+        tasks = service._read()
+        service._expire(tasks)
+        if any(j['status'] in ACTIVE_JOB_STATUSES for j in tasks['jobs'].values()):
+            raise rr.ConflictError('当前有剧情行动正在处理，请待本段结算完成后再操作')
+        files = service.store._files()
+        st, ly, _ = save_store.load_bundle(service.root, files)
+        dyn = list((st.get('shop') or {}).get('dynamic_catalog') or [])
+        kept = [it for it in dyn if it.get('id') != item_id]
+        if len(kept) == len(dyn):
+            raise rr.RoundError('动态货架中未找到该商品：' + item_id)
+        st['shop']['dynamic_catalog'] = kept
+        ledger = service.store._ledger()
+        sequence = ledger['sequence'] + 1
+        after = dict(files)
+        data = json.loads(after.get('data.json') or b'{}')
+        data['state_version'] = sequence
+        after['data.json'] = rr._json(data)
+        st['runtime']['last_sequence'] = max(int(st['runtime'].get('last_sequence') or 0), sequence)
+        after.update(save_store.render_bundle_bytes(st, ly, data_dict=data))
+        revision = rr._revision(after)
+        ledger['sequence'] = sequence
+        after[rr.META] = rr._json(ledger)
+        service.store._commit_files(after)
+        return {'removed_id': item_id, 'remaining_count': len(kept), 'revision': revision, 'state_version': sequence}
 
 
 def claim_task_reward(service,body):

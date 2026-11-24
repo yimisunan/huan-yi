@@ -90,10 +90,16 @@ _OPT_INLINE_MOVE_RE = re.compile(r'^\s*\[(?i:MOVE)[:：]\s*([^\]]+?)\s*\]\s*')
 _OPT_TRAILING_MOVE_RE = re.compile(r'\s*\[(?i:MOVE)[:：]\s*([^\]]+?)\s*\]\s*[。.]?\s*$')
 _DEFAULT_DECISION_PROMPT = '此刻，你准备怎么回应？'
 _INTIMATE_TURN_RE = re.compile(
-    r'强吻|亲吻|舌吻|拥吻|轻吻|热吻|吻(?:上|住|下|向|过|了|进|着|落|她|在)|抚摸|爱抚|轻揉|揉捏|压倒|推倒|扑倒|抱上床|抱进卧室|上床|'
-    r'脱衣|脱掉|褪下|掀起裙|解开衣|解开扣|大腿内侧|腿间|乳房|乳尖|酥胸|丰臀|私处|下身|小穴|穴口|'
+    r'强吻|亲吻|舌吻|拥吻|轻吻|热吻|吻(?:上|住|下|向|过|了|进|着|落|她|在)|抚摸|爱抚|轻揉|揉捏|按摩|按揉|摩挲|轻抚|抚过|贴近|凑近|抱紧|搂住|揽住|贴住|靠在怀里|压倒|推倒|扑倒|抱上床|抱进卧室|上床|'
+    r'脱衣|脱掉|褪下|掀起裙|解开衣|解开扣|衣领|领口|肩带|睡裙|睡衣|内衣|底裤|丝袜|黑丝|脚踝|玉足|美足|足背|足弓|脚尖|脚趾|手腕|指尖|锁骨|后颈|腰线|胸线|36D|大腿内侧|腿间|乳房|乳尖|酥胸|丰臀|私处|下身|小穴|穴口|'
+    r'体香|沐浴露|耳垂|耳畔|耳边|精油|催情|桃露|香薰|眼罩|摄像头|针孔|偷拍|监听|'
     r'挺入|抽插|顶入|撞击|调教|侍奉|跪下含|含住|口交|指奸|后入|骑乘|内射|外射|吞精|自慰|自渎|换衣|洗澡|沐浴|走光|湿身|高潮|性爱|做爱|情欲|亲密接触'
 )
+_HEROINE_SENSORY_ANCHORS = {
+    '沈知韫': '沈知韫(纤细脚踝与秀致足背/拖鞋半挂或黑丝鞋跟/缎面腰线/冷调幽兰香与温热掌心)',
+    '苏婉青': '苏婉青(36D撑开衣料与俯身领口阴影/肩带压痕与锁骨泛红/沐浴露甜香与微凉微汗指尖)',
+    '徐念薇': '徐念薇(修长冷白手指与腕骨浅表血管/散落颈侧碎发/松节油与极淡皂香/偏凉细滑指尖)',
+}
 
 _WILL_SECRET_RE = re.compile(
     r'唯一合法继承人|唯一继承人|亲生子继承|继承真相|千亿家产唯一'
@@ -306,9 +312,11 @@ def _needs_intimate_zone1(state, memory_text=''):
         stats = panel_map.get(name, {})
         desire_m = re.match(r'-?\d+', str(stats.get('欲望', '0')))
         dep_m = re.match(r'-?\d+', str(stats.get('堕落', '0')))
+        shame_m = re.match(r'-?\d+', str(stats.get('羞耻', '100')))
         desire = int(desire_m.group(0)) if desire_m else 0
         dep = int(dep_m.group(0)) if dep_m else 0
-        if desire >= 60 or dep >= 30:
+        shame = int(shame_m.group(0)) if shame_m else 100
+        if desire >= 30 or dep >= 15 or shame <= 82:
             return True
         if any('体液锁定' in (b.get('name', '') + b.get('effect', '')) for b in buff_map.get(name, [])):
             return True
@@ -885,23 +893,59 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
     if breakout_hint:
         delta['breakout_hint'] = breakout_hint
     is_erotic_roll = isinstance(director_roll, dict) and (
-        director_roll.get('category') == 'erotic_accident'
-        or str(director_roll.get('beat_id') or '').startswith(('BEAT-T1-EROTIC-', 'BEAT-T2-EROTIC-', 'BEAT-T3-EROTIC-', 'BEAT-T4-EROTIC-'))
+        director_roll.get('category') in ('erotic_accident', 'sensual_hook')
+        or str(director_roll.get('event_id') or director_roll.get('beat_id') or '').startswith(
+            ('BEAT-T0-SENSUAL-', 'BEAT-T1-EROTIC-', 'BEAT-T2-EROTIC-', 'BEAT-T3-EROTIC-', 'BEAT-T4-EROTIC-')
+        )
     )
     if mode in ('dual_stream_v2', 'single_prefix_v2') and (_needs_intimate_turn(text, selected) or is_erotic_roll) and not _needs_intimate_zone1(state, memory_text):
         intimate_body = _load_intimate_body(root)
         if intimate_body:
             delta['intimate_craft_guide'] = intimate_body
+    sensory_anchors = [_HEROINE_SENSORY_ANCHORS[c] for c in cast if c in _HEROINE_SENSORY_ANCHORS]
+    if sensory_anchors:
+        delta['sensory_lens'] = (
+            '本幕在场形体微距锚点：' + '；'.join(sensory_anchors) + '。'
+            '每幕必落至少1处具体形体微距+2类近距五感(温差/肌理摩擦/气味呼吸)+1处徐志北真实生理代价(喉结滚动/呼吸变浅/掌心发烫/下身发紧，禁写「心头一动」)；'
+            '段末B/C选项须结合现场契机与随身道具提供可顺势贴近标志部位或成人推进的具体机会。'
+        )
+
+    held_compact = [{
+        'id': i['id'],
+        'name': i['name'],
+        'qty': i['quantity'],
+        'usage_mode': i.get('usage_mode', ''),
+        'status': (i.get('fields') or {}).get('当前状态', ''),
+        'remaining_turns': i.get('remaining_turns'),
+        'desc': ((i.get('fields') or {}).get('描述', '') or '')[:64],
+        'effect': ((i.get('fields') or {}).get('系统效果', '') or '')[:60],
+        'source': ((i.get('fields') or {}).get('备注', '') or '')[:60],
+    } for i in (state.get('items') or [])]
+    deployed_all = state.get('deployed_items') or []
+    deployed_here = [{
+        'id': d['id'], 'name': d['name'], 'spot': d.get('spot') or '隐蔽角落',
+        'hidden': bool(d.get('hidden', True)), 'effect': d.get('system_effect', ''),
+    } for d in deployed_all if d.get('location') == location]
+    deployed_remote = [{
+        'id': d['id'], 'name': d['name'], 'location': d.get('location', ''),
+        'spot': d.get('spot') or '隐蔽角落', 'effect': d.get('system_effect', ''),
+    } for d in deployed_all if d.get('location') and d.get('location') != location]
 
     if include_full_anchor:
         raw_mem = projection['text']
         delta['player_private_memory'] = raw_mem if is_single else _strip_active_task_from_memory(raw_mem)
         delta['items'] = state.get('items', [])
+        if held_compact:
+            delta['held_items'] = held_compact
+        if deployed_here:
+            delta['deployed_items_here'] = deployed_here
+        if deployed_remote:
+            delta['deployed_items_remote'] = deployed_remote
         if is_single:
             delta['tasks'] = state.get('tasks')
         delta['accepted_history'] = history
     else:
-        # Session already holds prior scene turns; only transmit current L1 + newly committed turns + inventory delta.
+        # Session already holds prior scene turns; only transmit current L1 + newly committed turns + inventory/device delta.
         current_ref = projection.get('current')
         current_l1 = ''
         if current_ref:
@@ -909,14 +953,12 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
             current_l1 = '\n'.join(lines[current_ref['start_line'] - 1:current_ref['end_line']])
         delta['current_l1_memory'] = current_l1
         delta['items_count'] = len(state.get('items', []))
-        if state.get('items'):
-            delta['held_items'] = [{
-                'id': i['id'], 'name': i['name'], 'qty': i['quantity'],
-                'status': i['fields'].get('当前状态', ''),
-                'remaining_turns': i.get('remaining_turns'),
-                'desc': (i['fields'].get('描述', '') or '')[:60],
-                'source': (i['fields'].get('备注', '') or '')[:48],
-            } for i in state['items']]
+        if held_compact:
+            delta['held_items'] = held_compact
+        if deployed_here:
+            delta['deployed_items_here'] = deployed_here
+        if deployed_remote:
+            delta['deployed_items_remote'] = deployed_remote
         if is_single:
             delta['tasks'] = state.get('tasks')
         if new_history_only:
@@ -1099,6 +1141,7 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
         'runtime': runtime,
         'resolution_policy': resolution_policy,
         'items': (state or {}).get('items', []),
+        'deployed_items': (state or {}).get('deployed_items', []),
         'tasks': (state or {}).get('tasks'),
         'current_l1_entry': current_l1,
         'memory_transfer_sources': {

@@ -8,7 +8,7 @@ let busy = null;
 let lastError = '';
 let monitorTimer = null, monitorBusy = false, starting = null;
 let controlSupported = null, sessionReady = false;
-const PLUGIN_VERSION = '2.1.7';
+const PLUGIN_VERSION = '2.1.8';
 const SETTINGS_ROUTE = 'toolpkg:local.story.operit_bridge:ui:settings';
 const DEFAULT_MAX_TURNS = 10;
 const MAX_PLAYER_DIALOGUE_PER_TURN = 3;
@@ -1724,6 +1724,53 @@ async function deliver(config, token) {
     await PluginConfig.flush(config);
 }
 
+async function handleShopInquiry(config, model, token) {
+    let claimRes;
+    try {
+        claimRes = await http('/api/story/worker/shop-inquiry/claim', {}, token);
+    } catch (error) {
+        if (error && error.statusCode === 404) return false;
+        throw error;
+    }
+    const iq = claimRes && claimRes.inquiry;
+    if (!iq || !iq.id || !iq.lease) return false;
+    let submitBody;
+    try {
+        const settleTarget = await resolveSettlementModel(config, model);
+        let iqTimer = null;
+        try {
+            const callPromise = Tools.Chat.call({
+                functionType: settleTarget.slot,
+                recordTokenUsage: true,
+                enableThinking: false,
+                turns: [
+                    { kind: 'system', content: String(iq.system_prompt || '') },
+                    { kind: 'user', content: String(iq.user_prompt || '') }
+                ]
+            });
+            const timeoutPromise = new Promise((_, reject) => {
+                iqTimer = setTimeout(() => reject(new Error('商城AI询货调用超时')), 90000);
+            });
+            const generated = await Promise.race([callPromise, timeoutPromise]);
+            if (iqTimer !== null) { clearTimeout(iqTimer); iqTimer = null; }
+            submitBody = {
+                lease: iq.lease,
+                text: String((generated && generated.text) || '')
+            };
+        } catch (err) {
+            if (iqTimer !== null) { clearTimeout(iqTimer); iqTimer = null; }
+            throw err;
+        }
+    } catch (err) {
+        submitBody = {
+            lease: iq.lease,
+            error: String((err && err.message) || err).slice(0, 400)
+        };
+    }
+    await http('/api/story/worker/shop-inquiry/' + encodeURIComponent(iq.id) + '/complete', submitBody, token);
+    return true;
+}
+
 async function work() {
     const config = await settings();
     await interruptedSession(config);
@@ -1760,16 +1807,19 @@ async function work() {
         response = await http('/api/story/worker/claim', { model }, token);
     } else {
         try { response = await http('/api/story/scene/worker/claim', { model }, token); }
-        catch (error) { if (error.statusCode === 404) return false; throw error; }
+        catch (error) { if (error.statusCode === 404) response = { task: null }; else throw error; }
     }
-    if (!response.task) {
+    if (!response || !response.task) {
         response = await http('/api/story/worker/claim', { model }, token);
         if (response.task && response.task.entry_mode !== 'live_interaction') {
             config.legacySaveEpoch = response.task.save_epoch || status.save_epoch || '';
             session = await ensureSession(config, model);
         }
     }
-    if (!response.task) return false;
+    if (!response || !response.task) {
+        if (await handleShopInquiry(config, model, token)) return true;
+        return false;
+    }
     const task = response.task;
     syncServiceEpoch(task.service_epoch);
     const stop = pulse(task.request_id, task.lease, token, task.entry_mode, () => {

@@ -119,6 +119,19 @@ class StoryCompilerTests(unittest.TestCase):
         parsed = json.loads(delta)
         self.assertEqual(parsed['anchor'], 'incremental_delta')
         self.assertNotIn('accepted_history', parsed)
+        self.assertIn('sensory_lens', parsed)
+        self.assertIn('脚踝', parsed['sensory_lens'])
+        # Expanded intimate turn regex covers warm/sensual/fetish/item phrases
+        for sample in (
+            '蹲下替她按揉酸胀的脚踝',
+            '轻轻摩挲她修长偏凉的手指',
+            '贴近嗅着她发间的沐浴露体香',
+            '趁她转身往杯里滴入催情桃露',
+            '掌心抹上热感精油轻抚她肩背',
+            '替她把滑落的吊带肩带扶回肩头',
+            '在主卧镜柜下沿暗中安装针孔摄像头',
+        ):
+            self.assertTrue(sc._needs_intimate_turn(sample), f'Expected intimate match for: {sample}')
 
     def test_parse_stream_story_complete_and_partial(self):
         script = (

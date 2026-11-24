@@ -981,7 +981,8 @@ class RoundStore:
                 if record['version'] != 1 or record['phase'] not in {'prepared', 'committed'}:
                     raise ValueError('journal phase')
                 before, after = record['before'], record['after']
-                if set(before) != set(after) or not (set(FILES) | {META}) <= set(before):
+                playback_set = {'.round-runtime/interaction/playback.json', RECENT_PLAYBACK}
+                if set(before) != set(after) or not ((set(FILES) | {META}) <= set(before) or set(before) == playback_set):
                     raise ValueError('journal file set')
                 values = {}
                 for name in before:
@@ -1104,9 +1105,7 @@ class RoundStore:
 
     def _write_playback(self, value):
         # Caller holds this store lock. Reading never advances world state or sequence.
-        after = self._files()
-        after[META] = _json(self._ledger())
-        after['.round-runtime/interaction/playback.json'] = _json(value)
+        # Only journal/publish the two playback files instead of rewriting all 6 unchanged world files.
         rp_path = self._path(RECENT_PLAYBACK)
         recent = save_store.default_recent()
         if rp_path.is_file():
@@ -1116,7 +1115,10 @@ class RoundStore:
                     recent = parsed
             except ValueError:
                 pass
-        after[RECENT_PLAYBACK] = _json(save_store.update_recent_playback(recent, value))
+        after = {
+            '.round-runtime/interaction/playback.json': _json(value),
+            RECENT_PLAYBACK: _json(save_store.update_recent_playback(recent, value)),
+        }
         self._commit_files(after)
 
     def _check_source_baseline(self, baseline):

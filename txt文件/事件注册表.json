@@ -301,7 +301,7 @@
         "tag": "心理破冰_暧昧试探",
         "parameters": {
           "cur_shame_01": 75,
-          "base_delta_02": 2
+          "base_delta_02": 3
         },
         "parameter_usage": {
           "cur_shame_01": "cur_shame 比较阈值",

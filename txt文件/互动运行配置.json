@@ -10,7 +10,11 @@
   "operations": [
     "move_player",
     "transfer_item",
-    "use_recovery_item"
+    "use_recovery_item",
+    "use_item",
+    "deploy_item",
+    "retrieve_item",
+    "inspect_deployed"
   ],
   "resource": {
     "status": "active",

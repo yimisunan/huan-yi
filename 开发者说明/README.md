@@ -2,7 +2,7 @@
 
 > **文档性质**：本项目完整工程架构、协议契约、内部实现与维护开发参考手册。
 > **非数据源硬声明**：本目录（`开发者说明/`）仅供人类开发者与工程维护代理阅读，**严禁作为 AI 剧情运行时提示词、世界书条目、知识库或上下文注入**。
-> **适用版本基线**：协议 v3 / 资料交付 v2（`dual_stream_v2` + `single_prefix_v2`） / P2 自包含存档（`save_store.py`） / Operit 2 故事桥接插件 **v2.1.4**（API `2.0.0`）
+> **适用版本基线**：协议 v3 / 资料交付 v2（`dual_stream_v2` + `single_prefix_v2`） / P2 自包含存档（`save_store.py`） / Operit 2 故事桥接插件 **v2.1.8**（API `2.0.0`）
 > **面向玩家的日常使用手册**：见根目录 [`游玩指南.md`](../游玩指南.md)；历史版本演进归档见 [`开发者功能/修订日志/README.md`](../开发者功能/修订日志/README.md)。
 
 ---
@@ -11,7 +11,7 @@
 
 **深渊天平引擎（Abyss Scale Engine）** 是一套运行在 **Android（Pydroid 3 + 浏览器）与 Operit 2 宿主生态** 上的本地互动叙事软件栈。它采用 **「前后端分离 + 确定性规则编译 + 双阶段流式演播/结算 + P2 自包含 JSON 存档 + 单一原子事务账本」** 的工程架构：
 
-- **AI 负责叙事与结构化语义提取**：前台主模型通过冻结前缀实现高 KV 缓存命中与逐句微幕流式演播；后台副模型（默认 Operit 2 `SUMMARY` 智能自适应思考槽）无状态提取事件标签、时间推进、操作与记忆摘要。
+- **AI 负责叙事与结构化语义提取**：前台主模型通过冻结前缀实现高 KV 缓存命中与逐句微幕流式演播（默认全局激活成人感官沉浸基线，同时保持卷零轨 A 宿主主权）；后台副模型（默认 Operit 2 `SUMMARY` 智能自适应思考槽）无状态提取事件标签、时间推进、操作与记忆摘要，并独立承接商城「AI 定制询货」进货生成而不污染主剧情会话。
 - **确定性 Python 引擎负责全部规则裁决与状态落盘**：所有数值计算、体力预扣与差额退款、游戏时钟、四层记忆硬门禁、跨回合确定性机制（小憩/失眠/被动 Lv.2–3/首次与同质化免疫/秘密解锁）、关系知情隔离、流式红线守卫与崩溃恢复，均由本地 Python 经 `RoundStore` + `save_store` 唯一原子事务完成；模型从不直接写存档或口算数值。
 
 ---
@@ -23,13 +23,13 @@
 | 序号 | 文档 | 核心内容 | 建议阅读对象 |
 |---|---|---|---|
 | **01** | [`01_系统总架构与模块依赖.md`](01_系统总架构与模块依赖.md) | 系统四端拓扑、分层架构、全仓模块依赖图（含 `save_store.py` 与 `.round-runtime/story/prefs.json` 偏好持久化）、五大入口模式矩阵、一次互动的端到端时序图、运行环境与安全边界 | **所有人必读（入门首篇）** |
-| **02** | [`02_核心引擎与事务存储层.md`](02_核心引擎与事务存储层.md) | `save_store.py` P2 自包含存档与漂移检测、`RoundStore` 单一写者锁与双阶段 WAL 崩溃恢复/冷启单调续号、任务生命周期状态机与租约、`story_compiler.py` 三区精编/无条件转移源正文/全节点 K01 红线守卫/主角忠实演绎（`faithful` 最多 3 句短台词与动作落位）与仅动作感官（`silent` 0 台词）支持、`interaction_runtime.py` 头部脱敏/6000 字 `L1>L2>L3>L4` 预算/统一在场(`scene_cast`)/交付审计/听众隔离、`story_reading.py` 与 `relationship_query.py` | 后端 / 引擎 / 事务维护者 |
-| **03** | [`03_数值结算与规则推进体系.md`](03_数值结算与规则推进体系.md) | `story_progression.py` 三档体力预扣退款/时钟与星期/双向看望窗与场外作息流动/微状态自动派生/强制休息/整夜睡眠非失眠女主 `+40`/恢复道具额度/记忆压缩、独立确定性系统商城·委托队列领奖·经验被动升级·商业情报与杠杆 WAL 事务、Stage 2 结算规则 3 `⚠️【监视目标防错铁律】` 禁填监视者徐承邺本人、8 序幕盲盒、`injection_core.py` 全部 9 大数值系统与四组跨回合确定性机制 | 游戏机制 / 规则 / 数值开发者 |
-| **04** | [`04_后端服务与HTTP_SSE协议参考.md`](04_后端服务与HTTP_SSE协议参考.md) | Flask 引导与 `/api/story/*` + `/api/*` 双同源/CSRF 边界、`_EventHub` + Long-Polling（含 `service_epoch`）+ SSE 实时通道、冷启免 `data.json` 兜底、`_stream_preview` 内存预览与 `allow_settlement_retry` 重试协议、全量 **57 个 HTTP 路由**完整规范（新增 `/api/story/preferences` 演播偏好与 `/api/tts/prefetch` 滑动预热）、`catchup: true` 单请求补步、`settling_retry` 阶段通知、`scene_chat` SQLite 隔离与 `legacy_visibility.json` | API / 前后端联调 / 桥接联调开发者 |
-| **05** | [`05_前端剧场与语音引擎架构.md`](05_前端剧场与语音引擎架构.md) | `main_template.html` + `story_client.js` + `story_client.css` 剧场前端（`#stageCurtain` 暗金星盘沉浸幕布消除结算闪烁与重绘刷新、`patchMessageTimeline()` 零闪增量 DOM 补丁、动作与对白结构化视觉分流、电影插页、统一微头像、按住凝视/暗金档案卡、焦点景深阅读、天平倾斜预演、括号与情报亮牌芯片、严格 4 角色发声白名单、SSE 无缝接管、双主题与响应式）、Fish Audio 连接池复用（`requests.Session`）+ 40MB 磁盘 LRU 缓存 + `balanced`/`180` 极速声学生成 + 429 指数退避冷却 + 3 句滑动预热、`voice_manager.html` 声学工坊、三套前端对比 | 前端 / UI / 语音引擎开发者 |
-| **06** | [`06_Operit2桥接插件架构.md`](06_Operit2桥接插件架构.md) | **Operit 2 官方知识库与宿主机制**（ToolPkg v2 三运行时隔离、`com.operit.character_cards` 提示词组装顺序、SDK API 速查、VFS 边界）+ `local.story.operit_bridge` **v2.1.4** 插件双阶段流水线、三档副模型结算思考自适应（`auto/off/on`）、重试自动提权深度思考与 `settling_retry` 阶段通知、主角发声忠实演绎（最多 3 句短台词且保持静音）与仅动作感官支持、外部删窗实时自愈、`syncServiceEpoch`、前后端 `expected_plugin_version` 自动升级提醒、Compose DSL 设置页与 `build.py` 自动清旧打包 | Operit 2 插件 / 桥接协议开发者 |
-| **07** | [`07_数据模型_SSOT与文件格式规范.md`](07_数据模型_SSOT与文件格式规范.md) | 单一事实来源（SSOT）依赖总图与派生视图同步规则、`txt文件/` 全量 JSON Schema、**P2 自包含存档（`save_state.json` / `四层记忆.json` / `近期演播.json`）**与单向自动渲染 `全局记忆库.txt` / `徐志北道具图鉴.txt` V3.0 规范、`data.json` / `voice_config.json` 与 `.round-runtime/` 文件清册、禁改红线 | 设定维护 / 数据结构 / 存档工具开发者 |
-| **08** | [`08_开发维护_测试排障与二次开发指南.md`](08_开发维护_测试排障与二次开发指南.md) | Pydroid 3 与 proot Alpine/Linux 双环境配置、改动与图片热替换生效路径、`run_tests.sh` 全量 **32 组**测试清册（Python 24 + Node 8 100% 全绿，含 `test_save_architecture_v2.py`）、常见二次开发清单、运维脚本、崩溃恢复与 Git 交付流 | 接手维护 / QA / 二次开发工程师 |
+| **02** | [`02_核心引擎与事务存储层.md`](02_核心引擎与事务存储层.md) | `save_store.py` P2 自包含存档（含 `deployed` 装置区与 `shop.dynamic_catalog` 动态货架）与漂移检测、`RoundStore` 单一写者锁与双阶段 WAL 崩溃恢复/冷启单调续号、任务生命周期状态机与租约、`story_compiler.py` 三区精编（默认全局成人感官锚点 `_HEROINE_SENSORY_ANCHORS` / `sensory_lens`）/全节点 K01 红线守卫/主角忠实演绎（`faithful` 最多 3 句短台词与动作落位）与仅动作感官（`silent` 0 台词）、`interaction_runtime.py` `O(limit)` 倒序分页/头部脱敏/6000 字预算/统一在场(`scene_cast`)/`use_item`·`deploy_item`·`retrieve_item`·`inspect_deployed` 远程视角支持、`story_reading.py` 与 `relationship_query.py` | 后端 / 引擎 / 事务维护者 |
+| **03** | [`03_数值结算与规则推进体系.md`](03_数值结算与规则推进体系.md) | `story_progression.py` 三档体力预扣退款/时钟与星期/双向看望窗与场外作息流动/微状态自动派生/强制休息/整夜睡眠非失眠女主 `+40`/恢复道具额度/记忆压缩、独立确定性系统商城（16 件分类商品 + 叠加 `unlock_req` 门槛 + AI 动态进货 `DYN-*` 红线校验与删除）·委托队列领奖·经验被动升级·商业情报与杠杆 WAL 事务、活体导演 Tier-0 `sensual_hook` 与 `sensual_drought` 补偿、`injection_core.py` 全部 9 大数值系统（含感官 Buff 协同减损、`use_item` 预挂 Buff 与 `deployed` 装置闭环） | 游戏机制 / 规则 / 数值开发者 |
+| **04** | [`04_后端服务与HTTP_SSE协议参考.md`](04_后端服务与HTTP_SSE协议参考.md) | Flask 引导与 `/api/story/*` + `/api/*` 双同源/CSRF 边界、`_EventHub` + Long-Polling（含 `service_epoch` 与 `shop_inquiry` 唤醒）+ SSE 实时通道（含 `shop_updated`）、`DEFAULT_LIVE_LIMIT=10` 懒加载、`compact: true` 进度响应、`_thumbs/` WebP 缩略图服务（`?thumb=avatar\|plate`）、**32 个 `/api/story/*` 路由**与商城询货队列（`POST /shop/inquire`、`GET /shop/inquire/<id>`、`DELETE /shop/dynamic/<id>`、`/worker/shop-inquiry/*`）、`scene_chat` SQLite 隔离 | API / 前后端联调 / 桥接联调开发者 |
+| **05** | [`05_前端剧场与语音引擎架构.md`](05_前端剧场与语音引擎架构.md) | `main_template.html` + `story_client.js` + `story_client.css` 剧场前端（顶部锚定聚焦输入浮层 `#composerSheet` 抗 Android 软键盘遮挡 + 快捷筹码/道具挂载条 `#sheetAttachBar`、`#stageCurtain` 暗金幕布、`patchMessageTimeline()` 增量 DOM 补丁、`parsePanels()` 记忆化 + `segmentDomCache` 历史 DOM 缓存 + `IntersectionObserver` 视差优化、三段式行囊/内联选择器/已部署装置远程监控、地图装置徽标、商城 AI 询货窗、4 角色发声白名单）、Fish Audio 连接池/40MB 磁盘 LRU/3 句滑动预热、`voice_manager.html` | 前端 / UI / 语音引擎开发者 |
+| **06** | [`06_Operit2桥接插件架构.md`](06_Operit2桥接插件架构.md) | **Operit 2 官方知识库与宿主机制** + `local.story.operit_bridge` **v2.1.8** 插件双阶段流水线、三档副模型结算思考自适应（`auto/off/on`）、`handleShopInquiry()` 无状态 `Tools.Chat.call` 商城定制询货处理（零触碰 `liveSession` 与 KV 缓存）、主角发声忠实演绎/静音支持、外部删窗实时自愈、`syncServiceEpoch`、Compose DSL 设置页与 `build.py` 自动清旧打包 | Operit 2 插件 / 桥接协议开发者 |
+| **07** | [`07_数据模型_SSOT与文件格式规范.md`](07_数据模型_SSOT与文件格式规范.md) | 单一事实来源（SSOT）依赖总图与派生视图同步规则、`txt文件/` 全量 JSON Schema（含 16 件分类商城与 `unlock_req`、Tier-0 `sensual_hook` 变故库）、**P2 自包含存档（`save_state.json` 含 `items.deployed` / `shop.dynamic_catalog` / `director.sensual_drought`、`四层记忆.json`、`近期演播.json`）**与单向自动渲染 `全局记忆库.txt` / `徐志北道具图鉴.txt`（含 `▼ 已部署装置区 ▼`） | 设定维护 / 数据结构 / 存档工具开发者 |
+| **08** | [`08_开发维护_测试排障与二次开发指南.md`](08_开发维护_测试排障与二次开发指南.md) | Pydroid 3 与 proot Alpine/Linux 双环境配置、改动与图片热替换生效路径、`run_tests.sh` 全量 **33 组**测试清册（Python 24 + Node 9，含 `bridge_shop_inquiry.js` 100% 全绿）、常见二次开发清单、运维脚本、崩溃恢复与 Git 交付流 | 接手维护 / QA / 二次开发工程师 |
 | **附** | [`世界书关键字配置.txt`](世界书关键字配置.txt) | 23 条知识库世界书正则关键字与常驻配置全量对齐参考表（含按需条目 `narrative.intimate`，仅供参考、非数据源） | 设定维护 / 手动世界书维护者 |
 
 ### 快捷阅读路径
@@ -42,7 +42,7 @@
 
 ### 上游宿主平台与官方知识库（Operit 2）
 
-本项目桥接插件（`local.story.operit_bridge`，v2.1.4，API `2.0.0`）与手动世界书导出均面向 **Operit 2** 生态。涉及 Operit 2 宿主 API、ToolPkg 规范、Compose DSL 或角色卡机制时，请参阅官方权威源（详见 [`06_Operit2桥接插件架构.md`](06_Operit2桥接插件架构.md) §1）：
+本项目桥接插件（`local.story.operit_bridge`，**v2.1.8**，API `2.0.0`）与手动世界书导出均面向 **Operit 2** 生态。涉及 Operit 2 宿主 API、ToolPkg 规范、Compose DSL 或角色卡机制时，请参阅官方权威源（详见 [`06_Operit2桥接插件架构.md`](06_Operit2桥接插件架构.md) §1）：
 
 - **Operit 2 官方下载页**：https://operit.app/#/v2/download
 - **Operit 2 官方 GitHub 仓库**：https://github.com/AAswordman/Operit2 （`https://github.com/AAswordman/Operit2.git`）
@@ -54,70 +54,53 @@
 
 ## 3. 全仓目录与代码规模总览
 
-项目核心运行时代码约 **3.0 万行**（纯标准库 + Flask + Requests + 原生 HTML/CSS/JS + Operit 2 QuickJS/Compose DSL，无前端打包器与重型框架依赖，适配移动端 Pydroid 3 零编译部署）。
+项目核心运行时代码约 **3.3 万行**（纯标准库 + Flask + Requests + 原生 HTML/CSS/JS + Operit 2 QuickJS/Compose DSL，无前端打包器与重型框架依赖，适配移动端 Pydroid 3 零编译部署）。
 
 ```text
 huan-yi/                                    # 项目根目录（Android: /storage/emulated/0/互动对话项目/Gemini网页版）
-├── 语音运行.py                              # [1,575行] 唯一服务端启动入口：Flask 托管 + Fish/Edge TTS + 密钥缓存/分档/音素表/潜台词剥离/CSRF + 静态白名单
-├── save_store.py                           # [1,285行] P2 自包含存档存储层：JSON 真相读写、旧纯TXT迁移、rendered_sha256 漂移检测与单向 .txt 渲染
-├── story_service.py                        # [1,835行] 正式互动 HTTP/SSE/Long-Polling 服务（带 service_epoch 与 /api/story/* JSON 500 兜底）、冷启兜底、确定性交易路由与任务状态机
-├── story_compiler.py                       # [1,512行] 只读确定性精编器：Zone 0/1/2、无条件转移源正文、Stage 2 26标签分档速查、禁[D:徐志北]与[D:]动作-引号自动拆分、K01红线守卫
-├── interaction_runtime.py                  # [1,633行] 正式连续互动协议：冷启近期演播兜底、6000字 L1>L2>L3>L4 预算、头部脱敏、统一在场 scene_cast 与交付审计
-├── story_progression.py                    # [2,864行] 确定性资源与推进：三档体力、活体导演 2.0、双向看望窗、整夜体液锁定衰减与非失眠女主+40、商城/队列领奖/被动/情报杠杆
-├── round_runtime.py                        # [1,225行] RoundStore 单一写者事务引擎：可重入 POSIX 锁、_ENGINE_CODE_CACHE 字节码缓存、2PC WAL、缺失 .round-runtime 单调续号与生命周期推导
-├── injection_core.py                       # [3,310行] 底层数值与存档引擎：9 大数值系统 + 4 组确定性跨回合机制 + SHAME_10守卫与体液锁定必触发 + 分仓道具 + 四层记忆硬门禁
-├── story_reading.py                        # [  300行] 任务级原文提取投影、过期缓存清理与行级读回执认证器（原文优先匹配 + 截断末行剔除）
-├── relationship_query.py                   # [  309行] 方向性亲属称谓查询（含长辈/身份/次要NPC商务规则 target）与 known_by 秘密隔离视图生成器
-├── scene_chat.py                           # [  490行] 隔离实验场景聊天服务（.scene-chat/ SQLite，入队/重试即时唤醒长轮询，永不写正式存档）
-├── scene_world.py                          # [  415行] 旧存档只读隔离导入器（兼容 P2 JSON 与新开序幕 round∈{0,1}，读取四层记忆 known_by 与跨午夜容差）
+├── 语音运行.py                              # 唯一服务端启动入口：Flask 托管 + ?thumb=avatar|plate 缩略图 + Fish/Edge TTS + 密钥缓存/分档/音素表/潜台词剥离/CSRF + 静态白名单
+├── save_store.py                           # P2 自包含存档存储层：JSON 真相读写（含 items.deployed / shop.dynamic_catalog / sensual_drought）、旧纯TXT迁移、漂移检测与单向 .txt 渲染
+├── story_service.py                        # 正式互动 HTTP/SSE/Long-Polling 服务（DEFAULT_LIVE_LIMIT=10、compact 演播进度、AI 商城询货队列与 worker 接口）
+├── story_compiler.py                       # 只读确定性精编器：Zone 0/1/2、全局成人微距锚点 _HEROINE_SENSORY_ANCHORS/sensory_lens、held_items 与 deployed_items_* 增量
+├── interaction_runtime.py                  # 正式连续互动协议：O(limit) 倒序分页、_thumbs 排除缓存、use_item/deploy_item/retrieve_item/inspect_deployed 校验与 remote_cast 注入
+├── story_progression.py                    # 确定性资源与推进：三档体力、活体导演（Tier-0 sensual_hook + sensual_drought 补偿）、16件商城+AI动态进货验证+unlock_req 门槛
+├── round_runtime.py                        # RoundStore 单一写者事务引擎：可重入 POSIX 锁、_ENGINE_CODE_CACHE、2PC WAL、playback 两文件写入收窄
+├── injection_core.py                       # 底层数值与存档引擎：9 大数值系统（含温热精油/微醺燥热 Buff 协同与 DS_01 保底）、四区道具图鉴与 6 项运营操作
+├── story_reading.py                        # 任务级原文提取投影、过期缓存清理与行级读回执认证器
+├── relationship_query.py                   # 方向性亲属称谓查询与 known_by 秘密隔离视图生成器
+├── scene_chat.py                           # 隔离实验场景聊天服务（.scene-chat/ SQLite）
+├── scene_world.py                          # 旧存档只读隔离导入器（兼容 ▼ 已部署装置区 ▼ 边界识别）
 │
-├── main_template.html                      # [  676行] 正式剧场首页（六大档案中心、凝视微抽屉、#gazeLens、桌面翻转焦点卡、快捷括号芯片、桥接面板）
-├── story_client.js                         # [5,365行] 正式剧场前端主逻辑（4 角色发声白名单、SSE 重连补拉与无闪白接管、错误保活、历史回合热度隔离、电影插页、选项转场徽标）
-├── story_client.css                        # [3,364行] 剧场设计系统（noir/ivory 双主题、.fx-tremble 颤栗动效、选项转场徽标、统一微头像与无图竖线、电影插页、景深阅读）
-├── voice_client.js                         # [  264行] 共享语音传输库（规范化、X-Voice-Client CSRF、密钥/分档 API、命名取消通道、MSE 流式、AudioUrlStore）
-├── voice_manager.html                      # [2,248行] /admin 声学工坊（顶栏密钥/三档切换、角色调音台、试听潜台词剥离与属性安全转义、音色库搜索、钱包查询）
-├── scene_chat.html                         # [   34行] /scene-chat 极简独立实验页（4xx 清理 pending、潜台词/Fish 标签清洗与 randomUUID 降级）
+├── main_template.html                      # 正式剧场首页（含顶部聚焦浮层 #composerSheet、六大档案中心、#gazeLens 等）
+├── story_client.js                         # 正式剧场前端主逻辑（#composerSheet、三段式行囊、地图装置徽标、商城AI询货、parsePanels记忆化、segmentDomCache、IntersectionObserver视差）
+├── story_client.css                        # 剧场设计系统（#composerSheet 样式、content-visibility:auto、商城询货/锁定/装置样式、noir/ivory 双主题）
+├── voice_client.js                         # 共享语音传输库
+├── voice_manager.html                      # /admin 声学工坊
+├── scene_chat.html                         # /scene-chat 极简独立实验页
 │
-├── 存档开局随机盲盒.py                      # [  497行] P2 自包含存档版 8 组随机序幕池、三轴开局抉择、首环 TASK-001 与 director.scene_location/last_time_slot 初始化
-├── 存档清理器.py                            # [  430行] 带 reset-journal.json 崩溃恢复的两阶段 P2 新档初始化工具（兼容只读 fd fsync）与备份裁剪
-├── 一键同步GitHub.py                        # [1,085行] 手机端纯标准库增量同步工具（官方域名专属鉴权防泄露、非点号临时文件+fsync+utime 刷新安卓 mtime、落盘 SHA-1 验真与 .toolpkg 实测元数据/残留告警、安全 --rollback）
+├── 存档开局随机盲盒.py                      # 重构版 P2 8 组高张力随机序幕池、三轴开局抉择、首环 TASK-001 初始化
+├── 存档清理器.py                            # 带 reset-journal.json 崩溃恢复的两阶段 P2 新档初始化工具
+├── 一键同步GitHub.py                        # 手机端纯标准库增量同步工具
 │
 ├── txt文件/                                # 权威设定、规则、配置与现用资源（SSOT）
-│   ├── 互动运行配置.json                    # 唯一运行参数源（地点、别名、三档体力、记忆预算、活体导演 2.0 含 tier4:22、商城/情报/被动动态 EXP）
-│   ├── 世界变故库.json                      # 活体世界导演 2.0 统一数据源（v2：8 类媒介 + 25×25 火花矩阵 + 4 条暗钟 + 43 条支点含 12 条香艳意外与礼盒伏笔回响）
-│   ├── 系统商城目录.json                    # 独立确定性系统商城唯一商品目录（低/中/高三档 8 件商品与限购/giftable/效果声明）
-│   ├── 商业情报目录.json                    # 商业嗅觉一次性情报唯一目录（INTEL-001~003 前置门槛、分角色效果与杠杆门槛）
+│   ├── 互动运行配置.json                    # 唯一运行参数源（locations、aliases、6 项 operations 等）
+│   ├── 世界变故库.json                      # 活体世界导演 2.0 统一数据源（含 6 条 Tier-0 sensual_hook + 四阶 erotic_accident）
+│   ├── 系统商城目录.json                    # 16 件分类商品目录（high >= 60、sensual/covert/daily、pack_qty 与 unlock_req）
+│   ├── 商业情报目录.json                    # 商业嗅觉一次性情报唯一目录
 │   ├── 事件注册表.json                      # 6 组 84 个事件标签与算分参数唯一原源
-│   ├── 关系称谓库.json                      # 血缘/社会/法理事实、秘密知情名单与称谓唯一原源
-│   ├── 关系称谓查询.jsonl                   # relationship_query.py 派生查询视图（严禁手改）
-│   ├── 场景交流规范.md                      # 正式连续互动（v1/v2/双阶段）、方案 2B 显式转场、动态变故导演与实验场景权威契约
-│   ├── 全局执行法典.md                      # 卷零红线（轨A宿主主权、轨B主体感、括号硬输入、反噬条款）
-│   ├── 一键注入指南.txt                     # 节点结构（4000字防呆）、记忆四层、事件生成表与旧 Python/JSON 契约
-│   ├── 提示词.md                            # 冷启动、认知优先级、SYSTEM_LOG 模板与入口判定
-│   ├── 故事检索索引.md                      # AI 路由表（key → 数据源与触发时机）
-│   ├── 知识库/{世界观类,叙事判断,系统标签类,角色类}.json   # 4 个 ST-v1 格式权威知识库（共 23 条）
-│   └── image/                              # 现用视觉素材（均附 .nomedia 防相册扫描，后端自动发现并按最新 mtime 优先）
-│       ├── scenes/                         # 5 大地点 8 张电影级无人空镜占位图（1600×900 WebP，随时放新图热替换）
-│       └── {徐志北,沈知韫,苏婉青,徐念薇}/   # 角色立绘（现有 10 张 4K PNG，可扩展 mood_* 情绪图或新角色目录）
+│   ├── 关系称谓库.json & 查询.jsonl         # 血缘/社会/法理事实、秘密知情名单与称谓查询
+│   ├── 场景交流规范.md / 全局执行法典.md / 一键注入指南.txt / 提示词.md / 故事检索索引.md
+│   ├── 知识库/{世界观类,叙事判断,系统标签类,角色类}.json   # 4 个 ST-v1 格式权威知识库
+│   └── image/                              # 现用视觉素材（含 _thumbs/ 36 张 WebP 预生缩略图与 .nomedia）
 │
-├── 存档/                                   # P2 自包含正式累积事实层（单目录即可无损跨窗/跨设备恢复）
-│   ├── save_state.json                     # 全量机器状态与跨回合确定性机制计数（唯一状态真相）
-│   ├── 四层记忆.json                        # 结构化 L1–L4 记忆、prologue_active 与知情元数据
-│   ├── 近期演播.json                        # 滚动最新 12 幕已接受演播原文与 playback 进度
-│   ├── 全局记忆库.txt                       # 由 save_store 单向自动渲染的人类/手动只读视图
-│   └── 徐志北道具图鉴.txt                   # 由 save_store 单向自动渲染的 V3.0 道具图鉴（活跃/已交付/历史/模板四区）
-├── data.json                               # 派生运行时前端快照（RoundStore 每次提交覆写；缺失时可由 存档/ 无损重建）
-├── voice_config.json                       # 角色语音后端与参数配置（默认 s2.1-pro-free / voice_tier: free，由 /admin 或首页切换保存）
-│
-├── Operit世界书导出/                       # 手动入口世界书派生产物（convert_to_operit.py + 23 条导出 JSON）
-├── scene_chat_dev/                         # Operit 2 桥接源码、成品包、实验候选页与自动化回归测试
-│   ├── local.story.operit_bridge/          # 插件 v2.1.4 源码（manifest.json, main.js, tools.js, ui/settings.ui.js）
-│   ├── build.py                            # 打包脚本 → artifacts/故事桥接-continuous-2.1.4.toolpkg（验包后自动清理旧包）
-│   ├── src/scene_live/                     # /scene-live 候选页（运行时强依赖，不可删）
-│   ├── src/legacy_visibility.json          # 旧记忆 SHA-256 知情映射（scene_world.py 运行时强依赖，不可删）
-│   ├── tests/ & run_tests.sh               # 24 个 Python 单测 + 8 个 Node 桥接测试套件（共 32 组，100% 全绿）
-│   ├── types/                              # Operit 2 宿主 API 30 份 .d.ts 声明（仅 IDE 参考，根有 .nomedia）
-│   └── plan/ & logs/                       # 历史 step 维护记录（非运行数据）
+├── 存档/                                   # P2 自包含正式累积事实层（JSON 真相 + 单向渲染只读 .txt）
+├── data.json & voice_config.json           # 派生运行时快照与角色语音配置
+├── Operit世界书导出/                       # 手动入口世界书派生产物
+└── scene_chat_dev/                         # Operit 2 桥接源码（v2.1.8）、成品包与 33 组回归测试
+    ├── local.story.operit_bridge/          # 插件 v2.1.8 源码（含无状态 AI 商城询货）
+    ├── build.py                            # 打包脚本 → artifacts/故事桥接-continuous-2.1.8.toolpkg
+    ├── src/scene_live/ & legacy_visibility.json
+    └── tests/ & run_tests.sh               # 24 个 Python 单测 + 9 个 Node 桥接测试套件（共 33 组，100% 全绿）
 │
 ├── 开发者功能/                             # 历史变更归档与独立开发工具（非 AI 数据源）
 │   ├── 修订日志/                            # 压缩归档日志
