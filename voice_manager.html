@@ -1029,7 +1029,7 @@
       </svg>
       <div class="brand-copy">
         <h1>深渊天平 · 声学工坊</h1>
-        <p>Fish Audio S2.1 / Drama 3 双引擎中控 · 密钥仅存本机受保护缓存 · 仅三大女主与旁白配音</p>
+        <p>Fish Audio S2.1 / Drama 3 双引擎中控 · 密钥仅存本机受保护缓存 · 三女主 + 旁白 + 动作 + 可选主角多声道配音</p>
       </div>
     </div>
     <div class="header-actions">
@@ -1059,8 +1059,8 @@
       <div id="fish-wallet-data" class="wallet-data">尚未查询 · 点右上刷新</div>
     </div>
     <div class="protocol-banner">
-      <div><strong>配音白名单：</strong>仅<strong>沈知韫、苏婉青、徐念薇、旁白</strong>启用语音；主角、徐承邺及次要 NPC 默认静默无声。</div>
-      <div style="margin-top:6px;"><strong>全局品质分档（旁白恒走免费档）：</strong>
+      <div><strong>多声道路由：</strong><strong>沈知韫、苏婉青、徐念薇</strong>随分档切换模型；<strong>旁白、动作（可与旁白区分）、徐志北（默认关闭，可随时开启）</strong>恒走免费档；徐承邺及次要 NPC 静默无声。</div>
+      <div style="margin-top:6px;"><strong>全局品质分档（旁白/动作/主角恒走免费档）：</strong>
         <span id="studio-tier-badge" style="color:var(--gold);font-weight:600;">检测中…</span>
       </div>
       <div class="inline-row" style="margin-top:6px;gap:6px;">
@@ -1124,6 +1124,7 @@
 
     const STUDIO_THEME_KEY = 'abyss_studio_theme_v1';
     const PORTRAIT_CHARS = new Set(['沈知韫', '苏婉青', '徐念薇', '徐志北']);
+    const FREE_DEFAULT_ROLES = new Set(['旁白', '动作', '徐志北']);
 
     let fishTtsModels = [
         { id: "s2.1-pro", name: "S2.1 Pro（官方生产主力 · 高质稳定）" },
@@ -1189,6 +1190,8 @@
         wanqing: { name: "苏婉青 · 娇柔贴耳", speed: 0.93, volume: -1.0, normalize_loudness: false, temperature: 0.68, top_p: 0.76, latency: "normal", chunk_length: 190, min_chunk_length: 30, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 192, sample_rate: 44100 },
         nianwei: { name: "徐念薇 · 清冷克制", speed: 0.97, volume: 0, normalize_loudness: true, temperature: 0.58, top_p: 0.68, latency: "normal", chunk_length: 220, min_chunk_length: 40, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 128, sample_rate: 44100 },
         narrator_free: { name: "旁白 · 免费电影腔", tts_model: "s2.1-pro-free", speed: 0.94, volume: 0, normalize_loudness: true, temperature: 0.58, top_p: 0.66, latency: "balanced", chunk_length: 260, min_chunk_length: 55, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 128, sample_rate: 44100 },
+        action_crisp: { name: "动作 · 轻快克制", tts_model: "s2.1-pro-free", speed: 1.03, volume: -1.5, normalize_loudness: true, temperature: 0.64, top_p: 0.72, latency: "balanced", chunk_length: 220, min_chunk_length: 40, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 128, sample_rate: 44100 },
+        zhibei: { name: "徐志北 · 沉稳男声", tts_model: "s2.1-pro-free", speed: 0.98, volume: 0, normalize_loudness: true, temperature: 0.60, top_p: 0.70, latency: "balanced", chunk_length: 200, min_chunk_length: 35, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 128, sample_rate: 44100 },
         drama3_cinematic: { name: "Drama 3 · 导演演绎", tts_model: "drama-3", speed: 0.98, volume: 0, normalize_loudness: false, temperature: 0.74, top_p: 0.78, latency: "normal", chunk_length: 240, min_chunk_length: 40, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 192, sample_rate: 44100, quality_guard: true }
     };
 
@@ -1198,7 +1201,9 @@
         "沈知韫": "这件事先不急着定论。坐下来把热茶喝了，剩下的我来处理。",
         "徐念薇": "画布还没干，别靠太近。有话直接说就好。",
         "苏婉青": "刚煮好的咖啡，还是温水？下午我还要回主宅看婆婆，上午陪我说说话也好。",
-        "旁白": "窗外细雨未停，落地灯在木质桌面投下一圈暖光。她收回手，指尖停在瓷杯边缘，没有立刻接话。",
+        "旁白": "窗外细雨未停，落地灯在木质桌面投下一圈暖光。客厅安静下来，茶雾沿着杯沿慢慢往上浮。",
+        "动作": "她把对账单往桌角一推，纸边撞到茶碟轻轻一响，抬眼看向门口。",
+        "徐志北": "刚巧路过书房，顺手替你带杯温水。这份对账单，现在方便看吗？",
         "default": "这是一段语音测试。请听音色、停顿与气口是否自然。"
     };
 
@@ -1257,8 +1262,8 @@
 
     const STUDIO_TIER_LABELS = {
         free: '标准免费档（s2.1-pro-free · $0 推荐）',
-        pro: '稳定生产档（三女主 s2.1-pro · 旁白免费）',
-        drama: '旗舰导演档（三女主 drama-3 高消费 · 旁白免费）',
+        pro: '稳定生产档（三女主 s2.1-pro · 旁白/动作/主角免费）',
+        drama: '旗舰导演档（三女主 drama-3 高消费 · 旁白/动作/主角免费）',
         custom: '自定义（逐角色独立设置）'
     };
 
@@ -1373,7 +1378,7 @@
     }
 
     async function applyStudioVoiceTier(tier) {
-        if (tier === 'drama' && !confirm('旗舰导演档（Drama 3）按字符计费较高（促销后约 $50 / 百万字节，仅对三大女主启用，旁白仍免费）。确认切换？')) {
+        if (tier === 'drama' && !confirm('旗舰导演档（Drama 3）按字符计费较高（促销后约 $50 / 百万字节，仅对三大女主启用，旁白/动作/主角仍免费）。确认切换？')) {
             return;
         }
         setManagerStatus('正在切换全局语音品质档位…');
@@ -1550,10 +1555,13 @@
         const character = pageNames[currentPage];
         const cfg = configData[character];
         const edgeMode = isEdgeChar(character, cfg);
+        const isActionRole = character === '动作';
+        const isProtagRole = character === '徐志北';
+        const inheritsNarrator = isActionRole && !edgeMode && (!cfg.voice || cfg.voice === 'fish:');
         let currentModel = cfg.voice && cfg.voice.includes(':') ? cfg.voice.split(':')[0] : (edgeMode ? "edge" : "fish");
         let currentSpeaker = cfg.voice && cfg.voice.includes(':') ? cfg.voice.split(':')[1] : "";
 
-        if (!edgeMode && currentModel !== "fish") {
+        if (!edgeMode && !inheritsNarrator && currentModel !== "fish") {
             currentModel = "fish";
             currentSpeaker = voiceList[0] ? voiceList[0].id : "";
             cfg.voice = `fish:${currentSpeaker}`;
@@ -1575,6 +1583,32 @@
 
         const attrChar = escapeHtml(character);
         const jsChar = escapeJsStr(character);
+        const settingsObj = configData.__settings__ || {};
+        const roleRoutingBanner = isActionRole ? `
+            <div class="model-callout" style="margin-bottom:14px;">
+                <div class="inline-row" style="justify-content:space-between;flex-wrap:wrap;gap:8px;">
+                    <div><strong>动作声线路由（[A:*]）：</strong>留空音色即自动继承「旁白」音色并套用下方独立语速/音量（默认 <code>1.03x / -1.5dB</code>，零费用区分听感）；也可绑定独立第二音色。</div>
+                    <div class="inline-row" style="gap:6px;">
+                        <select onchange="updateStudioRouting('action_voice_mode', this.value)">
+                            <option value="follow_narrator" ${(settingsObj.action_voice_mode || 'follow_narrator') === 'follow_narrator' ? 'selected' : ''}>跟随旁白</option>
+                            <option value="separate" ${settingsObj.action_voice_mode === 'separate' ? 'selected' : ''}>独立动作声线</option>
+                            <option value="muted" ${settingsObj.action_voice_mode === 'muted' ? 'selected' : ''}>动作静音</option>
+                        </select>
+                        <select onchange="updateStudioRouting('action_voice_scope', this.value)">
+                            <option value="all" ${(settingsObj.action_voice_scope || 'all') === 'all' ? 'selected' : ''}>全部动作（含主角）</option>
+                            <option value="heroines" ${settingsObj.action_voice_scope === 'heroines' ? 'selected' : ''}>仅三女主动作</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        ` : (isProtagRole ? `
+            <div class="model-callout" style="margin-bottom:14px;">
+                <label class="inline-row" style="gap:8px;cursor:pointer;">
+                    <input type="checkbox" ${settingsObj.protagonist_voice_enabled === true ? 'checked' : ''} onchange="updateStudioRouting('protagonist_voice_enabled', this.checked)">
+                    <span><strong>启用主角配音（徐志北）</strong>：开启并绑定下方男声音色（Fish 或 Edge）后，将朗读 AI 正文中的 <code>[D:徐志北]</code>（恒走免费档，绝不朗读玩家提交气泡）。</span>
+                </label>
+            </div>
+        ` : '');
 
         if (edgeMode) {
             const rateNum = parseRate(cfg.rate);
@@ -1589,11 +1623,15 @@
                         ${avatarHtml}
                         <div>
                             <h2 class="card-title">${attrChar}</h2>
-                            <div class="tag-row"><span class="engine-tag edge">Edge 旁白回退</span></div>
+                            <div class="tag-row"><span class="engine-tag edge">Edge 免费回退</span></div>
                         </div>
                     </div>
-                    ${character === '旁白' ? `<button type="button" class="secondary-action" onclick="switchNarratorToFishFree()">切换 Fish 免费旁白</button>` : ''}
+                    <div class="inline-row" style="gap:6px;">
+                        ${isActionRole ? `<button type="button" class="secondary-action" onclick="resetActionInheritVoice()">恢复继承旁白</button>` : ''}
+                        ${FREE_DEFAULT_ROLES.has(character) ? `<button type="button" class="secondary-action" onclick="switchRoleToFishFree('${jsChar}')">切换 Fish 免费档</button>` : ''}
+                    </div>
                 </div>
+                ${roleRoutingBanner}
                 <div class="voice-dashboard">
                     <section class="tool-panel">
                         <div class="panel-title">Edge 发音人与韵律 <span>${escapeHtml(currentSpeaker || edgeDefaultVoice)}</span></div>
@@ -1635,9 +1673,10 @@
             Object.assign(cfg, normalizeFishCfg(cfg));
             const fishCfg = normalizeFishCfg(cfg);
 
-            const currentFishTtsModel = cfg.tts_model || (character === '旁白' ? 's2.1-pro-free' : ((configData.__settings__ && configData.__settings__.fish_tts_model) || window.fishTtsModel || "s2.1-pro"));
+            const currentFishTtsModel = cfg.tts_model || (FREE_DEFAULT_ROLES.has(character) ? 's2.1-pro-free' : ((configData.__settings__ && configData.__settings__.fish_tts_model) || window.fishTtsModel || "s2.1-pro"));
             const isS21 = currentFishTtsModel === 's2.1-pro' || currentFishTtsModel === 's2.1-pro-free';
             const isDrama3 = currentFishTtsModel === 'drama-3';
+            const repIgnored = isS21 || isDrama3;
             const isFree = currentFishTtsModel === 's2.1-pro-free';
 
             const modelHtml = fishTtsModels.map(m =>
@@ -1683,17 +1722,22 @@
                             <div class="tag-row">
                                 <span class="engine-tag ${isDrama3 ? 'drama' : 'fish'}">${escapeHtml(currentFishTtsModel)}</span>
                                 ${isFree ? '<span class="engine-tag free">$0 免费档</span>' : ''}
+                                ${inheritsNarrator ? '<span class="engine-tag edge">继承「旁白」音色</span>' : ''}
                                 ${!fishCfg.normalize_loudness ? '<span class="engine-tag drama">保留低语动态</span>' : ''}
                                 <span class="engine-tag fish">${escapeHtml(fishCfg.format.toUpperCase())} · ${(fishCfg.sample_rate / 1000).toFixed(fishCfg.sample_rate % 1000 ? 1 : 0)}kHz</span>
                             </div>
                         </div>
                     </div>
-                    ${character === '旁白' ? `<button type="button" class="secondary-action" onclick="switchNarratorToEdge()">切换 Edge 旁白</button>` : ''}
+                    <div class="inline-row" style="gap:6px;">
+                        ${isActionRole && !inheritsNarrator ? `<button type="button" class="secondary-action" onclick="resetActionInheritVoice()">恢复继承旁白</button>` : ''}
+                        ${FREE_DEFAULT_ROLES.has(character) ? `<button type="button" class="secondary-action" onclick="switchRoleToEdge('${jsChar}')">切换 Edge 免费音色</button>` : ''}
+                    </div>
                 </div>
+                ${roleRoutingBanner}
 
                 <div class="voice-dashboard">
                     <section class="tool-panel">
-                        <div class="panel-title">音色与推理模型 <span>${currentSpeaker ? '已绑定 reference_id' : 'Fish 默认音色'}</span></div>
+                        <div class="panel-title">音色与推理模型 <span>${inheritsNarrator ? '继承「旁白」音色' : (currentSpeaker ? '已绑定 reference_id' : '未绑定音色')}</span></div>
                         <div class="form-group">
                             <label>Fish TTS 模型</label>
                             <select onchange="updateFishTtsModel('${jsChar}', this.value); renderEditor();">${modelHtml}</select>
@@ -1701,8 +1745,8 @@
                         </div>
                         <div class="current-summary">
                             <div>
-                                <strong>${escapeHtml(voiceDisplayName(currentSpeaker))}</strong>
-                                <small>${currentSpeaker ? escapeHtml(shortenRepoId(currentSpeaker)) : 'Fish 默认音色'} · ${escapeHtml(currentFishTtsModel)}</small>
+                                <strong>${inheritsNarrator ? '自动继承「旁白」音色（独立韵律偏移）' : escapeHtml(voiceDisplayName(currentSpeaker))}</strong>
+                                <small>${inheritsNarrator ? '可在下方从仓库或搜索绑定独立第二音色' : (currentSpeaker ? escapeHtml(shortenRepoId(currentSpeaker)) : '请从仓库或下方搜索绑定音色 ID')} · ${escapeHtml(currentFishTtsModel)}</small>
                             </div>
                             <span class="engine-tag fish">当前生效</span>
                         </div>
@@ -1835,13 +1879,13 @@
                                 <div class="param-grid">
                                     <div class="slider-row"><div class="slider-header"><span>单块最大帧数 max_new_tokens</span><span class="slider-val" id="fish-tokens-val-${attrChar}">${fishCfg.max_new_tokens}</span></div><input type="range" min="256" max="4096" step="128" value="${fishCfg.max_new_tokens}" oninput="updateFishParam('${jsChar}', 'max_new_tokens', this.value, 'fish-tokens-val-${jsChar}', 0)"><small class="param-help">默认 1024；长情绪戏或慢语速被截断时可调至 1536–2048。</small></div>
                                     <div class="slider-row"><div class="slider-header"><span>早停阈值 early_stop_threshold</span><span class="slider-val" id="fish-early-val-${attrChar}">${fishCfg.early_stop_threshold.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.05" value="${fishCfg.early_stop_threshold}" oninput="updateFishParam('${jsChar}', 'early_stop_threshold', this.value, 'fish-early-val-${jsChar}', 2)"><small class="param-help">默认 1.00；一般无需调低。</small></div>
-                                    <div class="slider-row" style="${isS21 ? 'opacity:0.55;' : ''}">
+                                    <div class="slider-row" style="${repIgnored ? 'opacity:0.55;' : ''}">
                                         <div class="slider-header">
-                                            <span>重复抑制 repetition_penalty ${isS21 ? '<span class="warn-chip">S2.1 官方已忽略</span>' : ''}</span>
+                                            <span>重复抑制 repetition_penalty ${repIgnored ? '<span class="warn-chip">S2.1 / Drama 3 官方已忽略</span>' : ''}</span>
                                             <span class="slider-val" id="fish-repetition-val-${attrChar}">${fishCfg.repetition_penalty.toFixed(2)}</span>
                                         </div>
-                                        <input type="range" min="1.0" max="2.0" step="0.01" value="${fishCfg.repetition_penalty}" ${isS21 ? 'disabled' : ''} oninput="updateFishParam('${jsChar}', 'repetition_penalty', this.value, 'fish-repetition-val-${jsChar}', 2)">
-                                        <small class="param-help">${isS21 ? 'Fish Audio 官方确认该项在 S2.1 上不起作用，后端发包已自动省略。' : '仅对旧版 S1/S2 兼容模型生效。'}</small>
+                                        <input type="range" min="1.0" max="2.0" step="0.01" value="${fishCfg.repetition_penalty}" ${repIgnored ? 'disabled' : ''} oninput="updateFishParam('${jsChar}', 'repetition_penalty', this.value, 'fish-repetition-val-${jsChar}', 2)">
+                                        <small class="param-help">${repIgnored ? 'Fish Audio 官方确认该项在 S2.1 与 Drama 3 上不起作用，后端发包已自动省略。' : '仅对旧版 S1/S2 兼容模型生效。'}</small>
                                     </div>
                                     <label class="toggle-card" style="align-self:start;">
                                         <input type="checkbox" ${fishCfg.quality_guard ? 'checked' : ''} onchange="updateFishBool('${jsChar}', 'quality_guard', this.checked, false)">
@@ -1880,7 +1924,18 @@
         updateSaveState();
     }
 
-    function editablePageNames() { return Object.keys(configData).filter(k => k !== '__settings__' && k !== 'default'); }
+    const STUDIO_PAGE_ORDER = ['旁白', '动作', '沈知韫', '苏婉青', '徐念薇', '徐志北'];
+    function editablePageNames() {
+        const keys = Object.keys(configData).filter(k => k !== '__settings__' && k !== 'default');
+        return keys.sort((a, b) => {
+            const ia = STUDIO_PAGE_ORDER.indexOf(a);
+            const ib = STUDIO_PAGE_ORDER.indexOf(b);
+            if (ia >= 0 && ib >= 0) return ia - ib;
+            if (ia >= 0) return -1;
+            if (ib >= 0) return 1;
+            return a.localeCompare(b, 'zh-CN');
+        });
+    }
     function isDirty() { return !!savedConfigSnapshot && JSON.stringify(sanitizeConfigForSave(configData)) !== savedConfigSnapshot; }
     function updateSaveState() {
         const button = document.getElementById('save-all-button');
@@ -1978,29 +2033,66 @@
         renderEditor();
     }
 
-    function switchNarratorToFishFree() {
-        configData["旁白"] = Object.assign(
-            { voice: "fish:", emotion: "", tts_model: "s2.1-pro-free" },
-            normalizeFishCfg(fishPresets.narrator_free)
+    function updateStudioRouting(key, value) {
+        configData.__settings__ = configData.__settings__ || {};
+        configData.__settings__[key] = value;
+        renderEditor();
+    }
+
+    function resetActionInheritVoice() {
+        if (!configData['动作']) return;
+        const keptIds = Array.isArray(configData['动作'].voice_ids) ? configData['动作'].voice_ids.slice() : [];
+        configData['动作'] = Object.assign(
+            { voice: '', voice_ids: keptIds, emotion: '', tts_model: 's2.1-pro-free' },
+            normalizeFishCfg(fishPresets.action_crisp)
         );
         renderEditor();
     }
 
-    function switchNarratorToEdge() {
-        configData["旁白"] = {
-            voice: `edge:${edgeDefaultVoice}`,
-            rate: "-8%",
-            pitch: "-4Hz",
-            volume: "+0%",
-            emotion: ""
-        };
+    function switchRoleToFishFree(char) {
+        const target = char || '旁白';
+        const prev = configData[target] || {};
+        const keptIds = Array.isArray(prev.voice_ids) ? prev.voice_ids.slice() : [];
+        const preset = target === '动作' ? fishPresets.action_crisp : (target === '徐志北' ? fishPresets.zhibei : fishPresets.narrator_free);
+        const restoredVoice = target === '动作' ? (keptIds.length ? `fish:${keptIds[0]}` : '') : (keptIds.length ? `fish:${keptIds[0]}` : 'fish:');
+        configData[target] = Object.assign(
+            { voice: restoredVoice, voice_ids: keptIds, emotion: '', tts_model: 's2.1-pro-free' },
+            normalizeFishCfg(preset)
+        );
         renderEditor();
     }
+
+    function switchRoleToEdge(char) {
+        const target = char || '旁白';
+        const prev = configData[target] || {};
+        const keptIds = normalizeFishVoiceIds(Array.isArray(prev.voice_ids) ? prev.voice_ids : prev.voice);
+        const defaultEdgeId = target === '徐志北' ? 'zh-CN-YunxiNeural' : edgeDefaultVoice;
+        const entry = {
+            voice: `edge:${defaultEdgeId}`,
+            rate: target === '动作' ? '+0%' : (target === '徐志北' ? '-2%' : '-8%'),
+            pitch: target === '动作' ? '-2Hz' : (target === '徐志北' ? '-2Hz' : '-4Hz'),
+            volume: target === '动作' ? '-10%' : '+0%',
+            emotion: ''
+        };
+        if (keptIds.length) entry.voice_ids = keptIds;
+        configData[target] = entry;
+        renderEditor();
+    }
+
+    function switchNarratorToFishFree() { switchRoleToFishFree('旁白'); }
+    function switchNarratorToEdge() { switchRoleToEdge('旁白'); }
 
     function sanitizeConfigForSave(src) {
         const out = JSON.parse(JSON.stringify(src || {}));
         out.__settings__ = out.__settings__ || {};
         out.__settings__.fish_tts_model = out.__settings__.fish_tts_model || window.fishTtsModel || "s2.1-pro-free";
+        out.__settings__.protagonist_voice_enabled = out.__settings__.protagonist_voice_enabled === true;
+        if (!['follow_narrator', 'separate', 'muted'].includes(out.__settings__.action_voice_mode)) {
+            out.__settings__.action_voice_mode = 'follow_narrator';
+        }
+        if (!['all', 'heroines'].includes(out.__settings__.action_voice_scope)) {
+            out.__settings__.action_voice_scope = 'all';
+        }
         for (const [name, cfg] of Object.entries(out)) {
             if (name === "__settings__") continue;
             if (!cfg || typeof cfg !== 'object') continue;
@@ -2009,10 +2101,20 @@
                 if (cfg.rate === undefined || cfg.rate === '' || cfg.rate === '+5%') cfg.rate = '-8%';
                 if (cfg.pitch === undefined || cfg.pitch === '' || cfg.pitch === '-2Hz') cfg.pitch = '-4Hz';
                 if (!cfg.volume) cfg.volume = '+0%';
+                if (Array.isArray(cfg.voice_ids) && cfg.voice_ids.length) {
+                    cfg.voice_ids = normalizeFishVoiceIds(cfg.voice_ids);
+                } else {
+                    delete cfg.voice_ids;
+                }
             } else {
-                cfg.voice = String(cfg.voice || '').startsWith('fish:') ? cfg.voice : `fish:${voiceList[0] ? voiceList[0].id : ''}`;
+                const rawV = String(cfg.voice || '').trim();
+                if (name === '动作' && (!rawV || rawV === 'fish:')) {
+                    cfg.voice = '';
+                } else {
+                    cfg.voice = rawV.startsWith('fish:') ? rawV : `fish:${voiceList[0] ? voiceList[0].id : ''}`;
+                }
                 cfg.voice_ids = normalizeFishVoiceIds(Array.isArray(cfg.voice_ids) ? cfg.voice_ids : cfg.voice);
-                cfg.tts_model = cfg.tts_model || (name === '旁白' ? 's2.1-pro-free' : (out.__settings__.fish_tts_model || 's2.1-pro-free'));
+                cfg.tts_model = cfg.tts_model || (FREE_DEFAULT_ROLES.has(name) ? 's2.1-pro-free' : (out.__settings__.fish_tts_model || 's2.1-pro-free'));
                 Object.assign(cfg, normalizeFishCfg(cfg));
                 cfg.use_custom_settings = false;
                 delete cfg.stability;
@@ -2050,7 +2152,7 @@
     function updateFishTtsModel(char, modelId) {
         configData.__settings__ = configData.__settings__ || {};
         if (char && configData[char]) {
-            configData[char].tts_model = modelId || (char === '旁白' ? 's2.1-pro-free' : (window.fishTtsModel || 's2.1-pro-free'));
+            configData[char].tts_model = modelId || (FREE_DEFAULT_ROLES.has(char) ? 's2.1-pro-free' : (window.fishTtsModel || 's2.1-pro-free'));
             configData[char].emotion = "";
             updateSaveState();
             return;
@@ -2303,7 +2405,16 @@
 
     async function testVoice(char, overrideVoice) {
         if (!configReady) return;
-        const cfg = { ...configData[char], ...(overrideVoice ? { voice: overrideVoice } : {}) };
+        let cfg = { ...configData[char], ...(overrideVoice ? { voice: overrideVoice } : {}) };
+        if (char === '动作' && !overrideVoice && (!cfg.voice || cfg.voice === 'fish:')) {
+            const narrator = configData['旁白'] || {};
+            const nv = String(narrator.voice || '').trim();
+            if (nv.startsWith('edge:')) {
+                cfg = { voice: nv, rate: '+0%', pitch: '-2Hz', volume: '-10%', emotion: '' };
+            } else if (nv) {
+                cfg = { ...cfg, voice: nv };
+            }
+        }
         const textArea = document.getElementById('test-text-' + char);
         let text = textArea ? textArea.value.trim() : (sampleTexts[char] || sampleTexts.default);
         text = text.replace(/[｛{]([^｜|}\r\n]+)[｜|]([^｝}\r\n]+)[｝}]/g, '$1').replace(/[\(（【].*?[\)）】]|\*.*?\*/g, '').trim();

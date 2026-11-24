@@ -836,6 +836,22 @@ html[data-theme="ivory"] .msg.player > .text {
   background: linear-gradient(90deg, transparent, var(--line-strong), transparent);
 }
 
+.narration-mark.is-compact {
+  justify-content: flex-end;
+  gap: 6px;
+  margin: 0 0 2px;
+  opacity: 0.72;
+}
+
+.narration-mark.is-compact::before,
+.narration-mark.is-compact::after {
+  display: none;
+}
+
+.narration-mark .msg-replay-btn {
+  margin-left: 2px;
+}
+
 .narration-diamond { width: 7px; height: 7px; color: var(--gold); flex: none; }
 
 .msg.narration > .text {

@@ -2727,13 +2727,55 @@
   }
 
   const VOICED_SPEAKERS = new Set(['沈知韫', '苏婉青', '徐念薇']);
+  const FREE_DEFAULT_VOICE_ROLES = new Set(['旁白', '动作', '徐志北']);
 
-  function resolveVoiceSpeaker(m) {
-    if (!m || !String(m.text || '').trim()) return '';
+  function hasUsableVoiceSlot(slotCfg) {
+    const v = String(slotCfg?.voice || '').trim();
+    if (v.startsWith('edge:')) return v.length > 5;
+    if (v.startsWith('fish:')) return v.length > 5;
+    return false;
+  }
+
+  function resolveVoiceSpeaker(m, cfgOverride) {
+    if (!m || m.isPlayerInput || !String(m.text || '').trim()) return '';
+    const cfg = cfgOverride || (typeof voiceConfigCache !== 'undefined' ? voiceConfigCache : null);
+    const settings = cfg?.__settings__ || {};
     if (m.kind === 'narration') return '旁白';
-    if (m.kind === 'dialogue') return VOICED_SPEAKERS.has(m.speaker) ? m.speaker : '';
-    if (m.kind === 'action') return VOICED_SPEAKERS.has(m.speaker) ? '旁白' : '';
+    if (m.kind === 'dialogue') {
+      if (VOICED_SPEAKERS.has(m.speaker)) return m.speaker;
+      if (m.speaker === '徐志北') {
+        return settings.protagonist_voice_enabled === true && hasUsableVoiceSlot(cfg?.['徐志北']) ? '徐志北' : '';
+      }
+      return '';
+    }
+    if (m.kind === 'action') {
+      const mode = settings.action_voice_mode || 'follow_narrator';
+      if (mode === 'muted') return '';
+      const scope = settings.action_voice_scope || 'all';
+      const actorOk = scope === 'all'
+        ? (VOICED_SPEAKERS.has(m.speaker) || m.speaker === '徐志北')
+        : VOICED_SPEAKERS.has(m.speaker);
+      if (!actorOk) return '';
+      return mode === 'separate' ? '动作' : '旁白';
+    }
     return '';
+  }
+
+  function resolveEffectiveVoiceCfg(who, config) {
+    const raw = config?.[who];
+    if (!raw || typeof raw !== 'object') return null;
+    const v = String(raw.voice || '').trim();
+    if (who === '动作' && (!v || v === 'fish:')) {
+      const narrator = config?.['旁白'] || {};
+      const nv = String(narrator.voice || '').trim();
+      if (!nv || nv === 'fish:') return null;
+      if (nv.startsWith('edge:')) {
+        return { voice: nv, rate: '+0%', pitch: '-2Hz', volume: '-10%', emotion: '' };
+      }
+      return { ...raw, voice: nv };
+    }
+    if (!v || v === 'fish:') return null;
+    return raw;
   }
 
   function clearAudioCache() {
@@ -2745,11 +2787,12 @@
   function resolveVoiceModelKey(who, cfg, settings) {
     const voice = String(cfg?.voice || '');
     if (voice.startsWith('edge:')) return 'edge';
-    return String(cfg?.tts_model || (who === '旁白' ? 's2.1-pro-free' : (settings?.fish_tts_model || 's2.1-pro-free'))).trim() || 's2.1-pro-free';
+    return String(cfg?.tts_model || (FREE_DEFAULT_VOICE_ROLES.has(who) ? 's2.1-pro-free' : (settings?.fish_tts_model || 's2.1-pro-free'))).trim() || 's2.1-pro-free';
   }
 
   function audioCacheKey(id, who, cfg, settings, prosodyMod = null) {
-    let key = id + '|' + resolveVoiceModelKey(who, cfg, settings);
+    const voiceTag = String(cfg?.voice || '');
+    let key = id + '|' + who + '|' + voiceTag + '|' + resolveVoiceModelKey(who, cfg, settings);
     if (prosodyMod && (prosodyMod.speed_scale || prosodyMod.expressive_boost)) {
       key += '|p:' + (prosodyMod.speed_scale || 1) + ':' + (prosodyMod.expressive_boost || 0);
     }
@@ -2765,6 +2808,17 @@
     return activeVoiceTier === 'drama';
   }
 
+  function voiceRoutingSig(cfg) {
+    const s = cfg?.__settings__ || {};
+    return [
+      s.voice_tier || 'free',
+      s.protagonist_voice_enabled === true ? '1' : '0',
+      hasUsableVoiceSlot(cfg?.['徐志北']) ? '1' : '0',
+      s.action_voice_mode || 'follow_narrator',
+      s.action_voice_scope || 'all',
+    ].join('|');
+  }
+
   function invalidateVoiceConfig() {
     configPromise = null;
     voiceConfigCache = null;
@@ -2776,10 +2830,13 @@
   function loadVoiceConfig() {
     configPromise = configPromise || VoiceClient.requestJson('/api/config?t=' + Date.now(), { cache: 'no-store' })
       .then(cfg => {
+        const prevSig = voiceConfigCache ? voiceRoutingSig(voiceConfigCache) : '';
         const prevTier = activeVoiceTier;
         voiceConfigCache = cfg || null;
         activeVoiceTier = cfg?.__settings__?.voice_tier || 'free';
-        if (prevTier !== activeVoiceTier && history.length) {
+        const nextSig = voiceConfigCache ? voiceRoutingSig(voiceConfigCache) : '';
+        if ((prevTier !== activeVoiceTier || prevSig !== nextSig) && history.length) {
+          segmentDomCache.clear();
           signature = '';
           render();
         }
@@ -2809,8 +2866,6 @@
   function schedulePrefetch(m, id) {
     cancelPrefetch();
     if (!m || !id || !cache.voice || !gesture || document.hidden) return;
-    const who = resolveVoiceSpeaker(m);
-    if (!who) return;
     const serial = audioSerial;
     prefetchTimer = setTimeout(async () => {
       prefetchTimer = null;
@@ -2818,8 +2873,10 @@
       try {
         const config = await loadVoiceConfig();
         if (serial !== audioSerial || !cache.voice || document.hidden) return;
-        const cfg = config[who];
-        if (!cfg || !cfg.voice) return;
+        const who = resolveVoiceSpeaker(m, config);
+        if (!who) return;
+        const cfg = resolveEffectiveVoiceCfg(who, config);
+        if (!cfg) return;
         const prosodyMod = computeProsodyMod(m, who);
         const cacheKey = audioCacheKey(id, who, cfg, config.__settings__ || {}, prosodyMod);
         const existing = audioCache.get(cacheKey);
@@ -2837,27 +2894,36 @@
 
   function schedulePrefetchWindow(messages, idPrefix, startIndex = 0) {
     if (!Array.isArray(messages) || !messages.length || !cache.voice || document.hidden) return;
-    if (fishKeyConfigured === false) return;
-    const voiced = [];
-    for (let i = Math.max(0, startIndex); i < messages.length && voiced.length < 3; i++) {
-      const m = messages[i];
-      const who = resolveVoiceSpeaker(m);
-      if (who) voiced.push({ m, who, idx: i, id: idPrefix + ':' + i, prosodyMod: computeProsodyMod(m, who) });
-    }
-    if (!voiced.length) return;
-    void ensureFishKeyReady().then(ok => {
-      if (!ok || !cache.voice || document.hidden) return;
+    void loadVoiceConfig().then(async config => {
+      if (!config || !cache.voice || document.hidden) return;
+      const voiced = [];
+      let needsFish = false;
+      for (let i = Math.max(0, startIndex); i < messages.length && voiced.length < 3; i++) {
+        const m = messages[i];
+        const who = resolveVoiceSpeaker(m, config);
+        if (!who) continue;
+        const effCfg = resolveEffectiveVoiceCfg(who, config);
+        if (!effCfg) continue;
+        const isEdge = String(effCfg.voice).startsWith('edge:');
+        if (!isEdge) needsFish = true;
+        voiced.push({ m, who, isEdge, idx: i, id: idPrefix + ':' + i, prosodyMod: computeProsodyMod(m, who) });
+      }
+      if (!voiced.length) return;
+      const fishOk = needsFish ? await ensureFishKeyReady() : false;
+      if (!cache.voice || document.hidden) return;
+      const ready = voiced.filter(v => v.isEdge || fishOk);
+      if (!ready.length) return;
       if (typeof VoiceClient.prefetchBatch === 'function') {
-        void VoiceClient.prefetchBatch(voiced.map(v => ({
+        void VoiceClient.prefetchBatch(ready.map(v => ({
           text: stripSubtextForTts(v.m.text),
           speaker: v.who,
           ...(v.prosodyMod || {})
         })));
       }
       if (gesture) {
-        schedulePrefetch(voiced[0].m, voiced[0].id);
+        schedulePrefetch(ready[0].m, ready[0].id);
       }
-    });
+    }).catch(() => {});
   }
 
   function unlock() {
@@ -2874,8 +2940,14 @@
 
   async function speak(m, id) {
     stopVoice();
-    const who = resolveVoiceSpeaker(m);
-    if (!who) {
+    if (!m || m.isPlayerInput || !String(m.text || '').trim()) {
+      audioMessage = null;
+      audioStatus = '';
+      controls();
+      return;
+    }
+    const quickWho = voiceConfigCache ? resolveVoiceSpeaker(m, voiceConfigCache) : null;
+    if (voiceConfigCache && !quickWho) {
       audioMessage = null;
       audioStatus = '';
       controls();
@@ -2903,8 +2975,15 @@
     try {
       const config = await loadVoiceConfig();
       if (serial !== audioSerial || !cache.voice || document.hidden) return;
-      const cfg = config[who];
-      if (!cfg || !cfg.voice) {
+      const who = resolveVoiceSpeaker(m, config);
+      if (!who) {
+        audioMessage = null;
+        audioStatus = '';
+        controls();
+        return;
+      }
+      const cfg = resolveEffectiveVoiceCfg(who, config);
+      if (!cfg) {
         audioStatus = '';
         controls();
         return;
@@ -3241,14 +3320,33 @@
     el.setAttribute('aria-label', kind === 'narration' ? '旁白' : speaker + (kind === 'action' ? '的动作' : '的对白'));
 
     if (kind === 'narration') {
-      if (opts.showNarrationMark !== false || opts.previewTag) {
-        const mark = node('div', 'narration-mark');
+      const showFullMark = opts.showNarrationMark !== false || Boolean(opts.previewTag);
+      const mark = node('div', showFullMark ? 'narration-mark' : 'narration-mark is-compact');
+      if (showFullMark) {
         const diamond = svgEl('svg', { viewBox: '0 0 12 12', class: 'narration-diamond', 'aria-hidden': 'true' });
         diamond.append(svgEl('path', { d: 'M6 1 11 6 6 11 1 6Z', fill: 'currentColor' }));
         mark.append(diamond, node('span', '', '旁白'), diamond.cloneNode(true));
         if (opts.previewTag) mark.append(node('span', 'stream-preview-tag', opts.previewTag));
-        el.append(mark);
       }
+      if (resolveVoiceSpeaker({ kind, speaker: '', text })) {
+        const actions = node('span', 'msg-head-actions');
+        const replay = node('button', 'msg-replay-btn');
+        replay.type = 'button';
+        replay.setAttribute('aria-label', '重听本段旁白');
+        replay.title = '重听旁白';
+        replay.append(icon('volume', 'chip-svg'));
+        replay.onclick = e => {
+          e.stopPropagation();
+          haptic(8);
+          unlock();
+          cache.voice = true;
+          save();
+          void speak({ kind, speaker: '', text }, id);
+        };
+        actions.append(replay);
+        mark.append(actions);
+      }
+      el.append(mark);
     } else if (kind === 'handoff') {
       const h = node('div', 'message-heading');
       h.append(icon('scroll', 'chip-svg'), node('span', '', speaker));
@@ -3331,9 +3429,9 @@
         }
       }
       if (opts.previewTag) h.append(node('span', 'stream-preview-tag', opts.previewTag));
-      if (!isPlayer && (kind === 'dialogue' || kind === 'action')) {
+      if (!opts.isPlayerInput && (kind === 'dialogue' || kind === 'action')) {
         const actions = node('span', 'msg-head-actions');
-        if (resolveVoiceSpeaker({ kind, speaker, text })) {
+        if (resolveVoiceSpeaker({ kind, speaker, text, isPlayerInput: opts.isPlayerInput })) {
           const replay = node('button', 'msg-replay-btn');
           replay.type = 'button';
           replay.setAttribute('aria-label', '重听本句语音');
@@ -3350,7 +3448,7 @@
           actions.append(replay);
         }
 
-        if (kind === 'dialogue' && !opts.inHistory) {
+        if (!isPlayer && kind === 'dialogue' && !opts.inHistory) {
           const quoteBtn = node('button', 'msg-micro-btn', '引用');
           quoteBtn.type = 'button';
           quoteBtn.title = '引用此句至输入框';
@@ -3361,7 +3459,7 @@
           actions.append(quoteBtn);
         }
 
-        if (kind === 'dialogue' && !opts.inHistory) {
+        if (!isPlayer && kind === 'dialogue' && !opts.inHistory) {
           const gazeBtn = node('button', 'msg-micro-btn' + (charHasImg ? ' is-gaze' : ''), charHasImg ? '凝视 ◉' : '档案 ◈');
           gazeBtn.type = 'button';
           gazeBtn.title = charHasImg ? '按住凝视，轻触全幅细赏' : '按住或轻触查看人物档案';
@@ -3560,7 +3658,7 @@
       }
 
       if (filter === 'all' && t.selection?.option_id !== 'BEGIN') {
-        pushNode(entry(t.input_kind === 'action' ? 'action' : 'dialogue', '徐志北', t.input, t.id + ':input', { inHistory }));
+        pushNode(entry(t.input_kind === 'action' ? 'action' : 'dialogue', '徐志北', t.input, t.id + ':input', { inHistory, isPlayerInput: true }));
         prevKind = 'player';
       }
 
@@ -3633,7 +3731,7 @@
       const reqId = streamPreview.request_id;
       const task = snapshot?.task;
       if (task?.action && task.selection?.option_id !== 'BEGIN') {
-        out.push(entry('action', '徐志北', task.action, 'preview:' + reqId + ':input', { isPreview: true, inHistory }));
+        out.push(entry('action', '徐志北', task.action, 'preview:' + reqId + ':input', { isPreview: true, inHistory, isPlayerInput: true }));
         prevKind = 'player';
       }
       const visible = streamPreview.messages.slice(0, Math.max(1, streamPreview.revealed || 1));
@@ -5434,7 +5532,7 @@
         render();
         controls();
       }),
-      mkSwitchRow('主角戏份风格', '忠实演绎允许贴合原意的简短主角发言与具身反应（静音不配音）；仅动作感官禁主角台词', [['faithful', '忠实演绎'], ['silent', '仅动作感官']], curProtagStyle, async v => {
+      mkSwitchRow('主角戏份风格', '忠实演绎允许贴合原意的简短主角发言与具身反应（默认静音，可在下方开启主角配音）；仅动作感官禁主角台词', [['faithful', '忠实演绎'], ['silent', '仅动作感官']], curProtagStyle, async v => {
         if (backendPrefBusy) return;
         backendPrefBusy = true;
         try {
@@ -5490,7 +5588,7 @@
     const tierRow = node('div', 'pref-row');
     tierRow.style.marginTop = '12px';
     const tierLbl = node('div', 'pref-row-label');
-    const tierDesc = node('span', '', '仅三大女主（沈知韫/苏婉青/徐念薇）与旁白启用配音；主角、徐承邺及次要NPC静默无声。切旗舰 Drama3 时三大女主全量启用导演声演，旁白恒走免费档。');
+    const tierDesc = node('span', '', '三大女主（沈知韫/苏婉青/徐念薇）随分档切换模型；旁白、动作与主角恒走免费档（$0），徐承邺及次要NPC静默无声。');
     tierLbl.append(node('strong', '', '语音品质分档（默认零费用）'), tierDesc);
     const tierSwitch = node('div', 'seg-switch');
     const tierDefs = [
@@ -5504,6 +5602,100 @@
         btn.setAttribute('aria-pressed', String(tid === activeTier));
       }
     };
+
+    const protagRow = node('div', 'pref-row');
+    protagRow.style.marginTop = '10px';
+    const protagLbl = node('div', 'pref-row-label');
+    const protagDesc = node('span', '', '开启后朗读 AI 正文中的 [D:徐志北]（不读玩家提交气泡），恒走免费档，需在声学工坊为徐志北绑定男声音色。');
+    protagLbl.append(node('strong', '', '主角配音（徐志北）'), protagDesc);
+    const protagSwitch = node('div', 'seg-switch');
+    const protagButtons = new Map();
+
+    const actModeRow = node('div', 'pref-row');
+    actModeRow.style.marginTop = '10px';
+    const actModeLbl = node('div', 'pref-row-label');
+    const actModeDesc = node('span', '', '区分旁白 [N] 与舞台动作 [A]：「独立动作」默认继承旁白音色并以轻快微弱韵律（1.03x / -1.5dB）区分，亦可到声学工坊绑定第二音色。');
+    actModeLbl.append(node('strong', '', '动作声线模式（[A] 区分）'), actModeDesc);
+    const actModeSwitch = node('div', 'seg-switch');
+    const actModeButtons = new Map();
+
+    const actScopeRow = node('div', 'pref-row');
+    actScopeRow.style.marginTop = '10px';
+    const actScopeLbl = node('div', 'pref-row-label');
+    const actScopeDesc = node('span', '', '控制动作配音覆盖范围：默认朗读全部 [A:*]（含主角动作，避免听觉断层），也可仅朗读三女主动作。');
+    actScopeLbl.append(node('strong', '', '动作配音范围'), actScopeDesc);
+    const actScopeSwitch = node('div', 'seg-switch');
+    const actScopeButtons = new Map();
+
+    const markRoutingUI = cfg => {
+      const s = cfg?.__settings__ || {};
+      const pOn = s.protagonist_voice_enabled === true;
+      const aMode = s.action_voice_mode || 'follow_narrator';
+      const aScope = s.action_voice_scope || 'all';
+      for (const [val, btn] of protagButtons) btn.setAttribute('aria-pressed', String(val === pOn));
+      for (const [val, btn] of actModeButtons) btn.setAttribute('aria-pressed', String(val === aMode));
+      for (const [val, btn] of actScopeButtons) btn.setAttribute('aria-pressed', String(val === aScope));
+      const hasProtagVoice = hasUsableVoiceSlot(cfg?.['徐志北']);
+      const hints = [];
+      if (curProtagStyle === 'silent') hints.push('当前为「仅动作感官」模式，切回「忠实演绎」后方有主角台词');
+      if (pOn && !hasProtagVoice) hints.push('尚未在声学工坊为徐志北绑定音色（点右上进入 /admin 绑定 Fish 或 Edge 男声即可发声）');
+      if (!hints.length) {
+        hints.push(hasProtagVoice ? '已绑定徐志北音色；开启后朗读 AI 正文 [D:徐志北]（恒走免费档，不读玩家输入气泡）' : '开启后朗读 AI 正文 [D:徐志北]（不读玩家输入气泡）；可在声学工坊为徐志北选定男声 Fish 或 Edge 音色');
+      }
+      protagDesc.textContent = hints.join('；');
+      actScopeRow.style.opacity = aMode === 'muted' ? '0.55' : '';
+    };
+
+    const applyRoutingPatch = async (patch, okMsg) => {
+      try {
+        const res = await VoiceClient.setVoiceRouting(patch);
+        invalidateVoiceConfig();
+        if (res && res.config) voiceConfigCache = res.config;
+        segmentDomCache.clear();
+        signature = '';
+        render();
+        markRoutingUI(voiceConfigCache);
+        void loadVoiceConfig().catch(() => null);
+        toast(okMsg || res?.msg || '语音路由已更新');
+      } catch (err) {
+        toast('语音路由保存失败：' + (err?.message || err));
+      }
+    };
+
+    for (const [val, label] of [[true, '开启'], [false, '关闭']]) {
+      const b = node('button', '', label);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', 'false');
+      b.onclick = () => { haptic(8); void applyRoutingPatch({ protagonist_voice_enabled: val }, val ? '已开启主角配音（徐志北）' : '已关闭主角配音'); };
+      protagButtons.set(val, b);
+      protagSwitch.append(b);
+    }
+    protagRow.append(protagLbl, protagSwitch);
+
+    for (const [val, label] of [['follow_narrator', '跟随旁白'], ['separate', '独立动作'], ['muted', '动作静音']]) {
+      const b = node('button', '', label);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', 'false');
+      b.onclick = () => {
+        haptic(8);
+        const msg = val === 'separate' ? '已切至独立动作声线（可与旁白区分听感）' : (val === 'muted' ? '已将动作描写设为静音' : '已将动作声线设为跟随旁白');
+        void applyRoutingPatch({ action_voice_mode: val }, msg);
+      };
+      actModeButtons.set(val, b);
+      actModeSwitch.append(b);
+    }
+    actModeRow.append(actModeLbl, actModeSwitch);
+
+    for (const [val, label] of [['all', '全部含主角'], ['heroines', '仅三女主']]) {
+      const b = node('button', '', label);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', 'false');
+      b.onclick = () => { haptic(8); void applyRoutingPatch({ action_voice_scope: val }, val === 'all' ? '动作配音覆盖全部角色（含主角）' : '动作配音仅覆盖三女主'); };
+      actScopeButtons.set(val, b);
+      actScopeSwitch.append(b);
+    }
+    actScopeRow.append(actScopeLbl, actScopeSwitch);
+
     const refreshVoiceKeyAndTier = async () => {
       try {
         const [st, cfg] = await Promise.all([
@@ -5520,6 +5712,7 @@
         }
         const curTier = cfg?.__settings__?.voice_tier || 'free';
         markTierActive(curTier);
+        markRoutingUI(cfg);
       } catch (_) {
         keyBadge.textContent = '待检测';
       }
@@ -5559,7 +5752,7 @@
       b.setAttribute('aria-pressed', 'false');
       b.onclick = async () => {
         haptic(8);
-        if (tid === 'drama' && !window.confirm('旗舰导演档（Drama 3）将对三大女主全部台词启用导演声演，旁白及其他内容仍免费。按字节计费较高（促销后约 $50/百万字节），确认切换？')) {
+        if (tid === 'drama' && !window.confirm('旗舰导演档（Drama 3）将对三大女主全部台词启用导演声演，旁白、动作与主角仍免费。按字节计费较高（促销后约 $50/百万字节），确认切换？')) {
           return;
         }
         try {
@@ -5571,6 +5764,7 @@
           signature = '';
           render();
           markTierActive(activeVoiceTier);
+          markRoutingUI(voiceConfigCache);
           void loadVoiceConfig().catch(() => null);
           toast((res.msg || '语音品质档位已切换') + '（已刷新本幕音频缓存）');
         } catch (err) {
@@ -5581,7 +5775,7 @@
       tierSwitch.append(b);
     }
     tierRow.append(tierLbl, tierSwitch);
-    voiceGroup.append(tierRow);
+    voiceGroup.append(tierRow, protagRow, actModeRow, actScopeRow);
     pane.append(voiceGroup);
     void refreshVoiceKeyAndTier();
 

@@ -90,14 +90,76 @@ class StoryService:
         self._tts_prewarmer = tts_prewarmer
         self._prewarmed_keys = set()
 
+    _PREWARM_INTIMATE_TAG_RE = re.compile(
+        r'<whisper>|<soft>|\[(?:[^\]\r\n]*(?:耳语|气音|气声|喘|颤|沙哑|发紧|发虚|低哑|whisper|pant|breathless|trembl)[^\]\r\n]*)\]',
+        re.I,
+    )
+
+    @staticmethod
+    def _has_usable_voice_slot(slot_cfg):
+        if not isinstance(slot_cfg, dict):
+            return False
+        v = str(slot_cfg.get('voice') or '').strip()
+        return (v.startswith('edge:') and len(v) > 5) or (v.startswith('fish:') and len(v) > 5)
+
+    def _compute_prewarm_prosody(self, text, who, state_bundle):
+        if who not in ('沈知韫', '苏婉青', '徐念薇'):
+            return {}
+        panels = (state_bundle or {}).get('panels') if isinstance(state_bundle, dict) else {}
+        stats = panels.get(who) if isinstance(panels, dict) else {}
+        stats = stats if isinstance(stats, dict) else {}
+        try:
+            desire = int(stats.get('欲望', 0) or 0)
+        except (TypeError, ValueError):
+            desire = 0
+        try:
+            orgasm = int(stats.get('高潮', 0) or 0)
+        except (TypeError, ValueError):
+            orgasm = 0
+        try:
+            stam = int(stats.get('体力', 100) if stats.get('体力') is not None else 100)
+        except (TypeError, ValueError):
+            stam = 100
+        intl = (state_bundle or {}).get('intimate') if isinstance(state_bundle, dict) else {}
+        intimate_beat = int((intl or {}).get('session_beats', 0) or 0) if isinstance(intl, dict) else 0
+        has_intimate_tag = bool(self._PREWARM_INTIMATE_TAG_RE.search(text or ''))
+        if orgasm >= 70 or stam <= 15:
+            return {'speed_scale': 0.90, 'expressive_boost': 0.06}
+        if desire >= 85 or has_intimate_tag:
+            return {'speed_scale': 0.93, 'expressive_boost': 0.04}
+        if intimate_beat >= 1:
+            return {'speed_scale': 0.95, 'expressive_boost': 0.02}
+        return {}
+
     def _trigger_tts_prewarm(self, messages, *, dedup_prefix=''):
         fn = self._tts_prewarmer
         if not callable(fn) or not messages:
             return
+        voice_cfg = {}
+        voice_cfg_path = self.root / 'voice_config.json'
         try:
-            voice_cfg_rev = str((self.root / 'voice_config.json').stat().st_mtime_ns)
-        except OSError:
+            voice_cfg_rev = str(voice_cfg_path.stat().st_mtime_ns)
+            raw_vcfg = json.loads(voice_cfg_path.read_text(encoding='utf-8'))
+            if isinstance(raw_vcfg, dict):
+                voice_cfg = raw_vcfg
+        except (OSError, ValueError):
             voice_cfg_rev = '0'
+        v_settings = voice_cfg.get('__settings__') if isinstance(voice_cfg.get('__settings__'), dict) else {}
+        protag_enabled = bool(v_settings.get('protagonist_voice_enabled', False))
+        protag_usable = protag_enabled and self._has_usable_voice_slot(voice_cfg.get('徐志北'))
+        action_mode = str(v_settings.get('action_voice_mode') or 'follow_narrator').strip().lower()
+        if action_mode not in ('follow_narrator', 'separate', 'muted'):
+            action_mode = 'follow_narrator'
+        action_scope = str(v_settings.get('action_voice_scope') or 'all').strip().lower()
+        if action_scope not in ('all', 'heroines'):
+            action_scope = 'all'
+
+        state_bundle = None
+        try:
+            state_bundle, _, _ = save_store.load_bundle(self.root)
+        except Exception:
+            state_bundle = None
+
         candidates = []
         for idx, m in enumerate(messages):
             if not isinstance(m, dict):
@@ -109,20 +171,39 @@ class StoryService:
                 continue
             if kind == 'narration':
                 voice_who = '旁白'
-            elif kind == 'dialogue' and speaker in ('沈知韫', '苏婉青', '徐念薇'):
-                voice_who = speaker
-            elif kind == 'action' and speaker in ('沈知韫', '苏婉青', '徐念薇'):
-                voice_who = '旁白'
+            elif kind == 'dialogue':
+                if speaker in ('沈知韫', '苏婉青', '徐念薇'):
+                    voice_who = speaker
+                elif speaker == '徐志北' and protag_usable:
+                    voice_who = '徐志北'
+                else:
+                    continue
+            elif kind == 'action':
+                if action_mode == 'muted':
+                    continue
+                allowed_actor = (
+                    speaker in ('沈知韫', '苏婉青', '徐念薇', '徐志北')
+                    if action_scope == 'all'
+                    else speaker in ('沈知韫', '苏婉青', '徐念薇')
+                )
+                if not allowed_actor:
+                    continue
+                voice_who = '动作' if action_mode == 'separate' else '旁白'
             else:
                 continue
-            sig = f'{dedup_prefix}:{voice_cfg_rev}:{voice_who}:{hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]}'
+            prosody = self._compute_prewarm_prosody(text, voice_who, state_bundle) if kind == 'dialogue' else {}
+            p_sig = f"{prosody.get('speed_scale', '')}:{prosody.get('expressive_boost', '')}"
+            sig = f'{dedup_prefix}:{voice_cfg_rev}:{voice_who}:{p_sig}:{hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]}'
             with self._stream_lock:
                 if sig in self._prewarmed_keys:
                     continue
                 if len(self._prewarmed_keys) > 256:
                     self._prewarmed_keys.clear()
                 self._prewarmed_keys.add(sig)
-            candidates.append({'speaker': voice_who, 'text': text})
+            item = {'speaker': voice_who, 'text': text}
+            if prosody:
+                item.update(prosody)
+            candidates.append(item)
             if len(candidates) >= 3:
                 break
         if candidates:

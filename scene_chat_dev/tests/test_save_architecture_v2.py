@@ -825,6 +825,75 @@ class SaveArchitectureV2Tests(unittest.TestCase):
             secrets_unlocked=['K01'],
         )
 
+    def test_10_workstream_2b_and_3_regressions(self):
+        # 1. mechanics.charm_scene_used persists across save_store.normalize_state & save_bundle round-trip
+        st, ly, _ = save_store.load_bundle(self.tmp)
+        st['mechanics']['charm_scene_used'] = True
+        save_store.save_bundle(self.tmp, st, ly)
+        st2, _, _ = save_store.load_bundle(self.tmp)
+        self.assertIs(st2['mechanics'].get('charm_scene_used'), True)
+
+        # 2. Xu Nianwei default stamina is 100 in default_state()
+        self.assertEqual(save_store.default_state()['panels']['徐念薇']['体力'], 100)
+
+        # 3. Round 1 memory_merge replaces literary prologue when prologue_active=True
+        merged = sp.memory_merge(
+            self.tmp,
+            {'L1': ['【1】周日午间阳光漫过主宅长桌的文学序幕。'], 'L2': [], 'L3': [], 'L4': []},
+            1, {'day': 1, 'time': '12:15'},
+            {'fact': '沈知韫递来深圳分部对账底稿并约明早七点餐桌核对。', 'compact': ''},
+            prologue_active=True,
+        )
+        self.assertEqual(merged, '第1天 12:15 沈知韫递来深圳分部对账底稿并约明早七点餐桌核对。')
+
+        # 4. derive_weekday reads save_state runtime prologue weekday even when data.json is empty
+        st_day = save_store.default_state()
+        st_day['runtime']['prologue'] = {'weekday': '周日'}
+        self.assertEqual(sp.derive_weekday({}, '', {'day': 1, 'time': '12:00'}, save_state=st_day), '周日')
+        self.assertEqual(sp.derive_weekday({}, '', {'day': 2, 'time': '09:00'}, save_state=st_day), '周一')
+
+        # 5. Shen Zhiyun overtime exemption preserves 公司 location after 16:00 when reason notes 加班
+        st_ot, ly_ot, _ = save_store.load_bundle(self.tmp)
+        st_ot['presence']['徐志北'] = {'location': '市中心顶层公寓', 'reason': '探望'}
+        st_ot['presence']['沈知韫'] = {'location': '公司', 'reason': '留公司加班复核并购条款'}
+        save_store.save_bundle(self.tmp, st_ot, ly_ot)
+        mem_path = self.tmp / save_store.RENDERED_MEMORY_PATH
+        from unittest import mock
+        with mock.patch.object(ic, 'MEMORY_FILE', str(mem_path)):
+            moves_ot = sp.reconcile_offstage_presence(
+                ic, mem_path, {'day': 1, 'time': '18:30'}, '周二', '市中心顶层公寓', player_moved=True,
+            )
+            self.assertFalse(any(m['name'] == '沈知韫' for m in moves_ot))
+            moves_overnight = sp.reconcile_offstage_presence(
+                ic, mem_path, {'day': 2, 'time': '07:00'}, '周三', '市中心顶层公寓', overnight=True, day_crossed=True,
+            )
+            self.assertTrue(any(m['name'] == '沈知韫' and m['to'] == '徐家主宅' for m in moves_overnight))
+
+        # 6. VIGILANCE_EXPOSURE_TAGS covers 外射/私密自渎 + ds_events 高潮/自慰
+        self.assertTrue(ic._is_exposed('苏婉青', {'苏婉青': ['外射_体表面部']}, None))
+        self.assertTrue(ic._is_exposed('苏婉青', {'苏婉青': ['意外撞破_私密自渎']}, None))
+        self.assertTrue(ic._is_exposed('苏婉青', None, {'苏婉青': ['触发高潮_绝顶清算']}))
+        self.assertTrue(ic._is_exposed('苏婉青', None, {'苏婉青': ['自慰_暗中纾解']}))
+        self.assertFalse(ic._is_exposed('苏婉青', {'苏婉青': ['心理破冰_暧昧试探']}, None))
+
+        # 7. Auto-climax (new_org >= 100 without explicit DS_17) reports auto_climax via climax_out
+        climax_set = set()
+        org_path = self.tmp / '_test_org_mem.txt'
+        org_path.write_text(
+            '[沈知韫] 好感 80 | 堕落 20 | 欲望 80 | 羞耻 40 | 体力 90 | 高潮 85% | 内射 0次 | 怀孕 False | 被动 Lv.0\n',
+            encoding='utf-8',
+        )
+        ic.process_desire_stamina_system(
+            {'沈知韫': ['高潮_中度累积']}, str(org_path), climax_out=climax_set,
+        )
+        self.assertIn('沈知韫', climax_set)
+
+        # 8. Opening box fixes: zhiyun_sunday_noon starts at 12:00 & Xu Nianwei opening task targets <= 35
+        self.assertEqual(opening.OPENING_TIMES['zhiyun_sunday_noon'], ('周日', '12:00'))
+        for sid, task_def in opening.OPENING_TASKS.items():
+            if task_def.get('target') == '徐念薇' and task_def.get('attr') == '好感':
+                self.assertLessEqual(task_def['value'], 35, f'{sid} Xu Nianwei task value too high: {task_def}')
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

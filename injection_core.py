@@ -489,7 +489,7 @@ def fluid_lock_floor_for_turns(turns):
     return 0
 
 
-def process_desire_stamina_system(ds_events, memory_file, *, creampie_chars=None, active_cast=None, host_charm=70, privacy='open_public'):
+def process_desire_stamina_system(ds_events, memory_file, *, creampie_chars=None, active_cast=None, host_charm=70, privacy='open_public', climax_out=None):
     """
     语义化规则包：生理体力与欲望高潮后台计算引擎
     接管欲望自然渗漏、复合感官刺激、刺激上限(80)、临界突破(100，含体液锁定期与魅力协同)、
@@ -646,6 +646,8 @@ def process_desire_stamina_system(ds_events, memory_file, *, creampie_chars=None
             
         # 6. 高潮核爆清算 或 自慰暗中纾解（体液锁定生效期间欲望受当前分阶底线钳制）
         if _event_tag('DS_17') in tags or new_org >= _event_param('DS_17', 'new_org_01'):
+            if isinstance(climax_out, set):
+                climax_out.add(char_name)
             new_org = _event_param('DS_17', 'new_org_02')
             new_des = _event_param('DS_17', 'new_des_03')
             new_sta -= _event_param('DS_17', 'new_sta_04')  # 扣除NPC绝顶痉挛体力消耗 15
@@ -972,7 +974,7 @@ def update_persistent_buffs(memory_file, shame_events, new_buffs_dict=None):
             effect = f"效果: 欲望死锁不低于{fl_floor}"
         return f"- [{buff_name}] 剩余时效: {turns}回合 ({effect})"
 
-    buff_block = re.sub(r"-\s*\[(.*?)\]\s*剩余时效:\s*(\d+)回合\s*\((.*?)\)", decrement_timer, buff_block)
+    buff_block = re.sub(r"-\s*\[([^\]]+)\]\s*剩余时效:\s*(\d+)回合\s*\((.*)\)(?=[ \t]*$)", decrement_timer, buff_block, flags=re.M)
 
     # 3. 再挂载本轮前台 AI 手动请求的新 BUFF（道具或特殊剧情触发；同名刷新不重复堆叠）
     if new_buffs_dict:
@@ -1180,7 +1182,7 @@ def update_counters(counter_updates):
 # ============ 徐承邺监视矩阵（警惕值机制） ============
 VIGILANCE_TARGETS = ("沈知韫", "苏婉青", "徐念薇", "徐志北")
 VIGILANCE_LOCKED_FLOOR = 50  # 目击锁定后警惕下限
-VIGILANCE_EXPOSURE_TAGS = ("内射", "高潮", "C烈度", "边缘", "深吻", "亲密")  # 暴露加分触发
+VIGILANCE_EXPOSURE_TAGS = ("内射", "外射", "高潮", "C烈度", "私密自渎", "自慰_暗中纾解")  # 暴露加分触发
 
 # ============ 任务系统（AI生成属性型任务 · 后端判定 · 串行单任务） ============
 TASK_WHITELIST = {
@@ -1219,12 +1221,16 @@ def _parse_vigilance_block(content):
     return {"位置": pos, "目标": targets}
 
 
-def _is_exposed(target, shame_events):
-    """目标本回合是否有越界暴露（C烈度/内射/高潮/边缘等 SHAME 标签）"""
-    tags = shame_events.get(target) if isinstance(shame_events, dict) else None
-    if not tags or not isinstance(tags, list):
+def _is_exposed(target, shame_events, ds_events=None):
+    """目标本回合是否有越界/私密暴露（覆盖 SHAME 与 DS 合法暴露标签）"""
+    tags = []
+    if isinstance(shame_events, dict) and isinstance(shame_events.get(target), list):
+        tags.extend(shame_events[target])
+    if isinstance(ds_events, dict) and isinstance(ds_events.get(target), list):
+        tags.extend(ds_events[target])
+    if not tags:
         return False
-    return any(any(k in t for k in VIGILANCE_EXPOSURE_TAGS) for t in tags)
+    return any(any(k in t for k in VIGILANCE_EXPOSURE_TAGS) for t in tags if isinstance(t, str))
 
 
 def _apply_vigilance_tags(vig, events):
@@ -1285,7 +1291,7 @@ def _write_vigilance_block(vig, memory_file=None):
     print(" [√] 监视状态块已更新")
 
 
-def process_vigilance_system(vigilance_events, shame_events, memory_file, *, elapsed_hours=None, roll_home=True, active_cast=None):
+def process_vigilance_system(vigilance_events, shame_events, memory_file, *, elapsed_hours=None, roll_home=True, active_cast=None, ds_events=None):
     """
     徐承邺监视矩阵全自动结算：
     警惕增减 / 发现程度（目击不可逆）/ 回宅掷骰（警惕50档低概率·70档明显提升）/
@@ -1343,7 +1349,7 @@ def process_vigilance_system(vigilance_events, shame_events, memory_file, *, ela
     co_present = at_home if vig_loc == "徐家主宅" else (at_apt if vig_loc == "市中心顶层公寓" else set())
     for name, t in vig["目标"].items():
         if vig_loc in ("徐家主宅", "市中心顶层公寓") and name in co_present:
-            expo = 30 if _is_exposed(name, shame_events) else 0
+            expo = 30 if _is_exposed(name, shame_events, ds_events=ds_events) else 0
             t["发现几率"] = min(100, 20 + t["警惕"] // 2 + expo)
         else:
             t["发现几率"] = 0
@@ -3317,7 +3323,7 @@ def _execute_injection_internal(current_round, story_nodes, memory_deltas, panel
     update_persistent_buffs(MEMORY_FILE, shame_events, new_buffs_dict)
     update_micro_states(micro_state_changes)
     update_counters(counter_updates)
-    process_vigilance_system(vigilance_events, shame_events, MEMORY_FILE)
+    process_vigilance_system(vigilance_events, shame_events, MEMORY_FILE, ds_events=ds_events)
     if not presence_changes and isinstance(memory_deltas, dict):
         presence_changes = memory_deltas.get("presence") or memory_deltas.get("presence_changes") or {}
     update_presence(presence_changes if isinstance(presence_changes, dict) else {})
@@ -3439,12 +3445,19 @@ def apply_story_events(events, task_issue, memory_round, *, business_leverage=Fa
         _flush_sim()
 
     heroine_cast = [c for c in (active_cast or ()) if c in save_store.HEROINES]
+    auto_climax = set()
     if norm_events['ds_events'] or creampie_chars or heroine_cast:
         for who, values in process_desire_stamina_system(
             norm_events['ds_events'], MEMORY_FILE, creampie_chars=creampie_chars,
             active_cast=heroine_cast, host_charm=host_charm, privacy=eff_privacy,
+            climax_out=auto_climax,
         ).items():
             panels.setdefault(who, {}).update({k: values[k] for k in ('欲望', '体力', '高潮')})
+        climax_tag = _event_tag('DS_17')
+        for who in auto_climax:
+            dlist = norm_events['ds_events'].setdefault(who, [])
+            if climax_tag not in dlist:
+                dlist.append(climax_tag)
         for who, dstags in (norm_events['ds_events'] or {}).items():
             if _event_tag('DS_18') in (dstags or ()):
                 masturbation_out[who] = 2
@@ -3487,7 +3500,7 @@ def apply_story_events(events, task_issue, memory_round, *, business_leverage=Fa
             for key, val in reward.items(): host[key] += val
             with open(MEMORY_FILE, 'w', encoding='utf-8') as handle:
                 handle.write(_simulate_panel(content, {'系统宿主': host}))
-    return {'leverage_meta': leverage_meta, 'normalized_events': norm_events, 'mechanics_notes': mech_notes}
+    return {'leverage_meta': leverage_meta, 'normalized_events': norm_events, 'mechanics_notes': mech_notes, 'auto_climax': sorted(auto_climax)}
 
 
 def consume_story_recovery_item(item_id, recovery, memory_round):

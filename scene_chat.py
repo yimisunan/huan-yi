@@ -345,7 +345,9 @@ class SceneService:
         for m in messages:
             if not isinstance(m, dict) or set(m) != {'kind', 'speaker', 'text'} or not isinstance(m['text'], str) or not 1 <= len(m['text']) <= 800:
                 raise rr.RoundError('消息结构或长度无效')
-            if not ((m['kind'] in ('dialogue', 'action') and m['speaker'] in state['scenario']['cast']) or (m['kind'] == 'narration' and m['speaker'] == '')):
+            if not ((m['kind'] == 'dialogue' and m['speaker'] in state['scenario']['cast'])
+                    or (m['kind'] == 'action' and (m['speaker'] in state['scenario']['cast'] or m['speaker'] == '徐志北'))
+                    or (m['kind'] == 'narration' and m['speaker'] == '')):
                 raise rr.RoundError('未登记说话人或节点类型')
         return result
 

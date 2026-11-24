@@ -476,7 +476,7 @@ def view(store, files=None):
     panels = [line for line in panel.splitlines() if line.startswith('[')]
     data = json.loads(files.get('data.json') or b'{}')
     runtime = sp.state(store.root, files) if sp.enabled(store.root) else None
-    weekday = sp.derive_weekday(data, memory, (runtime or {}).get('clock'))
+    weekday = sp.derive_weekday(data, memory, (runtime or {}).get('clock'), save_state=bundle_state)
     intl_snap = copy.deepcopy(bundle_state.get('intimate') or save_store.default_intimate())
     tier_costs = sp.active_costs(store.root, files) if runtime is not None else dict(sp.COSTS)
     intl_snap['active_costs'] = tier_costs
@@ -849,7 +849,7 @@ def settle(store, body, files, sequence, request_id):
         if isinstance(data.get('prologue'), dict):
             st_bundle['runtime']['prologue'] = copy.deepcopy(data['prologue'])
             live_mem = after[rr.FILES[0]].decode('utf-8') if after.get(rr.FILES[0]) else ''
-            live_wd = sp.derive_weekday(data, live_mem, st_bundle['runtime'].get('clock'))
+            live_wd = sp.derive_weekday(data, live_mem, st_bundle['runtime'].get('clock'), save_state=st_bundle)
             if live_wd:
                 st_bundle['runtime']['weekday'] = live_wd
         if mutated_world:
@@ -955,7 +955,7 @@ def _project_memory_header(header, *, cast=None, is_single=True):
 _LAYER_PRIORITY = {'L1': 4, 'L2': 3, 'L3': 2, 'L4': 1}
 
 
-def memory_context(root, memory, query, runtime, *, cast=None, is_single=True):
+def memory_context(root, memory, query, runtime, *, cast=None, location='', is_single=True):
     """Select complete source entries; omitted entries remain addressable by exact ranges."""
     engine=rr._engine(Path(root),Path(root));layers=engine._parse_memory_layer_items(memory)
     limits=sp.memory_policy(root);budget=limits['context_chars']
@@ -971,11 +971,17 @@ def memory_context(root, memory, query, runtime, *, cast=None, is_single=True):
     # Compact projected machine state stays far below budget//2; only a pathological header falls back to explicit read.
     head=header if len(header)<=budget//2 else ''
     used=len(head)
+    enriched_query = ' '.join(s for s in (query or '', location or '', ' '.join(cast or ())) if s)
+    l4_indices = [i for i, (item, ref, _) in enumerate(entries) if ref['layer'] == 'L4' and len(item) <= 240]
+    pinned_l4 = set(l4_indices[-2:])
+    rel_scores = [_relevance(item, enriched_query) for item, _, _ in entries]
+    raw_query_scores = [_relevance(item, query or '') for item, _, _ in entries]
     ranked=sorted(
         enumerate(entries),
         key=lambda pair:(
             pair[1][1]['layer']=='L1',
-            _relevance(pair[1][0],query),
+            pair[0] in pinned_l4,
+            rel_scores[pair[0]],
             _LAYER_PRIORITY.get(pair[1][1]['layer'],0),
             pair[1][2],
         ),
@@ -988,6 +994,11 @@ def memory_context(root, memory, query, runtime, *, cast=None, is_single=True):
     projected='\n'.join(([head] if head else [])+[entries[i][0] for i in sorted(selected)])
     omitted=[ref for i,(_,ref,_intra) in enumerate(entries) if i not in selected]
     index_refs=[entries[i][1] for i,_ in ranked if i not in selected][:limits['index_entries']]
+    recalled_old=[
+        {'layer': entries[i][1]['layer'], 'range': entries[i][1]['range'], 'body': entries[i][0]}
+        for i, _ in ranked
+        if i in selected and entries[i][1]['layer'] != 'L1' and raw_query_scores[i] > 0
+    ][:3]
     number=runtime['last_closed'] if runtime['phase']=='resting' and runtime['last_closed'] else runtime['memory_round']
     current=next(((item,ref) for item,ref,_intra in entries if ref['layer']=='L1' and item.startswith('【'+str(number)+'】')),None)
     required=[];allowed=list(index_refs)
@@ -1013,6 +1024,7 @@ def memory_context(root, memory, query, runtime, *, cast=None, is_single=True):
     return {'text':projected,'selected':[entries[i][1] for i in sorted(selected)],
             'all_entries':[{'source':ref,'preview':item[:80]} for item,ref,_intra in entries],
             'all_refs':[ref for _,ref,_intra in entries],
+            'recalled_old_entries': recalled_old,
             'omitted_count':len(omitted),'index':index_refs,'allowed':allowed,'required':required,
             'current':current_ref,'transfers':transfer_sources,'limits':limits}
 
@@ -1242,7 +1254,7 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
                 relevant.append({'source': 'txt文件/知识库/' + filename + '.json', 'body': content})
     memory = prepared['snapshot'][rr.FILES[0]]
     runtime=sp.state(story.root,files) if charged else {'memory_round':1,'last_closed':0,'phase':'ready'}
-    projection=memory_context(story.root,memory,text,runtime)
+    projection=memory_context(story.root,memory,text,runtime,cast=effective['cast'],location=effective['location'])
     is_action_turn = (not charged or preview_cost.get('kind') == 'action')
     pending_echoes = sp.parse_shop_echo_block(memory)['echoes'] if is_action_turn else []
     delivered_echo_ids = [e['id'] for e in pending_echoes]
@@ -1329,9 +1341,9 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
                 'operation': 'null或一个合法move_player/transfer_item/use_item/deploy_item/retrieve_item/inspect_deployed对象；不填成本或任意状态patch',
                 'handoff': '无待处理时空字符串',
                 'checks': {'intent': '具体依据', 'knowledge': '本场信息边界', 'action': '操作与正文一致或无动作', 'pace': '本段推进及此处交还控制权的依据'}}
-    if charged:
-        contract['resolution'] = sp.contract(story.root,preview_cost['kind'], (selected or {}).get('option_id'))
     intimate_mode_now = bool(eff_intl.get('scene_active'))
+    if charged:
+        contract['resolution'] = sp.contract(story.root,preview_cost['kind'], (selected or {}).get('option_id'), intimate_mode=intimate_mode_now)
     envelope = {'entry_mode': MODE, 'packet': {'path': relative, 'through_line': len(raw.decode().splitlines()), 'read_ranges':packet_read_ranges(raw)},
                 'reading_tools':list(LIVE_READ_TOOLS),'previous_validation_error':previous_error,
                 'continuity':{'source':'正式存档与accepted_history','rule':'本次资料包含当前正式记忆、已接受原文及原行动；旧会话未提交草稿不属于事实。重试承接同一冻结点，不跳到下一行动。'},
@@ -1422,10 +1434,16 @@ def material_delivery(story, key, job, chat_id, participant_id):
         resolution['sleep']['start'] = ''
         if isinstance(resolution.get('conditions'), dict):
             resolution['conditions']['npc'] = ''
+    v1_protag_style = load_story_prefs(story.root)['protagonist_style']
+    v1_player_dlg_rule = (
+        'dialogue.speaker只能取material.scenario.cast中的实际在场人物（忠实演绎模式下另允许≤3句贴合玩家原意图的简短徐志北dialogue，单句≤40字、禁标签、不代做新决定或升级）'
+        if v1_protag_style == 'faithful'
+        else 'dialogue.speaker只能取material.scenario.cast中的实际在场人物，严禁写徐志北或场外人物，不代写玩家台词'
+    )
     payload = {'entry_mode': MODE, 'material_delivery': 'program_inline_v1',
                'request_id': key, 'envelope': envelope, 'material': json.loads(raw),
                'required_sources': supplements,
-               'instruction': '本次material及required_sources是程序从当前冻结源完整读取后直接交付的正文，须完整理解，不为证明读取而再次逐段读packet；不虚构模型工具读取。旧会话、失败草稿均不替代本次正式存档。确需更早原文时，只按本任务索引和许可路径补查，保留实际听众与知情边界。messages按序排列：dialogue.speaker只能取material.scenario.cast中的实际在场人物，不能写徐志北或场外人物；玩家徐志北的发言和行动不得写成dialogue，不代写玩家新台词；action.speaker为在场人物或徐志北；narration.speaker为空字符串。依据人物设定、世界规则、当前状态和玩家意图推演连贯剧情，保留完整回应与必要后果，在需要新决定处停下。不代替玩家决定，不将私有资料当共同知识。最终仅交envelope.output_contract要求的单个裸JSON，decision含A/B/C；按envelope.resolution_policy.category_policy执行：fixed_option的resolution.category只能为required_category，禁止重新判档；只有custom按实际行为分类，system为SYSTEM。conditions.intensity按现有契约与category一致，不因档位升级行为或虚构事件。按resolution_policy交完整conditions，只给事件原文依据、实际游戏时间和必要记忆，程序结算费用和数值。operation无操作、task无任务、sleep.start无起点、conditions.npc无对象时明确写空字符串，不能省略值。SYSTEM才允许无conditions；host_events对象固定为系统宿主。不执行命令、不写文件、不写旧整回合或SYSTEM_LOG。'}
+               'instruction': f'本次material及required_sources是程序从当前冻结源完整读取后直接交付的正文，须完整理解，不为证明读取而再次逐段读packet；不虚构模型工具读取。旧会话、失败草稿均不替代本次正式存档。确需更早原文时，只按本任务索引和许可路径补查，保留实际听众与知情边界。messages按序排列：{v1_player_dlg_rule}；action.speaker为在场人物或徐志北；narration.speaker为空字符串。依据人物设定、世界规则、当前状态和玩家意图推演连贯剧情，保留完整回应与必要后果，在需要新决定处停下。不代替玩家决定，不将私有资料当共同知识。最终仅交envelope.output_contract要求的单个裸JSON，decision含A/B/C；按envelope.resolution_policy.category_policy执行：fixed_option的resolution.category只能为required_category，禁止重新判档；只有custom按实际行为分类，system为SYSTEM。conditions.intensity按现有契约与category一致，不因档位升级行为或虚构事件。按resolution_policy交完整conditions，只给事件原文依据、实际游戏时间和必要记忆，程序结算费用和数值。operation无操作、task无任务、sleep.start无起点、conditions.npc无对象时明确写空字符串，不能省略值。SYSTEM才允许无conditions；host_events对象固定为系统宿主。不执行命令、不写文件、不写旧整回合或SYSTEM_LOG。'}
     content = json.dumps(payload, ensure_ascii=False, separators=(',', ':'), allow_nan=False)
     if len(content.encode('utf-8')) > 2 * 1024 * 1024:
         raise rr.RoundError('资料直送超过2MiB，停止生成，不截断正文')
@@ -1535,6 +1553,7 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
     zone1_scene = sc.build_zone1_scene(
         story.root, effective_state, cast, references,
         memory_text=memory_text, extra_text='', mode=protocol_mode,
+        protagonist_style=protagonist_style,
     )
     zone0_sha = rr._digest(zone0_global.encode('utf-8'))
     zone1_sha = rr._digest(zone1_scene.encode('utf-8'))
@@ -1561,7 +1580,7 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
     )
     projection = memory_context(
         story.root, memory_text, text_input, runtime,
-        cast=cast, is_single=(protocol_mode == 'single_prefix_v2'),
+        cast=cast, location=effective_state['location'], is_single=(protocol_mode == 'single_prefix_v2'),
     )
     is_action_turn = (not charged or (packet_data.get('cost_preview') or {}).get('kind') == 'action')
     pending_echoes = sp.parse_shop_echo_block(memory_text)['echoes'] if is_action_turn else []

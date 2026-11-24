@@ -119,8 +119,7 @@ class StoryCompilerTests(unittest.TestCase):
         parsed = json.loads(delta)
         self.assertEqual(parsed['anchor'], 'incremental_delta')
         self.assertNotIn('accepted_history', parsed)
-        self.assertIn('sensory_lens', parsed)
-        self.assertIn('脚踝', parsed['sensory_lens'])
+        self.assertNotIn('sensory_lens', parsed)
         # Expanded intimate turn regex covers warm/sensual/fetish/item phrases
         for sample in (
             '蹲下替她按揉酸胀的脚踝',
@@ -419,15 +418,14 @@ class StoryCompilerTests(unittest.TestCase):
             memory_text=self.memory_text, include_full_anchor=False, mode='dual_stream_v2',
         )
         parsed = json.loads(delta_raw)
-        self.assertIn('sensory_lens', parsed)
-        self.assertNotIn('每幕必落至少1处', parsed['sensory_lens'])
+        self.assertNotIn('sensory_lens', parsed)
         self.assertIn('fresh_detail_hint', parsed)
         self.assertIn('喉结滚动', parsed['fresh_detail_hint'])
 
     def test_stream_normalizer_strips_stray_tags_from_player_and_narration(self):
         raw = (
-            '[N] 灯光暗了下来，<whisper>气氛微凉</whisper>。\n'
-            '[A:沈知韫] <soft>她把账单推到桌角。</soft>\n'
+            '[N] [低声旁白] 灯光暗了下来，<whisper>气氛微凉</whisper>。\n'
+            '[A:沈知韫] [冷淡克制] <soft>她把账单推到桌角。</soft>\n'
             '[D:徐志北] [低声克制] 我只是<emphasis>顺口问一句</emphasis>。\n'
             '[D:沈知韫] [压着倦意，声音微冷] 账得<slow>先算清楚</slow>。[break] <whisper>别声张。</whisper>\n'
             '---DECISION---\n'
@@ -440,13 +438,102 @@ class StoryCompilerTests(unittest.TestCase):
         msgs = parsed['messages']
         self.assertEqual(len(msgs), 4)
         self.assertNotIn('<whisper>', msgs[0]['text'])
+        self.assertNotIn('[低声旁白]', msgs[0]['text'])
         self.assertNotIn('<soft>', msgs[1]['text'])
+        self.assertNotIn('[冷淡克制]', msgs[1]['text'])
         self.assertEqual(msgs[2]['speaker'], '徐志北')
         self.assertEqual(msgs[2]['text'], '我只是顺口问一句。')
         self.assertEqual(msgs[3]['speaker'], '沈知韫')
         self.assertIn('[压着倦意，声音微冷]', msgs[3]['text'])
         self.assertIn('<slow>先算清楚</slow>', msgs[3]['text'])
         self.assertIn('<whisper>别声张。</whisper>', msgs[3]['text'])
+
+    def test_zone0_zone1_whitelist_harmony_slimming_and_silent_rewrite(self):
+        z0_f = sc.build_zone0_global(ROOT, mode='dual_stream_v2', protagonist_style='faithful')
+        z0_s = sc.build_zone0_global(ROOT, mode='dual_stream_v2', protagonist_style='silent')
+        self.assertLess(len(z0_f), 9200)
+        self.assertIn('char.徐志北', z0_f)
+        self.assertNotIn('※索引key※', z0_f)
+        self.assertNotIn('系统推演：当前可选行动', z0_f)
+        self.assertIn('[D:徐志北] 所以妈是不打算把南城那块地交给他？', z0_f)
+        self.assertNotIn('[D:徐志北] 所以妈是不打算把南城那块地交给他？', z0_s)
+
+        state3 = dict(self.state, cast=['沈知韫', '苏婉青', '徐念薇'])
+        z1_f = sc.build_zone1_scene(ROOT, state3, state3['cast'], [], self.memory_text, mode='dual_stream_v2', protagonist_style='faithful')
+        z1_s = sc.build_zone1_scene(ROOT, state3, state3['cast'], [], self.memory_text, mode='dual_stream_v2', protagonist_style='silent')
+        self.assertLess(len(z1_f), 6800)
+        self.assertNotIn('<<< char.徐志北', z1_f)
+        self.assertNotIn('※索引key※', z1_f)
+        self.assertIn('另允许 ≤3 句贴合玩家原意图的简短 [D:徐志北]', z1_f)
+        self.assertIn('严禁 [D:徐志北]', z1_s)
+
+        proj = {'text': '【L1】测试', 'current': None, 'index': [], 'transfers': {}, 'limits': {'round_chars': 600}}
+        spec = sc.build_settlement_spec(
+            ROOT, state3, proj, text='聊聊', selected={'segment_id': 's1', 'option_id': 'A'},
+            resolved_op=None, intent_evidence=None, preview_cost={'kind': 'action', 'before': 100, 'reserved': 5},
+            runtime={'clock': {'day': 1, 'time': '09:10'}, 'memory_round': 1, 'phase': 'ready'},
+            memory_text=self.memory_text, resolution_policy={'category_policy': 'fixed_option', 'required_category': 'A'},
+            output_contract={'operation': '', 'handoff': '', 'checks': {}, 'resolution': {}}, operation_context={},
+        )
+        self.assertLess(len(spec['system_prompt']), 12500)
+        self.assertNotIn('SHAME_EVENTS', spec['system_prompt'])
+        self.assertNotIn('运行时数据层', spec['system_prompt'])
+
+    def test_c_streak_intel002_delivered_gifts_and_incremental_recalled_memories(self):
+        rich_state = dict(
+            self.state,
+            location='徐家主宅',
+            cast=['沈知韫', '苏婉青'],
+            panels=[
+                '[系统宿主] 体力 100 | 积分 50 | 经验值 0 | 魅力 70 | 商业嗅觉 30',
+                '[沈知韫] 好感 95 | 羞耻 100 | 体力 100 | 欲望 0 | 堕落 0 | 怀孕 False',
+                '[苏婉青] 好感 50 | 羞耻 95 | 体力 100 | 欲望 0 | 堕落 0 | 怀孕 False',
+            ],
+            mechanics={
+                'c_streak': {'沈知韫': {'count': 2, 'last_tag': 'C烈度_轻度'}},
+                'secrets_unlocked': ['INTEL-002'],
+            },
+            delivered_items=[
+                {'name': '手工红茶礼盒', 'recipient': '沈知韫'},
+                {'name': '水彩颜料盒', 'recipient': '徐念薇'},
+            ],
+            items=[{'id': 'ITEM-001', 'name': '温热精油', 'quantity': 1, 'fields': {'描述': '精油'}}],
+        )
+        brief = sc.compile_state_qualitative_brief(rich_state, self.memory_text)
+        self.assertIn('近轮连续高压接触(2轮', brief)
+        self.assertIn('眼线身份已被宿主当面揭穿', brief)
+        self.assertNotIn('主宅探访见闻事后会向丈夫徐承邺汇报', brief)
+
+        proj = {
+            'text': '【L1】当前回合',
+            'current': None,
+            'index': [],
+            'transfers': {},
+            'recalled_old_entries': [
+                {'layer': 'L2', 'range': '3', 'body': '【3】沈知韫曾约定下周三复核深圳分部合同。'}
+            ],
+            'limits': {'round_chars': 600},
+        }
+        full_delta = json.loads(sc.build_user_delta(
+            ROOT, rich_state, proj, history=[], new_history_only=[],
+            text='提起红茶', selected=None, resolved_op=None, intent_evidence=None,
+            preview_cost={'before': 100, 'reserved': 5},
+            runtime={'clock': {'day': 1, 'time': '12:15'}, 'memory_round': 1, 'phase': 'ready'},
+            memory_text=self.memory_text, include_full_anchor=True, mode='dual_stream_v2',
+        ))
+        self.assertIn('items', full_delta)
+        self.assertNotIn('held_items', full_delta)
+        self.assertEqual(full_delta.get('delivered_gifts_to_cast'), [{'name': '手工红茶礼盒', 'recipient': '沈知韫'}])
+
+        inc_delta = json.loads(sc.build_user_delta(
+            ROOT, rich_state, proj, history=[], new_history_only=[],
+            text='深圳分部合同怎么了', selected=None, resolved_op=None, intent_evidence=None,
+            preview_cost={'before': 100, 'reserved': 5},
+            runtime={'clock': {'day': 1, 'time': '12:20'}, 'memory_round': 1, 'phase': 'ready'},
+            memory_text=self.memory_text, include_full_anchor=False, mode='dual_stream_v2',
+        ))
+        self.assertIn('recalled_memories', inc_delta)
+        self.assertIn('深圳分部合同', inc_delta['recalled_memories'][0]['body'])
 
 
 if __name__ == '__main__':

@@ -40,47 +40,155 @@
       "无意擦边"
     ],
     "textures": [
-      {"label": "气味与余温", "channel": "sensory_slip"},
-      {"label": "门缝与光影", "channel": "sensory_slip"},
-      {"label": "镜中倒影与微表情", "channel": "sensory_slip"},
-      {"label": "指尖停顿与呼吸变化", "channel": "sensory_slip"},
-      {"label": "隔墙轻响与脚步声", "channel": "sensory_slip"},
-      {"label": "票据与回执", "channel": "object_trace"},
-      {"label": "衣领与袖口痕迹", "channel": "object_trace"},
-      {"label": "礼物包装与吊牌", "channel": "object_trace"},
-      {"label": "笔迹与折叠便签", "channel": "object_trace"},
-      {"label": "钥匙与门禁记录", "channel": "object_trace"},
-      {"label": "画稿颜料与随身小物", "channel": "object_trace"},
-      {"label": "药瓶茶盏与餐桌细节", "channel": "object_trace"},
-      {"label": "旧照片与未收起的物件", "channel": "object_trace"},
-      {"label": "口误与称呼偏差", "channel": "conversation_twist"},
-      {"label": "半截未说完的旧话", "channel": "conversation_twist"},
-      {"label": "突如其来的反问试探", "channel": "conversation_twist"},
-      {"label": "前后矛盾的时间细节", "channel": "conversation_twist"},
-      {"label": "旁人无心的一句转述", "channel": "third_party"},
-      {"label": "管家保姆或同事的顺口提醒", "channel": "third_party"},
-      {"label": "物业安保或邻里目击的边角信息", "channel": "third_party"},
-      {"label": "账目尾数与外地风声", "channel": "offstage_ripple"},
-      {"label": "跨城寄件与随附便条", "channel": "offstage_ripple"},
-      {"label": "行程空窗与临时改期", "channel": "schedule_clash"},
-      {"label": "设备小故障或骤变天色", "channel": "schedule_clash"},
-      {"label": "静音亮屏或门外轻微动静", "channel": "phone_msg"}
+      {
+        "label": "气味与余温",
+        "channel": "sensory_slip"
+      },
+      {
+        "label": "门缝与光影",
+        "channel": "sensory_slip"
+      },
+      {
+        "label": "镜中倒影与微表情",
+        "channel": "sensory_slip"
+      },
+      {
+        "label": "指尖停顿与呼吸变化",
+        "channel": "sensory_slip"
+      },
+      {
+        "label": "隔墙轻响与脚步声",
+        "channel": "sensory_slip"
+      },
+      {
+        "label": "票据与回执",
+        "channel": "object_trace"
+      },
+      {
+        "label": "衣领与袖口痕迹",
+        "channel": "object_trace"
+      },
+      {
+        "label": "礼物包装与吊牌",
+        "channel": "object_trace"
+      },
+      {
+        "label": "笔迹与折叠便签",
+        "channel": "object_trace"
+      },
+      {
+        "label": "钥匙与门禁记录",
+        "channel": "object_trace"
+      },
+      {
+        "label": "画稿颜料与随身小物",
+        "channel": "object_trace"
+      },
+      {
+        "label": "药瓶茶盏与餐桌细节",
+        "channel": "object_trace"
+      },
+      {
+        "label": "旧照片与未收起的物件",
+        "channel": "object_trace"
+      },
+      {
+        "label": "口误与称呼偏差",
+        "channel": "conversation_twist"
+      },
+      {
+        "label": "半截未说完的旧话",
+        "channel": "conversation_twist"
+      },
+      {
+        "label": "突如其来的反问试探",
+        "channel": "conversation_twist"
+      },
+      {
+        "label": "前后矛盾的时间细节",
+        "channel": "conversation_twist"
+      },
+      {
+        "label": "旁人无心的一句转述",
+        "channel": "third_party"
+      },
+      {
+        "label": "管家保姆或同事的顺口提醒",
+        "channel": "third_party"
+      },
+      {
+        "label": "物业安保或邻里目击的边角信息",
+        "channel": "third_party"
+      },
+      {
+        "label": "账目尾数与外地风声",
+        "channel": "offstage_ripple"
+      },
+      {
+        "label": "跨城寄件与随附便条",
+        "channel": "offstage_ripple"
+      },
+      {
+        "label": "行程空窗与临时改期",
+        "channel": "schedule_clash"
+      },
+      {
+        "label": "设备小故障或骤变天色",
+        "channel": "schedule_clash"
+      },
+      {
+        "label": "静音亮屏或门外轻微动静",
+        "channel": "phone_msg"
+      }
     ],
     "moves": {
       "soft": [
-        {"name": "露出一角破绽", "guide": "在寻常举动或细节里露出可察觉的微小反常，不直接戳穿，把试探与博弈余地留给主角。"},
-        {"name": "侧面听见风声", "guide": "借旁人只言片语、物件或环境细节透出暗流走向，制造悬念而暂不定局。"},
-        {"name": "微妙的时机错位", "guide": "一次时间差、话头错拍或目光交错让气氛紧了半拍，但不强行翻脸。"},
-        {"name": "旧物勾起追问", "guide": "一件具体随身物、痕迹或小物件自然牵出先前未说清的线头。"},
-        {"name": "第三方无意擦边", "guide": "局外人的寻常举动无意蹭到隐秘边缘，迫使在场人当场稳住神色。"},
-        {"name": "情绪暗流外泄", "guide": "极短暂的走神、停顿或措辞变化泄露心事，留给主角决定是否顺势深究。"}
+        {
+          "name": "露出一角破绽",
+          "guide": "在寻常举动或细节里露出可察觉的微小反常，不直接戳穿，把试探与博弈余地留给主角。"
+        },
+        {
+          "name": "侧面听见风声",
+          "guide": "借旁人只言片语、物件或环境细节透出暗流走向，制造悬念而暂不定局。"
+        },
+        {
+          "name": "微妙的时机错位",
+          "guide": "一次时间差、话头错拍或目光交错让气氛紧了半拍，但不强行翻脸。"
+        },
+        {
+          "name": "旧物勾起追问",
+          "guide": "一件具体随身物、痕迹或小物件自然牵出先前未说清的线头。"
+        },
+        {
+          "name": "第三方无意擦边",
+          "guide": "局外人的寻常举动无意蹭到隐秘边缘，迫使在场人当场稳住神色。"
+        },
+        {
+          "name": "情绪暗流外泄",
+          "guide": "极短暂的走神、停顿或措辞变化泄露心事，留给主角决定是否顺势深究。"
+        }
       ],
       "hard": [
-        {"name": "期限突然压近", "guide": "原本还有转圜余地的约定、截止点或窗口突然压近，迫使现场表态。"},
-        {"name": "掩饰穿帮一角", "guide": "先前的借口或含糊敷衍露出明显漏洞，必须当场圆话或转换策略。"},
-        {"name": "外部事务打破独处", "guide": "合理日程与可见范围内的现实事务介入现场，改写当前的对话格局。"},
-        {"name": "利益或日程硬冲突", "guide": "两个原本错开的安排或立场正面撞车，必须二选一或立刻应对。"},
-        {"name": "旧账被迫当面碰头", "guide": "久拖未决的承诺、疑点或暗流正面回响，无法再轻轻揭过。"}
+        {
+          "name": "期限突然压近",
+          "guide": "原本还有转圜余地的约定、截止点或窗口突然压近，迫使现场表态。"
+        },
+        {
+          "name": "掩饰穿帮一角",
+          "guide": "先前的借口或含糊敷衍露出明显漏洞，必须当场圆话或转换策略。"
+        },
+        {
+          "name": "外部事务打破独处",
+          "guide": "合理日程与可见范围内的现实事务介入现场，改写当前的对话格局。"
+        },
+        {
+          "name": "利益或日程硬冲突",
+          "guide": "两个原本错开的安排或立场正面撞车，必须二选一或立刻应对。"
+        },
+        {
+          "name": "旧账被迫当面碰头",
+          "guide": "久拖未决的承诺、疑点或暗流正面回响，无法再轻轻揭过。"
+        }
       ]
     }
   },
@@ -100,16 +208,46 @@
       "暗中默契"
     ],
     "textures": [
-      {"label": "锁骨潮红与肩带压痕", "channel": "sensory_slip"},
-      {"label": "隔门渐近的脚步声与低语", "channel": "door_visit"},
-      {"label": "桌布阴影下轻蹭的脚踝与丝袜", "channel": "sensory_slip"},
-      {"label": "陌生暖甜体香或残存精油气息", "channel": "sensory_slip"},
-      {"label": "未拉平的衣领与滑落的丝带礼盒", "channel": "object_trace"},
-      {"label": "亲密边缘突然亮屏的徐承邺来电", "channel": "phone_msg"},
-      {"label": "微弱反光的角落镜面与隐蔽装置", "channel": "object_trace"},
-      {"label": "门外管家或同门的一声轻叩问询", "channel": "third_party"},
-      {"label": "骤雨打窗与突然拉近的昏暗室内", "channel": "schedule_clash"},
-      {"label": "脱口而出的私密称呼口误", "channel": "conversation_twist"}
+      {
+        "label": "锁骨潮红与肩带压痕",
+        "channel": "sensory_slip"
+      },
+      {
+        "label": "隔门渐近的脚步声与低语",
+        "channel": "door_visit"
+      },
+      {
+        "label": "桌布阴影下轻蹭的脚踝与丝袜",
+        "channel": "sensory_slip"
+      },
+      {
+        "label": "陌生暖甜体香或残存精油气息",
+        "channel": "sensory_slip"
+      },
+      {
+        "label": "未拉平的衣领与滑落的丝带礼盒",
+        "channel": "object_trace"
+      },
+      {
+        "label": "亲密边缘突然亮屏的徐承邺来电",
+        "channel": "phone_msg"
+      },
+      {
+        "label": "微弱反光的角落镜面与隐蔽装置",
+        "channel": "object_trace"
+      },
+      {
+        "label": "门外管家或同门的一声轻叩问询",
+        "channel": "third_party"
+      },
+      {
+        "label": "骤雨打窗与突然拉近的昏暗室内",
+        "channel": "schedule_clash"
+      },
+      {
+        "label": "脱口而出的私密称呼口误",
+        "channel": "conversation_twist"
+      }
     ]
   },
   "offstage_clocks": {
@@ -200,9 +338,19 @@
       "tier": "tier1",
       "category": "environment",
       "channel": "schedule_clash",
-      "locations": ["徐家主宅", "市中心顶层公寓", "工作室", "大学", "公司"],
+      "locations": [
+        "徐家主宅",
+        "市中心顶层公寓",
+        "工作室",
+        "大学",
+        "公司"
+      ],
       "required_cast": [],
-      "time_slots": ["morning", "afternoon", "evening"],
+      "time_slots": [
+        "morning",
+        "afternoon",
+        "evening"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 12,
@@ -220,14 +368,20 @@
       "tier": "tier1",
       "category": "life_friction",
       "channel": "object_trace",
-      "locations": ["市中心顶层公寓"],
-      "required_cast": ["苏婉青"],
-      "time_slots": ["any"],
+      "locations": [
+        "市中心顶层公寓"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 16,
       "cooldown": 12,
-      "once": false,
+      "once": true,
       "seed_to_add": {
         "seed_id": "SEED-APT-GIFT",
         "summary": "玄关柜露出一盒徐承邺从外地托人寄来却挑错香型/尺码的昂贵礼盒，苏婉青顺手塞回了最里面"
@@ -240,14 +394,20 @@
       "tier": "tier1",
       "category": "subtext_leak",
       "channel": "object_trace",
-      "locations": ["市中心顶层公寓"],
-      "required_cast": ["苏婉青"],
-      "time_slots": ["any"],
+      "locations": [
+        "市中心顶层公寓"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 15,
       "cooldown": 12,
-      "once": false,
+      "once": true,
       "seed_to_add": {
         "seed_id": "SEED-SU-MEMO",
         "summary": "茶几杂志下压着一张手写便签，零碎记着主宅近期作息与婆婆忌口"
@@ -260,9 +420,15 @@
       "tier": "tier1",
       "category": "subtext_leak",
       "channel": "phone_msg",
-      "locations": ["市中心顶层公寓"],
-      "required_cast": ["苏婉青"],
-      "time_slots": ["any"],
+      "locations": [
+        "市中心顶层公寓"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 18,
@@ -280,14 +446,21 @@
       "tier": "tier1",
       "category": "biz_clue",
       "channel": "phone_msg",
-      "locations": ["徐家主宅", "公司"],
-      "required_cast": ["沈知韫"],
-      "time_slots": ["any"],
+      "locations": [
+        "徐家主宅",
+        "公司"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 17,
       "cooldown": 10,
-      "once": false,
+      "once": true,
       "seed_to_add": {
         "seed_id": "SEED-SHENZHEN-AUDIT",
         "summary": "沈知韫平板弹出深圳分部加急对账复核的红点通知，她神色微冷旋即反扣屏幕"
@@ -300,9 +473,15 @@
       "tier": "tier1",
       "category": "life_friction",
       "channel": "offstage_ripple",
-      "locations": ["徐家主宅"],
+      "locations": [
+        "徐家主宅"
+      ],
       "required_cast": [],
-      "time_slots": ["morning", "afternoon", "evening"],
+      "time_slots": [
+        "morning",
+        "afternoon",
+        "evening"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 14,
@@ -320,14 +499,20 @@
       "tier": "tier1",
       "category": "subtext_leak",
       "channel": "object_trace",
-      "locations": ["工作室"],
-      "required_cast": ["徐念薇"],
-      "time_slots": ["any"],
+      "locations": [
+        "工作室"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 18,
       "cooldown": 12,
-      "once": false,
+      "once": true,
       "seed_to_add": {
         "seed_id": "SEED-COVERED-PAINTING",
         "summary": "画室角落靠墙立着一幅蒙着旧亚麻布的大画框，布角被风掀起露出冷色调家族群像轮廓"
@@ -340,14 +525,21 @@
       "tier": "tier1",
       "category": "life_friction",
       "channel": "phone_msg",
-      "locations": ["工作室", "大学"],
-      "required_cast": ["徐念薇"],
-      "time_slots": ["any"],
+      "locations": [
+        "工作室",
+        "大学"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 16,
       "cooldown": 10,
-      "once": false,
+      "once": true,
       "seed_to_add": {
         "seed_id": "SEED-EXHIBITION-SLOT",
         "summary": "美院青年画展初审名单变动，徐念薇的参展名额出现悬念，她不想动用徐家关系"
@@ -360,9 +552,14 @@
       "tier": "tier1",
       "category": "biz_clue",
       "channel": "third_party",
-      "locations": ["公司"],
+      "locations": [
+        "公司"
+      ],
       "required_cast": [],
-      "time_slots": ["morning", "afternoon"],
+      "time_slots": [
+        "morning",
+        "afternoon"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 16,
@@ -380,14 +577,21 @@
       "tier": "tier1",
       "category": "subtext_leak",
       "channel": "object_trace",
-      "locations": ["徐家主宅"],
-      "required_cast": ["沈知韫"],
-      "time_slots": ["evening", "night"],
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 14,
       "cooldown": 14,
-      "once": false,
+      "once": true,
       "seed_to_add": {
         "seed_id": "SEED-LAWYER-CALL",
         "summary": "沈知韫随身皮夹里露出一角「顾氏家事信托」私人密函的压纹，她不动声色收妥"
@@ -400,9 +604,17 @@
       "tier": "tier2",
       "category": "environment",
       "channel": "schedule_clash",
-      "locations": ["徐家主宅", "市中心顶层公寓", "工作室", "大学", "公司"],
+      "locations": [
+        "徐家主宅",
+        "市中心顶层公寓",
+        "工作室",
+        "大学",
+        "公司"
+      ],
       "required_cast": [],
-      "time_slots": ["any"],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 15,
@@ -417,9 +629,15 @@
       "tier": "tier2",
       "category": "phone_interrupt",
       "channel": "phone_msg",
-      "locations": ["市中心顶层公寓"],
-      "required_cast": ["苏婉青"],
-      "time_slots": ["any"],
+      "locations": [
+        "市中心顶层公寓"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 18,
@@ -434,9 +652,16 @@
       "tier": "tier2",
       "category": "phone_interrupt",
       "channel": "phone_msg",
-      "locations": ["市中心顶层公寓", "徐家主宅"],
-      "required_cast": ["苏婉青"],
-      "time_slots": ["any"],
+      "locations": [
+        "市中心顶层公寓",
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 18,
@@ -451,9 +676,17 @@
       "tier": "tier2",
       "category": "outsider_interrupt",
       "channel": "door_visit",
-      "locations": ["市中心顶层公寓"],
-      "required_cast": ["苏婉青"],
-      "time_slots": ["morning", "afternoon", "evening"],
+      "locations": [
+        "市中心顶层公寓"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "morning",
+        "afternoon",
+        "evening"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 13,
@@ -468,9 +701,15 @@
       "tier": "tier2",
       "category": "physical_accident",
       "channel": "schedule_clash",
-      "locations": ["市中心顶层公寓", "工作室"],
+      "locations": [
+        "市中心顶层公寓",
+        "工作室"
+      ],
       "required_cast": [],
-      "time_slots": ["evening", "night"],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 10,
@@ -485,14 +724,21 @@
       "tier": "tier2",
       "category": "biz_clue",
       "channel": "phone_msg",
-      "locations": ["徐家主宅", "公司"],
-      "required_cast": ["沈知韫"],
-      "time_slots": ["any"],
+      "locations": [
+        "徐家主宅",
+        "公司"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 17,
       "cooldown": 9,
-      "once": false,
+      "once": true,
       "seed_to_add": null,
       "requires_seed": "SEED-SHENZHEN-AUDIT",
       "objective_event": "沈知韫的工作手机直接响起，财务总监在听筒里压低声音汇报深圳分部那笔异常走账的对账缺口还没补齐，问她要不要立刻冻住审批权限。沈知韫起身走到窗边冷声部署，挂断后仍残留着压不住的疲色与思虑。"
@@ -502,9 +748,18 @@
       "tier": "tier2",
       "category": "phone_interrupt",
       "channel": "phone_msg",
-      "locations": ["徐家主宅", "公司"],
-      "required_cast": ["沈知韫"],
-      "time_slots": ["afternoon", "evening", "night"],
+      "locations": [
+        "徐家主宅",
+        "公司"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "afternoon",
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 14,
@@ -519,9 +774,15 @@
       "tier": "tier2",
       "category": "outsider_interrupt",
       "channel": "door_visit",
-      "locations": ["徐家主宅"],
+      "locations": [
+        "徐家主宅"
+      ],
       "required_cast": [],
-      "time_slots": ["morning", "afternoon", "evening"],
+      "time_slots": [
+        "morning",
+        "afternoon",
+        "evening"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 12,
@@ -536,9 +797,17 @@
       "tier": "tier2",
       "category": "phone_interrupt",
       "channel": "phone_msg",
-      "locations": ["工作室", "大学"],
-      "required_cast": ["徐念薇"],
-      "time_slots": ["afternoon", "evening"],
+      "locations": [
+        "工作室",
+        "大学"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "afternoon",
+        "evening"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 17,
@@ -553,9 +822,15 @@
       "tier": "tier2",
       "category": "physical_accident",
       "channel": "object_trace",
-      "locations": ["工作室"],
-      "required_cast": ["徐念薇"],
-      "time_slots": ["any"],
+      "locations": [
+        "工作室"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 13,
@@ -570,14 +845,21 @@
       "tier": "tier2",
       "category": "subtext_leak",
       "channel": "object_trace",
-      "locations": ["工作室"],
-      "required_cast": ["徐念薇"],
-      "time_slots": ["evening", "night"],
+      "locations": [
+        "工作室"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 16,
       "cooldown": 12,
-      "once": false,
+      "once": true,
       "seed_to_add": null,
       "requires_seed": "SEED-COVERED-PAINTING",
       "objective_event": "墙边靠着的旧画框滑了半寸，蒙布彻底垂落——画布上是冷调的徐家老宅长桌，角落空出一把没人坐的椅子，笔触压抑而锋利。徐念薇站在原地没立刻去盖，只冷淡地看了徐志北一眼。"
@@ -587,14 +869,21 @@
       "tier": "tier2",
       "category": "biz_clue",
       "channel": "door_visit",
-      "locations": ["公司"],
-      "required_cast": ["沈知韫"],
-      "time_slots": ["morning", "afternoon"],
+      "locations": [
+        "公司"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "morning",
+        "afternoon"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 16,
       "cooldown": 10,
-      "once": false,
+      "once": true,
       "seed_to_add": null,
       "requires_seed": "SEED-MA-RUMOR",
       "objective_event": "董事长助理敲门送进一份标着「外地并购案风控异议」的红签夹，提醒沈知韫二十分钟后风控部要当面陈述估值漏洞；沈知韫目光沉静地翻开第一页，余光却极自然地扫过站在一旁的徐志北。"
@@ -604,9 +893,16 @@
       "tier": "tier2",
       "category": "outsider_interrupt",
       "channel": "third_party",
-      "locations": ["大学"],
-      "required_cast": ["徐念薇"],
-      "time_slots": ["morning", "afternoon"],
+      "locations": [
+        "大学"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "morning",
+        "afternoon"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 14,
@@ -621,14 +917,21 @@
       "tier": "tier2",
       "category": "subtext_leak",
       "channel": "phone_msg",
-      "locations": ["徐家主宅"],
-      "required_cast": ["沈知韫"],
-      "time_slots": ["evening", "night"],
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 15,
       "cooldown": 12,
-      "once": false,
+      "once": true,
       "seed_to_add": null,
       "requires_seed": "SEED-LAWYER-CALL",
       "objective_event": "沈知韫的私人手机亮起「顾律」来电，她起身退到窗边接听，声线压得很稳，只简短交代了一句「按原定日期照旧，不必另行通知」，挂断后把手机反扣在掌心停了两秒才转回身（绝不吐露遗嘱内容）。"
@@ -638,14 +941,20 @@
       "tier": "tier2",
       "category": "subtext_leak",
       "channel": "object_trace",
-      "locations": ["徐家主宅"],
-      "required_cast": ["沈知韫"],
-      "time_slots": ["any"],
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 14,
       "cooldown": 12,
-      "once": false,
+      "once": true,
       "seed_to_add": null,
       "requires_seed": "SEED-MANOR-GIFT",
       "objective_event": "管家请示门廊那箱徐承邺秘书寄来的洋酒与补品该如何入库，沈知韫扫了一眼随箱夹着的集团公账报销联副页，神色冷淡地吩咐直接退回秘书处重走私账，连盒盖都没让人揭开。"
@@ -655,9 +964,16 @@
       "tier": "tier3",
       "category": "high_tension",
       "channel": "phone_msg",
-      "locations": ["市中心顶层公寓", "徐家主宅"],
-      "required_cast": ["苏婉青"],
-      "time_slots": ["any"],
+      "locations": [
+        "市中心顶层公寓",
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 30,
       "min_biz": 0,
       "weight": 18,
@@ -672,9 +988,16 @@
       "tier": "tier3",
       "category": "high_tension",
       "channel": "object_trace",
-      "locations": ["徐家主宅", "市中心顶层公寓"],
-      "required_cast": ["苏婉青"],
-      "time_slots": ["any"],
+      "locations": [
+        "徐家主宅",
+        "市中心顶层公寓"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 20,
       "weight": 14,
@@ -689,9 +1012,16 @@
       "tier": "tier3",
       "category": "biz_crisis",
       "channel": "offstage_ripple",
-      "locations": ["公司", "徐家主宅"],
-      "required_cast": ["沈知韫"],
-      "time_slots": ["any"],
+      "locations": [
+        "公司",
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 30,
       "weight": 15,
@@ -706,9 +1036,16 @@
       "tier": "tier3",
       "category": "high_tension",
       "channel": "offstage_ripple",
-      "locations": ["徐家主宅", "市中心顶层公寓"],
+      "locations": [
+        "徐家主宅",
+        "市中心顶层公寓"
+      ],
       "required_cast": [],
-      "time_slots": ["afternoon", "evening", "night"],
+      "time_slots": [
+        "afternoon",
+        "evening",
+        "night"
+      ],
       "min_vigilance": 50,
       "min_biz": 0,
       "weight": 16,
@@ -723,9 +1060,16 @@
       "tier": "tier3",
       "category": "high_tension",
       "channel": "third_party",
-      "locations": ["工作室"],
-      "required_cast": ["徐念薇"],
-      "time_slots": ["evening", "night"],
+      "locations": [
+        "工作室"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 14,
@@ -740,9 +1084,17 @@
       "tier": "tier3",
       "category": "emotional_turn",
       "channel": "sensory_slip",
-      "locations": ["徐家主宅", "公司"],
-      "required_cast": ["沈知韫"],
-      "time_slots": ["evening", "night"],
+      "locations": [
+        "徐家主宅",
+        "公司"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 10,
       "weight": 15,
@@ -757,9 +1109,15 @@
       "tier": "tier1",
       "category": "sensual_hook",
       "channel": "sensory_slip",
-      "locations": ["徐家主宅"],
-      "required_cast": ["沈知韫"],
-      "time_slots": ["any"],
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 25,
@@ -779,9 +1137,17 @@
       "tier": "tier1",
       "category": "sensual_hook",
       "channel": "sensory_slip",
-      "locations": ["公司"],
-      "required_cast": ["沈知韫"],
-      "time_slots": ["morning", "afternoon", "evening"],
+      "locations": [
+        "公司"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "morning",
+        "afternoon",
+        "evening"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 25,
@@ -801,9 +1167,15 @@
       "tier": "tier1",
       "category": "sensual_hook",
       "channel": "sensory_slip",
-      "locations": ["市中心顶层公寓"],
-      "required_cast": ["苏婉青"],
-      "time_slots": ["any"],
+      "locations": [
+        "市中心顶层公寓"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 25,
@@ -816,16 +1188,22 @@
       "once": false,
       "seed_to_add": null,
       "requires_seed": null,
-      "objective_event": "苏婉青端着刚切好的冰镇果盘俯身放上茶几，浅黄碎花吊带睡裙的细肩带滑落半寸，胸前抽褶被惊人的 36D 分量撑开一道深邃雪白的弧影，温热的沐浴露甜香混着她微促的呼吸一起扑过主角小臂；她察觉视线后耳根骤然漫开粉红，微凉微汗的指尖下意识伸手去拢领口。"
+      "objective_event": "苏婉青端着刚切好的冰镇果盘俯身放上茶几，浅黄碎花吊带睡裙的细肩带滑落半寸，胸前抽褶被惊人的 36D 分量撑开一道深邃雪白的弧影，温热的沐浴露甜香混着她微促的呼吸一起扑过主角小臂；她察觉视线后耳根一下漫开粉红，微凉微汗的指尖下意识伸手去拢领口。"
     },
     {
       "id": "BEAT-T0-SENSUAL-SU-CHEST-HOME",
       "tier": "tier1",
       "category": "sensual_hook",
       "channel": "sensory_slip",
-      "locations": ["徐家主宅"],
-      "required_cast": ["苏婉青"],
-      "time_slots": ["any"],
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 25,
@@ -845,9 +1223,15 @@
       "tier": "tier1",
       "category": "sensual_hook",
       "channel": "sensory_slip",
-      "locations": ["工作室"],
-      "required_cast": ["徐念薇"],
-      "time_slots": ["any"],
+      "locations": [
+        "工作室"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 25,
@@ -867,9 +1251,15 @@
       "tier": "tier1",
       "category": "sensual_hook",
       "channel": "sensory_slip",
-      "locations": ["徐家主宅"],
-      "required_cast": ["徐念薇"],
-      "time_slots": ["any"],
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 25,
@@ -889,9 +1279,16 @@
       "tier": "tier1",
       "category": "erotic_accident",
       "channel": "sensory_slip",
-      "locations": ["徐家主宅", "公司"],
-      "required_cast": ["沈知韫"],
-      "time_slots": ["any"],
+      "locations": [
+        "徐家主宅",
+        "公司"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 35,
@@ -904,16 +1301,23 @@
       "once": false,
       "seed_to_add": null,
       "requires_seed": null,
-      "objective_event": "沈知韫转身去拾滑落桌底的文件时，脚下在地毯折角处忽地一崴，脚踝吃痛轻嘶一声（在公司时尖头细跟后空鞋彻底滑脱、超薄黑丝脚背被桌脚勾出一道细长破丝；在主宅居家时则是米白露趾拖鞋滑脱在地、淡紫薄纱开衫随动作滑开肩线），白皙细腻的脚踝与修长足弓瞬间裸露眼前，整个人重心一偏踉跄着朝徐志北身前倾斜，幽兰冷香与温热呼吸骤然压进半步之内。"
+      "objective_event": "沈知韫转身去拾滑落桌底的文件时，脚下在地毯折角处忽地一崴，脚踝吃痛轻嘶一声（在公司时尖头细跟后空鞋彻底滑脱、超薄黑丝脚背被桌脚勾出一道细长破丝；在主宅居家时则是米白露趾拖鞋滑脱在地、淡紫薄纱开衫随动作滑开肩线），白皙细腻的脚踝与修长足弓瞬间裸露眼前，整个人重心一偏踉跄着朝徐志北身前倾斜，幽兰冷香与温热呼吸一下子压进半步之内。"
     },
     {
       "id": "BEAT-T1-EROTIC-SU-SLIP",
       "tier": "tier1",
       "category": "erotic_accident",
       "channel": "sensory_slip",
-      "locations": ["市中心顶层公寓", "徐家主宅"],
-      "required_cast": ["苏婉青"],
-      "time_slots": ["any"],
+      "locations": [
+        "市中心顶层公寓",
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 35,
@@ -933,9 +1337,16 @@
       "tier": "tier1",
       "category": "erotic_accident",
       "channel": "object_trace",
-      "locations": ["工作室", "徐家主宅"],
-      "required_cast": ["徐念薇"],
-      "time_slots": ["any"],
+      "locations": [
+        "工作室",
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 35,
@@ -955,9 +1366,18 @@
       "tier": "tier2",
       "category": "erotic_accident",
       "channel": "object_trace",
-      "locations": ["公司", "徐家主宅"],
-      "required_cast": ["沈知韫"],
-      "time_slots": ["afternoon", "evening", "night"],
+      "locations": [
+        "公司",
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "afternoon",
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 50,
@@ -978,9 +1398,18 @@
       "tier": "tier2",
       "category": "erotic_accident",
       "channel": "object_trace",
-      "locations": ["市中心顶层公寓"],
-      "required_cast": ["苏婉青"],
-      "time_slots": ["morning", "afternoon", "evening", "night"],
+      "locations": [
+        "市中心顶层公寓"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "morning",
+        "afternoon",
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 50,
@@ -1001,9 +1430,18 @@
       "tier": "tier2",
       "category": "erotic_accident",
       "channel": "object_trace",
-      "locations": ["工作室", "徐家主宅"],
-      "required_cast": ["徐念薇"],
-      "time_slots": ["afternoon", "evening", "night"],
+      "locations": [
+        "工作室",
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "afternoon",
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 50,
@@ -1024,9 +1462,16 @@
       "tier": "tier3",
       "category": "erotic_accident",
       "channel": "sensory_slip",
-      "locations": ["徐家主宅"],
-      "required_cast": ["沈知韫"],
-      "time_slots": ["evening", "night"],
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 62,
@@ -1047,9 +1492,16 @@
       "tier": "tier3",
       "category": "erotic_accident",
       "channel": "sensory_slip",
-      "locations": ["市中心顶层公寓"],
-      "required_cast": ["苏婉青"],
-      "time_slots": ["evening", "night"],
+      "locations": [
+        "市中心顶层公寓"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 62,
@@ -1070,9 +1522,16 @@
       "tier": "tier3",
       "category": "erotic_accident",
       "channel": "sensory_slip",
-      "locations": ["徐家主宅"],
-      "required_cast": ["徐念薇"],
-      "time_slots": ["evening", "night"],
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 62,
@@ -1093,9 +1552,16 @@
       "tier": "tier4",
       "category": "erotic_accident",
       "channel": "sensory_slip",
-      "locations": ["徐家主宅"],
-      "required_cast": ["沈知韫"],
-      "time_slots": ["evening", "night"],
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 68,
@@ -1116,9 +1582,16 @@
       "tier": "tier4",
       "category": "erotic_accident",
       "channel": "sensory_slip",
-      "locations": ["市中心顶层公寓"],
-      "required_cast": ["苏婉青"],
-      "time_slots": ["evening", "night"],
+      "locations": [
+        "市中心顶层公寓"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 68,
@@ -1139,9 +1612,16 @@
       "tier": "tier4",
       "category": "erotic_accident",
       "channel": "sensory_slip",
-      "locations": ["工作室"],
-      "required_cast": ["徐念薇"],
-      "time_slots": ["evening", "night"],
+      "locations": [
+        "工作室"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 68,
@@ -1162,10 +1642,18 @@
       "tier": "tier1",
       "category": "sensual_hook",
       "channel": "door_visit",
-      "locations": ["徐家主宅"],
+      "locations": [
+        "徐家主宅"
+      ],
       "required_cast": [],
-      "time_slots": ["evening", "night"],
-      "requires_privacy": ["thin_wall", "semi_open"],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
+      "requires_privacy": [
+        "thin_wall",
+        "semi_open"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "weight": 18,
@@ -1173,16 +1661,23 @@
       "once": false,
       "seed_to_add": null,
       "requires_seed": null,
-      "objective_event": "一墙之隔的二楼走廊忽然响起拖鞋擦过木地板的轻响与家人的低声自语，脚步在门外停顿了整整两秒又缓缓远去——门内两人骤然屏住呼吸，连衣料摩擦都显得格外刺耳，空气里浮起一层随时可能穿帮的窒息张力。"
+      "objective_event": "一墙之隔的二楼走廊忽然响起拖鞋擦过木地板的轻响与家人的低声自语，脚步在门外停顿了整整两秒又缓缓远去——门内两人同时屏住呼吸，连衣料摩擦都显得格外刺耳，空气里浮起一层随时可能穿帮的窒息张力。"
     },
     {
       "id": "BEAT-T1-SENSUAL-TABLE-FOOT-SHEN",
       "tier": "tier1",
       "category": "sensual_hook",
       "channel": "sensory_slip",
-      "locations": ["徐家主宅"],
-      "required_cast": ["沈知韫", "徐念薇"],
-      "time_slots": ["any"],
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "沈知韫",
+        "徐念薇"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 30,
@@ -1202,9 +1697,16 @@
       "tier": "tier1",
       "category": "sensual_hook",
       "channel": "sensory_slip",
-      "locations": ["徐家主宅"],
-      "required_cast": ["沈知韫", "苏婉青"],
-      "time_slots": ["any"],
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "沈知韫",
+        "苏婉青"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 35,
@@ -1224,9 +1726,16 @@
       "tier": "tier1",
       "category": "sensual_hook",
       "channel": "object_trace",
-      "locations": ["徐家主宅"],
-      "required_cast": ["沈知韫"],
-      "time_slots": ["evening", "night"],
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "requires_gifted_outfit": true,
       "min_vigilance": 0,
       "min_biz": 0,
@@ -1247,9 +1756,16 @@
       "tier": "tier1",
       "category": "sensual_hook",
       "channel": "object_trace",
-      "locations": ["市中心顶层公寓"],
-      "required_cast": ["苏婉青"],
-      "time_slots": ["evening", "night"],
+      "locations": [
+        "市中心顶层公寓"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "requires_gifted_outfit": true,
       "min_vigilance": 0,
       "min_biz": 0,
@@ -1270,9 +1786,17 @@
       "tier": "tier1",
       "category": "sensual_hook",
       "channel": "object_trace",
-      "locations": ["工作室", "徐家主宅"],
-      "required_cast": ["徐念薇"],
-      "time_slots": ["evening", "night"],
+      "locations": [
+        "工作室",
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "requires_gifted_outfit": true,
       "min_vigilance": 0,
       "min_biz": 0,
@@ -1293,9 +1817,17 @@
       "tier": "tier2",
       "category": "erotic_accident",
       "channel": "phone_msg",
-      "locations": ["市中心顶层公寓"],
-      "required_cast": ["苏婉青"],
-      "time_slots": ["afternoon", "evening", "night"],
+      "locations": [
+        "市中心顶层公寓"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "afternoon",
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 45,
@@ -1309,16 +1841,23 @@
       "once": false,
       "seed_to_add": null,
       "requires_seed": null,
-      "objective_event": "室内气氛正升温到贴近临界，茶几上苏婉青的手机骤然炸响徐承邺的视频/语音查岗来电！她呼吸一乱、脸颊还挂着未退的潮红，手指发抖却又不敢不接——一旦划开接听，镜头外半步之遥就是徐志北，她只能在压低气音里硬撑正常语调应付丈夫。"
+      "objective_event": "室内气氛正升温到贴近临界，茶几上苏婉青的手机猛地炸响徐承邺的视频/语音查岗来电！她呼吸一乱、脸颊还挂着未退的潮红，手指发抖却又不敢不接——一旦划开接听，镜头外半步之遥就是徐志北，她只能在压低气音里硬撑正常语调应付丈夫。"
     },
     {
       "id": "BEAT-T2-EROTIC-STUDIO-LOCK-WEI",
       "tier": "tier2",
       "category": "erotic_accident",
       "channel": "door_visit",
-      "locations": ["工作室"],
-      "required_cast": ["徐念薇"],
-      "time_slots": ["evening", "night"],
+      "locations": [
+        "工作室"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 45,
@@ -1332,16 +1871,23 @@
       "once": false,
       "seed_to_add": null,
       "requires_seed": null,
-      "objective_event": "雨夜画室的木门忽地响起两声敲门声，门外传来同门同学隔着门板喊徐念薇拿展册的声音——画室门虽反锁着，门缝却透出室内暖黄射灯光影，两人距离近得能听清彼此骤然绷紧的呼吸，徐念薇本能地攥住徐志北袖口示意噤声。"
+      "objective_event": "雨夜画室的木门忽地响起两声敲门声，门外传来同门同学隔着门板喊徐念薇拿展册的声音——画室门虽反锁着，门缝却透出室内暖黄射灯光影，两人距离近得能听清彼此绷紧的呼吸，徐念薇本能地攥住徐志北袖口示意噤声。"
     },
     {
       "id": "BEAT-T2-EROTIC-OFFICE-GLASS-SHEN",
       "tier": "tier2",
       "category": "erotic_accident",
       "channel": "door_visit",
-      "locations": ["公司"],
-      "required_cast": ["沈知韫"],
-      "time_slots": ["evening", "night"],
+      "locations": [
+        "公司"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 50,
@@ -1355,16 +1901,23 @@
       "once": false,
       "seed_to_add": null,
       "requires_seed": null,
-      "objective_event": "深夜顶层董事长办公室外忽地响起电梯叮声与值班秘书渐近的脚步声，磨砂玻璃门外的走廊灯随之亮起——百叶帘尚留着一道斜缝，沈知韫呼吸微沉，反手扣住门边阴影处的办公桌沿，高冷威严与一门之隔的失序风险骤然对撞。"
+      "objective_event": "深夜顶层董事长办公室外忽地响起电梯叮声与值班秘书渐近的脚步声，磨砂玻璃门外的走廊灯随之亮起——百叶帘尚留着一道斜缝，沈知韫呼吸微沉，反手扣住门边阴影处的办公桌沿，高冷威严与一门之隔的失序风险迎面撞上。"
     },
     {
       "id": "BEAT-T3-EROTIC-MULTI-TRACE-WEI-SHEN",
       "tier": "tier3",
       "category": "erotic_accident",
       "channel": "object_trace",
-      "locations": ["徐家主宅"],
-      "required_cast": ["沈知韫", "徐念薇"],
-      "time_slots": ["any"],
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "沈知韫",
+        "徐念薇"
+      ],
+      "time_slots": [
+        "any"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 55,
@@ -1385,9 +1938,17 @@
       "tier": "tier3",
       "category": "erotic_accident",
       "channel": "sensory_slip",
-      "locations": ["徐家主宅"],
-      "required_cast": ["沈知韫", "苏婉青"],
-      "time_slots": ["evening", "night"],
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "沈知韫",
+        "苏婉青"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 65,
@@ -1408,9 +1969,16 @@
       "tier": "tier2",
       "category": "covert_risk",
       "channel": "object_trace",
-      "locations": ["徐家主宅", "市中心顶层公寓", "工作室", "公司"],
+      "locations": [
+        "徐家主宅",
+        "市中心顶层公寓",
+        "工作室",
+        "公司"
+      ],
       "required_cast": [],
-      "time_slots": ["any"],
+      "time_slots": [
+        "any"
+      ],
       "requires_high_risk_device": true,
       "min_vigilance": 0,
       "min_biz": 0,

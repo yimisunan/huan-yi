@@ -22,9 +22,11 @@ STREAM_PROTOCOL_VERSION = 1
 _GEN_TABLE_RE = re.compile(r'【注册表生成表开始】.*?【注册表生成表结束】', re.S)
 _LIVE_FOOTER_RE = re.compile(r'\n*【正式互动入口适用边界】[^\n]*')
 _CHAR_LIVE_FOOTER_RE = re.compile(r'\n*【正式连续互动】[^\n]*')
-_LEGACY_PACE_RE = re.compile(r'\n*【完整回合兼容节奏】[^\n]*')
-_LEGACY_V1_RE = re.compile(r'\n*【V1验收】[^\n]*')
 _PARAM_HEADER_RE = re.compile(r'\n*【事件参数】[^\n]*')
+_INDEX_KEY_RE = re.compile(r'\s*※索引key※\s*(?:char|lore|narrative|sys)\.\S+')
+_CROSS_MODULE_PTR_RE = re.compile(r'\n*【跨模块指针】[^\n]*')
+_KINSHIP_DEADLINE_RE = re.compile(r'\n*【亲属关系·身份死线】[^\n]*')
+_LEGACY_ONLY_LABEL_RE = re.compile(r'\n*【唯一合法表述】[^\n]*')
 _MULTI_NL_RE = re.compile(r'\n{3,}')
 
 _LINE_TAG_RE = re.compile(
@@ -97,11 +99,6 @@ _INTIMATE_TURN_RE = re.compile(
     r'足交|乳交|手交|素股|胸推|口交|颜射|射精|潮吹|舔|吮|咬|啃|捏|掐|揉|磨|蹭|跨坐|压在身下|按在墙上|把玩|掰开|'
     r'挺入|抽插|顶入|撞击|调教|侍奉|跪下含|含住|指奸|后入|骑乘|内射|外射|吞精|自慰|自渎|换衣|洗澡|沐浴|走光|湿身|高潮|性爱|做爱|情欲|亲密接触'
 )
-_HEROINE_SENSORY_ANCHORS = {
-    '沈知韫': '沈知韫(纤细脚踝与秀致足背/拖鞋半挂或黑丝鞋跟/缎面腰线/冷调幽兰香与温热掌心)',
-    '苏婉青': '苏婉青(36D撑开衣料与俯身领口阴影/肩带压痕与锁骨泛红/沐浴露甜香与微凉微汗指尖)',
-    '徐念薇': '徐念薇(修长冷白手指与腕骨浅表血管/散落颈侧碎发/松节油与极淡皂香/偏凉细滑指尖)',
-}
 
 _WILL_SECRET_RE = re.compile(
     r'唯一合法继承人|唯一继承人|亲生子继承|继承真相|千亿家产唯一'
@@ -116,9 +113,24 @@ _LIVE_FORBIDDEN_HOST_IDS = frozenset({
     'DS_11', 'SHAME_15', 'SHAME_16', 'SHAME_17', 'SHAME_18',
 })
 _LEGACY_STAMINA_COMP_RE = re.compile(r'\n*【动态体力代偿※填入HOST_EVENTS※】[^\n]*')
-_LEGACY_CRAFT_SENT_RE = re.compile(r'；?craft_note\s*默认不生成[^。]*。')
-_LEGACY_SYSLOG_NOTE_RE = re.compile(r'（须在SYSTEM_LOG写明事由）|\(须在SYSTEM_LOG写明事由\)')
-_LEGACY_120_NODE_RE = re.compile(r'\n*【节点长度与段落边界】[^\n]*(?:\n[^\n【]*120字[^\n]*)*')
+_SETTLE_DROP_SECTIONS_RE = re.compile(
+    r'\n*【(?:适用边界|意外白名单|插入时机|身体反应与阶段判断|耻感反弹|解离空洞|与其他系统硬耦合|'
+    r'AI操作清单|撤离压力|引擎被动规则|持续_体液锁定 BUFF|越界联动掉分与完好防线修正|'
+    r'警惕值阶梯后果|全角色联动·被发现事件|系统商城|商业嗅觉子系统[^】]*|一次性情报库[^】]*|'
+    r'单体定向被动技能[^】]*|定位|职责分工|条件校验|最高红线·任务只读不驱动|操作清单)】[^\n]*(?:\n(?!【)[^\n]*)*'
+)
+_SETTLE_DIRECTOR_PROSE_RE = re.compile(r'\n*正式互动（live_interaction）同时启用后端活体世界导演 2\.0[^\n]*')
+_SETTLE_LEGACY_KEY_REPLACEMENTS = (
+    ('SHAME_EVENTS', 'shame_events'),
+    ('DEPRAVITY_EVENTS', 'depravity_events'),
+    ('DS_EVENTS', 'ds_events'),
+    ('AFFECTION_EVENTS', 'affection_events'),
+    ('VIGILANCE_EVENTS', 'vigilance_events'),
+    ('HOST_EVENTS', 'host_events'),
+    ('round_conditions', 'resolution.conditions'),
+    ('TASK_ISSUE', 'resolution.task'),
+    ('ITEM_ENTRIES', 'resolution.items'),
+)
 
 
 def _digest_text(text):
@@ -129,21 +141,29 @@ def _clean_text(text):
     return _MULTI_NL_RE.sub('\n\n', text).strip()
 
 
-def _strip_kb_noise(content, keep_event_hint=False, mode='foreground'):
+def _strip_kb_noise(content, keep_event_hint=False, mode='foreground',
+                    protagonist_style='faithful', protocol_mode='dual_stream_v2'):
     text = _GEN_TABLE_RE.sub('', content)
     text = _LIVE_FOOTER_RE.sub('', text)
+    text = _INDEX_KEY_RE.sub('', text)
+    text = _CROSS_MODULE_PTR_RE.sub('', text)
     if not keep_event_hint:
         text = _PARAM_HEADER_RE.sub('', text)
-    text = _LEGACY_PACE_RE.sub('', text)
-    text = _LEGACY_V1_RE.sub('', text)
     if mode == 'foreground':
-        text = _LEGACY_120_NODE_RE.sub('', text)
-        text = _LEGACY_CRAFT_SENT_RE.sub('。', text)
-        text = text.replace('技法分析(归craft_note)', '技法分析')
-        text = _LEGACY_SYSLOG_NOTE_RE.sub('', text)
-        text = text.replace('每回合有效正文应推进意图包并完成一场戏', '每段有效正文应承接玩家意图并推进完整连贯微幕')
+        text = _KINSHIP_DEADLINE_RE.sub('', text)
+        if protocol_mode == 'dual_stream_v2':
+            text = _LEGACY_ONLY_LABEL_RE.sub('', text)
+        if normalize_protagonist_style(protagonist_style) == 'silent':
+            text = text.replace(
+                '[D:徐志北] 所以妈是不打算把南城那块地交给他？',
+                '[A:徐志北] 他把茶杯往桌内推了半寸，抬头问起南城那块地是不是不打算交给大哥。',
+            )
     elif mode == 'settlement':
         text = _LEGACY_STAMINA_COMP_RE.sub('', text)
+        text = _SETTLE_DROP_SECTIONS_RE.sub('', text)
+        text = _SETTLE_DIRECTOR_PROSE_RE.sub('', text)
+        for old_k, new_k in _SETTLE_LEGACY_KEY_REPLACEMENTS:
+            text = text.replace(old_k, new_k)
     return _clean_text(text)
 
 
@@ -213,14 +233,25 @@ def compile_relationships(root, cast, references=()):
                 for c in target.get('address_candidates', [])
                 if c['text'] not in ('', '你')
             ]
-            occasions[occ[0]] = {'s': selfs, 'a': addrs}
-        non_empty_i = bool((occasions.get('i') or {}).get('s') or (occasions.get('i') or {}).get('a'))
-        if not non_empty_i:
-            occasions.pop('i', None)
-        if occasions.get('f') == occasions.get('r') == occasions.get('b') and not non_empty_i:
-            forms[f'{speaker}->{listener}'] = occasions['f']
+            slot = {}
+            if selfs:
+                slot['s'] = selfs
+            if addrs:
+                slot['a'] = addrs
+            occasions[occ[0]] = slot
+        base_f = occasions.get('f', {})
+        compact_occ = {'f': base_f}
+        if 'r' in occasions and occasions['r'] != base_f:
+            compact_occ['r'] = occasions['r']
+        if 'b' in occasions and occasions['b'] != base_f and occasions['b'] != compact_occ.get('r'):
+            compact_occ['b'] = occasions['b']
+        i_slot = occasions.get('i')
+        if i_slot and i_slot != base_f and i_slot != occasions.get('r') and i_slot != occasions.get('b'):
+            compact_occ['i'] = i_slot
+        if len(compact_occ) == 1:
+            forms[f'{speaker}->{listener}'] = base_f
         else:
-            forms[f'{speaker}->{listener}'] = occasions
+            forms[f'{speaker}->{listener}'] = compact_occ
 
     return {
         'shared': shared,
@@ -230,7 +261,7 @@ def compile_relationships(root, cast, references=()):
         },
         'beliefs': beliefs,
         'forms': forms,
-        'rule': '称谓为合法候选（f正式/r放松/b商务/i私密亲密，s自称/a称呼），承接上下文可用我/你或省略；公开场严格遵守正统亲属称谓，仅私密/失守态允许取用i私密候选；绝密仅限known_only_by本人，严禁向unknown_by_present泄露或碰巧知晓。',
+        'rule': '称谓为合法候选（f正式/r放松/b商务/i私密亲密，未单列场合沿用f或r；s自称/a称呼），承接上下文可用我/你或省略；公开场守正统亲属称谓，仅私密/失守态可取i私密候选；绝密仅限known_only_by本人，严禁向unknown_by_present泄露或碰巧知晓。',
     }
 
 
@@ -368,7 +399,8 @@ def _needs_pregnancy_rules(state, memory_text='', extra_text=''):
     return False
 
 
-def compile_knowledge_rules(root, state, memory_text='', extra_text='', mode='foreground'):
+def compile_knowledge_rules(root, state, memory_text='', extra_text='', mode='foreground',
+                            *, protagonist_style='faithful', protocol_mode='dual_stream_v2'):
     """Compile slimmed, state-gated knowledge rules from authoritative JSON sources."""
     root = Path(root)
     vig_active = _needs_vigilance_rules(state, memory_text)
@@ -386,13 +418,23 @@ def compile_knowledge_rules(root, state, memory_text='', extra_text='', mode='fo
                     continue
                 if key == 'narrative.intimate' and not intimate_active:
                     continue
-                blocks.append({'key': key, 'body': _strip_kb_noise(entry['content'], mode='foreground')})
+                blocks.append({
+                    'key': key,
+                    'body': _strip_kb_noise(
+                        entry['content'],
+                        mode='foreground',
+                        protagonist_style=protagonist_style,
+                        protocol_mode=protocol_mode,
+                    ),
+                })
 
     if mode in ('settlement', 'single'):
         for entry in _load_kb_entries(root, '系统标签类'):
             if entry.get('enabled', True) is not True:
                 continue
             key = _entry_key(entry)
+            if key == 'sys.runtime_data':
+                continue
             # In dual-stage settlement, keep sys.pregnancy & sys.vigilance always available so Stage 1
             # autonomous developments never hit a missing settlement rule and Stage 2 prompt cache stays stable.
             if mode == 'single':
@@ -400,7 +442,10 @@ def compile_knowledge_rules(root, state, memory_text='', extra_text='', mode='fo
                     continue
                 if key == 'sys.vigilance' and not vig_active:
                     continue
-            blocks.append({'key': key, 'body': _strip_kb_noise(entry['content'], mode='settlement')})
+            blocks.append({
+                'key': key,
+                'body': _strip_kb_noise(entry['content'], mode='settlement', protocol_mode=protocol_mode),
+            })
 
     return blocks
 
@@ -427,18 +472,23 @@ def compile_codex_runtime(root):
     return _clean_text(body)
 
 
-def compile_characters(root, cast, references=()):
-    """Preserve 100% of character persona/appearance/speech/Fish tags, stripping repeated footer."""
+def compile_characters(root, cast, references=(), *, include_host=True):
+    """Preserve 100% of character persona/appearance/speech/Fish tags, stripping repeated meta markers."""
     entries = _load_kb_entries(root, '角色类')
     ref_names = [r['name'] if isinstance(r, dict) else str(r) for r in references]
-    ordered = list(dict.fromkeys([*cast, *ref_names, '徐志北']))
+    base = [*cast, *ref_names, '徐志北'] if include_host else [*cast, *ref_names]
+    ordered = list(dict.fromkeys(base))
     cast_set = set(cast)
     result = []
     for name in ordered:
         found = [e['content'] for e in entries if '※索引key※ char.' + name in e.get('content', '')]
         if len(found) != 1:
             raise rr.RoundError('角色原文缺失或不唯一: ' + name)
-        cleaned = _clean_text(_CHAR_LIVE_FOOTER_RE.sub('', found[0]))
+        cleaned = _CHAR_LIVE_FOOTER_RE.sub('', found[0])
+        cleaned = _INDEX_KEY_RE.sub('', cleaned)
+        cleaned = _KINSHIP_DEADLINE_RE.sub('', cleaned)
+        cleaned = _CROSS_MODULE_PTR_RE.sub('', cleaned)
+        cleaned = _clean_text(cleaned)
         scope = 'present' if name in cast_set else ('host' if name == '徐志北' else 'referenced_background_offstage')
         result.append({'key': 'char.' + name, 'name': name, 'scope': scope, 'body': cleaned})
     return result
@@ -654,7 +704,8 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
         cap_val = int(dep_caps.get(name, 30) or 30)
         if dep >= cap_val - 3 and cap_val < 100:
             flags.append(f'受限于{cap_val}阶梯堕落锁(须清醒主动顺从或重大心理破口方能破锁)')
-        c_streak = int(counters_map.get(f'同质化_连续C_{name}', 0) or 0)
+        c_streak_raw = (mech.get('c_streak') or {}).get(name) if isinstance(mech.get('c_streak'), dict) else None
+        c_streak = int((c_streak_raw or {}).get('count', 0) or 0) if isinstance(c_streak_raw, dict) else int(c_streak_raw or 0)
         if c_streak >= 1 and not remote:
             flags.append(f'近轮连续高压接触({c_streak}轮，重复同套路易钝化，宜换节奏/换区/言语心理变奏)')
 
@@ -692,7 +743,10 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
                 flags.append('好感天花板85已解锁(上限95)')
             else:
                 flags.append('好感天花板85未解锁')
-            if not remote and location == '徐家主宅' and (aff < 70 or shame > 80):
+            su_exposed = 'INTEL-002' in (mech.get('secrets_unlocked') or ())
+            if su_exposed:
+                flags.append('眼线身份已被宿主当面揭穿(心虚受制，不再主动替徐承邺盯梢，开启私下周旋/妥协线)')
+            elif not remote and location == '徐家主宅' and (aff < 70 or shame > 80):
                 flags.append('主宅探访见闻事后会向丈夫徐承邺汇报(眼线条件激活)')
         phys = ((state or {}).get('physiology') or {}).get(name) or {}
         cp_cnt = int(phys.get('creampie_count', _int_stat(stats.get('内射', '0'), 0)) or 0)
@@ -799,17 +853,25 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
     """Build globally frozen Zone 0 system prompt (goes into Operit card characterSetting)."""
     style = normalize_protagonist_style(protagonist_style)
     codex = compile_codex_runtime(root)
-    world_rules = compile_knowledge_rules(root, {}, '', '', mode='foreground')
+    world_rules = compile_knowledge_rules(
+        root, {}, '', '', mode='foreground', protagonist_style=style, protocol_mode=mode,
+    )
     # Only include constant/global world & narrative rules in Zone 0 (vigilance & intimate are gated on demand).
     global_kb = '\n\n'.join(
         item['body'] for item in world_rules
         if item['key'] not in ('narrative.vigilance', 'narrative.intimate')
     )
+    host_chars = compile_characters(root, [], [], include_host=True)
+    host_section = (
+        '【主角全局锚点（跨场景冻结）】\n'
+        + f'<<< {host_chars[0]["key"]} ({host_chars[0]["scope"]}) >>>\n{host_chars[0]["body"]}'
+        if host_chars else ''
+    )
 
     if mode == 'dual_stream_v2':
         if style == 'faithful':
             protagonist_rule = (
-                '   - 主角具身在场（忠实演绎）：用 [A:徐志北] / [N] 自然承接玩家本轮行动，允许输出 1～3 句贴合原意图的简短 [D:徐志北] 口语（单句≤40字、永久静音禁任何标签）；'
+                '   - 主角具身在场（忠实演绎）：用 [A:徐志北] / [N] 自然承接玩家本轮行动，允许输出 1～3 句贴合原意图的简短 [D:徐志北] 口语（建议≤40字、默认静音可在语音设置开启主角配音，正文禁任何声学/XML标签）；'
                 '若玩家输入已有直接引语则保留原意。不代增新决定、新承诺、烈度升级或未授权反派滤镜。\n'
             )
             action_line_rule = (
@@ -855,7 +917,7 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
         )
     else:
         single_player_rule = (
-            'messages中每幕须含徐志北具身动作与五感承接，忠实演绎模式下允许最多3句严格贴合玩家原意图的简短dialogue(speaker=="徐志北"，单句≤40字、禁Fish标签、禁新增决定或烈度升级)，'
+            'messages中每幕须含徐志北具身动作与五感承接，忠实演绎模式下允许最多3句严格贴合玩家原意图的简短dialogue(speaker=="徐志北"，建议≤40字、禁任何声学/XML标签、禁新增决定或烈度升级)，'
             if style == 'faithful'
             else 'messages中严禁出现kind=="dialogue"且speaker=="徐志北"（玩家追问用kind=="action",speaker=="徐志北"或narration间接动作表达，每幕至少2处主角具身动作），'
         )
@@ -867,37 +929,56 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
             + single_player_rule +
             'dialogue.text只写纯台词禁混入第三人称动作旁白或外层引号。'
             '无操作operation、无待处理handoff、无任务resolution.task、无睡眠起点resolution.sleep.start及无对象conditions.npc明确写空字符串""（decision.options内无转场时省略operation键，切勿写operation:""），不得省略顶层值。'
-            '普通付费action必须交完整7字段conditions；固定A/B/C不得重新判档（且A/B档严禁打任何C烈度_*标签）；host_events对象固定为“系统宿主”；vigilance_events.target只能填被徐承邺监视的人（沈知韫/苏婉青/徐念薇/徐志北），严禁填徐承邺本人；「首次/同质化免疫_回合2/3/小憩限次/空耗惩罚/生理周期」由后端确定性派生拦截；不写文件、不执行命令。\n'
+            '普通付费action必须交完整7字段conditions；固定A/B/C不得重新判档（日常态固定A/B禁C烈度_*；亲密进行态A禁C烈度_*、B允许C烈度_轻度/中度）；host_events对象固定为“系统宿主”；vigilance_events.target只能填被徐承邺监视的人（沈知韫/苏婉青/徐念薇/徐志北），严禁填徐承邺本人；「首次/同质化免疫_回合2/3/小憩限次/空耗惩罚/生理周期」由后端确定性派生拦截；不写文件、不执行命令。\n'
             '若 memory.fact == "" 则 memory.transfers 必须交 {}；memory.compact 严禁带【数字】前缀或换行；需转移时严格依据 memory_transfer_sources.source_bodies 原文浓缩。\n'
             '进行中任务严禁驱动剧情；仅当delta携带milestone_echo时允许1句低侵入氛围轻顿且禁提系统词。'
             '若cost_preview.kind=="action"且tasks.current为空或status=="已完成"，结合task_whitelist_current按task_schema六键续接新任务（value严格大于当前值）；进行中或SYSTEM时resolution.task写""。'
             '仅当玩家在正文中明确亮牌动用 delta.held_intel 中某条情报时才填 resolution.intel_used；action回合可选填 resolution.director_echo 维护未完线头与暗钟，严禁编造。'
         )
 
-    return _clean_text(f'{protocol}\n\n{codex}\n\n{global_kb}')
+    parts = [protocol, codex, global_kb]
+    if host_section:
+        parts.append(host_section)
+    return _clean_text('\n\n'.join(parts))
 
 
-def build_zone1_scene(root, state, cast, references=(), memory_text='', extra_text='', mode='dual_stream_v2'):
+def build_zone1_scene(root, state, cast, references=(), memory_text='', extra_text='',
+                      mode='dual_stream_v2', protagonist_style='faithful'):
     """Build scene-scoped semi-static Zone 1 system prompt (goes into Operit card otherContentChat)."""
-    chars = compile_characters(root, cast, references)
+    style = normalize_protagonist_style(protagonist_style)
+    chars = compile_characters(root, cast, references, include_host=False)
     rels = compile_relationships(root, cast, references)
     location = (state or {}).get('location', '')
     offstage = [c['name'] for c in chars if c['scope'] == 'referenced_background_offstage']
+    if style == 'faithful' and cast:
+        speaker_line = (
+            f'实际在场可发言白名单(dialogue.speaker)：{json.dumps(cast, ensure_ascii=False)}'
+            '（忠实演绎模式下另允许 ≤3 句贴合玩家原意图的简短 [D:徐志北]）'
+        )
+    else:
+        speaker_line = (
+            f'实际在场可发言白名单(dialogue.speaker 仅限此列表，严禁 [D:徐志北])：{json.dumps(cast, ensure_ascii=False)}'
+        )
 
     sections = [
         '【当前场景冻结锚点（同地同阵容不变）】\n'
         f'当前地点：{location}\n'
-        f'实际在场可发言白名单(dialogue.speaker 仅限此列表)：{json.dumps(cast, ensure_ascii=False)}\n'
+        f'{speaker_line}\n'
         f'仅背景提及(不在场，严禁写成dialogue或当场动作)：{json.dumps(offstage, ensure_ascii=False)}',
-        '【在场及关联人物完整设定】\n' + '\n\n'.join(
-            f'<<< {c["key"]} ({c["scope"]}) >>>\n{c["body"]}' for c in chars
-        ),
-        '【关系、知情隔离与称谓编译表】\n' + json.dumps(rels, ensure_ascii=False, separators=(',', ':')),
     ]
+    if chars:
+        sections.append(
+            '【在场及关联人物完整设定】\n' + '\n\n'.join(
+                f'<<< {c["key"]} ({c["scope"]}) >>>\n{c["body"]}' for c in chars
+            )
+        )
+    sections.append(
+        '【关系、知情隔离与称谓编译表】\n' + json.dumps(rels, ensure_ascii=False, separators=(',', ':'))
+    )
 
     # Zone 1 gating relies ONLY on persistent state (never transient extra_text) to preserve KV cache.
     if _needs_vigilance_rules(state, memory_text):
-        vig_rules = [b for b in compile_knowledge_rules(root, state, memory_text, '', mode='foreground')
+        vig_rules = [b for b in compile_knowledge_rules(root, state, memory_text, '', mode='foreground', protocol_mode=mode)
                      if b['key'] == 'narrative.vigilance']
         if vig_rules:
             sections.append('【本场激活监视叙事裁决】\n' + vig_rules[0]['body'])
@@ -908,7 +989,7 @@ def build_zone1_scene(root, state, cast, references=(), memory_text='', extra_te
             sections.append('【本场激活亲密与高压肢体描写技法】\n' + intimate_body)
 
     if mode == 'single_prefix_v2':
-        sys_rules = compile_knowledge_rules(root, state, memory_text, extra_text, mode='settlement')
+        sys_rules = compile_knowledge_rules(root, state, memory_text, extra_text, mode='settlement', protocol_mode=mode)
         catalog = compile_event_catalog(root, live_mode=True)
         sections.append('【系统机制与事件标签白名单（仅用于resolution打标，严禁口算分或写进台词）】\n'
                         + '合法事件标签：' + json.dumps(catalog, ensure_ascii=False, separators=(',', ':')) + '\n\n'
@@ -1058,12 +1139,6 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
         intimate_body = _load_intimate_body(root)
         if intimate_body:
             delta['intimate_craft_guide'] = intimate_body
-    sensory_anchors = [_HEROINE_SENSORY_ANCHORS[c] for c in cast if c in _HEROINE_SENSORY_ANCHORS]
-    if sensory_anchors:
-        delta['sensory_lens'] = (
-            '在场形体与感官取材池（按需穿插，非每幕必写）：' + '；'.join(sensory_anchors) + '。'
-            '仅在距离贴近、接触或情绪起澜时顺势落墨；日常快节奏对话幕不必硬塞形体特写或固定生理反应。'
-        )
     recent_cliches = _extract_recent_cliche_motifs(history or new_history_only)
     if recent_cliches:
         delta['fresh_detail_hint'] = (
@@ -1090,13 +1165,19 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
         'id': d['id'], 'name': d['name'], 'location': d.get('location', ''),
         'spot': d.get('spot') or '隐蔽角落', 'effect': d.get('system_effect', ''),
     } for d in deployed_all if d.get('location') and d.get('location') != location]
+    cast_set = set(cast or [])
+    delivered_to_cast = [
+        {'name': d['name'], 'recipient': d.get('recipient', '')}
+        for d in (state.get('delivered_items') or [])
+        if isinstance(d, dict) and d.get('name') and d.get('recipient') in cast_set
+    ][-6:]
+    if delivered_to_cast:
+        delta['delivered_gifts_to_cast'] = delivered_to_cast
 
     if include_full_anchor:
         raw_mem = projection['text']
         delta['player_private_memory'] = raw_mem if is_single else _strip_active_task_from_memory(raw_mem)
         delta['items'] = state.get('items', [])
-        if held_compact:
-            delta['held_items'] = held_compact
         if deployed_here:
             delta['deployed_items_here'] = deployed_here
         if deployed_remote:
@@ -1105,13 +1186,35 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
             delta['tasks'] = state.get('tasks')
         delta['accepted_history'] = history
     else:
-        # Session already holds prior scene turns; only transmit current L1 + newly committed turns + inventory/device delta.
+        # Session already holds prior scene turns; transmit current L1 + newly matched old memories + newly committed turns + inventory/device delta.
         current_ref = projection.get('current')
         current_l1 = ''
         if current_ref:
             lines = (memory_text or '').splitlines()
             current_l1 = '\n'.join(lines[current_ref['start_line'] - 1:current_ref['end_line']])
         delta['current_l1_memory'] = current_l1
+        recalled_entries = []
+        recalled_budget = 900
+        for item in (projection.get('recalled_old_entries') or ())[:3]:
+            if not isinstance(item, dict):
+                continue
+            body = str(item.get('body') or item.get('text') or '').strip()
+            if not body:
+                continue
+            if len(body) > recalled_budget:
+                if recalled_budget < 80:
+                    break
+                body = body[:recalled_budget].rstrip() + '…'
+            recalled_entries.append({
+                'layer': item.get('layer', ''),
+                'range': item.get('range') or item.get('header') or '',
+                'body': body,
+            })
+            recalled_budget -= len(body)
+            if recalled_budget <= 0:
+                break
+        if recalled_entries:
+            delta['recalled_memories'] = recalled_entries
         delta['items_count'] = len(state.get('items', []))
         if held_compact:
             delta['held_items'] = held_compact
@@ -1466,14 +1569,14 @@ def _normalize_stream_node(kind, who, body):
     if not text:
         return []
     if kind == 'narration':
-        cleaned = _DRAMA3_XML_STRIP_RE.sub('', text).strip() or text
+        cleaned = _DRAMA3_XML_STRIP_RE.sub('', _ANY_VOICE_BRACKET_RE.sub('', text)).strip() or text
         return [{'kind': 'narration', 'speaker': '', 'text': cleaned}]
     if kind == 'action':
-        cleaned = _DRAMA3_XML_STRIP_RE.sub('', _LEADING_ASCII_FISH_RE.sub('', text)).strip() or text
+        cleaned = _DRAMA3_XML_STRIP_RE.sub('', _ANY_VOICE_BRACKET_RE.sub('', text)).strip() or text
         return [{'kind': 'action', 'speaker': who, 'text': cleaned}]
     # kind == 'dialogue'
     if who == '徐志北':
-        # Player is permanently muted; strip any stray acoustic Fish tags (ASCII or Chinese) and Drama 3 XML tags cleanly.
+        # Protagonist dialogue stays clean & tag-free (default muted, optional clean voice); strip any stray bracket/XML tags.
         text = _DRAMA3_XML_STRIP_RE.sub('', _ANY_VOICE_BRACKET_RE.sub('', text)).strip() or text
     tm = _LEADING_VOICE_TAGS_RE.match(text)
     leading_tags = (tm.group(1) or '').strip() if tm else ''
@@ -1792,10 +1895,6 @@ def guardrail_check(root, location, cast, messages, memory_text='', *,
                     if non_holders_present and _DISCLOSURE_ACTION_RE.search(text) and not _HOST_INNER_RE.search(text):
                         raise rr.RoundError(
                             f'信息差红线拦截：主角动作向未解锁在场角色泄露了继承/遗嘱真相词“{hit.group(0)}”'
-                        )
-                    if not _HOST_INNER_RE.search(text):
-                        raise rr.RoundError(
-                            f'信息差红线拦截：未解锁角色 {speaker} 的动作出现敏感继承/遗嘱真相词“{hit.group(0)}”'
                         )
                 elif speaker not in secret_holders:
                     raise rr.RoundError(

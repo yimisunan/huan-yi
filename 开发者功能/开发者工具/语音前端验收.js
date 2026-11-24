@@ -90,6 +90,7 @@ async function run() {
         if (url === '/api/fish_key' && options.method === 'POST') return Promise.resolve(response({ ok: true, configured: true, masked: 'sk-****1234' }));
         if (url === '/api/fish_key' && options.method === 'DELETE') return Promise.resolve(response({ ok: true, configured: false }));
         if (url === '/api/voice_tier' && options.method === 'POST') return Promise.resolve(response({ ok: true, voice_tier: 'pro' }));
+        if (url === '/api/voice_routing' && options.method === 'POST') return Promise.resolve(response({ status: 'success', routing: { protagonist_voice_enabled: true, action_voice_mode: 'separate', action_voice_scope: 'all' } }));
         return Promise.resolve(response({ configured: false }));
     });
     const defaultPayload = csrfCtx.client.buildPayload('测试文本', { voice: 'fish:abc' }, {}, '', '沈知韫');
@@ -101,29 +102,88 @@ async function run() {
     assert.equal(defaultPayload.quality_guard, true);
     await csrfCtx.client.saveFishKey('test-key-12345678', false);
     await csrfCtx.client.setVoiceTier('pro');
+    await csrfCtx.client.setVoiceRouting({ protagonist_voice_enabled: true, action_voice_mode: 'separate', action_voice_scope: 'all' });
     await csrfCtx.client.prefetchBatch([{ text: '预热测试', speaker: '沈知韫' }]);
     await csrfCtx.client.clearFishKey();
+    assert.ok(sentHeaders.some(r => r.url === '/api/voice_routing' && r.headers['X-Voice-Client'] === '1'), 'setVoiceRouting must hit /api/voice_routing with X-Voice-Client');
     assert.ok(sentHeaders.some(r => r.url === '/api/tts/prefetch' && r.headers['X-Voice-Client'] === '1'), 'prefetchBatch must hit /api/tts/prefetch with X-Voice-Client');
-    assert.ok(sentHeaders.every(r => r.headers['X-Voice-Client'] === '1'), 'X-Voice-Client header required on all key/tier/prefetch calls');
-    console.log('PASS voice_client: s2.1-pro-free + balanced/180 default, prefetchBatch, speaker passthrough, key/tier APIs & X-Voice-Client');
+    assert.ok(sentHeaders.every(r => r.headers['X-Voice-Client'] === '1'), 'X-Voice-Client header required on all key/tier/routing/prefetch calls');
+    console.log('PASS voice_client: s2.1-pro-free + balanced/180 default, prefetchBatch, speaker passthrough, key/tier/routing APIs & X-Voice-Client');
 
     const storySource = fs.readFileSync(path.join(root, 'story_client.js'), 'utf8');
     const stripFn = storySource.match(/function stripVoiceTags\([\s\S]*?\n  \}/)[0];
-    const allowBlock = storySource.match(/const VOICED_SPEAKERS = [\s\S]*?function resolveVoiceSpeaker\([\s\S]*?\n  \}/)[0];
+    const allowBlock = storySource.match(/const VOICED_SPEAKERS = [\s\S]*?function resolveEffectiveVoiceCfg\([\s\S]*?\n  \}/)[0];
     const whisperFn = storySource.match(/function isWhisperLine\([\s\S]*?\n  \}/)[0];
     const storyCtx = vm.createContext({});
     vm.runInContext(stripFn + '\n' + allowBlock + '\n' + whisperFn, storyCtx);
+    // Default (no voiceConfigCache): narration->旁白, heroines->speaker, action(heroines+徐志北)->旁白, 徐志北 dialogue->''
     assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'narration', speaker: '', text: '雨停了。' }), '旁白');
     assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'dialogue', speaker: '沈知韫', text: '过来。' }), '沈知韫');
     assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'dialogue', speaker: '苏婉青', text: '先坐吧。' }), '苏婉青');
     assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'dialogue', speaker: '徐念薇', text: '进来。' }), '徐念薇');
     assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'action', speaker: '沈知韫', text: '她放下笔。' }), '旁白');
     assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'dialogue', speaker: '徐志北', text: '怎么了？' }), '');
-    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'action', speaker: '徐志北', text: '他走近一步。' }), '');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'action', speaker: '徐志北', text: '他走近一步。' }), '旁白');
     assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'dialogue', speaker: '徐承邺', text: '妈！' }), '');
     assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'action', speaker: '徐承邺', text: '他推开门。' }), '');
     assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'dialogue', speaker: '顾律师', text: '沈董您好。' }), '');
     assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'action', speaker: '主宅管家', text: '他轻敲房门。' }), '');
+
+    // Protagonist voice enabled + bound vs unbound vs isPlayerInput guard
+    const cfgProtagBound = {
+        __settings__: { protagonist_voice_enabled: true, action_voice_mode: 'separate', action_voice_scope: 'all' },
+        旁白: { voice: 'fish:narr123', speed: 0.94 },
+        动作: { voice: '', speed: 1.03, volume: -1.5 },
+        徐志北: { voice: 'edge:zh-CN-YunxiNeural', rate: '-2%' }
+    };
+    const cfgProtagUnbound = {
+        __settings__: { protagonist_voice_enabled: true, action_voice_mode: 'muted', action_voice_scope: 'heroines' },
+        旁白: { voice: 'edge:zh-CN-YunyangNeural' },
+        动作: { voice: '', speed: 1.03, volume: -1.5 },
+        徐志北: { voice: 'fish:' }
+    };
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'dialogue', speaker: '徐志北', text: '妈，我回来了。' }, cfgProtagBound), '徐志北');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'dialogue', speaker: '徐志北', text: '玩家输入气泡', isPlayerInput: true }, cfgProtagBound), '');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'action', speaker: '徐志北', text: '玩家动作气泡', isPlayerInput: true }, cfgProtagBound), '');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'action', speaker: '沈知韫', text: '她放下笔。' }, cfgProtagBound), '动作');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'action', speaker: '徐志北', text: '你接过茶杯。' }, cfgProtagBound), '动作');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'dialogue', speaker: '徐志北', text: '未绑定音色不发声' }, cfgProtagUnbound), '');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'action', speaker: '沈知韫', text: '动作静音模式' }, cfgProtagUnbound), '');
+    assert.equal(storyCtx.resolveVoiceSpeaker({ kind: 'action', speaker: '徐志北', text: '仅三女主范围' }, { __settings__: { action_voice_mode: 'separate', action_voice_scope: 'heroines' } }), '');
+    // Inherit narrator voice (Fish & Edge) for 动作 when voice is empty
+    const effActionFish = storyCtx.resolveEffectiveVoiceCfg('动作', cfgProtagBound);
+    assert.equal(effActionFish.voice, 'fish:narr123');
+    assert.equal(effActionFish.speed, 1.03);
+    assert.equal(effActionFish.volume, -1.5);
+    const effActionEdge = storyCtx.resolveEffectiveVoiceCfg('动作', cfgProtagUnbound);
+    assert.equal(effActionEdge.voice, 'edge:zh-CN-YunyangNeural');
+    assert.equal(effActionEdge.rate, '+0%');
+    assert.equal(effActionEdge.volume, '-10%');
+
+    // Voice manager preserves voice_ids on Edge<->Fish toggle & sorts pages canonically
+    const mgrTest = makeContext(() => Promise.resolve(response({}))).context;
+    mgrTest.window = mgrTest; mgrTest.addEventListener = () => {};
+    mgrTest.document = { getElementById: () => ({ textContent: '', disabled: false, classList: { toggle() {} }, replaceChildren() {}, append() {} }), querySelectorAll: () => [], querySelector: () => null, activeElement: null, createElement: () => ({ append() {}, classList: { toggle() {} } }) };
+    mgrTest.alert = () => {}; mgrTest.confirm = () => false;
+    vm.runInContext(managerSource, mgrTest);
+    vm.runInContext('renderEditor = () => {}; updateSaveState = () => {};', mgrTest);
+    vm.runInContext(`
+        configData = {
+            __settings__: { fish_tts_model: 's2.1-pro-free' },
+            徐志北: { voice: 'fish:male111111111111111111111111', voice_ids: ['male111111111111111111111111'], tts_model: 's2.1-pro-free' },
+            苏婉青: { voice: 'fish:su1' },
+            动作: { voice: '', voice_ids: [], tts_model: 's2.1-pro-free' },
+            沈知韫: { voice: 'fish:shen1' },
+            旁白: { voice: 'fish:narr111111111111111111111111', voice_ids: ['narr111111111111111111111111'], tts_model: 's2.1-pro-free' },
+            徐念薇: { voice: 'fish:wei1' },
+            default: { voice: 'fish:' }
+        };
+    `, mgrTest);
+    assert.deepEqual(Array.from(vm.runInContext('editablePageNames()', mgrTest)), ['旁白', '动作', '沈知韫', '苏婉青', '徐念薇', '徐志北']);
+    vm.runInContext("switchRoleToEdge('徐志北'); switchRoleToFishFree('徐志北');", mgrTest);
+    assert.deepEqual(Array.from(vm.runInContext("configData['徐志北'].voice_ids", mgrTest)), ['male111111111111111111111111']);
+    assert.equal(vm.runInContext("sanitizeConfigForSave(configData)['动作'].voice", mgrTest), '');
+
     assert.equal(
         storyCtx.stripVoiceTags('沈知<|phoneme_start|>yun4<|phoneme_end|>韫[low restrained voice]<whisper>低声</whisper><chinese>问好</chinese>'),
         '沈知韫低声问好'

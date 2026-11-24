@@ -156,6 +156,7 @@ def default_mechanics():
         'depravity_unlocked_caps': {name: 30 for name in HEROINES},
         'pregnancy_latent_until': {name: 0 for name in HEROINES},
         'masturbation_trace': {name: 0 for name in HEROINES},
+        'charm_scene_used': False,
     }
 
 
@@ -165,7 +166,7 @@ def default_state():
         'panels': {
             '系统宿主': {'积分': 0, '经验值': 0, '体力': 100, '魅力': 70, '商业嗅觉': 0},
             '沈知韫': {'好感': 95, '堕落': 0, '欲望': 0, '羞耻': 100, '体力': 100, '高潮': 0, '内射': 0, '怀孕': False, '被动': 0},
-            '徐念薇': {'好感': 30, '堕落': 0, '欲望': 0, '羞耻': 99, '体力': 65, '高潮': 0, '内射': 0, '怀孕': False, '被动': 0},
+            '徐念薇': {'好感': 30, '堕落': 0, '欲望': 0, '羞耻': 99, '体力': 100, '高潮': 0, '内射': 0, '怀孕': False, '被动': 0},
             '苏婉青': {'好感': 40, '堕落': 0, '欲望': 0, '羞耻': 99, '体力': 100, '高潮': 0, '内射': 0, '怀孕': False, '被动': 0},
             '徐承邺': {'堕落': 0},
         },
@@ -463,6 +464,7 @@ def normalize_state(raw):
         else:
             mech['pregnancy_latent_until'][name] = max(0, _parse_int(raw_latent.get(name), 0))
         mech['masturbation_trace'][name] = max(0, _parse_int(raw_mast.get(name), 0))
+    mech['charm_scene_used'] = bool(raw_mech.get('charm_scene_used', False))
     # Intimate / Privacy / Attire / Traces / Inter-Heroine
     raw_int = raw.get('intimate') if isinstance(raw.get('intimate'), dict) else {}
     intl = base['intimate']
@@ -841,7 +843,7 @@ def migrate_from_legacy_texts(memory_text='', items_text='', data_dict=None, bas
                     if cur_who in HEROINES:
                         state['buffs'][cur_who] = []
                 elif cur_who in HEROINES and ln.startswith('-'):
-                    im = re.match(r'^-\s*\[([^\]]+)\]\s*剩余时效:\s*(\d+)回合\s*\(([^)]*)\)', ln)
+                    im = re.match(r'^-\s*\[([^\]]+)\]\s*剩余时效:\s*(\d+)回合\s*\((.*)\)\s*$', ln)
                     if im:
                         state['buffs'][cur_who].append({
                             'name': im.group(1).strip(),
@@ -1164,15 +1166,14 @@ def render_memory_txt(state, mem_layers):
 
     lines.append('【道具倒计时】')
     timers = [
-        it for it in (*state['items']['active'], *state['items'].get('deployed', []))
+        it for it in state['items']['active']
         if it.get('remaining_turns') is not None
     ]
     if not timers:
         lines.append('（空）')
     else:
         for it in timers:
-            tag = '已部署' if it.get('status') == '已部署' else '进行中'
-            lines.append(f"{it['id']}：{it['remaining_turns']}回合 | 名称：{it['name']} | 状态：{tag}")
+            lines.append(f"{it['id']}：{it['remaining_turns']}回合 | 名称：{it['name']} | 状态：进行中")
     lines.append('')
 
     shop = state['shop']
@@ -1511,8 +1512,8 @@ def save_bundle(stage_root, state, layers, recent=None, *, data_dict=None):
 def append_recent_segment(recent, segment_row, playback_state=None):
     out = copy.deepcopy(recent) if isinstance(recent, dict) else default_recent()
     segs = [s for s in (out.get('segments') or []) if isinstance(s, dict) and s.get('id') != segment_row.get('id')]
-    # Keep full segment payload needed for history, known_by, decision, playback & settlement recovery; strip heavy audit/before_world.
-    compact = {k: copy.deepcopy(v) for k, v in segment_row.items() if k not in ('audit', 'before_world')}
+    # Keep full segment payload needed for history, known_by, decision, playback & settlement recovery; strip heavy/unused blobs.
+    compact = {k: copy.deepcopy(v) for k, v in segment_row.items() if k not in ('audit', 'before_world', 'after_location', 'resolution')}
     segs.append(compact)
     segs.sort(key=lambda s: int(s.get('sequence', 0)))
     out['segments'] = segs[-MAX_RECENT_SEGMENTS:]

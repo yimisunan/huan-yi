@@ -63,7 +63,7 @@ class WorldTests(unittest.TestCase):
         value = self.world.import_latest()
         self.assertEqual(value['presence']['徐志北']['value']['location'], '徐家主宅')
         self.assertEqual(value['presence']['苏婉青']['value']['location'], '市中心顶层公寓')
-        self.assertEqual(value['panels']['徐念薇']['value']['体力'], 65)
+        self.assertEqual(value['panels']['徐念薇']['value']['体力'], 100)
         self.assertEqual(value['panels']['沈知韫']['value']['高潮'], '0%')
         self.assertIs(value['panels']['沈知韫']['value']['怀孕'], False)
         self.assertEqual(value['items'], [])
@@ -120,11 +120,11 @@ class WorldTests(unittest.TestCase):
         with self.assertRaises(rr.ConflictError): self.world.import_latest()
         self.assertEqual(self.world.snapshot()['world_id'], first['world_id'])
         p.write_bytes(self.before['data.json'])
-        p = self.root/rr.FILES[0];p.write_text(p.read_text().replace('体力 65', '体力 64', 1))
+        p = self.root/rr.FILES[0];p.write_text(p.read_text().replace('[徐念薇] 好感 30 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 100', '[徐念薇] 好感 30 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 99', 1))
         second = self.world.import_latest()
         self.assertNotEqual(first['world_id'], second['world_id'])
         self.assertEqual(second['world_revision'], 2)
-        self.assertEqual(self.world.snapshot(first['world_id'])['panels']['徐念薇']['value']['体力'], 65)
+        self.assertEqual(self.world.snapshot(first['world_id'])['panels']['徐念薇']['value']['体力'], 100)
 
     def test_pending_legacy_transaction_blocks_without_recovery(self):
         self.world.import_latest()

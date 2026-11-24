@@ -106,6 +106,9 @@ FISH_TTS_MODELS = [
 ]
 FISH_FREE_TTS_MODEL = "s2.1-pro-free"
 VOICED_HEROINES = ("沈知韫", "苏婉青", "徐念薇")
+FREE_DEFAULT_ROLES = ("旁白", "动作", "徐志北")
+VALID_ACTION_VOICE_MODES = ("follow_narrator", "separate", "muted")
+VALID_ACTION_VOICE_SCOPES = ("all", "heroines")
 VOICE_TIERS = {
     "free": {
         "heroine_model": "s2.1-pro-free",
@@ -115,12 +118,12 @@ VOICE_TIERS = {
     "pro": {
         "heroine_model": "s2.1-pro",
         "narrator_model": "s2.1-pro-free",
-        "label": "稳定生产档（三女主 $15/M字节 · 旁白免费）",
+        "label": "稳定生产档（三女主 $15/M字节 · 旁白/动作/主角免费）",
     },
     "drama": {
         "heroine_model": "drama-3",
         "narrator_model": "s2.1-pro-free",
-        "label": "旗舰导演档（三女主 Drama 3 高消费 · 旁白免费）",
+        "label": "旗舰导演档（三女主 Drama 3 高消费 · 旁白/动作/主角免费）",
     },
 }
 FISH_DEFAULT_VOICE_ID = ""
@@ -157,6 +160,7 @@ _VOICE_MUTATING_PATHS = frozenset({
     '/api/fish_key',
     '/api/config',
     '/api/voice_tier',
+    '/api/voice_routing',
     '/api/voice_repo',
     '/api/tts/prefetch',
 })
@@ -516,7 +520,10 @@ EDGE_UNAVAILABLE_HINTS = {
 
 default_config = {
     "__settings__": {
-        "fish_tts_model": FISH_TTS_MODEL
+        "fish_tts_model": FISH_TTS_MODEL,
+        "protagonist_voice_enabled": False,
+        "action_voice_mode": "follow_narrator",
+        "action_voice_scope": "all",
     },
     "沈知韫": {
         "voice": "fish:",
@@ -548,6 +555,34 @@ default_config = {
         "chunk_length": 260,
         "min_chunk_length": 55,
         "repetition_penalty": 1.25,
+        "emotion": ""
+    },
+    "动作": {
+        "voice": "",
+        "voice_ids": [],
+        "tts_model": FISH_FREE_TTS_MODEL,
+        **FISH_DEFAULT_STYLE,
+        "speed": 1.03,
+        "volume": -1.5,
+        "temperature": 0.64,
+        "top_p": 0.72,
+        "latency": "balanced",
+        "chunk_length": 220,
+        "min_chunk_length": 40,
+        "emotion": ""
+    },
+    "徐志北": {
+        "voice": "fish:",
+        "voice_ids": [],
+        "tts_model": FISH_FREE_TTS_MODEL,
+        **FISH_DEFAULT_STYLE,
+        "speed": 0.98,
+        "volume": 0.0,
+        "temperature": 0.60,
+        "top_p": 0.70,
+        "latency": "balanced",
+        "chunk_length": 200,
+        "min_chunk_length": 35,
         "emotion": ""
     },
     "default": {
@@ -764,7 +799,20 @@ def _normalize_config(data):
     fish_tts_model = str(settings.get("fish_tts_model") or FISH_TTS_MODEL).strip()
     if fish_tts_model not in allowed_fish_models:
         fish_tts_model = FISH_TTS_MODEL
-    cleaned["__settings__"] = {**settings, "fish_tts_model": fish_tts_model}
+    protag_enabled = bool(settings.get("protagonist_voice_enabled", False))
+    action_mode = str(settings.get("action_voice_mode") or "follow_narrator").strip().lower()
+    if action_mode not in VALID_ACTION_VOICE_MODES:
+        action_mode = "follow_narrator"
+    action_scope = str(settings.get("action_voice_scope") or "all").strip().lower()
+    if action_scope not in VALID_ACTION_VOICE_SCOPES:
+        action_scope = "all"
+    cleaned["__settings__"] = {
+        **settings,
+        "fish_tts_model": fish_tts_model,
+        "protagonist_voice_enabled": protag_enabled,
+        "action_voice_mode": action_mode,
+        "action_voice_scope": action_scope,
+    }
 
     for name, cfg in data.items():
         if name == "__settings__":
@@ -785,7 +833,8 @@ def _normalize_config(data):
                 print(f"[配置清洗] {name}: {edge_id} 不可用 → {EDGE_DEFAULT_VOICE}（{EDGE_UNAVAILABLE_HINTS[edge_id]}）")
                 edge_id = EDGE_DEFAULT_VOICE
                 voice = f"edge:{edge_id}"
-            cleaned[name] = {
+            kept_ids = _normalize_voice_ids(cfg, "")
+            edge_entry = {
                 **extras,
                 "voice": voice,
                 "rate": _normalize_edge_param(cfg.get("rate", default_config["旁白"].get("rate", "-8%")), "rate"),
@@ -793,18 +842,26 @@ def _normalize_config(data):
                 "volume": _normalize_edge_param(cfg.get("volume", "+0%"), "volume"),
                 "emotion": ""
             }
+            if kept_ids:
+                edge_entry["voice_ids"] = kept_ids
+            cleaned[name] = edge_entry
         else:
             # 长期配置禁止绑定 emotion。
             # 旧版调试时可能把 whispers/angry/laughs 写进 json，加载/保存时一律清空。
             # 正式推演情绪只认台词内标签（由 main_template 把原文送入 TTS）。
             # 调音台「试听情感」仅通过 /api/tts?emotion= 临时注入，不落盘。
+            raw_v = str(voice or "").strip()
+            if name == "动作" and raw_v in ("", "fish:"):
+                norm_voice = ""
+            else:
+                norm_voice = raw_v if _is_fish_voice(raw_v) else default_config["default"]["voice"]
             cleaned[name] = {
                 **extras,
-                "voice": voice if _is_fish_voice(voice) else default_config["default"]["voice"],
-                "voice_ids": _normalize_voice_ids(cfg, voice),
+                "voice": norm_voice,
+                "voice_ids": _normalize_voice_ids(cfg, norm_voice),
                 "tts_model": _normalize_fish_tts_model(
                     cfg.get("tts_model"),
-                    FISH_FREE_TTS_MODEL if name == "旁白" else fish_tts_model
+                    FISH_FREE_TTS_MODEL if name in FREE_DEFAULT_ROLES else fish_tts_model
                 ),
                 **_normalize_fish_cfg(cfg),
                 "emotion": ""
@@ -1422,8 +1479,9 @@ def voice_tier_api():
         for heroine in VOICED_HEROINES:
             if isinstance(cfg.get(heroine), dict) and not _is_edge_voice(cfg[heroine].get('voice', '')):
                 cfg[heroine]['tts_model'] = spec['heroine_model']
-        if isinstance(cfg.get('旁白'), dict) and not _is_edge_voice(cfg['旁白'].get('voice', '')):
-            cfg['旁白']['tts_model'] = spec['narrator_model']
+        for role_name in FREE_DEFAULT_ROLES:
+            if isinstance(cfg.get(role_name), dict) and not _is_edge_voice(cfg[role_name].get('voice', '')):
+                cfg[role_name]['tts_model'] = spec['narrator_model']
         if isinstance(cfg.get('default'), dict) and not _is_edge_voice(cfg['default'].get('voice', '')):
             cfg['default']['tts_model'] = FISH_FREE_TTS_MODEL
         cleaned = _save_config(cfg)
@@ -1437,6 +1495,52 @@ def voice_tier_api():
         return jsonify({'error': str(exc)}), 409
     except (ValueError, OSError) as exc:
         return jsonify({'error': f'档位切换失败：{exc}'}), 503
+
+
+@app.route('/api/voice_routing', methods=['POST'])
+def voice_routing_api():
+    """原子更新主角配音开关与动作声线路由（不覆盖角色详细音色参数）。"""
+    payload = request.get_json(silent=True)
+    if not isinstance(payload, dict) or not payload:
+        return jsonify({'error': '请提供需要更新的语音路由项。'}), 400
+    allowed_keys = {'protagonist_voice_enabled', 'action_voice_mode', 'action_voice_scope'}
+    patch_keys = set(payload.keys()) & allowed_keys
+    if not patch_keys:
+        return jsonify({'error': '未提供合法的语音路由字段。'}), 400
+    try:
+        cfg = _load_config()
+        settings = cfg.setdefault('__settings__', {})
+        if 'protagonist_voice_enabled' in payload:
+            val = payload['protagonist_voice_enabled']
+            if not isinstance(val, bool):
+                return jsonify({'error': 'protagonist_voice_enabled 必须为布尔值。'}), 400
+            settings['protagonist_voice_enabled'] = val
+        if 'action_voice_mode' in payload:
+            mode = str(payload['action_voice_mode'] or '').strip().lower()
+            if mode not in VALID_ACTION_VOICE_MODES:
+                return jsonify({'error': 'action_voice_mode 仅允许 follow_narrator / separate / muted。'}), 400
+            settings['action_voice_mode'] = mode
+        if 'action_voice_scope' in payload:
+            scope = str(payload['action_voice_scope'] or '').strip().lower()
+            if scope not in VALID_ACTION_VOICE_SCOPES:
+                return jsonify({'error': 'action_voice_scope 仅允许 all / heroines。'}), 400
+            settings['action_voice_scope'] = scope
+        cleaned = _save_config(cfg)
+        out_settings = cleaned.get('__settings__', {})
+        return jsonify({
+            'status': 'success',
+            'msg': '语音路由已更新',
+            'routing': {
+                'protagonist_voice_enabled': bool(out_settings.get('protagonist_voice_enabled', False)),
+                'action_voice_mode': out_settings.get('action_voice_mode', 'follow_narrator'),
+                'action_voice_scope': out_settings.get('action_voice_scope', 'all'),
+            },
+            'config': cleaned,
+        })
+    except ConfigError as exc:
+        return jsonify({'error': str(exc)}), 409
+    except (ValueError, OSError) as exc:
+        return jsonify({'error': f'语音路由保存失败：{exc}'}), 503
 
 
 @app.route('/api/voices', methods=['GET'])
@@ -1540,8 +1644,8 @@ def save_config():
         return jsonify({'error': '保存失败，原配置已保留，请检查存储空间或权限。'}), 503
 
 
-def _find_cfg_by_voice(raw_voice_param, speaker=''):
-    all_cfg = _load_config()
+def _find_cfg_by_voice(raw_voice_param, speaker='', all_cfg=None):
+    all_cfg = all_cfg if isinstance(all_cfg, dict) else _load_config()
     sp_name = str(speaker or '').strip()
     if sp_name and sp_name != '__settings__' and isinstance(all_cfg.get(sp_name), dict):
         return all_cfg[sp_name]
@@ -1860,8 +1964,18 @@ def _prepare_tts_job(data):
         raise TtsError('请提供需要朗读的文本。', 400)
     speaker = str((data or {}).get('speaker') or '').strip()
     raw_voice = str((data or {}).get('voice') or '').strip()
-    matched = _find_cfg_by_voice(raw_voice, speaker=speaker)
-    voice = raw_voice or str(matched.get('voice') or 'fish:')
+    all_cfg = _load_config()
+    matched = _find_cfg_by_voice(raw_voice, speaker=speaker, all_cfg=all_cfg)
+    raw_voice_usable = bool(raw_voice and raw_voice != 'fish:')
+    matched_voice = str(matched.get('voice') or '').strip()
+    voice = raw_voice if raw_voice_usable else matched_voice
+    inherited_narrator_edge = False
+    if speaker == '动作' and voice in ('', 'fish:'):
+        narrator = all_cfg.get('旁白', default_config['旁白'])
+        voice = str(narrator.get('voice') or 'fish:').strip() or 'fish:'
+        inherited_narrator_edge = voice.startswith('edge:')
+    if not voice:
+        voice = 'fish:'
     model_name, _, voice_id = voice.partition(':')
     if not voice_id and ':' not in voice:
         voice_id = voice
@@ -1875,9 +1989,15 @@ def _prepare_tts_job(data):
         text = _strip_edge_voice_markup(text)
         if not text:
             raise TtsError('没有可朗读的文本。', 400)
-        rate = _normalize_edge_param((data or {}).get('rate') or matched.get('rate') or '-8%', 'rate')
-        pitch = _normalize_edge_param((data or {}).get('pitch') or matched.get('pitch') or '-4Hz', 'pitch')
-        volume = _normalize_edge_param((data or {}).get('volume') or matched.get('volume') or '+0%', 'volume')
+        if inherited_narrator_edge and not _is_edge_voice(matched_voice):
+            edge_rate_default, edge_pitch_default, edge_vol_default = '+0%', '-2Hz', '-10%'
+            rate = _normalize_edge_param((data or {}).get('rate') or edge_rate_default, 'rate')
+            pitch = _normalize_edge_param((data or {}).get('pitch') or edge_pitch_default, 'pitch')
+            volume = _normalize_edge_param((data or {}).get('volume') or edge_vol_default, 'volume')
+        else:
+            rate = _normalize_edge_param((data or {}).get('rate') or matched.get('rate') or '-8%', 'rate')
+            pitch = _normalize_edge_param((data or {}).get('pitch') or matched.get('pitch') or '-4Hz', 'pitch')
+            volume = _normalize_edge_param((data or {}).get('volume') or matched.get('volume') or '+0%', 'volume')
         key_data = ['edge', text, voice_id, rate, pitch, volume]
         producer = lambda: _edge_audio(text, voice_id, rate, pitch, volume)
     else:

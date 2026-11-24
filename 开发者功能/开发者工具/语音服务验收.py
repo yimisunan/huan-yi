@@ -325,6 +325,96 @@ class VoiceServiceChecks(unittest.TestCase):
             module.BASE_DIR = old_base
             module._AUDIO_ASSETS_CACHE.clear()
 
+    def test_protagonist_and_action_voice_routing_and_inheritance(self):
+        # 1. /api/voice_routing enforces X-Voice-Client and updates routing atomically
+        self.assertEqual(self.client.post('/api/voice_routing', json={'protagonist_voice_enabled': True}).status_code, 403)
+        self.assertEqual(
+            self.client.post('/api/voice_routing', headers={'X-Voice-Client': '1'}, json={'action_voice_mode': 'bad'}).status_code,
+            400,
+        )
+        res = self.client.post(
+            '/api/voice_routing',
+            headers={'X-Voice-Client': '1'},
+            json={'protagonist_voice_enabled': True, 'action_voice_mode': 'separate', 'action_voice_scope': 'heroines'},
+        )
+        self.assertEqual(res.status_code, 200)
+        body = res.get_json()
+        self.assertEqual(body['routing'], {
+            'protagonist_voice_enabled': True,
+            'action_voice_mode': 'separate',
+            'action_voice_scope': 'heroines',
+        })
+
+        # 2. /api/voice_tier keeps 旁白 / 动作 / 徐志北 on s2.1-pro-free across pro & drama tiers
+        tier_res = self.client.post('/api/voice_tier', headers={'X-Voice-Client': '1'}, json={'tier': 'drama'})
+        self.assertEqual(tier_res.status_code, 200)
+        tcfg = tier_res.get_json()['config']
+        for h in ('沈知韫', '苏婉青', '徐念薇'):
+            self.assertEqual(tcfg[h]['tts_model'], 'drama-3')
+        for r in ('旁白', '动作', '徐志北'):
+            self.assertEqual(tcfg[r]['tts_model'], 's2.1-pro-free')
+
+        # 3. 动作 with empty voice inherits 旁白 Fish voice ID while keeping 动作 speed (1.03) and volume (-1.5)
+        cfg = module._load_config()
+        cfg['旁白']['voice'] = 'fish:narrator-id-123'
+        cfg['动作']['voice'] = ''
+        module._save_config(cfg)
+        captured = []
+        def fake_fish(payload, tts_model, **_kwargs):
+            captured.append((tts_model, dict(payload)))
+            return b'ID3-action-fish'
+        with patch.object(module, '_fish_audio', side_effect=fake_fish):
+            r_act = self.client.post('/api/tts', json={'text': '她把茶杯放回桌面。', 'speaker': '动作'})
+            self.assertEqual(r_act.status_code, 200)
+            self.assertEqual(captured[-1][0], 's2.1-pro-free')
+            self.assertEqual(captured[-1][1]['reference_id'], 'narrator-id-123')
+            self.assertEqual(captured[-1][1]['prosody']['speed'], 1.03)
+            self.assertEqual(captured[-1][1]['prosody']['volume'], -1.5)
+
+        # 4. 动作 inherits Edge voice when 旁白 uses edge: with distinct Edge prosody (+0% / -2Hz / -10%)
+        cfg2 = module._load_config()
+        cfg2['旁白'] = {'voice': 'edge:zh-CN-YunyangNeural', 'rate': '-8%', 'pitch': '-4Hz', 'volume': '+0%', 'emotion': ''}
+        cfg2['动作']['voice'] = ''
+        module._save_config(cfg2)
+        with patch.object(module, '_edge_audio', return_value=b'ID3-action-edge') as mock_edge:
+            r_edge = self.client.post('/api/tts', json={'text': '他合上文件。', 'speaker': '动作'})
+            self.assertEqual(r_edge.status_code, 200)
+            self.assertEqual(mock_edge.call_args.args[1], 'zh-CN-YunyangNeural')
+            self.assertEqual(mock_edge.call_args.args[2], '+0%')
+            self.assertEqual(mock_edge.call_args.args[4], '-10%')
+
+        # 5. StoryService._trigger_tts_prewarm matches voice_config routing & heroine whisper prosodyMod
+        import story_service as ss
+        warmed = []
+        svc = ss.StoryService.__new__(ss.StoryService)
+        svc.root = self.directory
+        svc._tts_prewarmer = lambda items: warmed.extend(items)
+        svc._stream_lock = threading.Lock()
+        svc._prewarmed_keys = set()
+        vcfg_for_svc = {
+            '__settings__': {
+                'protagonist_voice_enabled': True,
+                'action_voice_mode': 'separate',
+                'action_voice_scope': 'all',
+            },
+            '旁白': {'voice': 'fish:narr123'},
+            '动作': {'voice': ''},
+            '徐志北': {'voice': 'fish:male123'},
+            '沈知韫': {'voice': 'fish:shen123'},
+        }
+        (self.directory / 'voice_config.json').write_text(json.dumps(vcfg_for_svc, ensure_ascii=False), encoding='utf-8')
+        svc._trigger_tts_prewarm([
+            {'kind': 'action', 'speaker': '徐志北', 'text': '你把温水推过去。'},
+            {'kind': 'dialogue', 'speaker': '徐志北', 'text': '妈，趁热喝。'},
+            {'kind': 'dialogue', 'speaker': '沈知韫', 'text': '<whisper>别声张。</whisper>'},
+        ], dedup_prefix='test-warm')
+        self.assertEqual(len(warmed), 3)
+        self.assertEqual(warmed[0]['speaker'], '动作')
+        self.assertEqual(warmed[1]['speaker'], '徐志北')
+        self.assertEqual(warmed[2]['speaker'], '沈知韫')
+        self.assertEqual(warmed[2]['speed_scale'], 0.93)
+        self.assertEqual(warmed[2]['expressive_boost'], 0.04)
+
 
 if __name__ == '__main__':
     protected = ['voice_config.json', 'data.json', '存档/全局记忆库.txt', 'injection_core.py']

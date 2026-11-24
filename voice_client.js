@@ -287,7 +287,15 @@
         }).then(r => (r.ok ? r.json().catch(() => ({ scheduled: clean.length })) : { scheduled: 0 })).catch(() => ({ scheduled: 0 }));
     }
 
+    function setVoiceRouting(patch) {
+        return requestJson('/api/voice_routing', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(patch && typeof patch === 'object' ? patch : {})
+        }, 10000);
+    }
+
     global.VoiceClient = Object.freeze({ TTS_TIMEOUT_MS, fishDefaults, normalizeFish, buildPayload,
         requestJson, requestAudio, requestStream, prefetchBatch, cancel, cancelAll, AudioUrlStore,
-        getFishKeyStatus, saveFishKey, clearFishKey, setVoiceTier, getAudioAssets });
+        getFishKeyStatus, saveFishKey, clearFishKey, setVoiceTier, setVoiceRouting, getAudioAssets });
 })(typeof window === 'undefined' ? globalThis : window);

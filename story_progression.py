@@ -68,7 +68,7 @@ PASSIVE_LEVELS = (
     {'level': 1, 'tag': 'Lv.1', 'name': '洞察之瞳', 'cost': 20, 'effect': '精准捕捉目标生理伪装、心虚停顿与微小动摇'},
     {'level': 2, 'tag': 'Lv.2', 'name': '认知欺诈滤镜', 'cost': 50, 'effect': 'C烈度越界好感惩罚减半（可与商业杠杆叠加）；目标潜意识优先合理化宿主行为'},
     {'level': 3, 'tag': 'Lv.3', 'name': '疲劳诱导', 'cost': 200, 'effect': '精准触发焦虑锚点；目标焦虑/劳作/剧烈抗拒体力消耗翻倍'},
-    {'level': 4, 'tag': 'Lv.4', 'name': '防线支配', 'cost': 800, 'effect': '全景测绘；精准命中最脆弱节点（遗嘱焦虑/背德恐惧等）'},
+    {'level': 4, 'tag': 'Lv.4', 'name': '防线支配', 'cost': 800, 'effect': '全景测绘；羞耻侵蚀加深(×0.7)、活跃C额外降防、防线豁免与同质化穿透'},
 )
 
 
@@ -1773,10 +1773,19 @@ def advance_director_state(root, memory_text, *, location, director_roll, effect
     return write_director_block(memory_text, dstate)
 
 
-def derive_weekday(data, memory_text, clock):
-    """Deterministically derive current Chinese weekday from prologue base weekday + clock.day."""
+def derive_weekday(data, memory_text, clock, save_state=None):
+    """Deterministically derive current Chinese weekday from save_state/prologue base weekday + clock.day."""
     base = ''
-    if isinstance(data, dict):
+    if isinstance(save_state, dict):
+        rt = save_state.get('runtime')
+        if isinstance(rt, dict):
+            pro_s = rt.get('prologue')
+            if isinstance(pro_s, dict) and pro_s.get('weekday') in WEEKDAYS:
+                base = pro_s['weekday']
+            elif rt.get('weekday') in WEEKDAYS:
+                # runtime.weekday already reflects current day when prologue base is unavailable
+                return rt['weekday']
+    if not base and isinstance(data, dict):
         pro = data.get('prologue')
         if isinstance(pro, dict) and pro.get('weekday') in WEEKDAYS:
             base = pro['weekday']
@@ -1815,10 +1824,18 @@ def reconcile_offstage_presence(engine, memory_path, new_clock, weekday, player_
             updates[name] = {'location': target_loc, 'reason': target_reason}
             moves.append({'name': name, 'from': info.get('location'), 'to': target_loc, 'reason': target_reason})
 
-    # 沈知韫：工作日 08:00-15:59 在公司，其余时段/周末在徐家主宅
+    # 沈知韫：工作日 08:00-15:59 在公司，其余时段/周末在徐家主宅（临时加班事由在跨夜前不强行迁离）
+    shen_info = presence.get('沈知韫') or {}
+    shen_reason = str(shen_info.get('reason') or '')
+    shen_overtime = (
+        shen_info.get('location') == '公司'
+        and not overnight
+        and not day_crossed
+        and any(k in shen_reason for k in ('加班', '复核', '并购', '临时工作'))
+    )
     if is_workday and 480 <= hhmm < 960:
         plan_move('沈知韫', '公司', '工作日上班中')
-    else:
+    elif not shen_overtime:
         plan_move('沈知韫', '徐家主宅', '常住')
 
     # 徐念薇：工作日 08:00-16:59 在大学，17:00-21:59 在校外画室（工作室），22:00后及周末在徐家主宅
@@ -1937,8 +1954,8 @@ def memory_text(value, label, limit, empty=False):
     return value.strip()
 
 
-def memory_merge(root, layers, number, clock, value, system=False):
-    """Model supplies semantic compaction; never silently truncate accepted facts."""
+def memory_merge(root, layers, number, clock, value, system=False, *, prologue_active=False):
+    """Model supplies semantic compaction; never silently truncate accepted facts. Replaces literary prologue on Round 1."""
     raw_prior = next((entry.split('】',1)[1] for entry in layers['L1'] if entry.startswith('【'+str(number)+'】')), '')
     prior = save_store.strip_prologue_marker(raw_prior)
     if system:
@@ -1950,6 +1967,8 @@ def memory_merge(root, layers, number, clock, value, system=False):
         if not prior:
             raise rr.RoundError('同回合合并摘要缺少原条目')
         return save_store.strip_prologue_marker(compact)
+    if prologue_active and number == 1 and fact:
+        return '第'+str(clock['day'])+'天 '+clock['time']+' '+fact
     if fact and re.sub(r'\s','',fact) in re.sub(r'\s','',prior):
         fact = ''
     stamped = '第'+str(clock['day'])+'天 '+clock['time']+' '+fact if fact else ''
@@ -2432,7 +2451,9 @@ def resolution(root,files,body):
         was_resting_pre=runtime['phase']=='resting'
         mem_round_pre=max(1,runtime['last_closed'] if was_resting_pre and runtime['last_closed'] else runtime['memory_round'])
         old_layers_pre=engine._parse_memory_layer_items(memory_raw)
-        merged_pre=memory_merge(root,old_layers_pre,mem_round_pre,clock,value['memory'],system=False)
+        raw_ly_pre=files.get(save_store.MEMORY_LAYERS_PATH)
+        prologue_active_pre=bool(json.loads(raw_ly_pre.decode('utf-8')).get('prologue_active')) if raw_ly_pre else False
+        merged_pre=memory_merge(root,old_layers_pre,mem_round_pre,clock,value['memory'],system=False,prologue_active=prologue_active_pre)
         eff_transfers=copy.deepcopy(value['memory']['transfers']) if merged_pre else {}
         if merged_pre or eff_transfers:
             pre_deltas={**({'l1_new_round':merged_pre} if merged_pre else {}),**eff_transfers}
@@ -2510,7 +2531,8 @@ def apply_staged(store,engine,stage,body,files,parsed):
     leverage_triggered=None;intel_consumed=None;schedule_moves=[]
     charm_gained_now=False
     active_cast=parsed.get('active_cast') or []
-    st_pre,_,_=save_store.load_bundle(stage)
+    st_pre,ly_pre,_=save_store.load_bundle(stage)
+    prologue_active_pre=bool(ly_pre.get('prologue_active'))
     intl_pre=st_pre.get('intimate') or save_store.default_intimate()
     scene_state=parsed.get('scene_state')
     op_now_all=body.get('operation')
@@ -2589,6 +2611,13 @@ def apply_staged(store,engine,stage,body,files,parsed):
         )
         if isinstance(ev_meta,dict) and isinstance(ev_meta.get('normalized_events'),dict):
             events=ev_meta['normalized_events']
+        auto_climax = (ev_meta or {}).get('auto_climax') or []
+        if auto_climax and isinstance(states, dict) and isinstance(lifecycle, dict):
+            lmicro = lifecycle.setdefault('micro', {})
+            for hname in auto_climax:
+                if hname in states:
+                    states[hname]['residual_tension'] = True
+                    lmicro.setdefault(hname, {})['residual_tension'] = {'observed_round': action, 'origin': 'activated'}
         lev_meta=(ev_meta or {}).get('leverage_meta') or {}
         if use_leverage and lev_meta.get('applied'):
             intel_state['held']=[x for x in intel_state['held'] if x!=leverage_armed]
@@ -2719,7 +2748,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
         runtime['item_recovered']+=item_receipt['recovery']
     data_before=json.loads((files.get('data.json') or b'{}').decode('utf-8'))
     crossed=parsed['runtime']['clock'] is not None and parsed['clock']['day']>parsed['runtime']['clock']['day']
-    weekday=derive_weekday(data_before,memory_path.read_text(encoding='utf-8'),parsed['clock'])
+    weekday=derive_weekday(data_before,memory_path.read_text(encoding='utf-8'),parsed['clock'],save_state=st_pre)
     if kind!='item':
         old_clock=runtime['clock'];new_clock=parsed['clock']
         hours=max(0,(minute(new_clock)-minute(old_clock))//60) if old_clock else 0
@@ -2733,7 +2762,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
             player_moved=bool(body.get('operation') and body['operation'].get('code')=='move_player'),
         )
         if kind=='action' or hours:
-            rr._engine_call(engine.process_vigilance_system,events['vigilance_events'],events['shame_events'],str(memory_path),elapsed_hours=hours,roll_home=kind=='action',active_cast=active_cast)
+            rr._engine_call(engine.process_vigilance_system,events['vigilance_events'],events['shame_events'],str(memory_path),elapsed_hours=hours,roll_home=kind=='action',active_cast=active_cast,ds_events=events.get('ds_events'))
         if kind=='action':
             dir_mem=memory_path.read_text(encoding='utf-8')
             dir_updated=advance_director_state(
@@ -2767,7 +2796,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
         if day_dirty:
             save_store.save_bundle(stage,st_day,ly_day)
     if parsed['sleep']['kind']=='overnight':
-        # 跨夜安稳睡眠：宿主恢复 100；体液锁定跨夜衰减6回合；高欲求/空耗女主触发夜间暗中自渎纾解；未失眠女主恢复体力、残余高潮清零、堕落<30时羞耻防线回弹+2
+        # 跨夜安稳睡眠：宿主恢复 100；体液锁定跨夜衰减6回合；高欲求/空耗女主触发夜间暗中自渎纾解；未失眠女主恢复体力、残余高潮清零、堕落<30且欲望<15时羞耻防线微幅回弹+1
         st_ov,ly_ov,_=save_store.load_bundle(stage)
         ins_map=st_ov['mechanics'].get('insomnia_applied') or {}
         unlocked_caps=st_ov['mechanics'].setdefault('depravity_unlocked_caps',{h:30 for h in save_store.HEROINES})
@@ -2779,6 +2808,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
             cur_h_shame=int(st_ov['panels'][hname].get('羞耻',100))
             cur_h_dep=int(st_ov['panels'][hname].get('堕落',0))
             cur_h_des=int(st_ov['panels'][hname].get('欲望',0))
+            cur_h_pas=int(st_ov['panels'][hname].get('被动',0))
             # 1. 跨夜衰减 [持续_体液锁定] 6 回合
             rem_lock_turns=0
             next_buffs=[]
@@ -2828,7 +2858,8 @@ def apply_staged(store,engine,stage,body,files,parsed):
                 sta_gain=32 if secret_relief else 40
                 ov_patch[hname]['体力']=min(100,cur_h_sta+sta_gain)
                 if cur_h_dep<30 and not secret_relief and cur_h_des<15:
-                    shame_cap=35 if st_ov['panels'][hname].get('怀孕') else max(0,100-int(cur_h_dep*0.6))
+                    dep_coef=0.7 if cur_h_pas>=4 else 0.6
+                    shame_cap=35 if st_ov['panels'][hname].get('怀孕') else max(0,100-int(cur_h_dep*dep_coef))
                     ov_patch[hname]['羞耻']=min(shame_cap,cur_h_shame+1)
             st_ov['mechanics']['insomnia_applied'][hname]=False
         for ch,ch_vals in ov_patch.items():
@@ -2842,7 +2873,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
     memory_round=runtime['last_closed'] if was_resting and runtime['last_closed'] else runtime['memory_round']
     memory_round=max(1,memory_round)
     old_layers=engine._parse_memory_layer_items(memory_path.read_text(encoding='utf-8'))
-    merged=memory_merge(store.root,old_layers,memory_round,parsed['clock'],value['memory'],system=kind=='item')
+    merged=memory_merge(store.root,old_layers,memory_round,parsed['clock'],value['memory'],system=kind=='item',prologue_active=prologue_active_pre)
     transfers={} if (kind=='item' or not merged) else copy.deepcopy(value['memory']['transfers'])
     deltas={**({'l1_new_round':merged} if merged else {}),**transfers}
     if deltas:
@@ -2922,9 +2953,9 @@ def resolution_policy(kind, option_id=None, *, intimate_mode=False):
             'instruction':'普通付费行动必须提交七字段conditions对象；澄清/未移动也填，按事实用false，不改字段名；无NPC仅npc为空。免费SYSTEM的conditions为空。'}
 
 
-def contract(root=None,kind='action',option_id=None):
+def contract(root=None,kind='action',option_id=None,*,intimate_mode=False):
     limits=memory_policy(root) if root is not None else MEMORY_DEFAULTS
-    category = category_policy(kind, option_id)
+    category = category_policy(kind, option_id, intimate_mode=intimate_mode)
     return {'category':category['required_category'] or 'A|B|C','basis':category['instruction'],
             'clock':{'day':1,'time':'HH:MM','basis':'实际经过的行为与时间依据，首次从剧情初始化'},
             'events':[{'group':'登记事件组','target':'本场对象或系统宿主','tags':['登记原标签'],'evidence':'本段原文子串'}],
