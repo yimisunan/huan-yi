@@ -2,7 +2,7 @@
 
 > **文档性质**：本项目完整工程架构、协议契约、内部实现与维护开发参考手册。
 > **非数据源硬声明**：本目录（`开发者功能/开发者说明/`）仅供人类开发者与工程维护代理阅读，**严禁作为 AI 剧情运行时提示词、世界书条目、知识库或上下文注入**。
-> **适用版本基线**：协议 v3 / 资料交付 v2（`dual_stream_v2` + `single_prefix_v2`） / P2 自包含存档（`save_store.py`） / Operit 2 故事桥接插件 **v2.1.8**（API `2.0.0`）
+> **适用版本基线**：协议 v3 / 资料交付 v2（`dual_stream_v2` + `single_prefix_v2`） / P2 自包含存档（`save_store.py`） / Operit 2 故事桥接插件 **v2.1.9**（API `2.0.0`）
 > **面向玩家的日常使用手册**：见根目录 [`游玩指南.md`](../../游玩指南.md)；历史版本演进归档见 [`开发者功能/修订日志/README.md`](../修订日志/README.md)。
 
 ---
@@ -27,7 +27,7 @@
 | **03** | [`03_数值结算与规则推进体系.md`](03_数值结算与规则推进体系.md) | `story_progression.py` 双态三档体力（日常 `5/10/15` / 亲密续演 **`1/2/3`** + `intimate_stamina_floor=10` + `vigor` 精力双池保底 + B 档放行 `C烈度_轻度/中度`）、`体力<=15` 断电硬锁、8 类登记操作（含 `inspect_deployed` 与 `keepsake_action`）、独立确定性系统商城（16 件分类商品 + 魅力折扣 + AI 动态进货 `DYN-*`）、活体导演 **61 拍**、`injection_core.py` 全量数值闭环（含 v4 主角欲火/控欲、三女主 5 区身体开发与特色部位、5 阶魅力收支平衡、私密珍藏盒与 `advance_intimate_state`） | 游戏机制 / 规则 / 数值开发者 |
 | **04** | [`04_后端服务与HTTP_SSE协议参考.md`](04_后端服务与HTTP_SSE协议参考.md) | Flask 引导与 `/api/story/*` + `/api/*` 双同源/CSRF 边界、`_EventHub` + Long-Polling + SSE、`DEFAULT_LIVE_LIMIT=10` 懒加载、`compact: true`、`_thumbs/` 缩略图、**37 个 `/api/story/*` 路由**（含商城询货队列及一体化档案室 `/prologues`、`/saves`、`/saves/snapshot`、`/saves/restore`、`DELETE /saves/<slot_id>`、`/new-game` 的 `scenario_id`/`reroll_only`）、`scene_chat` SQLite 隔离 | API / 前后端联调 / 桥接联调开发者 |
 | **05** | [`05_前端剧场与语音引擎架构.md`](05_前端剧场与语音引擎架构.md) | `main_template.html` + `story_client.js` + `story_client.css` 剧场前端（顶部锚定聚焦输入浮层 `#composerSheet`、无弹窗方案 A+B 落笔确认、一体化双页签「档案室」`#newGameDialog`、切档 `save_epoch` 干净切换、四档合理化闭环徽标、非遮挡双条 Disco 横幅、亲密 `1/2/3` 动态按钮与 `#sceneAtmospherePills` 精力/欲火/隐私微标、主角 5 阶魅力/癖好卡、羁绊 5 区开发条、行囊私密珍藏盒与商城魅力折扣、`D3` 徽记）、Fish Audio 连接池/40MB LRU/`drama-3` 调优、`voice_manager.html` | 前端 / UI / 语音引擎开发者 |
-| **06** | [`06_Operit2桥接插件架构.md`](06_Operit2桥接插件架构.md) | **Operit 2 官方知识库与宿主机制** + `local.story.operit_bridge` **v2.1.8** 插件双阶段流水线、三档副模型结算思考自适应（`auto/off/on`）、`handleShopInquiry()` 无状态 `Tools.Chat.call` 商城定制询货处理（零触碰 `liveSession` 与 KV 缓存）、主角发声忠实演绎/静音支持、外部删窗实时自愈、`syncServiceEpoch`、Compose DSL 设置页与 `build.py` 自动清旧打包 | Operit 2 插件 / 桥接协议开发者 |
+| **06** | [`06_Operit2桥接插件架构.md`](06_Operit2桥接插件架构.md) | **Operit 2 官方知识库与宿主机制** + `local.story.operit_bridge` **v2.1.9** 插件双阶段流水线、三档副模型结算思考自适应（`auto/off/on`）、`handleShopInquiry()` 无状态 `Tools.Chat.call` 商城定制询货处理（零触碰 `liveSession` 与 KV 缓存）、主角发声忠实演绎/静音支持、外部删窗实时自愈、`syncServiceEpoch`、Compose DSL 设置页与 `build.py` 自动清旧打包 | Operit 2 插件 / 桥接协议开发者 |
 | **07** | [`07_数据模型_SSOT与文件格式规范.md`](07_数据模型_SSOT与文件格式规范.md) | 单一事实来源（SSOT）依赖总图与派生视图同步规则、`txt文件/` 全量 JSON Schema（85 项事件注册表、61 拍变故库 + `sensual_spark_matrix`、16 件商城、`intimate` 关系称谓库、8 项 `operations` 与 `vigor` 参数）、**P2 自包含存档（`save_state.json` 含 `intimate.{host_phys,body_dev,keepsakes,session_charm_gained}` / `items.deployed` / `shop.dynamic_catalog` / `director.sensual_drought`、`四层记忆.json`、`近期演播.json`）**与 `.round-runtime/save-slots/` 精简存档槽格式 | 设定维护 / 数据结构 / 存档工具开发者 |
 | **08** | [`08_开发维护_测试排障与二次开发指南.md`](08_开发维护_测试排障与二次开发指南.md) | Pydroid 3 与 proot Alpine/Linux 双环境配置、改动与图片热替换生效路径、**39 项**全量测试清册（Python 29 + Node 10 全绿，含 `test_adult_systems_v3.py` 与 `test_adult_systems_v4.py`）、常见二次开发清单、升级版 `存档清理器.py`（`--list-backups/--restore/--scenario`）与 10 幕 `存档开局随机盲盒.py` CLI、崩溃恢复与 Git 交付流 | 接手维护 / QA / 二次开发工程师 |
 | **附** | [`世界书关键字配置.txt`](世界书关键字配置.txt) | 24 条知识库世界书正则关键字与常驻配置全量对齐参考表（含按需条目 `narrative.intimate`，仅供参考、非数据源） | 设定维护 / 手动世界书维护者 |
@@ -42,7 +42,7 @@
 
 ### 上游宿主平台与官方知识库（Operit 2）
 
-本项目桥接插件（`local.story.operit_bridge`，**v2.1.8**，API `2.0.0`）与手动世界书导出均面向 **Operit 2** 生态。涉及 Operit 2 宿主 API、ToolPkg 规范、Compose DSL 或角色卡机制时，请参阅官方权威源（详见 [`06_Operit2桥接插件架构.md`](06_Operit2桥接插件架构.md) §1）：
+本项目桥接插件（`local.story.operit_bridge`，**v2.1.9**，API `2.0.0`）与手动世界书导出均面向 **Operit 2** 生态。涉及 Operit 2 宿主 API、ToolPkg 规范、Compose DSL 或角色卡机制时，请参阅官方权威源（详见 [`06_Operit2桥接插件架构.md`](06_Operit2桥接插件架构.md) §1）：
 
 - **Operit 2 官方下载页**：https://operit.app/#/v2/download
 - **Operit 2 官方 GitHub 仓库**：https://github.com/AAswordman/Operit2 （`https://github.com/AAswordman/Operit2.git`）
@@ -97,9 +97,9 @@ huan-yi/                                    # 项目根目录（Android: /storag
 ├── 存档/                                   # P2 自包含正式累积事实层（JSON 真相 + 单向渲染只读 .txt；默认种子档已刷新至 v3 Schema）
 ├── data.json & voice_config.json           # 派生运行时快照与角色语音配置
 ├── Operit世界书导出/                       # 手动入口世界书派生产物（24 条同步）
-├── scene_chat_dev/                         # Operit 2 桥接源码（v2.1.8）、成品包与核心回归测试
-│   ├── local.story.operit_bridge/          # 插件 v2.1.8 源码（含无状态 AI 商城询货）
-│   ├── build.py                            # 打包脚本 → artifacts/故事桥接-continuous-2.1.8.toolpkg
+├── scene_chat_dev/                         # Operit 2 桥接源码（v2.1.9）、成品包与核心回归测试
+│   ├── local.story.operit_bridge/          # 插件 v2.1.9 源码（含无状态 AI 商城询货）
+│   ├── build.py                            # 打包脚本 → artifacts/故事桥接-continuous-2.1.9.toolpkg
 │   ├── src/scene_live/ & legacy_visibility.json
 │   └── tests/ & run_tests.sh               # 26 个 Python 单测 + 9 个 Node 桥接测试套件（另加 开发者工具 4 项验收，共 39 项全绿）
 │

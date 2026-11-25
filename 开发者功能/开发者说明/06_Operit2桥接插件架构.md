@@ -1,8 +1,8 @@
 # 06 · Operit 2 桥接插件架构
 
 > **非数据源声明**：本文件为开发者架构参考文档，严禁作为 AI 剧情运行时提示词或世界书注入。
-> **源码唯一入口**：[`scene_chat_dev/local.story.operit_bridge/`](../../scene_chat_dev/local.story.operit_bridge/)（版本 **2.1.8**，Operit API `2.0.0`，插件 ID `local.story.operit_bridge`，子包 `story_bridge`）。
-> **成品与构建**：[`scene_chat_dev/build.py`](../../scene_chat_dev/build.py) → `scene_chat_dev/artifacts/故事桥接-continuous-2.1.8.toolpkg`（验包通过后自动清理旧版 `.toolpkg`）。
+> **源码唯一入口**：[`scene_chat_dev/local.story.operit_bridge/`](../../scene_chat_dev/local.story.operit_bridge/)（版本 **2.1.9**，Operit API `2.0.0`，插件 ID `local.story.operit_bridge`，子包 `story_bridge`）。
+> **成品与构建**：[`scene_chat_dev/build.py`](../../scene_chat_dev/build.py) → `scene_chat_dev/artifacts/故事桥接-continuous-2.1.9.toolpkg`（验包通过后自动清理旧版 `.toolpkg`）。
 
 ---
 
@@ -21,13 +21,15 @@
 | **上游插件作者手册（仓库内）** | `AAswordman/Operit2` → `plugins/docs/README.md`、`PUBLIC_API.md`、`UI_NAVIGATION.md`、`package_builder/PLUGIN_CREATION_WORKFLOW.md`、`worldbook-regex.md`、`core/crates/plugin/sdk/README.md` | ToolPkg 打包、前置依赖公共 API、UI 导航、工作流与世界书正则权威规范 |
 | **本项目离线 SDK 类型镜像** | [`scene_chat_dev/types/`](../../scene_chat_dev/types/)（30 份官方 `.d.ts` 声明，由 `operit-plugin-sdk` Rust 声明生成） | 离线查阅 `ToolPkg`、`Tools.Chat`、`Tools.Models`、`Tools.SoftwareSettings`、`PluginConfig`、`ComposeDslScreen`、`RuntimeContext`、`QuickJS` 全局接口（目录根置 `.nomedia` 防止安卓相册误扫） |
 
-### 1.2 Operit 2 宿主权限边界与 VFS 路径隔离
+### 1.2 Operit 2 宿主权限边界与工作区 / VFS 路径隔离
 
 - **四层由外向内收紧的权限模型**：
   `0. App Runtime Sandbox（应用沙箱/容器）` → `1. Host Authorization（操作系统实际授予的文件/终端/网络权限）` → `2. AI Capability Limit（ReadOnly / WorkspaceWrite / Full）` → `3. User Tool Approval（单次工具调用的 allow/ask/deny）`。
-- **VFS 与终端路径隔离**：
-  - `Tools.Files` 与 `workspace bind` 使用 Operit 2 **VFS 虚拟路径**（如 `/virtual/android/documents/...`、`/operitapp/data/...`）；
-  - 终端 Shell（Termux / proot）与 Pydroid 3 使用操作系统真实路径（如 `/storage/emulated/0/互动对话项目/Gemini网页版`）；两者不可混传。
+- **工作区 ID、VFS 与终端路径隔离**：
+  - Operit 2 新版将工作区建模为一等持久化实体（含 `id` UUID、`name`、`folders[]`）；`workspace bind <chatId> <workspaceId>` **仅接受已创建的工作区 ID**（不再接受原始目录路径）；
+  - `Tools.Files` 与工作区挂载目录使用 Operit 2 **VFS 虚拟路径**（如 `/virtual/android/documents/...`、`<nodeId>:/virtual/...`、`/operitapp/data/...`）；
+  - 终端 Shell（Termux / proot）与 Pydroid 3 使用操作系统真实路径（如 `/storage/emulated/0/互动对话项目/Gemini网页版`）；
+  - 本插件 `v2.1.9+` 通过 `bindWorkspaceToChat()` 透明兼容工作区 ID 与目录路径：直接绑定失败时自动经 `workspace list` / `resolve-path` 匹配已有工作区 ID（含安卓 SAF 目录名），未登记时尝试 `workspace create`，并在设置页提供一键工作区选择器。
 - **插件安装区与运行缓存（Operit VFS 路径）**：
 
 | Operit VFS 路径 | 用途与维护注意 |
@@ -66,7 +68,7 @@ Operit 2 内置角色卡插件 `com.operit.character_cards` 的底层实现决�
 | `Tools.Chat.call({ functionType, turns, recordTokenUsage, enableThinking })` | Stage 2 后台结算、`repairMemory()` | **无状态、不落会话历史**的功能槽模型调用；`enableThinking: false` 是后台 `SUMMARY` 低延迟低费用的关键 |
 | `Tools.Chat.createNew / listChats / getMessages / agentStatus / switchTo / cancel / updateTitle` | `ensureSession()`、`restoreChat()`、超时取消 | 管理专用会话生命周期，并核验用户消息落盘内容与 `userMessageTimestamp` |
 | `Tools.Models.listSummaries()` | `fetchModelCatalog()` | 直接从宿主模型管理器读取全部已配置模型（`providerId`、`modelId`、能力标志与计费元数据） |
-| `Tools.SoftwareSettings.exec(args)` | `currentChat()`、`ensureSession()`、模型槽读写 | 统一 Core Command 入口（非终端 shell，参数数组**不含 `operit2` 可执行名**）；本插件使用 `['chat','current','--json']`、`['workspace','bind', chatId, vfsPath]`、`['model','list'|'show'|'function-list'|'function-show'|'function-set', ...]` |
+| `Tools.SoftwareSettings.exec(args)` | `currentChat()`、`bindWorkspaceToChat()`、`fetchWorkspacesList()`、模型槽读写 | 统一 Core Command 入口（非终端 shell，参数数组**不含 `operit2` 可执行名**）；本插件使用 `['chat','current','--json']`、`['workspace','list'|'bind'|'resolve-path'|'create', ...]`、`['model','list'|'show'|'function-list'|'function-show'|'function-set', ...]` |
 | `ToolPkg.callDependency('com.operit.character_cards', ...)` | `ownedStoryCard()`、`ensureSession()`、`syncCardPrefixes()` | 调用 `character.list` / `character.get` / `character.create` / `character.update` / `chat.configuration.binding.read` |
 | `ToolPkg.registerUiRoute` / `registerNavigationEntry` | `registerToolPkg()` | 注册 `compose_dsl` 页面路由并挂载到 `main_sidebar_plugins` 与 `toolbox` 导航表面 |
 | `ToolPkg.registerCommand` / `registerChatInputHook` / `registerAppLifecycleHook` | `registerToolPkg()` | 注册 `/storybridge` 命令、免 Token 中文短语消费钩子（`action: 'Consume'`）及应用启动/前台/终止钩子 |
@@ -77,12 +79,12 @@ Operit 2 内置角色卡插件 `com.operit.character_cards` 的底层实现决�
 
 ## 2. 插件包结构与运行时拓扑
 
-本插件由 5 个文件组成（打包体积 ~39 KB）：
+本插件由 5 个文件组成（打包体积 ~48 KB）：
 
 | 文件 | 角色与运行时 | 核心职责 |
 |---|---|---|
-| [`manifest.json`](../../scene_chat_dev/local.story.operit_bridge/manifest.json) | 包声明 | `toolpkg_id: "local.story.operit_bridge"`、`version: "2.1.8"`、`api_version: "2.0.0"`、`installation_scope: "device"`、依赖 `com.operit.character_cards >= 0.2.0`、声明子包 `story_bridge -> tools.js` |
-| [`main.js`](../../scene_chat_dev/local.story.operit_bridge/main.js) | Main Runtime（~2,440 行） | `PluginConfig` 持久化、IPC 通道 `story.bridge.control`、`waitLoop()` Long-Polling、`monitor()` 6s 远控同步、专用角色卡与前缀冻结、v2 双阶段/单阶段执行、无状态商城询货 `handleShopInquiry()`、Outbox 抗断网投递、模型槽绑定、`/storybridge` 命令与输入钩子 |
+| [`manifest.json`](../../scene_chat_dev/local.story.operit_bridge/manifest.json) | 包声明 | `toolpkg_id: "local.story.operit_bridge"`、`version: "2.1.9"`、`api_version: "2.0.0"`、`installation_scope: "device"`、依赖 `com.operit.character_cards >= 0.2.0`、声明子包 `story_bridge -> tools.js` |
+| [`main.js`](../../scene_chat_dev/local.story.operit_bridge/main.js) | Main Runtime（~2,600 行） | `PluginConfig` 持久化、IPC 通道 `story.bridge.control`、`waitLoop()` Long-Polling、`monitor()` 6s 远控同步、Operit 2 工作区 ID 自动匹配/创建绑定（`bindWorkspaceToChat()`）、专用角色卡与前缀冻结、v2 双阶段/单阶段执行、无状态商城询货 `handleShopInquiry()`、Outbox 抗断网投递、模型槽绑定、`/storybridge` 命令与输入钩子 |
 | [`tools.js`](../../scene_chat_dev/local.story.operit_bridge/tools.js) | Subpackage Tool Runtime（60 行） | 暴露 `start` / `stop` / `status` / `configure`（12 个可选参数）给 Operit 工具层，全部经 `ToolPkg.ipc.call('story.bridge.control', ..., { targetRuntime: 'main' })` 转发 |
 | [`ui/settings.ui.js`](../../scene_chat_dev/local.story.operit_bridge/ui/settings.ui.js) | Compose DSL UI Runtime（612 行） | 原生 Material 3 设置界面，挂载到 Operit 侧边栏「插件」与「工具箱」，通过 IPC 实时驱动并同步网页端面板 |
 | [`README.md`](../../scene_chat_dev/local.story.operit_bridge/README.md) | 插件说明 | 打包随附版本与协议摘要 |

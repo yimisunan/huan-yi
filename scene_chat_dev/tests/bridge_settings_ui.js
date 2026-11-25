@@ -122,6 +122,45 @@ function createHarness() {
                         if (!found) return JSON.stringify({ success: false, error: 'not found' });
                         return JSON.stringify(found);
                     }
+                    if (argv[0] === 'workspace' && argv[1] === 'list') {
+                        return JSON.stringify({
+                            workspaces: state.workspaces || [
+                                {
+                                    id: 'ws-gemini-uuid',
+                                    name: 'Gemini网页版',
+                                    folders: [{ name: 'Gemini网页版', path: 'node1:/virtual/android/documents/230ffdc0' }],
+                                    updatedAt: 2000,
+                                },
+                            ],
+                        });
+                    }
+                    if (argv[0] === 'workspace' && argv[1] === 'bind') {
+                        const [, , chatId, wsId] = argv;
+                        state.workspaceBindCalls = state.workspaceBindCalls || [];
+                        state.workspaceBindCalls.push({ chatId, wsId });
+                        const list = state.workspaces || [
+                            { id: 'ws-gemini-uuid', name: 'Gemini网页版', folders: [{ name: 'Gemini网页版', path: 'node1:/virtual/android/documents/230ffdc0' }] },
+                        ];
+                        if (!list.some(w => w.id === wsId)) {
+                            return JSON.stringify({ success: false, error: 'workspace does not exist: ' + wsId });
+                        }
+                        return JSON.stringify({ chatId, workspaceId: wsId, bound: true });
+                    }
+                    if (argv[0] === 'workspace' && argv[1] === 'create') {
+                        const [, , name, flag, dir] = argv;
+                        const created = {
+                            id: 'ws-created-' + name,
+                            name,
+                            folders: [{ name: 'default', path: dir }],
+                            updatedAt: 3000,
+                        };
+                        state.workspaces = [...(state.workspaces || [
+                            { id: 'ws-gemini-uuid', name: 'Gemini网页版', folders: [{ name: 'Gemini网页版', path: 'node1:/virtual/android/documents/230ffdc0' }] },
+                        ]), created];
+                        state.workspaceCreateCalls = state.workspaceCreateCalls || [];
+                        state.workspaceCreateCalls.push({ name, flag, dir });
+                        return JSON.stringify({ workspaceId: created.id, workspace: created });
+                    }
                     return JSON.stringify({ success: true });
                 },
             },
@@ -363,6 +402,41 @@ async function run() {
         assert.strictEqual(finalSnap.maxTurnsPerSession, 11);
         assert(toasts.length >= 4, 'UI should emit clear toast feedback');
         console.log('PASS 3: Compose DSL settings.ui.js end-to-end UI render & interaction tests passed');
+    }
+
+    // 4. Operit 2 workspace-ID binding resolution (path -> existing SAF workspace ID, unknown path -> auto-create) + UI picker.
+    {
+        const { box, state } = createHarness();
+        // 4a. Native Android path should auto-match existing Operit 2 SAF workspace by name when direct bind says "workspace does not exist".
+        const res1 = await box.bindWorkspaceToChat('chat-1', '/storage/emulated/0/互动对话项目/Gemini网页版');
+        assert.strictEqual(res1.boundId, 'ws-gemini-uuid');
+        assert.strictEqual(res1.primaryPath, '/virtual/android/documents/230ffdc0');
+        assert.strictEqual(state.workspaceBindCalls[0].wsId, '/storage/emulated/0/互动对话项目/Gemini网页版');
+        assert.strictEqual(state.workspaceBindCalls[1].wsId, 'ws-gemini-uuid');
+
+        // 4b. Unregistered path should auto-create workspace via `workspace create` and bind its new UUID.
+        const res2 = await box.bindWorkspaceToChat('chat-2', '/storage/emulated/0/新剧本目录');
+        assert.strictEqual(res2.boundId, 'ws-created-新剧本目录');
+        assert.strictEqual(state.workspaceCreateCalls.length, 1);
+        assert.strictEqual(state.workspaceCreateCalls[0].flag, '--native');
+
+        // 4c. UI picker under Advanced Connection Settings renders availableWorkspaces chips and saves workspaceId on click.
+        const { render } = makeMockComposeCtx((ch, payload) => state.ipcHandlers[ch](payload));
+        const initTree = render();
+        await initTree.props.onLoad();
+        let tree = render();
+        const toggleAdv = findNode(tree, n => n.props && n.props.key === 'btn-toggle-advanced');
+        assert(toggleAdv, 'btn-toggle-advanced must render');
+        toggleAdv.props.onClick();
+        tree = render();
+        const wsChip = findNode(tree, n => n.props && n.props.key === 'workspace-presets:ws-gemini-uuid');
+        assert(wsChip, 'workspace-presets:ws-gemini-uuid chip must render');
+        wsChip.props.onClick();
+        await new Promise(r => setImmediate(r));
+        await new Promise(r => setImmediate(r));
+        const snap = await box.exports.receive({ action: 'status' });
+        assert.strictEqual(snap.workspacePath, 'ws-gemini-uuid');
+        console.log('PASS 4: Operit 2 workspace-ID bind resolution, auto-create fallback & UI picker verified');
     }
 }
 

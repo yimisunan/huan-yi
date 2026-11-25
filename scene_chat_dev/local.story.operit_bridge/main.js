@@ -8,7 +8,7 @@ let busy = null;
 let lastError = '';
 let monitorTimer = null, monitorBusy = false, starting = null;
 let controlSupported = null, sessionReady = false;
-const PLUGIN_VERSION = '2.1.8';
+const PLUGIN_VERSION = '2.1.9';
 const SETTINGS_ROUTE = 'toolpkg:local.story.operit_bridge:ui:settings';
 const DEFAULT_MAX_TURNS = 10;
 const MAX_PLAYER_DIALOGUE_PER_TURN = 3;
@@ -32,8 +32,9 @@ function syncServiceEpoch(epoch) {
 }
 let verifiedCardCache = new Map();
 let boundChatCache = new Map();
+let resolvedWorkspacePathCache = new Map();
 let settlementModelInfo = null, settlementCheckedAt = 0, settlementFallback = false;
-let modelCatalogCache = { models: [], bindings: [] }, catalogCheckedAt = 0;
+let modelCatalogCache = { models: [], bindings: [], workspaces: [] }, catalogCheckedAt = 0;
 const FILE_TOOLS = ['list_files', 'find_files', 'grep_code', 'read_file', 'read_file_full', 'read_file_part', 'file_info', 'file_exists'];
 const LIVE_READ_TOOLS = ['read_file','read_file_full','read_file_part','file_info','grep_code'];
 const ROLE_MARK = 'local.story.operit_bridge:readonly';
@@ -110,6 +111,159 @@ async function ownedStoryCard(model, scene) {
     return null;
 }
 
+function stripQualifiedNodePrefix(rawPath) {
+    const s = String(rawPath || '').trim().replace(/\\/g, '/');
+    const m = /^[a-zA-Z0-9._-]+:(\/.*)$/.exec(s);
+    const body = m ? m[1] : s;
+    return body.length > 1 ? body.replace(/\/+$/, '') : body;
+}
+
+function normalizeWorkspaceRecord(item) {
+    if (!item || typeof item !== 'object') return null;
+    const id = String(item.id || item.workspaceId || '').trim();
+    if (!id) return null;
+    const name = String(item.name || '').trim() || id.slice(0, 12);
+    const folders = Array.isArray(item.folders)
+        ? item.folders
+            .map(f => ({
+                name: String((f && f.name) || '').trim(),
+                path: String((f && f.path) || '').trim(),
+            }))
+            .filter(f => f.path)
+        : [];
+    const primaryPath = folders[0] ? folders[0].path : String(item.primaryPath || item.path || '').trim();
+    return {
+        id,
+        name,
+        folders,
+        primary_path: primaryPath,
+        updated_at: Number(item.updatedAt || item.updated_at || 0) || 0,
+    };
+}
+
+async function fetchWorkspacesList() {
+    if (typeof Tools === 'undefined' || !Tools.SoftwareSettings || typeof Tools.SoftwareSettings.exec !== 'function') {
+        return [];
+    }
+    try {
+        const res = cliPayload(await Tools.SoftwareSettings.exec(['workspace', 'list', '--json']));
+        const rows = Array.isArray(res) ? res : (res && Array.isArray(res.workspaces) ? res.workspaces : []);
+        return rows
+            .map(normalizeWorkspaceRecord)
+            .filter(Boolean)
+            .sort((a, b) => (b.updated_at - a.updated_at) || a.name.localeCompare(b.name))
+            .slice(0, 64);
+    } catch (_) {
+        return [];
+    }
+}
+
+function parseBindExecError(boundRaw) {
+    if (boundRaw === undefined || boundRaw === null) return '';
+    const bound = typeof boundRaw === 'string'
+        ? (() => { try { return JSON.parse(boundRaw); } catch (_) { return { raw: boundRaw }; } })()
+        : boundRaw;
+    if (bound && (bound.success === false || bound.ok === false)) {
+        return String(bound.error || '工作区绑定失败');
+    }
+    return '';
+}
+
+async function execWorkspaceBindOnce(chatId, workspaceIdOrPath) {
+    const boundRaw = await Tools.SoftwareSettings.exec(['workspace', 'bind', chatId, workspaceIdOrPath, '--json']);
+    const err = parseBindExecError(boundRaw);
+    if (err) throw new Error(err);
+}
+
+async function bindWorkspaceToChat(chatId, rawTarget) {
+    const target = String(rawTarget || '').trim();
+    if (!target) throw new Error('故事会话尚未绑定项目工作区，请先配置workspacePath');
+
+    // Fast path: target is already a valid Operit 2 workspaceId (or older Operit build accepting raw path).
+    try {
+        await execWorkspaceBindOnce(chatId, target);
+        if (target.startsWith('/')) resolvedWorkspacePathCache.set(target, stripQualifiedNodePrefix(target));
+        return { boundId: target, primaryPath: target.startsWith('/') ? stripQualifiedNodePrefix(target) : '' };
+    } catch (directErr) {
+        const directMsg = String(directErr && directErr.message ? directErr.message : directErr);
+        const workspaces = await fetchWorkspacesList();
+
+        // Build comparable candidate paths (native + aliases + VFS resolved path).
+        const normTarget = stripQualifiedNodePrefix(target);
+        const candidates = new Set([target, normTarget]);
+        if (normTarget.startsWith('/storage/emulated/0/')) {
+            const rel = normTarget.slice('/storage/emulated/0/'.length);
+            candidates.add('/sdcard/' + rel);
+            candidates.add('/virtual/android/sdcard/' + rel);
+        } else if (normTarget.startsWith('/sdcard/')) {
+            const rel = normTarget.slice('/sdcard/'.length);
+            candidates.add('/storage/emulated/0/' + rel);
+            candidates.add('/virtual/android/sdcard/' + rel);
+        }
+        if (target.startsWith('/')) {
+            try {
+                const resolved = cliPayload(await Tools.SoftwareSettings.exec(['workspace', 'resolve-path', '--native', normTarget, '--json']));
+                const vfsPath = resolved && typeof resolved === 'object' ? (resolved.vfsPath || resolved.path || '') : '';
+                if (vfsPath) {
+                    candidates.add(String(vfsPath).trim());
+                    candidates.add(stripQualifiedNodePrefix(vfsPath));
+                }
+            } catch (_) {}
+        }
+
+        const segs = normTarget.split('/').filter(Boolean);
+        const baseName = segs.length ? segs[segs.length - 1] : '';
+        const tailTwo = segs.length >= 2 ? ('/' + segs.slice(-2).join('/')) : '';
+
+        let matched = workspaces.find(ws => ws.id === target)
+            || workspaces.find(ws => ws.folders.some(f => candidates.has(f.path) || candidates.has(stripQualifiedNodePrefix(f.path))))
+            || (tailTwo ? workspaces.find(ws => ws.folders.some(f => stripQualifiedNodePrefix(f.path).endsWith(tailTwo))) : null)
+            || workspaces.find(ws => ws.name === target);
+
+        if (!matched && baseName) {
+            const byBase = workspaces.filter(ws => ws.name === baseName || ws.folders.some(f => f.name === baseName));
+            if (byBase.length >= 1) matched = byBase[0];
+        }
+
+        if (matched) {
+            await execWorkspaceBindOnce(chatId, matched.id);
+            const pPath = stripQualifiedNodePrefix(matched.primary_path) || (target.startsWith('/') ? normTarget : '');
+            if (pPath) resolvedWorkspacePathCache.set(target, pPath);
+            return { boundId: matched.id, primaryPath: pPath };
+        }
+
+        // Not yet registered in Operit 2: attempt automatic workspace creation for explicit paths.
+        if (target.startsWith('/')) {
+            const createFlag = /^\/(virtual|operitapp|app|mnt)\//.test(normTarget) ? '--vfs' : '--native';
+            const createName = baseName || '故事工作区';
+            try {
+                const created = cliPayload(await Tools.SoftwareSettings.exec(['workspace', 'create', createName, createFlag, normTarget, '--json']));
+                const createdId = created && typeof created === 'object'
+                    ? String(created.workspaceId || (created.workspace && created.workspace.id) || '').trim()
+                    : '';
+                if (createdId) {
+                    await execWorkspaceBindOnce(chatId, createdId);
+                    const createdPrimary = created.workspace && Array.isArray(created.workspace.folders) && created.workspace.folders[0]
+                        ? stripQualifiedNodePrefix(created.workspace.folders[0].path)
+                        : normTarget;
+                    resolvedWorkspacePathCache.set(target, createdPrimary);
+                    return { boundId: createdId, primaryPath: createdPrimary };
+                }
+            } catch (_) {}
+        }
+
+        const hint = workspaces.length
+            ? ('；当前 Operit 已有工作区：' + workspaces.slice(0, 5).map(w => w.name + '(' + w.id.slice(0, 8) + ')').join('、') + '。请在 Operit 左侧插件「故事桥接 → 高级连接配置」直接点选对应工作区。')
+            : '；请先在 Operit 2 工作区面板打开项目目录，再到插件「故事桥接 → 高级连接配置」直接点选该工作区。';
+        throw new Error(directMsg + hint);
+    }
+}
+
+function auditWorkspaceValue(config) {
+    const raw = (config && config.workspacePath) || '';
+    return resolvedWorkspacePathCache.get(raw) || raw;
+}
+
 async function ensureSession(config, model, scene = false, persist = () => PluginConfig.flush(config), skipPromptReset = false) {
     if (!config.workspacePath) throw new Error('故事会话尚未绑定项目工作区，请先配置workspacePath');
     const cachedBoundKey = config.chatId && config.participantId
@@ -175,11 +329,7 @@ async function ensureSession(config, model, scene = false, persist = () => Plugi
         await persist();
         await Tools.Chat.updateTitle(chat.chatId, '故事生成 · 项目工作区');
     }
-    const boundRaw = await Tools.SoftwareSettings.exec(['workspace', 'bind', config.chatId, config.workspacePath, '--json']);
-    if (boundRaw !== undefined && boundRaw !== null) {
-        const bound = typeof boundRaw === 'string' ? (() => { try { return JSON.parse(boundRaw); } catch (_) { return { raw: boundRaw }; } })() : boundRaw;
-        if (bound && (bound.success === false || bound.ok === false)) throw new Error(bound.error || '工作区绑定失败');
-    }
+    await bindWorkspaceToChat(config.chatId, config.workspacePath);
     const binding = await ToolPkg.callDependency('com.operit.character_cards', 'chat.configuration.binding.read', { chatId: config.chatId });
     if (binding.selection !== 'card:' + config.participantId) throw new Error('专用会话参与者绑定已改变');
     if (!(await Tools.Chat.agentStatus(config.chatId)).isIdle) throw new Error('故事专用会话忙碌，未重复提交');
@@ -794,7 +944,7 @@ async function executeSessionV2(config, task, model, session) {
                     ...prevAudit,
                     chat_id: session.chatId,
                     participant_id: session.participantId,
-                    workspace: config.workspacePath || prevAudit.workspace || '',
+                    workspace: auditWorkspaceValue(config) || prevAudit.workspace || '',
                     delivery: delivered,
                 };
                 await pushPreview('settling', finalPreviewMsgs);
@@ -858,7 +1008,7 @@ async function executeSessionV2(config, task, model, session) {
                 passes.push({ outcome: receipt.outcome, snapshot_message_timestamp: fg.timestamp,
                     tool_start: 0, tool_count: fg.tools.length, started_at: passStarted, completed_at: Date.now() });
                 baseAudit = { api: 'Tools.Chat.sendMessageStreaming', chat_id: session.chatId,
-                    participant_id: session.participantId, workspace: config.workspacePath,
+                    participant_id: session.participantId, workspace: auditWorkspaceValue(config),
                     outcome: receipt.outcome, snapshot_message_timestamp: fg.timestamp,
                     started_at: startedAt, completed_at: Date.now(), read_passes: passes,
                     repair_keys: [], tools, delivery: delivered };
@@ -1048,7 +1198,7 @@ async function executeSessionV2(config, task, model, session) {
             passes.push({ outcome: receipt.outcome, snapshot_message_timestamp: final.timestamp,
                 tool_start: toolStart, tool_count: final.tools.length, started_at: passStarted, completed_at: Date.now() });
             const audit = { api: 'Tools.Chat.sendMessageStreaming', chat_id: session.chatId,
-                participant_id: session.participantId, workspace: config.workspacePath,
+                participant_id: session.participantId, workspace: auditWorkspaceValue(config),
                 outcome: receipt.outcome, snapshot_message_timestamp: final.timestamp,
                 started_at: startedAt, completed_at: Date.now(), read_passes: passes,
                 repair_keys: [], tools, delivery: delivered };
@@ -1169,7 +1319,7 @@ async function executeSession(config, task, model, session) {
             passes.push({ outcome: receipt.outcome, snapshot_message_timestamp: final.timestamp,
                 tool_start: toolStart, tool_count: final.tools.length, started_at: passStarted, completed_at: Date.now() });
             const audit = { api: 'Tools.Chat.sendMessageStreaming', chat_id: session.chatId,
-                participant_id: session.participantId, workspace: config.workspacePath,
+                participant_id: session.participantId, workspace: auditWorkspaceValue(config),
                 outcome: receipt.outcome, snapshot_message_timestamp: final.timestamp,
                 started_at: startedAt, completed_at: Date.now(), read_passes: passes,
                 repair_keys: repairKeys, tools, ...(delivered ? {delivery: delivered} : {}) };
@@ -1241,7 +1391,8 @@ function cliPayload(raw) {
         }
         if (raw && typeof raw === 'object') {
             if (raw.success === false) throw new Error(raw.error || 'Operit命令执行失败');
-            if (Array.isArray(raw) || raw.modelId || Array.isArray(raw.bindings) || Array.isArray(raw.models) || raw.updated === true) return raw;
+            if (Array.isArray(raw) || raw.modelId || Array.isArray(raw.bindings) || Array.isArray(raw.models)
+                || Array.isArray(raw.workspaces) || raw.workspaceId || raw.vfsPath || raw.updated === true) return raw;
             const nested = raw.data ?? raw.result ?? raw.content ?? raw.text ?? raw.value;
             if (nested !== undefined) { raw = nested; continue; }
             return raw;
@@ -1352,7 +1503,8 @@ async function fetchModelCatalog(force = false) {
         })
         .slice(0, 32);
 
-    modelCatalogCache = { models, bindings };
+    const workspaces = await fetchWorkspacesList();
+    modelCatalogCache = { models, bindings, workspaces };
     catalogCheckedAt = Date.now();
     return modelCatalogCache;
 }
@@ -2197,8 +2349,11 @@ async function receive(input = {}) {
         assertIdleForSettings(config, '更新高级连接配置');
         if (input.workspacePath !== undefined) {
             const wp = String(input.workspacePath).trim();
-            if (!wp.startsWith('/')) throw new Error('工作区路径须为以 / 开头的绝对路径');
-            config.workspacePath = wp.replace(/\/$/, '');
+            if (!wp || /[\r\n]/.test(wp)) throw new Error('工作区 ID 或路径不能为空');
+            config.workspacePath = (wp.startsWith('/') && wp.length > 1) ? wp.replace(/\/+$/, '') : wp;
+            boundChatCache.clear();
+            resolvedWorkspacePathCache.clear();
+            if (/workspace|工作区/i.test(lastError)) lastError = '';
         }
         if (input.endpoint !== undefined) {
             const ep = String(input.endpoint).trim().replace(/\/$/, '');
@@ -2233,8 +2388,12 @@ async function receive(input = {}) {
             modelCheckedAt = 0;
         }
         if (input.workspacePath !== undefined) {
-            if (typeof input.workspacePath !== 'string' || !input.workspacePath.startsWith('/')) throw new Error('workspacePath须为已确认的工作区VFS绝对路径');
-            config.workspacePath = input.workspacePath.replace(/\/$/, '');
+            const wp = typeof input.workspacePath === 'string' ? input.workspacePath.trim() : '';
+            if (!wp || /[\r\n]/.test(wp)) throw new Error('workspacePath须为已确认的工作区 ID 或绝对路径');
+            config.workspacePath = (wp.startsWith('/') && wp.length > 1) ? wp.replace(/\/+$/, '') : wp;
+            boundChatCache.clear();
+            resolvedWorkspacePathCache.clear();
+            if (/workspace|工作区/i.test(lastError)) lastError = '';
         }
         if (input.endpoint !== undefined) {
             if (!/^http:\/\/127\.0\.0\.1:[0-9]{1,5}$/.test(input.endpoint)) throw new Error('endpoint只允许本机IPv4端口');
@@ -2303,7 +2462,7 @@ async function receive(input = {}) {
         liveSession: liveSessionView(config),
         chatId: config.chatId, participantId: config.participantId,
         inFlight: config.inFlight && { request_id: config.inFlight.request_id },
-        ...(wantCatalog ? { availableModels: modelCatalogCache.models, functionBindings: modelCatalogCache.bindings } : {}) };
+        ...(wantCatalog ? { availableModels: modelCatalogCache.models, functionBindings: modelCatalogCache.bindings, availableWorkspaces: modelCatalogCache.workspaces || [] } : {}) };
 }
 
 async function restore() {

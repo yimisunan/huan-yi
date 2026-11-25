@@ -562,10 +562,32 @@ function StoryBridgeSettingsScreen(ctx) {
         cards.push(section('session-card', '会话与防漂移控制', 'History', [], sessionChildren));
 
         // Card 4: Advanced Connection Settings (Collapsible)
+        const workspaces = Array.isArray(snap && snap.availableWorkspaces) ? snap.availableWorkspaces : [];
+        const matchedWs = workspaces.find(ws => ws && (ws.id === snap.workspacePath || (Array.isArray(ws.folders) && ws.folders.some(f => f && f.path === snap.workspacePath))));
+        const wsSummaryLabel = matchedWs
+            ? (matchedWs.name + ' (' + matchedWs.id.slice(0, 8) + '…)')
+            : (snap.workspacePath || '未设置');
         const advChildren = [];
         if (state.showAdvanced) {
-            advChildren.push(muted('一般首次部署后无需改动；修改工作区路径后将在下一次行动重新绑定。'));
-            advChildren.push(textInput('input-workspace', '项目工作区路径 (workspacePath)', state.workspaceDraft, v => update({ workspaceDraft: v })));
+            advChildren.push(muted('新版 Operit 2 需绑定已创建的工作区 ID；直接点选下方已有工作区，或填入工作区 ID / 目录路径（自动匹配已有工作区）。'));
+            if (workspaces.length > 0) {
+                advChildren.push(UI.Text({ text: '快速选择 Operit 已有工作区', fontSize: 13, fontWeight: '600', color: colors.onSurface }));
+                const wsOptions = workspaces.slice(0, 12).map(ws => {
+                    const primary = ws.primary_path || (ws.folders && ws.folders[0] && ws.folders[0].path) || '';
+                    const shortPath = primary ? (' · ' + primary.split('/').filter(Boolean).slice(-1)[0]) : '';
+                    const label = (ws.name || ws.id.slice(0, 8)) + (shortPath && shortPath !== (' · ' + ws.name) ? shortPath : '');
+                    return { value: ws.id, label: label.slice(0, 28) };
+                });
+                advChildren.push(chipRow('workspace-presets', matchedWs ? matchedWs.id : (state.workspaceDraft || ''), wsOptions, wsId => {
+                    update({ workspaceDraft: wsId });
+                    void runAction({
+                        action: 'update_settings',
+                        workspacePath: wsId,
+                        endpoint: state.endpointDraft,
+                    }, '已绑定工作区');
+                }));
+            }
+            advChildren.push(textInput('input-workspace', '工作区 ID 或目录路径 (workspacePath)', state.workspaceDraft, v => update({ workspaceDraft: v })));
             advChildren.push(textInput('input-endpoint', '本地服务地址 (endpoint)', state.endpointDraft, v => update({ endpointDraft: v })));
             advChildren.push(UI.Row({ fillMaxWidth: true, horizontalArrangement: 'end' }, [
                 UI.Button({
@@ -581,7 +603,7 @@ function StoryBridgeSettingsScreen(ctx) {
                 }),
             ]));
         } else {
-            advChildren.push(muted('工作区：' + (snap.workspacePath || '未设置') + '\n本地地址：' + (snap.endpoint || 'http://127.0.0.1:5000')));
+            advChildren.push(muted('工作区：' + wsSummaryLabel + '\n本地地址：' + (snap.endpoint || 'http://127.0.0.1:5000')));
         }
         cards.push(section('advanced-card', '高级连接配置', 'Settings', [
             UI.TextButton({
