@@ -37,7 +37,7 @@
 |---|---|---|
 | Loopback 主机限制 | `request.host` 主机名必在 `{'127.0.0.1', 'localhost', '::1'}` | `403` |
 | 同源防 CSRF | 若含 `Origin` 或 `Referer` 头必须匹配 `request.host_url.rstrip('/')`；拒绝 `Sec-Fetch-Site ∈ {'cross-site', 'same-site'}` | `403` |
-| 写接口显式客户端头 | 非 `GET`/`HEAD`/`OPTIONS` 的变更接口（`POST/DELETE /api/fish_key`、`POST /api/voice_tier`、`POST /api/config`、`POST/DELETE /api/voice_repo`、`POST /api/tts/prefetch`）强制要求 `X-Voice-Client: 1` | `403` |
+| 写接口显式客户端头 | 非 `GET`/`HEAD`/`OPTIONS` 的变更接口（`POST/DELETE /api/fish_key`、`POST /api/voice_tier`、`POST /api/config`、`POST/PATCH/DELETE /api/voice_repo`、`POST /api/tts/prefetch`）强制要求 `X-Voice-Client: 1` | `403` |
 | 密钥绝不回显与脱敏日志 | `/api/fish_key` 仅返回掩码指纹与来源（`cache`/`env`/`none`）；上游报错日志自动脱敏所有 `sk-` / Bearer 令牌；`/api/tts` 入口统一剥离 `｛表层台词｜真实潜台词｝` 仅朗读表层台词 | — |
 
 ---
@@ -92,6 +92,7 @@
 | `GET` | `/api/fish_wallet` | `get_fish_wallet` | — | 查询 Fish 账户套餐与 API Credit 余额（6s 超时） |
 | `GET` | `/api/voice_repo` | `get_voice_repo` | — | 读取 `语音仓库/voice_repo.json` 收藏音色列表 `{items, count}` |
 | `POST` | `/api/voice_repo` | `add_voice_repo` | `{id, name?, note?}`（须 `X-Voice-Client: 1`） | 规范化并新增收藏音色（重复返 `409`） |
+| `PATCH` | `/api/voice_repo` | `update_voice_repo` | `{id, name?, note?}`（须 `X-Voice-Client: 1`） | 更新指定收藏音色的名称与备注（未找到返 `404`） |
 | `DELETE` | `/api/voice_repo` | `delete_voice_repo` | `?id=...`（须 `X-Voice-Client: 1`） | 删除指定收藏音色 |
 | `GET`/`POST` | `/api/tts` | `tts_api` | `text`(1–12000), `voice`, `speaker?`, `emotion?`, `tts_model?`, `speed_scale?`, `expressive_boost?`, `stream?` | 剥离 `【】*`；仅 Fish 注入音素，非 `drama-3` 智能降级 XML 标签并抽取中文导演句英文控制词，支持生理韵律微调；Singleflight + 内存/磁盘 LRU + 4 并发槽 |
 | `POST` | `/api/tts/prefetch` | `tts_prefetch_api` | `{items: [{text, voice, speaker?, speed_scale?, expressive_boost?}]}`（须 `X-Voice-Client: 1`） | 批量向后预热接下来 3 句台词，闲置槽位并发 2，100ms 快速超时放弃 |
