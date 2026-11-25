@@ -986,72 +986,6 @@ class StoryService:
                 }
         return self.interaction_snapshot()
 
-    def _inquiries_path(self):
-        return self._path('shop_inquiries.json')
-
-    def _read_inquiries(self):
-        path = self._inquiries_path()
-        if not path.is_file():
-            return {'version': 1, 'latest': None, 'items': {}}
-        try:
-            raw = json.loads(path.read_bytes())
-        except Exception:
-            return {'version': 1, 'latest': None, 'items': {}}
-        if not isinstance(raw, dict) or not isinstance(raw.get('items'), dict):
-            return {'version': 1, 'latest': None, 'items': {}}
-        return raw
-
-    def _write_inquiries(self, data):
-        items = data.get('items') or {}
-        if len(items) > 20:
-            ordered = sorted(items.items(), key=lambda kv: float((kv[1] or {}).get('created_at') or 0))
-            data['items'] = dict(ordered[-20:])
-            if data.get('latest') not in data['items']:
-                data['latest'] = ordered[-1][0] if ordered else None
-        rr._atomic(self._inquiries_path(), rr._json(data))
-
-    def _expire_inquiries(self, data, *, save_epoch=None):
-        now = time.time()
-        changed = False
-        for iq in (data.get('items') or {}).values():
-            if not isinstance(iq, dict):
-                continue
-            status = iq.get('status')
-            if save_epoch and iq.get('save_epoch') and iq.get('save_epoch') != save_epoch and status in ('queued', 'claimed'):
-                iq['status'] = 'cancelled'
-                iq['error'] = '存档已切换，本次询货已取消'
-                iq['completed_at'] = now
-                changed = True
-                continue
-            if status == 'claimed' and (now - float(iq.get('claimed_at') or iq.get('created_at') or 0)) > LEASE_SECONDS:
-                iq['status'] = 'failed'
-                iq['error'] = 'AI 询货进货超时，请检查桥接状态后重试'
-                iq['completed_at'] = now
-                changed = True
-            elif status == 'queued' and (now - float(iq.get('created_at') or 0)) > 180:
-                iq['status'] = 'failed'
-                iq['error'] = '桥接长时间未认领询货请求，请确认 Operit 桥接已开启'
-                iq['completed_at'] = now
-                changed = True
-        return changed
-
-    @staticmethod
-    def _public_inquiry(iq):
-        if not isinstance(iq, dict):
-            return None
-        return {
-            'id': iq.get('id', ''),
-            'query': iq.get('query', ''),
-            'status': iq.get('status', ''),
-            'save_epoch': iq.get('save_epoch', ''),
-            'created_at': iq.get('created_at'),
-            'completed_at': iq.get('completed_at'),
-            'shopkeeper_reply': iq.get('shopkeeper_reply', ''),
-            'added_items': list(iq.get('added_items') or []),
-            'rejected_reasons': list(iq.get('rejected_reasons') or []),
-            'error': iq.get('error', ''),
-        }
-
     def shop_view(self):
         self.start()
         with self.store._locked():
@@ -1063,8 +997,11 @@ class StoryService:
             catalog = sp.load_shop_catalog(self.root, optional=True)
             st, _, _ = save_store.load_bundle(self.root, files)
             dyn_items = list((st.get('shop') or {}).get('dynamic_catalog') or [])
-            host_biz, heroine_affs = sp.read_shop_unlock_metrics(engine, memory)
-            max_affection = max(heroine_affs.values()) if heroine_affs else 0
+            um = sp.read_shop_unlock_metrics_full(engine, memory)
+            host_biz = um['host_biz']
+            heroine_affs = um['heroine_affs']
+            max_affection = um['max_affection']
+            max_depravity = um['max_depravity']
             row = ir.segment(self.root, files)
             prog = ir.playback(self.root, row)
             state = self._read()
@@ -1072,25 +1009,23 @@ class StoryService:
             busy = any(j['status'] in ACTIVE for j in state['jobs'].values())
             can_transact = (not busy) and (row is None or prog['completed'])
             cur_epoch = self._save_epoch()
-            iq_store = self._read_inquiries()
-            if self._expire_inquiries(iq_store, save_epoch=cur_epoch):
-                self._write_inquiries(iq_store)
-            latest_iq = iq_store['items'].get(iq_store.get('latest'))
-            if latest_iq and latest_iq.get('save_epoch') != cur_epoch:
-                latest_iq = None
             all_catalog_items = [
                 *[{**it, 'source': 'static'} for it in catalog['items']],
                 *[{**it, 'source': it.get('source') or 'ai_restock'} for it in dyn_items if isinstance(it, dict)],
             ]
-            host_charm = int(((st.get('panels') or {}).get('系统宿主') or {}).get('魅力', 70) or 70)
+            host_charm = int(((st.get('panels') or {}).get('系统宿主') or {}).get('魅力', um['host_charm']) or um['host_charm'])
             charm_tier = engine.charm_tier_info(host_charm)
             shop_disc = float(charm_tier.get('shop_discount', 1.0) or 1.0)
+            unlocked_grade = sp.host_unlocked_shop_grade(host_biz, max_depravity, host_charm)
             items = []
             for item in all_catalog_items:
                 bought = shop_state['redeemed'].get(item['id'], 0)
                 cap = item.get('max_per_save')
                 remaining = None if cap is None else max(0, cap - bought)
-                chk = sp.evaluate_unlock_req(item.get('unlock_req'), host_biz, heroine_affs)
+                chk = sp.evaluate_unlock_req(
+                    item.get('unlock_req'), host_biz, heroine_affs,
+                    max_depravity=max_depravity, host_charm=host_charm,
+                )
                 base_price = int(item['price'])
                 eff_price = max(1, int(round(base_price * shop_disc))) if shop_disc < 1.0 else base_price
                 items.append({
@@ -1111,13 +1046,16 @@ class StoryService:
                 'categories': catalog.get('categories', {}),
                 'charm_discount': shop_disc,
                 'charm_tier': charm_tier,
+                'unlocked_grade': unlocked_grade,
+                'unlocked_grade_label': sp.SHOP_GRADE_META[unlocked_grade]['label'],
                 'items': items,
                 'points': points if points is not None else 0,
                 'host_biz': host_biz,
                 'max_affection': max_affection,
+                'max_depravity': max_depravity,
+                'host_charm': host_charm,
                 'dynamic_count': len(dyn_items),
                 'dynamic_limit': sp.SHOP_DYNAMIC_LIMIT,
-                'latest_inquiry': self._public_inquiry(latest_iq),
                 'recent': shop_state['recent'],
                 'can_transact': can_transact,
                 'busy': busy,
@@ -1130,150 +1068,9 @@ class StoryService:
         self.hub.publish('committed', {'request_id': result['receipt']['request_id'], 'kind': 'shop_redeem'})
         return {**result, 'snapshot': self.interaction_snapshot()}
 
-    def inquire_shop(self, body):
-        self.start()
-        rr._keys(body, {'query', 'save_epoch'}, '商城AI询货', {'query', 'save_epoch'})
-        query = re.sub(r'\s+', ' ', str(body['query'] or '')).strip()
-        if not query or len(query) > 120:
-            raise rr.RoundError('询货描述须为 1～120 字的非空文本')
-        with self.store._locked():
-            cur_epoch = self._save_epoch()
-            if body['save_epoch'] != cur_epoch:
-                raise rr.ConflictError('当前存档已改变，请刷新后重试')
-            state = self._read()
-            self._expire(state)
-            if any(j['status'] in ACTIVE for j in state['jobs'].values()):
-                raise rr.ConflictError('当前有剧情行动正在处理，请待本段结算完成后再向商城询货')
-            iq_store = self._read_inquiries()
-            self._expire_inquiries(iq_store, save_epoch=cur_epoch)
-            if any(it.get('status') in ('queued', 'claimed') for it in iq_store['items'].values()):
-                raise rr.ConflictError('已有商城询货正在进货中，请稍候片刻')
-            iq_id = 'siq-' + secrets.token_hex(8)
-            iq = {
-                'id': iq_id,
-                'query': query,
-                'status': 'queued',
-                'save_epoch': cur_epoch,
-                'lease': None,
-                'created_at': time.time(),
-                'claimed_at': None,
-                'completed_at': None,
-                'shopkeeper_reply': '',
-                'added_items': [],
-                'rejected_reasons': [],
-                'error': '',
-            }
-            iq_store['items'][iq_id] = iq
-            iq_store['latest'] = iq_id
-            self._write_inquiries(iq_store)
-            pub = {'inquiry': self._public_inquiry(iq)}
-        self.hub.publish('shop_inquiry', {'id': iq_id, 'status': 'queued'}, wake_worker=True)
-        return pub
-
-    def shop_inquiry_status(self, iq_id):
-        self.start()
-        with self.store._locked():
-            iq_store = self._read_inquiries()
-            if self._expire_inquiries(iq_store, save_epoch=self._save_epoch()):
-                self._write_inquiries(iq_store)
-            iq = iq_store['items'].get(iq_id)
-            if not iq:
-                abort(404)
-            return {'inquiry': self._public_inquiry(iq)}
-
     def claim_shop_inquiry(self, body=None):
-        self.start()
-        with self.store._locked():
-            state = self._read()
-            self._expire(state)
-            if any(j['status'] in ACTIVE for j in state['jobs'].values()):
-                return {'inquiry': None}
-            cur_epoch = self._save_epoch()
-            iq_store = self._read_inquiries()
-            changed = self._expire_inquiries(iq_store, save_epoch=cur_epoch)
-            queued = [
-                it for it in iq_store['items'].values()
-                if isinstance(it, dict) and it.get('status') == 'queued' and it.get('save_epoch') == cur_epoch
-            ]
-            if not queued:
-                if changed:
-                    self._write_inquiries(iq_store)
-                return {'inquiry': None}
-            queued.sort(key=lambda x: float(x.get('created_at') or 0))
-            iq = queued[-1]
-            iq['status'] = 'claimed'
-            iq['lease'] = secrets.token_hex(16)
-            iq['claimed_at'] = time.time()
-            self._write_inquiries(iq_store)
-            files = self.store._files()
-            prompt_pack = sp.build_shop_inquiry_prompt(self.root, files, iq['query'])
-            return {
-                'inquiry': {
-                    'id': iq['id'],
-                    'lease': iq['lease'],
-                    'query': iq['query'],
-                    'save_epoch': iq['save_epoch'],
-                    'system_prompt': prompt_pack['system_prompt'],
-                    'user_prompt': prompt_pack['user_prompt'],
-                }
-            }
-
-    def complete_shop_inquiry(self, iq_id, body):
-        self.start()
-        rr._keys(body, {'lease', 'text', 'payload', 'error'}, '商城询货提交', {'lease'})
-        event_payload = None
-        response = None
-        with self.store._locked():
-            iq_store = self._read_inquiries()
-            iq = iq_store['items'].get(iq_id)
-            if not iq:
-                abort(404)
-            if iq.get('status') in ('completed', 'failed', 'cancelled'):
-                return {'inquiry': self._public_inquiry(iq)}
-            lease = str(body.get('lease') or '')
-            if iq.get('status') != 'claimed' or not iq.get('lease') or not hmac.compare_digest(lease, str(iq['lease'])):
-                raise rr.ConflictError('商城询货租约无效或已过期')
-            err_text = str(body.get('error') or '').strip()
-            if err_text:
-                iq['status'] = 'failed'
-                iq['error'] = err_text[:400]
-                iq['completed_at'] = time.time()
-                self._write_inquiries(iq_store)
-                event_payload = {'inquiry_id': iq_id, 'status': 'failed', 'error': iq['error']}
-                response = {'inquiry': self._public_inquiry(iq)}
-            else:
-                raw_payload = body.get('payload') if body.get('payload') is not None else body.get('text')
-                try:
-                    res = sp.persist_dynamic_shop_items(
-                        self,
-                        raw_payload,
-                        query=iq['query'],
-                        expected_save_epoch=iq['save_epoch'],
-                    )
-                except rr.RoundError as exc:
-                    iq['status'] = 'failed'
-                    iq['error'] = str(exc)[:400]
-                    iq['completed_at'] = time.time()
-                    self._write_inquiries(iq_store)
-                    event_payload = {'inquiry_id': iq_id, 'status': 'failed', 'error': iq['error']}
-                    response = {'inquiry': self._public_inquiry(iq)}
-                else:
-                    iq['status'] = 'completed'
-                    iq['completed_at'] = time.time()
-                    iq['shopkeeper_reply'] = res['shopkeeper_reply']
-                    iq['added_items'] = res['added_items']
-                    iq['rejected_reasons'] = res['rejected_reasons']
-                    iq['error'] = ''
-                    self._write_inquiries(iq_store)
-                    event_payload = {
-                        'inquiry_id': iq_id,
-                        'status': 'completed',
-                        'added_count': len(res['added_items']),
-                    }
-                    response = {'inquiry': self._public_inquiry(iq), 'result': res}
-        if event_payload is not None:
-            self.hub.publish('shop_updated', event_payload)
-        return response
+        """Legacy no-op endpoint kept for v2.1.8 bridge compatibility (custom restock now runs in-story via 【商城定制】)."""
+        return {'inquiry': None}
 
     def delete_dynamic_shop_item(self, item_id, body=None):
         self.start()
@@ -1896,12 +1693,6 @@ class StoryService:
             job = state['jobs'].get(state['latest'])
             if job and job.get('status') == 'queued':
                 has_task = True
-            if not has_task and not any(j['status'] in ACTIVE for j in state['jobs'].values()):
-                cur_epoch = self._save_epoch()
-                iq_store = self._read_inquiries()
-                if any(isinstance(it, dict) and it.get('status') == 'queued' and it.get('save_epoch') == cur_epoch
-                       for it in (iq_store.get('items') or {}).values()):
-                    has_task = True
             cmd = self._bridge_view(state).get('control')
             if cmd and cmd.get('status') == 'requested':
                 has_control = True
@@ -2543,14 +2334,6 @@ def register_story_routes(app, root, *, tts_prewarmer=None):
     def shop_redeem():
         return jsonify(service.redeem_shop(body()))
 
-    @app.post('/api/story/shop/inquire')
-    def shop_inquire():
-        return jsonify(service.inquire_shop(body()))
-
-    @app.get('/api/story/shop/inquire/<iq_id>')
-    def shop_inquiry_status(iq_id):
-        return jsonify(service.shop_inquiry_status(iq_id))
-
     @app.delete('/api/story/shop/dynamic/<item_id>')
     def shop_dynamic_delete(item_id):
         payload = request.get_json(silent=True) if request.is_json else None
@@ -2608,10 +2391,6 @@ def register_story_routes(app, root, *, tts_prewarmer=None):
     def worker_claim_shop_inquiry():
         payload = body() if request.get_data() else {}
         return jsonify(service.claim_shop_inquiry(payload))
-
-    @app.post('/api/story/worker/shop-inquiry/<iq_id>/complete')
-    def worker_complete_shop_inquiry(iq_id):
-        return jsonify(service.complete_shop_inquiry(iq_id, body()))
 
     @app.post('/api/story/worker/<key>/material')
     def material(key):

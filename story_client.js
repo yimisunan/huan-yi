@@ -173,7 +173,6 @@
     if (st.shame < 70) return { level: 'light', text: '合理化闭环 · 轻度豁免', tone: 'rose' };
     return null;
   }
-  let shopInquiryDraft = '', shopInquiryState = null, shopInquiryBusy = false, shopInquiryPollTimer = null;
   let bagPickerState = null;
   let panelsCacheSig = '', panelsCacheVal = null;
   let lastFocusedBeats = [];
@@ -511,93 +510,9 @@
     openComposerSheet({ focus: true });
   }
 
-  function stopShopInquiryPoll() {
-    if (shopInquiryPollTimer !== null) {
-      clearTimeout(shopInquiryPollTimer);
-      shopInquiryPollTimer = null;
-    }
-  }
-
-  function scheduleShopInquiryPoll(iqId, delay = 1500) {
-    stopShopInquiryPoll();
-    if (!iqId) return;
-    shopInquiryPollTimer = setTimeout(() => {
-      shopInquiryPollTimer = null;
-      void pollShopInquiry(iqId);
-    }, delay);
-  }
-
-  async function pollShopInquiry(iqId) {
-    if (!iqId) return;
-    try {
-      const res = await api('shop/inquire/' + encodeURIComponent(iqId));
-      const iq = res?.inquiry || null;
-      if (iq) {
-        const prevStatus = shopInquiryState?.status;
-        shopInquiryState = iq;
-        if (iq.status === 'queued' || iq.status === 'claimed') {
-          scheduleShopInquiryPoll(iq.id, 1500);
-        } else {
-          stopShopInquiryPoll();
-          shopInquiryBusy = false;
-          await loadShop(true);
-          if (prevStatus !== iq.status) {
-            if (iq.status === 'completed') {
-              const cnt = (iq.added_items || []).length;
-              toast(cnt > 0 ? ('商城已定制进货 ' + cnt + ' 件新商品') : (iq.shopkeeper_reply || '询货已完成'));
-            } else if (iq.status === 'failed' && iq.error) {
-              toast('商城询货失败：' + iq.error);
-            }
-          }
-        }
-        if ($('worldDialog')?.open && activeHubTab === 'shop') renderWorld(true);
-      }
-    } catch (_) {
-      stopShopInquiryPoll();
-      shopInquiryBusy = false;
-    }
-  }
-
-  async function handleShopUpdatedEvent(event) {
-    let info = null;
-    try { info = JSON.parse(event?.data || '{}'); } catch (_) {}
-    stopShopInquiryPoll();
-    shopInquiryBusy = false;
-    if (info?.inquiry_id && shopInquiryState?.id === info.inquiry_id && info.status) {
-      await pollShopInquiry(info.inquiry_id);
-      return;
-    }
+  async function handleShopUpdatedEvent() {
     await loadShop(true);
     scheduleRestore(30);
-  }
-
-  async function submitShopInquiry(queryText) {
-    const q = String(queryText || '').replace(/\s+/g, ' ').trim();
-    if (!q) {
-      toast('请先输入想向系统商城询问或定制进货的道具');
-      return;
-    }
-    if (!online || !cache.epoch || shopInquiryBusy || active()) return;
-    haptic(12);
-    shopInquiryBusy = true;
-    shopInquiryDraft = q;
-    renderWorld(true);
-    try {
-      const res = await api('shop/inquire', { query: q, save_epoch: cache.epoch });
-      shopInquiryState = res?.inquiry || null;
-      shopInquiryDraft = '';
-      if (shopInquiryState?.id) {
-        toast('已向系统商城发起定制询货，等待桥接进货…');
-        scheduleShopInquiryPoll(shopInquiryState.id, 1200);
-      } else {
-        shopInquiryBusy = false;
-      }
-    } catch (e) {
-      shopInquiryBusy = false;
-      toast(e.message || '发起询货失败，请稍后重试');
-    } finally {
-      renderWorld(true);
-    }
   }
 
   async function deleteDynamicShopItem(item) {
@@ -628,20 +543,6 @@
     if ($('worldDialog')?.open && activeHubTab === 'shop') renderWorld(true);
     try {
       shopCatalog = await api('shop');
-      if (shopCatalog?.latest_inquiry) {
-        shopInquiryState = shopCatalog.latest_inquiry;
-        if (shopInquiryState.status === 'queued' || shopInquiryState.status === 'claimed') {
-          shopInquiryBusy = true;
-          scheduleShopInquiryPoll(shopInquiryState.id, 1500);
-        } else {
-          shopInquiryBusy = false;
-          stopShopInquiryPoll();
-        }
-      } else if (shopInquiryState && shopInquiryState.save_epoch !== cache.epoch) {
-        shopInquiryState = null;
-        shopInquiryBusy = false;
-        stopShopInquiryPoll();
-      }
     } catch (e) {
       shopError = e.message || '商城目录加载失败';
     } finally {
@@ -1722,11 +1623,22 @@
       }
     };
 
+    const shopCustomChip = node('button', 'bracket-chip is-intel', '✦ 商城定制');
+    shopCustomChip.type = 'button';
+    shopCustomChip.title = '在剧情内向系统商城私密定制贴合当前局面的新道具并自动上架';
+    shopCustomChip.onclick = () => {
+      if (!isSheetBar && isMobileViewport() && !composerSheetOpen) {
+        openComposerSheet({ focus: true, insertBracket: '【商城定制】' });
+      } else {
+        insertInputBracket('【商城定制】', isSheetBar ? $('sheetInput') : null);
+      }
+    };
+
     const domChip = node('button', 'bracket-chip is-intimate', '＋（强势压迫授权）');
     domChip.type = 'button';
     domChip.onclick = () => insertChipSnippet('（强势压迫授权）', isSheetBar);
 
-    bar.append(actChip, thChip, domChip);
+    bar.append(actChip, thChip, shopCustomChip, domChip);
 
     for (const item of (sensualItems || [])) {
       const chip = node('button', 'bracket-chip is-sensual', '✦ 道具：' + item.name);
@@ -3900,8 +3812,19 @@
     left.append(mark, node('span', 'settlement-summary-title', shortTitle), node('span', 'settlement-badge', badgeText));
 
     const hasPendingReward = !!s.task_after?.pending_item;
+    const shopAdded = Array.isArray(s.shop_added) ? s.shop_added : [];
     const makeTaskPills = (mini = false) => {
       const list = [];
+      if (shopAdded.length) {
+        const btn = node('button', 'settlement-action-pill is-jade' + (mini ? ' is-mini' : ''));
+        btn.type = 'button';
+        btn.append(icon('shop'), node('span', '', '商城上架 +' + shopAdded.length + '件'));
+        btn.onclick = () => {
+          shopCatalog = null;
+          openHub('shop');
+        };
+        list.push(btn);
+      }
       if (s.task_completed || hasPendingReward) {
         const btn = node('button', 'settlement-action-pill is-jade' + (mini ? ' is-mini' : ''));
         btn.type = 'button';
@@ -3919,7 +3842,7 @@
       return list;
     };
 
-    if (foldable && (rewards.length || s.task_completed || s.task_issued || hasPendingReward)) {
+    if (foldable && (rewards.length || shopAdded.length || s.task_completed || s.task_issued || hasPendingReward)) {
       const wrap = buildRewardPills('settlement-inline-pills', true);
       for (const pill of makeTaskPills(true)) wrap.append(pill);
       left.append(wrap);
@@ -3995,6 +3918,9 @@
     detail.append(node('summary', '', '展开本次明细 ▾'));
     for (const c of changes) {
       detail.append(node('p', '', c.target + ' · ' + c.attribute + ' ' + c.before + ' → ' + c.after + '（' + (c.delta > 0 ? '+' : '') + c.delta + '）'));
+    }
+    if (shopAdded.length) {
+      detail.append(node('p', '', '商城定制上架：' + shopAdded.map(it => (it.grade ? ('[' + it.grade + '] ') : '') + '「' + it.name + '」(' + it.price + '分)').join('、')));
     }
     if (s.items_changed && !s.item) detail.append(node('p', '', '行囊库存已按实际增量更新'));
     if (s.task_after?.current) detail.append(node('p', '', '委托：' + s.task_after.current.title + ' · ' + s.task_after.current.status));
@@ -5608,19 +5534,16 @@
     balCard.append(balMain, bagBtn);
     pane.append(balCard);
 
-    // 2. AI Dynamic Restock / Shop Inquiry Window (Collapsible)
-    const iqPending = shopInquiryBusy || ['queued', 'claimed'].includes(shopInquiryState?.status);
+    // 2. In-Story 【商城定制】 Guide Card (Collapsible, replaces removed stateless AI inquiry window)
     const iqCard = node('details', 'hub-fold shop-inquiry-card');
-    if (iqPending || shopInquiryState?.status === 'completed' || shopInquiryState?.status === 'failed') {
-      iqCard.open = true;
-    }
     const iqHead = node('summary', 'hub-fold-summary');
     const dynCount = shopCatalog?.dynamic_count ?? (shopCatalog?.items || []).filter(it => it.source === 'ai_restock').length;
     const dynLimit = shopCatalog?.dynamic_limit ?? 30;
+    const unlockedGradeLabel = shopCatalog?.unlocked_grade_label || 'T1 · 寻常小物';
     const iqTitleWrap = node('div', 'hub-fold-title');
     iqTitleWrap.append(
-      node('strong', '', 'AI 定制询货 · 动态进货'),
-      node('span', 'muted', iqPending ? '正在联络调货…' : '点此展开向商城定制目录外好物')
+      node('strong', '', '剧情内定制进货 · 【商城定制】'),
+      node('span', 'muted', '已解锁 ' + unlockedGradeLabel + ' · 点此展开或直达输入')
     );
     const iqRight = node('span', 'fold-right');
     iqRight.append(node('span', 'item-tag is-effect', '动态 ' + dynCount + '/' + dynLimit), node('span', 'fold-caret', '▾'));
@@ -5628,72 +5551,23 @@
     iqCard.append(iqHead);
 
     const iqBody = node('div', 'hub-fold-body');
-    iqBody.append(
-      node('p', 'shop-inquiry-sub', '想买目录外的官能助兴好物、居家穿搭或隐秘装备？直接问系统商城，AI 按当前数值档位合规进货上架。')
-    );
-
-    const iqForm = node('div', 'shop-inquiry-form');
-    const qInput = node('input', 'shop-inquiry-input');
-    qInput.type = 'text';
-    qInput.maxLength = 120;
-    qInput.placeholder = '例如：有没有适合深夜足部按摩的热感精油或蕾丝睡裙？';
-    qInput.value = shopInquiryDraft;
-    qInput.disabled = shopInquiryBusy;
-    qInput.oninput = () => { shopInquiryDraft = qInput.value; };
-    qInput.onkeydown = e => {
-      if (e.key === 'Enter' && !e.isComposing) {
-        e.preventDefault();
-        void submitShopInquiry(qInput.value);
+    const jumpRow = node('div', 'shop-inquiry-form');
+    const jumpBtn = node('button', 'btn-gold', '✦ 去剧情中输入【商城定制】');
+    jumpBtn.type = 'button';
+    jumpBtn.onclick = () => {
+      haptic(10);
+      $('worldDialog')?.close();
+      if (isMobileViewport()) {
+        openComposerSheet({ focus: true, insertBracket: '【商城定制】' });
+      } else {
+        insertInputBracket('【商城定制】');
       }
     };
-    const iqBtn = node('button', 'btn-gold', iqPending ? '正在调货…' : '询问并进货');
-    iqBtn.type = 'button';
-    iqBtn.disabled = !online || iqPending || active();
-    iqBtn.onclick = () => void submitShopInquiry(qInput.value);
-    iqForm.append(qInput, iqBtn);
-    iqBody.append(iqForm);
-
-    const iqChips = node('div', 'shop-inquiry-chips');
-    for (const preset of [
-      '有没有适合足部按摩和肩颈推拿的温热精油？',
-      '有没有可以藏在卧室隐蔽角落的微型监控或拾音装置？',
-      '有没有质感轻薄的丝袜、居家真丝睡裙或亲密助兴小物？'
-    ]) {
-      const chip = node('button', 'bag-picker-chip', preset.replace(/^有没有/, '').replace(/？$/, ''));
-      chip.type = 'button';
-      chip.disabled = iqPending;
-      chip.onclick = () => {
-        shopInquiryDraft = preset;
-        qInput.value = preset;
-        qInput.focus();
-      };
-      iqChips.append(chip);
-    }
-    iqBody.append(iqChips);
-
-    if (!snapshot?.bridge_connected) {
-      iqBody.append(node('p', 'shop-inquiry-note', '提示：发起 AI 定制进货需保持 Operit 故事桥接（≥ 2.1.8）处于开启状态。'));
-    }
-    if (shopInquiryState) {
-      const st = shopInquiryState.status;
-      if (st === 'queued' || st === 'claimed') {
-        const banner = node('div', 'shop-inquiry-reply is-loading');
-        banner.append(node('span', '', '⏳ 正在向系统商城联络调货：「' + shopInquiryState.query + '」…'));
-        iqBody.append(banner);
-      } else if (st === 'completed') {
-        const banner = node('div', 'shop-inquiry-reply is-ok');
-        const names = (shopInquiryState.added_items || []).map(x => '「' + x.name + '」').join('、');
-        banner.append(
-          node('strong', '', shopInquiryState.shopkeeper_reply || '本次定制进货已完成并上架至「AI 定制进货」货架。'),
-          names ? node('span', '', '新上架：' + names) : node('span', '', '暂无新增商品（可能与现有货架重名或被安全闸门拦截）')
-        );
-        iqBody.append(banner);
-      } else if (st === 'failed' && shopInquiryState.error) {
-        const banner = node('div', 'shop-inquiry-reply is-err');
-        banner.append(node('span', '', '询货未完成：' + shopInquiryState.error));
-        iqBody.append(banner);
-      }
-    }
+    jumpRow.append(jumpBtn);
+    iqBody.append(
+      node('p', 'shop-inquiry-sub', '在剧情输入框点「✦ 商城定制」或写【商城定制】即可自由定制目录外道具。高阶道具按 T1～T4 分阶定价并由「商业嗅觉 / 最高堕落 / 魅力」自动锁门，超阶物品可提前上架作为后期目标。'),
+      jumpRow
+    );
     iqCard.append(iqBody);
     pane.append(iqCard);
 
@@ -5784,7 +5658,9 @@
 
           const tags = node('div', 'item-tags');
           if (item.source === 'ai_restock') {
-            tags.append(node('span', 'item-tag is-effect', 'AI 定制'));
+            const gCode = String(item.grade || 'T1').toLowerCase();
+            const gLabel = item.grade_label || (item.grade ? (item.grade + ' 定制') : '剧情定制');
+            tags.append(node('span', 'item-tag is-grade-' + gCode, gLabel));
           }
           if (USAGE_MODE_LABELS[item.usage_mode]) {
             tags.append(node('span', 'item-tag' + (item.usage_mode === 'deployable_device' ? ' is-device' : ''), USAGE_MODE_LABELS[item.usage_mode]));
@@ -6322,9 +6198,6 @@
       shopBusy,
       shopLoading,
       shopError,
-      shopInquiryBusy,
-      shopInquiryId: shopInquiryState?.id || '',
-      shopInquiryStatus: shopInquiryState?.status || '',
       bagPickerState,
       shopRev: shopCatalog?.revision || '',
       shopCount: shopCatalog?.items?.length || 0,
@@ -7059,7 +6932,6 @@
       lastEffectSegmentId = '';
       shopCatalog = null;
       shopError = '';
-      shopInquiryState = null;
       stopVoice();
       clearAudioCache();
       audioMessage = null;

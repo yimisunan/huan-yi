@@ -20,6 +20,23 @@ SHOP_RECENT_LIMIT = 8
 SHOP_ECHO_LIMIT = 4
 SHOP_TIER_RANGES = {'low': (1, 10), 'mid': (11, 50), 'high': (60, 999999)}
 SHOP_DYNAMIC_LIMIT = 30
+SHOP_GRADES = ('T1', 'T2', 'T3', 'T4')
+SHOP_GRADE_ORDER = {'T1': 1, 'T2': 2, 'T3': 3, 'T4': 4}
+SHOP_GRADE_META = {
+    'T1': {'label': 'T1 · 寻常小物', 'short': 'T1 寻常', 'min_price': 10, 'max_price': 30, 'max_per_save': 3},
+    'T2': {'label': 'T2 · 进阶利器', 'short': 'T2 进阶', 'min_price': 32, 'max_price': 60, 'max_per_save': 3},
+    'T3': {'label': 'T3 · 稀缺重器', 'short': 'T3 稀缺', 'min_price': 65, 'max_price': 120, 'max_per_save': 2},
+    'T4': {'label': 'T4 · 深渊禁品', 'short': 'T4 深渊禁品', 'min_price': 150, 'max_price': 260, 'max_per_save': 1},
+}
+SHOP_GRADE_T4_RE = re.compile(
+    r'催情|迷情|媚药|发情|失神|遥控|无线震动|跳蛋|项圈|贞操|调教套|奴役|深渊禁|扭转全局|彻底压制|一举定局|绝杀筹码|核心把柄|致命黑料|顶级秘药|强效催化|绝对顺从|强制服从'
+)
+SHOP_GRADE_T3_RE = re.compile(
+    r'针孔|窃听|偷拍|监听|追踪器|隐蔽监控|微型摄像|拘束|手铐|束缚带|捆绑|情趣器具|高阶|稀缺|核心人脉|商业筹码|重磅筹码|催化滴剂|暗中调查|破防'
+)
+SHOP_GRADE_T2_RE = re.compile(
+    r'精油|香薰|香氛|丝袜|睡裙|蕾丝|情趣|眼罩|冰玉|公关礼盒|厚礼|定制礼|微醺|桃露'
+)
 VALID_SYSTEM_EFFECT_RE = re.compile(
     r'^(?:host_stamina:[1-9]\d{0,3}|buff:[^:\r\n|]{2,12}:[1-4]:[^:\r\n|]{4,60}|deploy_device:(?:camera|audio|aroma))$'
 )
@@ -27,8 +44,33 @@ SHOP_FORBIDDEN_DURATION_RE = re.compile(
     r'(?:延长|冻结|缩短|设定|暂停|修改|刷新|重置|清除).{0,6}(?:持续时间|状态时间|时效|倒计时|冷却|体液锁定|BUFF)'
 )
 SHOP_FORBIDDEN_DYN_RE = re.compile(
-    r'毒品|海洛因|冰毒|大麻|鸦片|可卡因|迷药|迷晕|春药|催情(?:药|粉|散|水|剂)|蒙汗药|下药|致幻|麻醉药|吸烟|香烟|烟草|尼古丁|电子烟|洗脑|催眠控制|强制服从|绝对服从|精神控制|奴役芯片|extend_duration|永久修改(?:属性|好感|堕落|羞耻)'
+    r'extend_duration|host_stamina|永久修改(?:属性|好感|堕落|羞耻|体力|精力|魅力)|直接(?:清零|拉满|锁死)(?:羞耻|好感|堕落|警惕|欲望|体力|精力)'
 )
+SHOP_CUSTOM_TAG_RE = re.compile(
+    r'[【\[]\s*(?:商城定制|定制道具|商城进货|SHOP_CUSTOM|SHOP)\s*(?:[：:]([^】\]]*))?[】\]]',
+    re.I,
+)
+_SHOP_BRACKET_SPAN_RE = re.compile(r'[（(]([^）)]*)[）)]')
+
+
+def detect_shop_custom_request(text):
+    """Detect explicit in-story custom shop restock tag (e.g. 【商城定制】) and return trimmed query or None."""
+    if not isinstance(text, str) or not text.strip():
+        return None
+    m = SHOP_CUSTOM_TAG_RE.search(text)
+    if not m:
+        return None
+    # Prefer enclosing parenthesis containing the tag so surrounding dialogue isn't lost or noisy.
+    for bm in _SHOP_BRACKET_SPAN_RE.finditer(text):
+        if bm.start() <= m.start() and m.end() <= bm.end():
+            inner = SHOP_CUSTOM_TAG_RE.sub(lambda mm: (mm.group(1) or '').strip(), bm.group(1)).strip(' ：:，,。！？!')
+            if inner:
+                return re.sub(r'\s+', ' ', inner)[:180]
+    inline = (m.group(1) or '').strip()
+    after = text[m.end():].strip()
+    merged = ' '.join(p for p in (inline, after) if p).strip() or text.strip()
+    merged = SHOP_CUSTOM_TAG_RE.sub('', merged).strip(' ：:，,。！？!')
+    return re.sub(r'\s+', ' ', merged)[:180] or '定制贴合当前局面的道具'
 INTEL_ANCHOR = '【商业情报与杠杆状态】'
 INTEL_CATALOG_DEFAULT = 'txt文件/商业情报目录.json'
 DIRECTOR_ANCHOR = '【世界导演状态】'
@@ -252,16 +294,13 @@ def _normalize_unlock_req(raw_req):
         return None
     if not isinstance(raw_req, dict):
         raise rr.RoundError('商城商品 unlock_req 须为对象或 null')
-    rr._keys(raw_req, {'min_biz', 'min_any_affection', 'mode'}, 'shop.unlock_req')
+    rr._keys(raw_req, {'min_biz', 'min_any_affection', 'min_max_depravity', 'min_charm', 'mode'}, 'shop.unlock_req')
     out = {}
-    if 'min_biz' in raw_req and raw_req['min_biz'] is not None:
-        rr._integer(raw_req['min_biz'], 'unlock_req.min_biz', 0)
-        if raw_req['min_biz'] > 0:
-            out['min_biz'] = min(100, int(raw_req['min_biz']))
-    if 'min_any_affection' in raw_req and raw_req['min_any_affection'] is not None:
-        rr._integer(raw_req['min_any_affection'], 'unlock_req.min_any_affection', 0)
-        if raw_req['min_any_affection'] > 0:
-            out['min_any_affection'] = min(100, int(raw_req['min_any_affection']))
+    for key in ('min_biz', 'min_any_affection', 'min_max_depravity', 'min_charm'):
+        if key in raw_req and raw_req[key] is not None:
+            rr._integer(raw_req[key], f'unlock_req.{key}', 0)
+            if raw_req[key] > 0:
+                out[key] = min(100, int(raw_req[key]))
     if not out:
         return None
     mode = str(raw_req.get('mode') or 'all').strip().lower()
@@ -282,23 +321,64 @@ def read_shop_unlock_metrics(engine, memory_text):
     return host_biz, affs
 
 
-def evaluate_unlock_req(unlock_req, host_biz, heroine_affs):
+def read_shop_unlock_metrics_full(engine, memory_text):
+    """Read all 4 progression axes used for shop unlock gating."""
+    host_biz, affs = read_shop_unlock_metrics(engine, memory_text)
+    charm_val = engine._read_attr_value(memory_text, '系统宿主', '魅力')
+    host_charm = max(0, int(charm_val)) if charm_val is not None else 70
+    deps = {}
+    for hname in save_store.HEROINES:
+        dval = engine._read_attr_value(memory_text, hname, '堕落')
+        deps[hname] = max(0, int(dval)) if dval is not None else 0
+    return {
+        'host_biz': host_biz,
+        'heroine_affs': affs,
+        'heroine_deps': deps,
+        'max_affection': max(affs.values()) if affs else 0,
+        'max_depravity': max(deps.values()) if deps else 0,
+        'host_charm': host_charm,
+    }
+
+
+def host_unlocked_shop_grade(host_biz, max_depravity=0, host_charm=70):
+    """Determine the highest custom-shop grade tier the player currently qualifies to unlock."""
+    biz = int(host_biz or 0)
+    dep = int(max_depravity or 0)
+    charm = int(host_charm or 70)
+    if biz >= 55 or (dep >= 60 and charm >= 85):
+        return 'T4'
+    if biz >= 30 or (dep >= 30 and charm >= 78):
+        return 'T3'
+    if biz >= 15 or dep >= 10 or charm >= 75:
+        return 'T2'
+    return 'T1'
+
+
+def evaluate_unlock_req(unlock_req, host_biz, heroine_affs, *, max_depravity=0, host_charm=70):
     if not unlock_req or not isinstance(unlock_req, dict):
         return {'unlocked': True, 'reason': '', 'hint': ''}
     min_biz = int(unlock_req.get('min_biz') or 0)
     min_aff = int(unlock_req.get('min_any_affection') or 0)
+    min_dep = int(unlock_req.get('min_max_depravity') or 0)
+    min_charm = int(unlock_req.get('min_charm') or 0)
     max_aff = max(heroine_affs.values()) if isinstance(heroine_affs, dict) and heroine_affs else 0
+    cur_dep = max(0, int(max_depravity or 0))
+    cur_charm = max(0, int(host_charm if host_charm is not None else 70))
     mode = str(unlock_req.get('mode') or 'all').strip().lower()
     checks = []
     parts = []
     if min_biz > 0:
-        ok_b = host_biz >= min_biz
-        checks.append(ok_b)
+        checks.append(host_biz >= min_biz)
         parts.append(f'商业嗅觉 ≥ {min_biz}（当前 {host_biz}）')
     if min_aff > 0:
-        ok_a = max_aff >= min_aff
-        checks.append(ok_a)
+        checks.append(max_aff >= min_aff)
         parts.append(f'任一女主好感 ≥ {min_aff}（最高 {max_aff}）')
+    if min_dep > 0:
+        checks.append(cur_dep >= min_dep)
+        parts.append(f'最高堕落 ≥ {min_dep}（当前 {cur_dep}）')
+    if min_charm > 0:
+        checks.append(cur_charm >= min_charm)
+        parts.append(f'宿主魅力 ≥ {min_charm}（当前 {cur_charm}）')
     if not checks:
         return {'unlocked': True, 'reason': '', 'hint': ''}
     unlocked = any(checks) if mode == 'any' else all(checks)
@@ -410,53 +490,43 @@ def _extract_json_object_text(raw_text):
     raise rr.RoundError('AI进货返回不是合法 JSON 对象')
 
 
-def build_shop_inquiry_prompt(root, files, query):
-    """Build stateless system+user prompt for AI shopkeeper restock inquiry (zero liveSession pollution)."""
+def apply_scene_shop_adds(st, root, shop_adds, *, query=''):
+    """Validate and append in-story custom shop items (from scene_state.shop_adds) into st['shop']['dynamic_catalog']."""
+    if not isinstance(shop_adds, list) or not shop_adds:
+        return {'added': [], 'rejected': []}
     catalog = load_shop_catalog(root, optional=True)
-    st, _, _ = save_store.load_bundle(root, files)
-    host_panel = st.get('panels', {}).get('系统宿主') or {}
-    host_pts = int(host_panel.get('积分', 0) or 0)
-    host_biz = int(host_panel.get('商业嗅觉', 0) or 0)
-    affs = {h: int((st.get('panels', {}).get(h) or {}).get('好感', 0) or 0) for h in save_store.HEROINES}
+    shop_obj = st.setdefault('shop', {'redeemed': {}, 'recent': [], 'echoes': [], 'dynamic_catalog': [], 'next_dyn_seq': 1})
+    existing_dyn = list(shop_obj.get('dynamic_catalog') or [])
     existing_names = [it['name'] for it in catalog.get('items', [])] + [
-        it.get('name', '') for it in (st.get('shop', {}).get('dynamic_catalog') or []) if isinstance(it, dict) and it.get('name')
+        it.get('name', '') for it in existing_dyn if isinstance(it, dict) and it.get('name')
     ]
-    system_prompt = (
-        '你是「深渊天平」现代都市成人向互动叙事的系统商城采购员。'
-        '玩家正在询货窗询问是否有某类道具，请贴合现代都市现实感与角色魅力（沈知韫黑丝美足/熟女高管、苏婉青36D丰腴茶室/公寓、徐念薇纤纤美手/画室少女）为货架定制进货 1～3 件新道具。\n'
-        '硬性规则：\n'
-        '1. 只输出单个裸 JSON 对象，禁止代码围栏与前后解释，结构为：\n'
-        '   {"shopkeeper_reply":"给玩家的简短进货回应(≤80字)","items":[{...}]}\n'
-        '2. items 含 1～3 件不与已有商品重名的新道具，每件含字段：\n'
-        '   - name: 4～18字商品中文名\n'
-        '   - category: "sensual"（官能辅助/情趣/服饰/按摩/香氛）| "covert"（隐秘监测/录音/追踪）| "daily"（日用礼赠）\n'
-        '   - usage_mode: "gift"（可赠予穿戴或纪念）| "consumable_target"（一次性/多份消耗，对目标或室内生效）| "reusable_tool"（反复随身工具）| "deployable_device"（安装于场景并可远程回看）\n'
-        '   - price: 整数积分（日用/小物 10～35；官能消耗/礼盒/工具 14～50；高阶隐秘装置或稀缺礼盒 60～130）\n'
-        '   - pack_qty: 1～3（消耗品可 2～3 份，永久品固定 1）\n'
-        '   - desc: 20～140字，写明材质、感官质感与具体玩法用途\n'
-        '   - system_effect: 仅限 ""、"buff:简短名(2-10字):回合(1-3):简短效果(6-45字)"、"deploy_device:camera"、"deploy_device:audio"、"deploy_device:aroma"；绝不填 host_stamina 或 extend_duration\n'
-        '   - unlock_req: null 或 {"min_biz":0~40,"min_any_affection":0~75,"mode":"all"|"any"}（隐秘装置建议 min_biz 20~35，进阶情趣/催化建议叠加好感或嗅觉门槛）\n'
-        '   - max_per_save: 1～3\n'
-        '3. 绝对红线：严禁生成毒品、烟草/吸烟相关物品、洗脑/催眠强制服从类道具、直接篡改属性或延长/冻结状态时效与体液锁定的作弊道具；鼓励合法现实感的成人情趣服饰、丝袜、精油、香氛、眼罩、情调助兴小物与隐秘摄录装备。'
+    next_seq = max(
+        int(shop_obj.get('next_dyn_seq') or 1),
+        max((int(m.group(1)) for it in existing_dyn if isinstance(it, dict)
+             for m in (re.fullmatch(r'DYN-(\d+)', str(it.get('id') or '')),) if m), default=0) + 1,
     )
-    user_payload = {
-        'player_query': str(query or '').strip()[:120],
-        'host_status': {'points': host_pts, 'commercial_sense': host_biz, 'max_heroine_affection': max(affs.values()) if affs else 0},
-        'existing_item_names': existing_names[-40:],
-    }
-    return {
-        'system_prompt': system_prompt,
-        'user_prompt': json.dumps(user_payload, ensure_ascii=False, separators=(',', ':')),
-    }
+    try:
+        validated = validate_dynamic_shop_items(
+            {'shopkeeper_reply': '', 'items': shop_adds},
+            existing_names,
+            next_seq,
+            query=query,
+        )
+    except rr.RoundError as exc:
+        return {'added': [], 'rejected': [str(exc)]}
+    merged_dyn = (existing_dyn + validated['items'])[-SHOP_DYNAMIC_LIMIT:]
+    shop_obj['dynamic_catalog'] = merged_dyn
+    shop_obj['next_dyn_seq'] = validated['next_dyn_seq']
+    return {'added': validated['items'], 'rejected': validated['rejected_reasons']}
 
 
 def validate_dynamic_shop_items(raw_payload, existing_names, next_seq, *, query=''):
-    """Deterministically validate, sanitize, price-clamp, and redline-filter AI restocked items."""
+    """Deterministically validate, sanitize, price-clamp, and anti-cheat-filter custom shop items."""
     obj = _extract_json_object_text(raw_payload)
     reply = _clean_single_line(obj.get('shopkeeper_reply') or '')[:120]
     raw_items = obj.get('items')
     if not isinstance(raw_items, list) or not raw_items:
-        raise rr.RoundError('AI进货未返回任何有效商品条目')
+        raise rr.RoundError('定制进货未返回任何有效商品条目')
     seen_names = {str(n).strip().casefold() for n in (existing_names or ()) if str(n).strip()}
     seq = max(1, int(next_seq or 1))
     clean_items = []
@@ -468,7 +538,7 @@ def validate_dynamic_shop_items(raw_payload, existing_names, next_seq, *, query=
             continue
         name = _clean_single_line(entry.get('name') or '')[:32]
         desc = _clean_single_line(entry.get('desc') or '')[:180]
-        if len(name) < 2 or len(desc) < 8:
+        if len(name) < 2 or len(desc) < 6:
             rejected.append(f'{name or "空名"}:名称或描述过短')
             continue
         if name.casefold() in seen_names:
@@ -477,7 +547,7 @@ def validate_dynamic_shop_items(raw_payload, existing_names, next_seq, *, query=
         raw_eff = _clean_single_line(entry.get('system_effect') or '')
         combined_text = f'{name} {desc} {raw_eff}'
         if SHOP_FORBIDDEN_DURATION_RE.search(combined_text) or SHOP_FORBIDDEN_DYN_RE.search(combined_text):
-            rejected.append(f'{name}:触碰禁售红线（毒品/烟草/精神控制/时效作弊）')
+            rejected.append(f'{name}:触碰防崩与防作弊底线（禁止篡改时效或直接覆写面板数值）')
             continue
         usage_mode = str(entry.get('usage_mode') or '').strip()
         if usage_mode not in ('gift', 'consumable_target', 'reusable_tool', 'deployable_device'):
@@ -510,63 +580,118 @@ def validate_dynamic_shop_items(raw_payload, existing_names, next_seq, *, query=
         if usage_mode != 'deployable_device' and eff.startswith('deploy_device:'):
             usage_mode = 'deployable_device'
             category = 'covert'
-        # Deterministic price clamping + tier alignment (avoiding 51..59 gap)
+        # Infer deterministic T1-T4 custom item grade (prevents Turn-1 OP item / low-price cheese)
         try:
             raw_price = int(entry.get('price'))
         except (TypeError, ValueError):
-            raw_price = 28
-        if usage_mode == 'deployable_device':
-            price = max(60, min(140, raw_price))
-            tier = 'high'
-        elif usage_mode == 'consumable_target':
-            price = max(14, min(50, raw_price))
-            tier = 'mid'
-        elif usage_mode == 'reusable_tool':
-            price = max(20, min(50, raw_price))
-            tier = 'mid'
-        else:
-            price = max(10, min(120, raw_price))
-            if 51 <= price <= 59:
-                price = 60
-            tier = 'low' if price <= 10 else ('mid' if price <= 50 else 'high')
+            raw_price = 24
+        ai_grade = str(entry.get('grade') or '').strip().upper()
+        if ai_grade not in SHOP_GRADE_ORDER:
+            ai_grade = 'T1'
+        bturns_now = int(eff.split(':', 3)[2]) if eff.startswith('buff:') else 0
+        min_grade = 'T1'
+        if SHOP_GRADE_T4_RE.search(combined_text) or raw_price >= 150:
+            min_grade = 'T4'
+        elif (
+            usage_mode == 'deployable_device'
+            or eff.startswith('deploy_device:')
+            or bturns_now >= 3
+            or SHOP_GRADE_T3_RE.search(combined_text)
+            or raw_price >= 65
+        ):
+            min_grade = 'T3'
+        elif (
+            category in ('sensual', 'covert')
+            or eff.startswith('buff:')
+            or usage_mode == 'consumable_target'
+            or SHOP_GRADE_T2_RE.search(combined_text)
+            or raw_price >= 32
+        ):
+            min_grade = 'T2'
+        grade = ai_grade if SHOP_GRADE_ORDER[ai_grade] >= SHOP_GRADE_ORDER[min_grade] else min_grade
+        gmeta = SHOP_GRADE_META[grade]
+
+        # Enforce grade-specific system_effect bounds
+        if grade == 'T1':
+            if eff.startswith('deploy_device:'):
+                grade = 'T3'
+                gmeta = SHOP_GRADE_META[grade]
+            elif eff.startswith('buff:'):
+                parts = eff.split(':', 3)
+                eff = f'buff:{parts[1]}:1:{parts[3]}'
+        elif grade == 'T2' and eff.startswith('buff:') and bturns_now > 2:
+            parts = eff.split(':', 3)
+            eff = f'buff:{parts[1]}:2:{parts[3]}'
+
+        # Deterministic price clamping + tier alignment per grade (avoiding 51..59 gap)
+        price = max(gmeta['min_price'], min(gmeta['max_price'], raw_price))
+        if 51 <= price <= 59:
+            price = 60
+        tier = 'low' if price <= 10 else ('mid' if price <= 50 else 'high')
+
         try:
             pack_qty = int(entry.get('pack_qty') or 1)
         except (TypeError, ValueError):
             pack_qty = 1
         pack_qty = max(1, min(3, pack_qty)) if usage_mode == 'consumable_target' else 1
         try:
-            max_cap = int(entry.get('max_per_save') or 2)
+            max_cap = int(entry.get('max_per_save') or gmeta['max_per_save'])
         except (TypeError, ValueError):
-            max_cap = 2
-        max_cap = max(1, min(3, max_cap))
-        # Sanitize & floor-enforce unlock_req
+            max_cap = gmeta['max_per_save']
+        max_cap = max(1, min(gmeta['max_per_save'], max_cap))
+
+        # Sanitize & floor-enforce 4-axis unlock_req per grade (prevents Turn-1 95-affection bypass)
         req_in = entry.get('unlock_req') if isinstance(entry.get('unlock_req'), dict) else {}
-        min_biz = 0
-        min_aff = 0
-        try:
-            min_biz = max(0, min(50, int(req_in.get('min_biz') or 0)))
-        except (TypeError, ValueError):
-            min_biz = 0
-        try:
-            min_aff = max(0, min(80, int(req_in.get('min_any_affection') or 0)))
-        except (TypeError, ValueError):
-            min_aff = 0
+        def _clamp_req(k, hi=100):
+            try:
+                return max(0, min(hi, int(req_in.get(k) or 0)))
+            except (TypeError, ValueError):
+                return 0
+        min_biz = _clamp_req('min_biz', 100)
+        min_aff = _clamp_req('min_any_affection', 100)
+        min_dep = _clamp_req('min_max_depravity', 100)
+        min_charm = _clamp_req('min_charm', 100)
         mode_req = str(req_in.get('mode') or 'all').strip().lower()
         if mode_req not in ('all', 'any'):
             mode_req = 'all'
-        if usage_mode == 'deployable_device':
-            min_biz = max(min_biz, 20)
-        elif eff.startswith('buff:'):
-            bturns = int(eff.split(':', 3)[2])
-            if bturns >= 3 and min_biz < 12 and min_aff < 50:
-                min_biz = 12
+
+        is_strategic_or_covert = (category in ('covert', 'daily') or usage_mode == 'deployable_device')
+        if grade == 'T2':
+            # Reachable via any one of biz/depravity/charm progression axes
+            if min_biz < 15 and min_dep < 10 and min_charm < 75:
+                min_biz = max(min_biz, 15)
+                min_dep = max(min_dep, 10)
+                min_charm = max(min_charm, 75)
+                min_aff = 0
+                mode_req = 'any'
+        elif grade == 'T3':
+            min_aff = 0
+            mode_req = 'all'
+            if is_strategic_or_covert:
+                min_biz = max(min_biz, 30)
+            else:
+                min_dep = max(min_dep, 30)
+                min_charm = max(min_charm, 78)
+        elif grade == 'T4':
+            min_aff = 0
+            mode_req = 'all'
+            if is_strategic_or_covert:
+                min_biz = max(min_biz, 55)
+            else:
+                min_dep = max(min_dep, 60)
+                min_charm = max(min_charm, 85)
+
         unlock_req = None
-        if min_biz > 0 or min_aff > 0:
+        if min_biz > 0 or min_aff > 0 or min_dep > 0 or min_charm > 0:
             unlock_req = {}
             if min_biz > 0:
                 unlock_req['min_biz'] = min_biz
             if min_aff > 0:
                 unlock_req['min_any_affection'] = min_aff
+            if min_dep > 0:
+                unlock_req['min_max_depravity'] = min_dep
+            if min_charm > 0:
+                unlock_req['min_charm'] = min_charm
             if len(unlock_req) > 1:
                 unlock_req['mode'] = mode_req
         did = f'DYN-{seq:03d}'
@@ -576,6 +701,8 @@ def validate_dynamic_shop_items(raw_payload, existing_names, next_seq, *, query=
         clean_items.append({
             'id': did,
             'name': name,
+            'grade': grade,
+            'grade_label': gmeta['short'],
             'tier': tier,
             'category': category,
             'usage_mode': usage_mode,
@@ -597,7 +724,7 @@ def validate_dynamic_shop_items(raw_payload, existing_names, next_seq, *, query=
 
     if not clean_items:
         detail = '；'.join(rejected[:3]) if rejected else '无符合规范的条目'
-        raise rr.RoundError('本次询货商品均未通过安全与平衡校验：' + detail)
+        raise rr.RoundError('本次定制商品均未通过防崩与平衡校验：' + detail)
     if not reply:
         reply = f"已为你调货上架 {len(clean_items)} 件新品：{'、'.join(it['name'] for it in clean_items)}。"
     return {
@@ -2963,6 +3090,17 @@ def apply_staged(store,engine,stage,body,files,parsed):
             st_final.setdefault('mechanics',{})['charm_scene_used']=False
         elif charm_gained_now:
             st_final.setdefault('mechanics',{})['charm_scene_used']=True
+    shop_added=[]
+    shop_rejected=[]
+    if kind=='action' and isinstance(scene_state,dict) and scene_state.get('shop_adds'):
+        shop_q=detect_shop_custom_request(str(body.get('input') or body.get('action') or ''))
+        if shop_q:
+            sa_res=apply_scene_shop_adds(st_final,store.root,scene_state['shop_adds'],query=shop_q)
+            shop_added=[{
+                'id':it['id'],'name':it['name'],'price':it['price'],'category':it['category'],
+                'grade':it.get('grade','T1'),'grade_label':it.get('grade_label','T1 寻常'),
+            } for it in sa_res['added']]
+            shop_rejected=list(sa_res['rejected'])
     if merged:
         ly_final['prologue_active']=False
     save_store.save_bundle(stage,st_final,ly_final)
@@ -2980,7 +3118,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
              'memory_round':runtime['memory_round'],
              'closed_round':runtime['last_closed'] if closed else None,'phase':runtime['phase'],'item_budget':20-runtime['item_recovered'],
              'sleep_completed':parsed['sleep']['kind']=='overnight','_scene_known_by':scene_known_by,
-             'intimate_meta':intimate_meta}
+             'intimate_meta':intimate_meta,'shop_added':shop_added,'shop_rejected':shop_rejected}
     return runtime,receipt
 
 
@@ -3234,8 +3372,11 @@ def redeem_shop_item(service,body):
             engine=rr._engine(service.root,stage)
             memory_path=stage/rr.FILES[0]
             memory=memory_path.read_text(encoding='utf-8')
-            host_biz,heroine_affs=read_shop_unlock_metrics(engine,memory)
-            unlock_chk=evaluate_unlock_req(product.get('unlock_req'),host_biz,heroine_affs)
+            um=read_shop_unlock_metrics_full(engine,memory)
+            unlock_chk=evaluate_unlock_req(
+                product.get('unlock_req'),um['host_biz'],um['heroine_affs'],
+                max_depravity=um['max_depravity'],host_charm=um['host_charm'],
+            )
             if not unlock_chk['unlocked']:
                 raise rr.RoundError(unlock_chk['reason'])
             shop_state=parse_shop_echo_block(memory)

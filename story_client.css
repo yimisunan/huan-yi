@@ -4656,6 +4656,30 @@ html[data-theme="ivory"] .shop-inquiry-reply.is-err {
   border-style: dashed;
   opacity: 0.88;
 }
+.item-tag.is-grade-t1 {
+  color: #b7c4cf;
+  border-color: rgba(183, 196, 207, 0.32);
+  background: rgba(183, 196, 207, 0.1);
+}
+.item-tag.is-grade-t2 {
+  color: #79d2a6;
+  border-color: rgba(121, 210, 166, 0.36);
+  background: rgba(121, 210, 166, 0.12);
+}
+.item-tag.is-grade-t3 {
+  color: var(--gold-bright, #e7c07b);
+  border-color: rgba(231, 192, 123, 0.44);
+  background: rgba(231, 192, 123, 0.14);
+}
+.item-tag.is-grade-t4 {
+  color: #f38ba8;
+  border-color: rgba(243, 139, 168, 0.5);
+  background: rgba(243, 139, 168, 0.16);
+}
+html[data-theme="ivory"] .item-tag.is-grade-t1 { color: #54616d; }
+html[data-theme="ivory"] .item-tag.is-grade-t2 { color: #206b48; }
+html[data-theme="ivory"] .item-tag.is-grade-t3 { color: #8c5c19; }
+html[data-theme="ivory"] .item-tag.is-grade-t4 { color: #a1294b; }
 .item-tag.is-locked {
   border-color: rgba(208, 97, 97, 0.45);
   background: rgba(208, 97, 97, 0.12);

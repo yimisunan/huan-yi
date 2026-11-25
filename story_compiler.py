@@ -1283,6 +1283,43 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
             'rule': '一次性特定时刻微回响：仅允许在自然间隙或收束处用1句氛围/感官/内心轻顿带过，禁直呼任务/委托/商城/积分/系统词，禁扭转玩家意图，禁泄露给NPC。',
         }
 
+    shop_custom_query = sp.detect_shop_custom_request(text) if (preview_cost or {}).get('kind') == 'action' else None
+    if shop_custom_query:
+        shop_cat = sp.load_shop_catalog(root, optional=True)
+        existing_shop_names = [it['name'] for it in shop_cat.get('items', [])]
+        try:
+            st_shop, _, _ = save_store.load_bundle(root)
+            existing_shop_names.extend(
+                it.get('name', '') for it in ((st_shop.get('shop') or {}).get('dynamic_catalog') or [])
+                if isinstance(it, dict) and it.get('name')
+            )
+            panels_shop = st_shop.get('panels') or {}
+            hp_shop = panels_shop.get('系统宿主') or {}
+            host_pts_shop = int(hp_shop.get('积分', 0) or 0)
+            host_biz_shop = int(hp_shop.get('商业嗅觉', 0) or 0)
+            host_charm_shop = int(hp_shop.get('魅力', 70) or 70)
+            max_dep_shop = max((int((panels_shop.get(h) or {}).get('堕落', 0) or 0) for h in save_store.HEROINES), default=0)
+        except Exception:
+            host_pts_shop, host_biz_shop, host_charm_shop, max_dep_shop = 0, 0, 70, 0
+        cur_grade = sp.host_unlocked_shop_grade(host_biz_shop, max_dep_shop, host_charm_shop)
+        delta['shop_custom_directive'] = {
+            'query': shop_custom_query,
+            'host_points': host_pts_shop,
+            'host_biz': host_biz_shop,
+            'host_charm': host_charm_shop,
+            'max_depravity': max_dep_shop,
+            'unlocked_grade': cur_grade,
+            'existing_names': existing_shop_names[-30:],
+            'rule': (
+                f'玩家本轮以【商城定制】显式向深渊天平系统商城请求定制进货（当前已解锁最高阶：{cur_grade}）。'
+                '此过程仅在徐志北脑海私密闪现，在场NPC绝对听不见、看不见且绝不察觉，现实动作与对话照常流畅衔接。'
+                '请穿插1～2句简短[N]私密内心系统提示，紧密贴合当前局面、人物与玩家诉求（策略/社交/官能/私密穿搭/隐秘装备均不设限），'
+                '推出1～3件不与existing_names重名的新道具，明确标出【品级T1~T4】、【道具名】、具体用途与参考积分：'
+                'T1寻常小物(10~30分,开局即用)、T2进阶利器(32~60分,轻中度官能/公关/工具)、T3稀缺重器(65~120分,监控/深控/核心筹码)、T4深渊禁品(150~260分,高危强催化/终阶筹码)；'
+                '建议优先含1件当前可买实用款，若玩家索要超阶/强效道具也照常上架但标T3/T4由程序锁门待后期解锁；仅作上架展示，本幕不得直接凭空塞进主角手里，且任何道具只做筹码助力不一键跳过剧情。'
+            ),
+        }
+
     if projection.get('index') or omitted_archive:
         delta['optional_archive_lookup'] = {
             'memory_index_path': memory_index,
@@ -1426,9 +1463,9 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
         '13. 段末抉择兜底补全（仅缺省时触发）：若 foreground_script 末尾已含完整 ---DECISION--- 与 A/B/C 三项抉择，请省略 fallback_decision；'
         '仅当 foreground_script 正文有效但漏写或截断了 ---DECISION--- / A/B/C 抉择时，补充 fallback_decision={"prompt":"点明当前局面的简短提示(<=300字)","options":[{"id":"A","text":"日常互动(<=500字)"},{"id":"B","text":"社交接触(<=500字)"},{"id":"C","text":"主动行为(<=500字)"}]}'
         '（三项须互不相同且承接本幕末尾局面；含跨地点转场时可给该项附带 "operation":{"code":"move_player","destination":"合法开放地点"}，无转场勿填 operation）。\n'
-        '14. 空间隐私与亲密态势增量 resolution.scene_state（可选，无变化直接省略或写""）：仅当本幕真实发生了房门反锁/隔墙偷欢/同席桌下暗触/子区切换/衣着凌乱褪衣换装/新增吻痕潮红痕迹/女主间疑心或共谋变化/身体部位开发互动/主角明确释放/偷藏或收下贴身衣物，或正式进入/收束亲密状态时填写：'
-        '{"intimate_active":true或false,"privacy":"open_public|semi_open|thin_wall|under_cover|locked_private","sub_location":"<=48字子区名","present_actors":["当前房内实际同席角色"],"attire_updates":{"女主名":{"outfit":"穿搭名或default","state":"neat|disheveled|half_undressed|wet|torn"}},"trace_adds":{"女主名":[{"kind":"吻痕|指印|潮红|发丝凌乱","desc":"<=60字","turns":4,"visible":true}]},"inter_heroine_deltas":{"A->B":1或-1},"body_acts":{"女主名":["oral|hand|chest|foot|core"]},"host_release":true,"keepsake_adds":[{"owner":"女主名","name":"衣物名","kind":"panties|stockings|bra|nightwear|accessory","method":"stolen|taken_intimate|gifted","condition":"fresh_warm|stained_damp|faded","desc":"<=60字"}],"keepsake_updates":[{"id":"KS-编号","owner_aware":true,"condition":"stained_damp"}]}'
-        '（所有子键均可选；贴身偷藏/留存衣物只走keepsake_adds严禁塞入resolution.items；严禁虚构未发生行为）。\n\n'
+        '14. 空间隐私与亲密态势增量 resolution.scene_state（可选，无变化直接省略或写""）：仅当本幕真实发生了房门反锁/隔墙偷欢/同席桌下暗触/子区切换/衣着凌乱褪衣换装/新增吻痕潮红痕迹/女主间疑心或共谋变化/身体部位开发互动/主角明确释放/偷藏或收下贴身衣物/剧情【商城定制】新推道具，或正式进入/收束亲密状态时填写：'
+        '{"intimate_active":true或false,"privacy":"open_public|semi_open|thin_wall|under_cover|locked_private","sub_location":"<=48字子区名","present_actors":["当前房内实际同席角色"],"attire_updates":{"女主名":{"outfit":"穿搭名或default","state":"neat|disheveled|half_undressed|wet|torn"}},"trace_adds":{"女主名":[{"kind":"吻痕|指印|潮红|发丝凌乱","desc":"<=60字","turns":4,"visible":true}]},"inter_heroine_deltas":{"A->B":1或-1},"body_acts":{"女主名":["oral|hand|chest|foot|core"]},"host_release":true,"keepsake_adds":[{"owner":"女主名","name":"衣物名","kind":"panties|stockings|bra|nightwear|accessory","method":"stolen|taken_intimate|gifted","condition":"fresh_warm|stained_damp|faded","desc":"<=60字"}],"keepsake_updates":[{"id":"KS-编号","owner_aware":true,"condition":"stained_damp"}],"shop_adds":[{"name":"道具名","grade":"T1|T2|T3|T4","category":"sensual|covert|daily","usage_mode":"gift|consumable_target|reusable_tool|deployable_device","price":10到260,"pack_qty":1到3,"desc":"用途说明","system_effect":""或"buff:名:1-3:效"或"deploy_device:camera|audio|aroma","max_per_save":1到3}]}'
+        '（所有子键均可选；贴身偷藏衣物只走keepsake_adds；shop_adds仅在context.shop_custom_requested==true时按正文新推道具摘录，严禁塞入resolution.items或虚构）。\n\n'
         '【合法事件标签白名单】\n'
         + json.dumps(catalog, ensure_ascii=False, separators=(',', ':'))
         + '\n\n【事件触发判定精简规则】\n'
@@ -1485,6 +1522,10 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
         'required_sources': list(required_sources),
         'output_contract': settle_contract,
     }
+    shop_custom_query = sp.detect_shop_custom_request(text) if (preview_cost or {}).get('kind') == 'action' else None
+    if shop_custom_query:
+        user_context['shop_custom_requested'] = True
+        user_context['shop_custom_query'] = shop_custom_query
     return {
         'system_prompt': system_prompt,
         'system_sha256': _digest_text(system_prompt),

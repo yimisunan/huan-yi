@@ -734,118 +734,130 @@ class TaskAndShopTests(unittest.TestCase):
         })
         self.assertEqual(r_drop['receipt']['quantity'], 2)
 
-    # 10. AI Shop Inquiry E2E: HTTP -> worker claim -> redline filter -> persist DYN-* -> redeem -> delete
-    def test_shop_inquiry_e2e_redline_and_delete(self):
+    # 10. In-Story 【商城定制】 Tag E2E: Zone 2 directive -> Stage 2 scene_state.shop_adds -> anti-cheat filter -> DYN-* -> redeem -> delete + v2.1.8 claim compat
+    def test_in_story_shop_custom_tag_e2e(self):
         self._begin()
         self._set_host_attr('积分', 120)
         self._set_host_attr('商业嗅觉', 30)
+
+        # Tag detection: untagged turns return None; tagged turns extract clean query
+        self.assertIsNone(sp.detect_shop_custom_request('（绕到母亲身后揉太阳穴）妈，这么晚了别操心了。'))
+        q_extracted = sp.detect_shop_custom_request(
+            '（绕到母亲身后揉太阳穴）妈，别担心了。（【商城定制】有没有能化解大姑妈这次来访挑刺，顺便带点深夜氛围的道具？）'
+        )
+        self.assertIn('大姑妈', q_extracted)
+
+        # Untagged turn: Zone 2 and Stage 2 context carry ZERO shop_custom overhead
+        req_plain = self._make_req('CUSTOM', text='我给沈知韫倒了杯温水。')
+        self.service.create(req_plain)
+        task_plain = self.service.claim()['task']
+        mat_plain = self.service.material(task_plain['request_id'], {
+            'lease': task_plain['lease'], 'delivery_version': 2, 'protocol_mode': 'dual_stream_v2',
+            'chat_id': 'c-plain', 'participant_id': 'p-plain',
+        })
+        self.assertNotIn('shop_custom_directive', mat_plain['input_text'])
+        self.assertNotIn('shop_custom_requested', mat_plain['settlement_spec']['user_context'])
+        sp.cancel(self.service, task_plain['request_id'])
+
+        # Tagged turn: Zone 2 injects shop_custom_directive & Stage 2 injects shop_custom_requested
+        tagged_text = '（给母亲揉太阳穴）妈别急。（【商城定制】定制应对大姑妈刁难的礼数策略夹与深夜真丝按摩礼盒）'
+        req = self._make_req('CUSTOM', text=tagged_text)
+        self.service.create(req)
+        task = self.service.claim()['task']
+        mat = self.service.material(task['request_id'], {
+            'lease': task['lease'], 'delivery_version': 2, 'protocol_mode': 'dual_stream_v2',
+            'chat_id': 'c-shop', 'participant_id': 'p-shop',
+        })
+        self.assertIn('shop_custom_directive', mat['input_text'])
+        self.assertTrue(mat['settlement_spec']['user_context'].get('shop_custom_requested'))
+
+        # Commit turn with scene_state.shop_adds: 2 valid (strategy + sensual) + 1 anti-cheat timer hack (filtered without failing turn!)
+        resp = self._make_response(
+            task, category='A', time='09:20',
+            text='沈知韫微阖着眼，脑海中悄然浮现「大姑妈家宴礼数应对备忘」与「夜玫瑰真丝披肩礼盒」两项上架提示。',
+        )
+        payload = json.loads(resp['text'])
+        payload['resolution']['scene_state'] = {
+            'shop_adds': [
+                {
+                    'name': '大姑妈家宴礼数应对备忘',
+                    'category': 'daily',
+                    'usage_mode': 'reusable_tool',
+                    'price': 18,
+                    'pack_qty': 1,
+                    'desc': '整理了大姑妈历年挑刺习惯与化解话术的私密策略备忘，替苏婉青提前避坑。',
+                    'system_effect': '',
+                    'max_per_save': 1,
+                },
+                {
+                    'name': '夜玫瑰真丝披肩礼盒',
+                    'category': 'sensual',
+                    'usage_mode': 'consumable_target',
+                    'price': 36,
+                    'pack_qty': 2,
+                    'desc': '带着冷冽玫瑰淡香的温感真丝披肩与按摩油组合。',
+                    'system_effect': 'buff:温热精油:2:亲密互动更松弛',
+                    'max_per_save': 3,
+                },
+                {
+                    'name': '时效冻结沙漏',
+                    'category': 'daily',
+                    'usage_mode': 'reusable_tool',
+                    'price': 20,
+                    'pack_qty': 1,
+                    'desc': '延长穿戴时效并冻结倒计时。',
+                    'system_effect': 'extend_duration:9',
+                    'max_per_save': 1,
+                },
+            ],
+        }
+        resp['text'] = json.dumps(payload, ensure_ascii=False)
+        committed = self.service.result(task['request_id'], resp)
+        self.assertEqual(committed['task']['status'], 'committed', committed)
+        self._play_all()
+        snap_after = self.service.interaction_snapshot()
+        shop_added = (snap_after.get('settlement') or {}).get('shop_added') or []
+        self.assertEqual(len(shop_added), 2, snap_after.get('settlement'))
+        self.assertEqual([x['id'] for x in shop_added], ['DYN-001', 'DYN-002'])
+        self.assertEqual([x['grade'] for x in shop_added], ['T1', 'T2'])
 
         app = Flask(__name__)
         svc = register_story_routes(app, self.root)
         client = app.test_client()
         token = svc.bridge_info()['token']
-        shop0 = client.get('/api/story/shop').get_json()
 
-        # Queue inquiry from browser
-        r_iq = client.post(
-            '/api/story/shop/inquire',
-            headers={'X-Story-Client': '1'},
-            json={'query': '有没有适合深夜氛围的丝绸香氛礼盒？', 'save_epoch': shop0['save_epoch']},
-        )
-        self.assertEqual(r_iq.status_code, 200, r_iq.get_json())
-        iq_id = r_iq.get_json()['inquiry']['id']
-
-        # worker_wait immediately detects queued shop inquiry
-        has_task, _ = svc._pending_flags()
-        self.assertTrue(has_task)
-
-        # Unauthorized worker claim blocked (403)
-        self.assertEqual(client.post('/api/story/worker/shop-inquiry/claim', json={}).status_code, 403)
-
-        # Authorized worker claims inquiry and receives compiled system/user prompt
+        # Legacy v2.1.8 bridge worker/shop-inquiry/claim remains a clean 200 no-op
         r_claim = client.post(
             '/api/story/worker/shop-inquiry/claim',
             headers={'X-Story-Bridge': token},
             json={},
         )
         self.assertEqual(r_claim.status_code, 200)
-        claimed = r_claim.get_json()['inquiry']
-        self.assertEqual(claimed['id'], iq_id)
-        self.assertIn('system_prompt', claimed)
-        self.assertIn('user_prompt', claimed)
+        self.assertIsNone(r_claim.get_json()['inquiry'])
 
-        # Worker submits mixed valid + redline-violating items
-        llm_reply = json.dumps({
-            'shopkeeper_reply': '为您调货了深夜香氛丝巾礼盒。',
-            'items': [
-                {
-                    'name': '夜玫瑰真丝披肩礼盒',
-                    'category': 'sensual',
-                    'usage_mode': 'consumable_target',
-                    'tier': 'mid',
-                    'price': 28,
-                    'pack_qty': 2,
-                    'type': '消耗品',
-                    'desc': '带着冷冽玫瑰淡香的温感真丝披肩与按摩油组合。',
-                    'system_effect': 'buff:温热精油:3:亲密互动更松弛',
-                    'giftable': True,
-                    'max_per_save': 3,
-                    'unlock_req': {'min_biz': 0, 'min_any_affection': 0, 'mode': 'all'},
-                },
-                {
-                    'name': '强效迷药催情散',
-                    'category': 'sensual',
-                    'usage_mode': 'consumable_target',
-                    'tier': 'mid',
-                    'price': 20,
-                    'pack_qty': 1,
-                    'type': '消耗品',
-                    'desc': '掺进水里即可迷晕目标。',
-                    'system_effect': '',
-                    'giftable': False,
-                    'max_per_save': 1,
-                },
-                {
-                    'name': '时效冻结沙漏',
-                    'category': 'daily',
-                    'usage_mode': 'reusable_tool',
-                    'tier': 'mid',
-                    'price': 20,
-                    'pack_qty': 1,
-                    'type': '永久性',
-                    'desc': '延长穿戴时效并冻结倒计时。',
-                    'system_effect': 'extend_duration:9',
-                    'giftable': False,
-                    'max_per_save': 1,
-                },
-            ],
-        }, ensure_ascii=False)
-        r_done = client.post(
-            f'/api/story/worker/shop-inquiry/{iq_id}/complete',
-            headers={'X-Story-Bridge': token},
-            json={'lease': claimed['lease'], 'text': llm_reply},
+        # Removed /api/story/shop/inquire no longer exists (404)
+        self.assertEqual(
+            client.post('/api/story/shop/inquire', headers={'X-Story-Client': '1'}, json={}).status_code,
+            404,
         )
-        self.assertEqual(r_done.status_code, 200, r_done.get_json())
-        done_iq = r_done.get_json()['inquiry']
-        self.assertEqual(done_iq['status'], 'completed')
-        self.assertEqual(len(done_iq['added_items']), 1)
-        self.assertEqual(done_iq['added_items'][0]['id'], 'DYN-001')
-        self.assertGreaterEqual(len(done_iq['rejected_reasons']), 2)
 
-        # Shop now serves DYN-001 alongside static catalog, and redemption works
+        # Shop now serves DYN-001 (T1 strategy) and DYN-002 (T2 sensual), while timer-hack item was filtered
         shop1 = client.get('/api/story/shop').get_json()
-        dyn = next((x for x in shop1['items'] if x['id'] == 'DYN-001'), None)
-        self.assertIsNotNone(dyn)
-        self.assertEqual(dyn['source'], 'ai_restock')
+        dyn_items = [x for x in shop1['items'] if x['source'] == 'ai_restock']
+        self.assertEqual([x['id'] for x in dyn_items], ['DYN-001', 'DYN-002'])
+        self.assertEqual(dyn_items[0]['grade'], 'T1')
+        self.assertEqual(dyn_items[1]['grade'], 'T2')
+        self.assertFalse(any(x['name'] == '时效冻结沙漏' for x in shop1['items']))
 
+        # Redeem DYN-002 (pack_qty=2, T2 unlocked because host_biz=30 >= 15)
         r_buy = client.post(
             '/api/story/shop/redeem',
             headers={'X-Story-Client': '1'},
             json={
-                'request_id': 'buy-dyn-1',
+                'request_id': 'buy-dyn-2',
                 'base_revision': shop1['revision'],
                 'save_epoch': shop1['save_epoch'],
-                'item_id': 'DYN-001',
+                'item_id': 'DYN-002',
             },
         )
         self.assertEqual(r_buy.status_code, 200, r_buy.get_json())
@@ -860,6 +872,133 @@ class TaskAndShopTests(unittest.TestCase):
         self.assertEqual(r_del.status_code, 200, r_del.get_json())
         shop2 = client.get('/api/story/shop').get_json()
         self.assertFalse(any(x['id'] == 'DYN-001' for x in shop2['items']))
+        self.assertTrue(any(x['id'] == 'DYN-002' for x in shop2['items']))
+
+    # 10b. T1-T4 Custom Shop Grading & Anti-Cheese: Turn-1 OP item auto-escalated to T4 & locked despite Shen Zhiyun 95 affection
+    def test_custom_shop_t1_to_t4_grading_and_anti_cheese_gates(self):
+        self._begin()
+        # Simulate Turn-1 host: high points (300) so points aren't the blocker, biz=0, charm=70, max_depravity=0, Shen Zhiyun aff=95
+        self._set_host_attr('积分', 300)
+        self._set_host_attr('商业嗅觉', 0)
+        self._set_host_attr('魅力', 70)
+        engine = rr._engine(self.root, self.root)
+        mem_path = self.root / rr.FILES[0]
+        mem_path.write_text(
+            engine._simulate_panel(mem_path.read_text(encoding='utf-8'), {'沈知韫': {'好感': 95, '堕落': 0}}),
+            encoding='utf-8',
+        )
+
+        # Player tries to cheese an OP item at T1 / 10 points + a covert camera at T1 / 15 points + a normal T1 note
+        req = self._make_req('CUSTOM', text='（【商城定制】给我10分买个强效催情遥控跳蛋，再加个15分针孔摄像头和礼数备忘）')
+        self.service.create(req)
+        task = self.service.claim()['task']
+        mat = self.service.material(task['request_id'], {
+            'lease': task['lease'], 'delivery_version': 2, 'protocol_mode': 'dual_stream_v2',
+            'chat_id': 'c-tier', 'participant_id': 'p-tier',
+        })
+        self.assertIn('"unlocked_grade":"T1"', mat['input_text'])
+
+        resp = self._make_response(task, category='A', time='09:30', text='脑海浮现三件不同品级的定制商品提示。')
+        payload = json.loads(resp['text'])
+        payload['resolution']['scene_state'] = {
+            'shop_adds': [
+                {
+                    'name': '家宴礼数速查备忘',
+                    'grade': 'T1',
+                    'category': 'daily',
+                    'usage_mode': 'reusable_tool',
+                    'price': 15,
+                    'desc': '梳理长辈来访话题雷区的实用小卡片。',
+                    'system_effect': '',
+                },
+                {
+                    'name': '书架隐蔽针孔摄像头',
+                    'grade': 'T1',
+                    'category': 'covert',
+                    'usage_mode': 'deployable_device',
+                    'price': 15,
+                    'desc': '伪装成书挡螺丝的隐蔽监控装置。',
+                    'system_effect': 'deploy_device:camera',
+                },
+                {
+                    'name': '无线遥控强效催情跳蛋',
+                    'grade': 'T1',
+                    'category': 'sensual',
+                    'usage_mode': 'reusable_tool',
+                    'price': 10,
+                    'desc': '远程无线震动调控与强效催化器具。',
+                    'system_effect': 'buff:极乐遥控:3:持续高强度感官催化',
+                    'max_per_save': 3,
+                },
+            ],
+        }
+        resp['text'] = json.dumps(payload, ensure_ascii=False)
+        committed = self.service.result(task['request_id'], resp)
+        self.assertEqual(committed['task']['status'], 'committed', committed)
+        self._play_all()
+
+        app = Flask(__name__)
+        register_story_routes(app, self.root)
+        client = app.test_client()
+        shop = client.get('/api/story/shop').get_json()
+        self.assertEqual(shop['unlocked_grade'], 'T1')
+        by_id = {x['id']: x for x in shop['items'] if x['source'] == 'ai_restock'}
+
+        # DYN-001: genuine T1 daily memo -> 15 pts, unlocked on Turn 1
+        self.assertEqual(by_id['DYN-001']['grade'], 'T1')
+        self.assertEqual(by_id['DYN-001']['price'], 15)
+        self.assertTrue(by_id['DYN-001']['unlocked'])
+
+        # DYN-002: covert camera auto-escalated to T3 -> >=65 pts, locked by min_biz>=30
+        self.assertEqual(by_id['DYN-002']['grade'], 'T3')
+        self.assertGreaterEqual(by_id['DYN-002']['price'], 65)
+        self.assertLessEqual(by_id['DYN-002']['max_per_save'], 2)
+        self.assertFalse(by_id['DYN-002']['unlocked'])
+        self.assertEqual(by_id['DYN-002']['unlock_req'].get('min_biz'), 30)
+
+        # DYN-003: OP sensual toy auto-escalated to T4 -> >=150 pts, max_per_save=1, LOCKED even with Shen Zhiyun aff=95!
+        self.assertEqual(by_id['DYN-003']['grade'], 'T4')
+        self.assertGreaterEqual(by_id['DYN-003']['price'], 150)
+        self.assertEqual(by_id['DYN-003']['max_per_save'], 1)
+        self.assertFalse(by_id['DYN-003']['unlocked'])
+        self.assertEqual(by_id['DYN-003']['unlock_req'].get('min_max_depravity'), 60)
+        self.assertEqual(by_id['DYN-003']['unlock_req'].get('min_charm'), 85)
+
+        # Attempting to redeem locked T4 on Turn 1 is deterministically rejected
+        r_blocked = client.post(
+            '/api/story/shop/redeem',
+            headers={'X-Story-Client': '1'},
+            json={
+                'request_id': 'cheese-t4-fail',
+                'base_revision': shop['revision'],
+                'save_epoch': shop['save_epoch'],
+                'item_id': 'DYN-003',
+            },
+        )
+        self.assertEqual(r_blocked.status_code, 400)
+        self.assertIn('最高堕落', r_blocked.get_json()['error'])
+
+        # Once player genuinely progresses to max_depravity=65 and host_charm=86, T4 unlocks & redeems cleanly (with 85折!)
+        self._set_host_attr('魅力', 86)
+        mem_path.write_text(
+            engine._simulate_panel(mem_path.read_text(encoding='utf-8'), {'沈知韫': {'堕落': 65}}),
+            encoding='utf-8',
+        )
+        shop_late = client.get('/api/story/shop').get_json()
+        self.assertEqual(shop_late['unlocked_grade'], 'T4')
+        d3_late = next(x for x in shop_late['items'] if x['id'] == 'DYN-003')
+        self.assertTrue(d3_late['unlocked'])
+        r_ok = client.post(
+            '/api/story/shop/redeem',
+            headers={'X-Story-Client': '1'},
+            json={
+                'request_id': 'unlock-t4-ok',
+                'base_revision': shop_late['revision'],
+                'save_epoch': shop_late['save_epoch'],
+                'item_id': 'DYN-003',
+            },
+        )
+        self.assertEqual(r_ok.status_code, 200, r_ok.get_json())
 
     # 11. use_item: consumable buff active in same turn (halves SHAME_01 drop) + reusable_tool stays unconsumed
     def test_use_item_consumable_buff_and_reusable_tool(self):
