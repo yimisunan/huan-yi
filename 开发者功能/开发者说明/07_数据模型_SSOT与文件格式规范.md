@@ -59,12 +59,16 @@ flowchart LR
 {
   "version": 2,
   "locations": ["徐家主宅", "市中心顶层公寓", "大学", "工作室", "公司"],
-  "operations": ["move_player", "transfer_item", "use_recovery_item", "use_item", "deploy_item", "retrieve_item", "inspect_deployed"],
+  "operations": ["move_player", "transfer_item", "use_recovery_item", "use_item", "deploy_item", "retrieve_item", "inspect_deployed", "keepsake_action"],
   "resource": {
     "status": "active", "version": 2, "scheme": "fixed_tiers",
     "attribute": "体力",
     "costs": {"A": 5, "B": 10, "C": 15},
-    "intimate_continuation_costs": {"A": 5, "B": 7, "C": 10},
+    "intimate_continuation_costs": {"A": 1, "B": 2, "C": 3},
+    "intimate_stamina_floor": 10,
+    "vigor_maximum": 100,
+    "vigor_min_floor_guard": 15,
+    "vigor_costs": {"A": 2, "B": 4, "C": 7, "release": 12},
     "custom_reserve": 15, "maximum": 100, "minimum_action": 5,
     "item_recovery_percent": 20,
     "recovery_cycle": "between_completed_overnight_sleeps",
@@ -187,11 +191,11 @@ flowchart LR
 
 `存档/` 为完全自包含的累积事实层，单目录迁移即可在无 `.round-runtime/` 与 `data.json` 时零 500 恢复运行态：
 
-- **`存档/save_state.json`（唯一机器状态真相）**：包含 `version: 2`、`panels`、`presence`、`micro_states`、`buffs`、`counters`、**`mechanics`**、**`intimate`（`sub_location`、`privacy`、`clothing_state`、`intimate_beat`、`present_actors`、`active_scene_location`）**、`vigilance`、`tasks`（含 `pending_items` 队列）、`items`（`next_seq` + **`active` / `deployed` / `delivered` / `history` 四分仓** + `giftable` / `category` / `usage_mode` / `spot` / `hidden` / `installed_clock` / **`detected_risk`**）、`shop`（`redeemed` / `recent` / `echoes` / **`dynamic_catalog`** / `next_dyn_seq`）、`intel`、`director`（含 **`sensual_drought`**）、`lifecycle`、`runtime` 及 **`rendered_sha256`**（外部编辑 `.txt` 漂移检测指纹，漂移同步时严格保留 `shop.dynamic_catalog` / `next_dyn_seq` / `items.deployed` / `intimate`）。
+- **`存档/save_state.json`（唯一机器状态真相）**：包含 `version: 2`、`panels`、`presence`、`micro_states`、`buffs`、`counters`、**`mechanics`**、**`intimate`（`sub_location`、`privacy`、`clothing_state`、`intimate_beat`、`present_actors`、`active_scene_location`，及 v4 持久化子结构 `host_phys`、`body_dev`、`keepsakes`、`session_charm_gained`）**、`vigilance`、`tasks`（含 `pending_items` 队列）、`items`（`next_seq` + **`active` / `deployed` / `delivered` / `history` 四分仓** + `giftable` / `category` / `usage_mode` / `spot` / `hidden` / `installed_clock` / **`detected_risk`**）、`shop`（`redeemed` / `recent` / `echoes` / **`dynamic_catalog`** / `next_dyn_seq`）、`intel`、`director`（含 **`sensual_drought`**）、`lifecycle`、`runtime` 及 **`rendered_sha256`**（外部编辑 `.txt` 漂移检测指纹，漂移同步时严格保留 `shop.dynamic_catalog` / `next_dyn_seq` / `items.deployed` / `intimate` 全量 JSON 真相）。
 - **`存档/四层记忆.json`**：持久化结构化 `layers.L1–L4` 条目、`prologue_active` 布尔标志（彻底取代会污染正文的 `PROLOGUE` 隐藏标记行）与房间级 `known_by` 知情元数据。
 - **`存档/近期演播.json`**：滚动保存最新 **12 幕** 已接受演播原文与 `playback` 播放游标；刻意置于 `round_runtime.FILES` 之外，避免单纯推进播放进度改变世界版本指纹。
-- **轻量化可回档存档槽（`.round-runtime/save-slots/<slot_id>/`）**：由 `存档清理器.py` 管理，单槽仅打包必要核心文件（`meta.json` 含 SHA-256 校验与摘要标签、`存档/{save_state,四层记忆,近期演播}.json`、`data.json`、`.round-runtime/interaction/*.json`、`playback.json`），剔除日志、任务凭证与缓存；自动区分 `manual`（手工快照）/ `auto`（新档前自动留存）/ `pre_restore`（回档前安全网），自动槽按配额裁剪而手工槽默认保留，支持浏览器「档案室」与 CLI 一键回档。
-- **旧纯 `.txt` 兼容与漂移检测**：`save_store.load_bundle()` 在缺少 JSON 时自动无损迁移旧纯 `.txt` 存档；若检测到用户或旧工具直接修改了 `.txt`（哈希不等于 `rendered_sha256`），自动重新导入被改动的 `.txt` 区块并严格保留 JSON 专属 `mechanics`、`intimate` 与动态货架。
+- **轻量化可回档存档槽（`.round-runtime/save-slots/<slot_id>/`）**：由 `存档清理器.py` 管理，单槽仅打包必要核心文件（`meta.json` 含 SHA-256 校验与摘要标签，含 `魅力` 与 `私密珍藏` 件数、`存档/{save_state,四层记忆,近期演播}.json`、`data.json`、`.round-runtime/interaction/*.json`、`playback.json`），剔除日志、任务凭证与缓存；自动区分 `manual`（手工快照）/ `auto`（新档前自动留存）/ `pre_restore`（回档前安全网），自动槽按配额裁剪而手工槽默认保留，支持浏览器「档案室」与 CLI 一键回档。
+- **旧纯 `.txt` 兼容与漂移检测**：`save_store.load_bundle()` 在缺少 JSON 时自动无损迁移旧纯 `.txt` 存档；若检测到用户或旧工具直接修改了 `.txt`（哈希不等于 `rendered_sha256`），自动重新导入被改动的 `.txt` 区块并严格保留 JSON 专属 `mechanics`、`intimate`（含 `host_phys`/`body_dev`/`keepsakes`）与动态货架。
 
 ### 3.3 `存档/全局记忆库.txt`（单向自动渲染的 14 大固定区块）
 由 `save_store.render_memory_txt()` 单向渲染供人工与手动入口查阅（已移除冗余的 `▶ 上回合历史快照` 与序幕隐藏标记行），**区块锚点顺序严格固定**：
@@ -201,7 +205,7 @@ flowchart LR
 3. `【当前激活微状态】`（三女主统一按 `momentary_ease | residual_tension | confusion_debt` 顺序渲染）
 4. `【当前持久化状态与BUFF】`（`- [分类_名称] 剩余时效: X回合 (效果: ...)` 或 `- 无`）
 5. `【回合计数器】`（4 破局计数 + 破局冷却 + 分角色 `空耗_连续未纾解_<名>` + `连续守护回合`）
-6. `【情欲与空间态势】`（当前细分空间、隐私档位、着装层级、亲密续演节拍与房内参与者）
+6. `【情欲与空间态势】`（当前细分空间、隐私档位、着装层级、亲密续演节拍、房内参与者，及非默认的 `host_phys` 欲火/精力/癖好、`body_dev` 身体开发进度与 `keepsakes` 私密珍藏清单）
 7. `【监视状态】`（`徐承邺位置：...` + 4 行 `徐承邺_<目标>：警惕 N | 发现 N | 发现几率 N`）
 8. `【任务状态】`（`当前任务：`、`最近完成：`、`待发道具：`（支持多行 `pending_items` 队列））
 9. `【道具倒计时】`（由 `items.active` 与 `items.deployed` 双源派生：`ITEM-NNN：X回合 | 名称：... | 状态：进行中` 或 `（空）`）
