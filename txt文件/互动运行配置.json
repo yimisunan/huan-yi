@@ -127,6 +127,29 @@
     "max_active_threads": 5,
     "max_thread_age": 12,
     "channel_cooldown_window": 4,
-    "clock_tick_interval": 3
+    "clock_tick_interval": 3,
+    "heroine_pity_turns": 4,
+    "heroine_beat_cooldown": 1,
+    "erotic_category_cooldown": 2,
+    "pacing_presets": {
+      "slow": {
+        "heroine_pity_turns": 6,
+        "heroine_beat_cooldown": 2,
+        "erotic_category_cooldown": 3,
+        "heroine_prob_mult": 0.75
+      },
+      "standard": {
+        "heroine_pity_turns": 4,
+        "heroine_beat_cooldown": 1,
+        "erotic_category_cooldown": 2,
+        "heroine_prob_mult": 1.0
+      },
+      "frequent": {
+        "heroine_pity_turns": 3,
+        "heroine_beat_cooldown": 1,
+        "erotic_category_cooldown": 1,
+        "heroine_prob_mult": 1.35
+      }
+    }
   }
 }

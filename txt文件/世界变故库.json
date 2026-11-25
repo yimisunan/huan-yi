@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "description": "深渊天平活体世界导演 2.0 统一数据源：整合 8 类媒介通道枚举、25×25 组合意象火花矩阵（含 PbtA 软/硬动作）、4 条场外角色进度暗钟及 30 条精选支点事件，由后端 Entropy RNG 与显著性路由调度，仅注入客观外部变数与生活细节，绝不替玩家做决定、绝不泄露未解锁绝密。",
+  "description": "深渊天平活体世界导演 2.1 统一数据源：整合 8 类媒介通道枚举、25×25 组合意象火花矩阵（含 PbtA 软/硬动作）、4 条场外角色进度暗钟及 75 条精选支点事件（含同室共处破冰意外与多阶女主契机），由后端双轨节奏与显著性路由调度，仅注入客观外部变数与近距意外，绝不替玩家做决定、绝不泄露未解锁绝密。",
   "channels": {
     "phone_msg": "手机来电/微信/推送消息",
     "door_visit": "敲门/突然来访/门外闯入",
@@ -1291,8 +1291,8 @@
       ],
       "min_vigilance": 0,
       "min_biz": 0,
-      "min_affection": 35,
-      "max_shame": 96,
+      "min_affection": 25,
+      "max_shame": 100,
       "min_desire": 0,
       "min_depravity": 0,
       "requires_unrelieved": false,
@@ -1301,7 +1301,8 @@
       "once": false,
       "seed_to_add": null,
       "requires_seed": null,
-      "objective_event": "沈知韫转身去拾滑落桌底的文件时，脚下在地毯折角处忽地一崴，脚踝吃痛轻嘶一声（在公司时尖头细跟后空鞋彻底滑脱、超薄黑丝脚背被桌脚勾出一道细长破丝；在主宅居家时则是米白露趾拖鞋滑脱在地、淡紫薄纱开衫随动作滑开肩线），白皙细腻的脚踝与修长足弓瞬间裸露眼前，整个人重心一偏踉跄着朝徐志北身前倾斜，幽兰冷香与温热呼吸一下子压进半步之内。"
+      "objective_event": "沈知韫转身去拾滑落桌底的文件时，脚下在地毯折角处忽地一崴，脚踝吃痛轻嘶一声（在公司时尖头细跟后空鞋彻底滑脱、超薄黑丝脚背被桌脚勾出一道细长破丝；在主宅居家时则是米白露趾拖鞋滑脱在地、淡紫薄纱开衫随动作滑开肩线），白皙细腻的脚踝与修长足弓瞬间裸露眼前，整个人重心一偏踉跄着朝徐志北身前倾斜，幽兰冷香与温热呼吸一下子压进半步之内。",
+      "requires_door_catch": false
     },
     {
       "id": "BEAT-T1-EROTIC-SU-SLIP",
@@ -1320,8 +1321,8 @@
       ],
       "min_vigilance": 0,
       "min_biz": 0,
-      "min_affection": 35,
-      "max_shame": 96,
+      "min_affection": 25,
+      "max_shame": 100,
       "min_desire": 0,
       "min_depravity": 0,
       "requires_unrelieved": false,
@@ -1330,7 +1331,8 @@
       "once": false,
       "seed_to_add": null,
       "requires_seed": null,
-      "objective_event": "苏婉青端着茶盏转身时，衣角不小心勾在椅角金属扣上（赴主宅外出时为白色宽松长袖开衫配浅黄细肩带修身短裙；在公寓居家时为浅黄碎花吊带睡裙），她低呼一声弯腰去解，领口顺着圆润肩头滑落半寸，胸前雪白丰盈的 36D 弧度在松垂蕾丝边下颤巍巍地挤出大片起伏，裙摆同时被拉高一截，露出冷白细腻的大腿线条。"
+      "objective_event": "苏婉青端着茶盏转身时，衣角不小心勾在椅角金属扣上（赴主宅外出时为白色宽松长袖开衫配浅黄细肩带修身短裙；在公寓居家时为浅黄碎花吊带睡裙），她低呼一声弯腰去解，领口顺着圆润肩头滑落半寸，胸前雪白丰盈的 36D 弧度在松垂蕾丝边下颤巍巍地挤出大片起伏，裙摆同时被拉高一截，露出冷白细腻的大腿线条。",
+      "requires_door_catch": false
     },
     {
       "id": "BEAT-T1-EROTIC-WEI-SLIP",
@@ -1349,8 +1351,8 @@
       ],
       "min_vigilance": 0,
       "min_biz": 0,
-      "min_affection": 35,
-      "max_shame": 96,
+      "min_affection": 25,
+      "max_shame": 100,
       "min_desire": 0,
       "min_depravity": 0,
       "requires_unrelieved": false,
@@ -1359,7 +1361,8 @@
       "once": false,
       "seed_to_add": null,
       "requires_seed": null,
-      "objective_event": "徐念薇踩着高脚画凳伸手去够高处的定画液，脚尖一晃险些踩空，本能地伸手死死攥住徐志北的小臂衣袖——冰凉细腻的修长十指紧扣着布料、手腕细白得几乎能握进一掌，高举的手臂同时把浅蓝长裙侧摆带得掀起，露出纤细腰窝与素白纯棉内衣下缘一角，她冷白的耳根迅速漫开一层薄红。"
+      "objective_event": "徐念薇踩着高脚画凳伸手去够高处的定画液，脚尖一晃险些踩空，本能地伸手死死攥住徐志北的小臂衣袖——冰凉细腻的修长十指紧扣着布料、手腕细白得几乎能握进一掌，高举的手臂同时把浅蓝长裙侧摆带得掀起，露出纤细腰窝与素白纯棉内衣下缘一角，她冷白的耳根迅速漫开一层薄红。",
+      "requires_door_catch": false
     },
     {
       "id": "BEAT-T2-EROTIC-SHEN-CHANGE",
@@ -1381,8 +1384,8 @@
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 50,
-      "max_shame": 86,
-      "min_desire": 15,
+      "max_shame": 90,
+      "min_desire": 8,
       "min_depravity": 0,
       "requires_unrelieved": false,
       "requires_door_catch": true,
@@ -1413,8 +1416,8 @@
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 50,
-      "max_shame": 86,
-      "min_desire": 15,
+      "max_shame": 90,
+      "min_desire": 8,
       "min_depravity": 0,
       "requires_unrelieved": false,
       "requires_door_catch": true,
@@ -1445,8 +1448,8 @@
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 50,
-      "max_shame": 86,
-      "min_desire": 15,
+      "max_shame": 90,
+      "min_desire": 8,
       "min_depravity": 0,
       "requires_unrelieved": false,
       "requires_door_catch": true,
@@ -1680,8 +1683,8 @@
       ],
       "min_vigilance": 0,
       "min_biz": 0,
-      "min_affection": 30,
-      "max_shame": 95,
+      "min_affection": 25,
+      "max_shame": 100,
       "min_desire": 0,
       "min_depravity": 0,
       "requires_unrelieved": false,
@@ -1709,8 +1712,8 @@
       ],
       "min_vigilance": 0,
       "min_biz": 0,
-      "min_affection": 35,
-      "max_shame": 92,
+      "min_affection": 30,
+      "max_shame": 98,
       "min_desire": 0,
       "min_depravity": 0,
       "requires_unrelieved": false,
@@ -1831,8 +1834,8 @@
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 45,
-      "max_shame": 82,
-      "min_desire": 35,
+      "max_shame": 88,
+      "min_desire": 20,
       "min_depravity": 5,
       "requires_unrelieved": false,
       "requires_door_catch": false,
@@ -1861,8 +1864,8 @@
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 45,
-      "max_shame": 88,
-      "min_desire": 15,
+      "max_shame": 90,
+      "min_desire": 8,
       "min_depravity": 0,
       "requires_unrelieved": false,
       "requires_door_catch": false,
@@ -1891,8 +1894,8 @@
       "min_vigilance": 0,
       "min_biz": 0,
       "min_affection": 50,
-      "max_shame": 86,
-      "min_desire": 15,
+      "max_shame": 90,
+      "min_desire": 8,
       "min_depravity": 0,
       "requires_unrelieved": false,
       "requires_door_catch": false,
@@ -1988,6 +1991,428 @@
       "seed_to_add": null,
       "requires_seed": null,
       "objective_event": "斜照进屋的光线恰好扫过暗藏隐蔽装置的角落，一枚细微镜头反光或指示微尘在对方起身擦拭整理时险些落入视线——空气陡然一紧，需决定借动作挡住视线、扯开话题还是趁机拆回装置。"
+    },
+    {
+      "id": "BEAT-T1-EROTIC-SHEN-TEA-SPILL",
+      "tier": "tier1",
+      "category": "erotic_accident",
+      "channel": "sensory_slip",
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "any"
+      ],
+      "min_vigilance": 0,
+      "min_biz": 0,
+      "min_affection": 25,
+      "max_shame": 100,
+      "min_desire": 0,
+      "min_depravity": 0,
+      "requires_unrelieved": false,
+      "requires_door_catch": false,
+      "weight": 18,
+      "cooldown": 7,
+      "once": false,
+      "seed_to_add": null,
+      "requires_seed": null,
+      "objective_event": "沈知韫递茶落座时杯沿不慎轻碰桌角，半盏温热红茶泼洒在她淡紫居家纱裙下摆与白皙脚踝上——她轻嘶一声微微缩脚，湿透的薄料紧贴住小腿线条，茶香混着幽兰冷香扑面而来，她正慌着找纸巾，手里还端着滚烫茶托腾不出空。"
+    },
+    {
+      "id": "BEAT-T1-EROTIC-SHEN-HAIRPIN-CUFF",
+      "tier": "tier1",
+      "category": "erotic_accident",
+      "channel": "object_trace",
+      "locations": [
+        "徐家主宅",
+        "公司"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "any"
+      ],
+      "min_vigilance": 0,
+      "min_biz": 0,
+      "min_affection": 25,
+      "max_shame": 100,
+      "min_desire": 0,
+      "min_depravity": 0,
+      "requires_unrelieved": false,
+      "requires_door_catch": false,
+      "weight": 17,
+      "cooldown": 7,
+      "once": false,
+      "seed_to_add": null,
+      "requires_seed": null,
+      "objective_event": "沈知韫俯身同徐志北核对纸面细节起身瞬间，鬓边垂落的一缕黑发与细银发夹不巧勾进了徐志北的袖扣里——她被迫停在半寸之内微微偏头，呼吸与清冷颈香直接扫过耳廓与锁骨，两人一时谁也不敢贸然扯开。"
+    },
+    {
+      "id": "BEAT-T1-EROTIC-SHEN-BLACKOUT-HOME",
+      "tier": "tier1",
+      "category": "erotic_accident",
+      "channel": "schedule_clash",
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
+      "min_vigilance": 0,
+      "min_biz": 0,
+      "min_affection": 25,
+      "max_shame": 100,
+      "min_desire": 0,
+      "min_depravity": 0,
+      "requires_unrelieved": false,
+      "requires_door_catch": false,
+      "weight": 18,
+      "cooldown": 8,
+      "once": false,
+      "seed_to_add": null,
+      "requires_seed": null,
+      "objective_event": "主宅电路突发短暂跳闸，室内灯光骤然熄灭只剩窗外雨夜微光——一向镇定的沈知韫被漆黑晃了半拍，本能伸手攥住徐志北的小臂往身前稳了半步，修长温热的手指隔着衣料紧扣不放，黑暗中能清晰听见她骤然放轻却发紧的呼吸。"
+    },
+    {
+      "id": "BEAT-T1-EROTIC-SU-ZIPPER-HELP",
+      "tier": "tier1",
+      "category": "erotic_accident",
+      "channel": "object_trace",
+      "locations": [
+        "徐家主宅",
+        "市中心顶层公寓"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "any"
+      ],
+      "min_vigilance": 0,
+      "min_biz": 0,
+      "min_affection": 25,
+      "max_shame": 100,
+      "min_desire": 0,
+      "min_depravity": 0,
+      "requires_unrelieved": false,
+      "requires_door_catch": false,
+      "weight": 18,
+      "cooldown": 7,
+      "once": false,
+      "seed_to_add": null,
+      "requires_seed": null,
+      "objective_event": "苏婉青抬手拢发整理衣领时，耳后几缕长发连同开衫/短裙后颈处的细扣卡死在一起——她反手够了两次越扯越紧，圆润肩线与大片冷白后颈随动作微微敞露，又急又窘地红着耳根转过半个身子，低声问徐志北能不能凑近帮她看一下。"
+    },
+    {
+      "id": "BEAT-T1-EROTIC-SU-CHENGYE-CALL-SOFA",
+      "tier": "tier1",
+      "category": "erotic_accident",
+      "channel": "phone_msg",
+      "locations": [
+        "徐家主宅",
+        "市中心顶层公寓"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "any"
+      ],
+      "min_vigilance": 0,
+      "min_biz": 0,
+      "min_affection": 25,
+      "max_shame": 100,
+      "min_desire": 0,
+      "min_depravity": 0,
+      "requires_unrelieved": false,
+      "requires_door_catch": false,
+      "weight": 18,
+      "cooldown": 8,
+      "once": false,
+      "seed_to_add": null,
+      "requires_seed": null,
+      "objective_event": "苏婉青刚俯身收拾茶几，手机忽然亮屏震出徐承邺的语音来电提醒，她心头一跳手滑把手机掉进了沙发靠垫夹缝——两人几乎同时弯腰去摸，柔暖的 36D 肩胸轮廓与急促香甜的呼吸一下贴近徐志北臂侧，铃声还在缝隙里嗡嗡作响。"
+    },
+    {
+      "id": "BEAT-T1-EROTIC-SU-KITCHEN-SCALD",
+      "tier": "tier1",
+      "category": "erotic_accident",
+      "channel": "sensory_slip",
+      "locations": [
+        "徐家主宅",
+        "市中心顶层公寓"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "any"
+      ],
+      "min_vigilance": 0,
+      "min_biz": 0,
+      "min_affection": 25,
+      "max_shame": 100,
+      "min_desire": 0,
+      "min_depravity": 0,
+      "requires_unrelieved": false,
+      "requires_door_catch": false,
+      "weight": 17,
+      "cooldown": 7,
+      "once": false,
+      "seed_to_add": null,
+      "requires_seed": null,
+      "objective_event": "苏婉青揭开滚烫茶盖/汤盅时被猛蹿的热气烫红了指尖，轻呼一声下意识往后退了半步，肩背直接撞进徐志北胸前——暖甜体香混着温热蒸汽扑面涌来，她托着烫红的手指微微发抖，松垂的领口随慌乱的呼吸就在眼前轻轻起伏。"
+    },
+    {
+      "id": "BEAT-T1-EROTIC-WEI-PAINT-NECK",
+      "tier": "tier1",
+      "category": "erotic_accident",
+      "channel": "object_trace",
+      "locations": [
+        "工作室",
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "any"
+      ],
+      "min_vigilance": 0,
+      "min_biz": 0,
+      "min_affection": 25,
+      "max_shame": 100,
+      "min_desire": 0,
+      "min_depravity": 0,
+      "requires_unrelieved": false,
+      "requires_door_catch": false,
+      "weight": 18,
+      "cooldown": 7,
+      "once": false,
+      "seed_to_add": null,
+      "requires_seed": null,
+      "objective_event": "徐念薇抬手把滑落的碎发别到耳后，没留意纤细指节上还沾着未干的群青颜料，直接蹭了一道淡蓝印子在冷白颈侧与锁骨凹陷处——她两只手都沾着画材没法自擦，对着玻璃反光轻蹙起眉，僵着半仰起修长脖颈停在原地。"
+    },
+    {
+      "id": "BEAT-T1-EROTIC-WEI-CANVAS-STUMBLE",
+      "tier": "tier1",
+      "category": "erotic_accident",
+      "channel": "sensory_slip",
+      "locations": [
+        "工作室",
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "any"
+      ],
+      "min_vigilance": 0,
+      "min_biz": 0,
+      "min_affection": 25,
+      "max_shame": 100,
+      "min_desire": 0,
+      "min_depravity": 0,
+      "requires_unrelieved": false,
+      "requires_door_catch": false,
+      "weight": 17,
+      "cooldown": 7,
+      "once": false,
+      "seed_to_add": null,
+      "requires_seed": null,
+      "objective_event": "徐念薇转身挪动靠墙的大号画框/厚画册时底边打滑险些倾倒，重心一斜被徐志北顺手拦住的瞬间，她整个人几乎贴进了徐志北臂弯里——纤细清冷的手腕扣在主角胸前衣襟上，极淡皂香混着微微加快的温热鼻息近在咫尺，冷白耳尖迅速浮上一层薄红。"
+    },
+    {
+      "id": "BEAT-T1-EROTIC-WEI-DOOR-LATCH",
+      "tier": "tier1",
+      "category": "erotic_accident",
+      "channel": "door_visit",
+      "locations": [
+        "工作室",
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "afternoon",
+        "evening",
+        "night"
+      ],
+      "min_vigilance": 0,
+      "min_biz": 0,
+      "min_affection": 25,
+      "max_shame": 100,
+      "min_desire": 0,
+      "min_depravity": 0,
+      "requires_unrelieved": false,
+      "requires_door_catch": false,
+      "weight": 17,
+      "cooldown": 8,
+      "once": false,
+      "seed_to_add": null,
+      "requires_seed": null,
+      "objective_event": "一阵穿堂风“咔哒”把虚掩的房门带合，老式黄铜门锁舌头卡涩一时拧不动——原本刻意隔开两步距离的徐念薇低头试着扭了两下把手没能打开，纤白修长的手指还搭在门把上，室内骤然安静成只有两人呼吸声的短暂密闭空间。"
+    },
+    {
+      "id": "BEAT-T2-EROTIC-SHEN-ANKLE-CRAMP",
+      "tier": "tier2",
+      "category": "erotic_accident",
+      "channel": "sensory_slip",
+      "locations": [
+        "徐家主宅",
+        "公司"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "evening",
+        "night"
+      ],
+      "min_vigilance": 0,
+      "min_biz": 0,
+      "min_affection": 55,
+      "max_shame": 98,
+      "min_desire": 0,
+      "min_depravity": 0,
+      "requires_unrelieved": false,
+      "requires_door_catch": false,
+      "weight": 17,
+      "cooldown": 8,
+      "once": false,
+      "seed_to_add": null,
+      "requires_seed": null,
+      "objective_event": "连轴奔波了一整天，沈知韫靠在沙发/办公椅边小腿忽然抽紧，忍痛轻嘶一声下意识褪下半只高跟鞋/拖鞋低头按揉脚踝——超薄丝袜或冷白肌肤包裹的修长足弓与纤细脚踝全暴露在灯光下，她抬眼撞上徐志北的目光，指尖一顿，脸颊漫上克制不住的微红。"
+    },
+    {
+      "id": "BEAT-T2-EROTIC-SU-RAIN-SOAKED",
+      "tier": "tier2",
+      "category": "erotic_accident",
+      "channel": "schedule_clash",
+      "locations": [
+        "徐家主宅",
+        "市中心顶层公寓"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "afternoon",
+        "evening",
+        "night"
+      ],
+      "min_vigilance": 0,
+      "min_biz": 0,
+      "min_affection": 38,
+      "max_shame": 98,
+      "min_desire": 0,
+      "min_depravity": 0,
+      "requires_unrelieved": false,
+      "requires_door_catch": false,
+      "weight": 17,
+      "cooldown": 8,
+      "once": false,
+      "seed_to_add": null,
+      "requires_seed": null,
+      "objective_event": "窗外骤雨伴着横风斜打进阳台/窗边，苏婉青急着探身去关窗收物，肩头与前襟瞬间被冷水淋湿大片——浅色薄料湿透后半透明地紧贴在丰腴的 36D 胸线与肩带轮廓上，她打了个轻颤急忙双臂抱胸退回屋里，湿漉漉的发梢还滴着水珠。"
+    },
+    {
+      "id": "BEAT-T2-EROTIC-WEI-DRESS-CLASP",
+      "tier": "tier2",
+      "category": "erotic_accident",
+      "channel": "object_trace",
+      "locations": [
+        "工作室",
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "徐念薇"
+      ],
+      "time_slots": [
+        "any"
+      ],
+      "min_vigilance": 0,
+      "min_biz": 0,
+      "min_affection": 32,
+      "max_shame": 98,
+      "min_desire": 0,
+      "min_depravity": 0,
+      "requires_unrelieved": false,
+      "requires_door_catch": false,
+      "weight": 17,
+      "cooldown": 8,
+      "once": false,
+      "seed_to_add": null,
+      "requires_seed": null,
+      "objective_event": "徐念薇侧身踮脚从架上取画材时，肩线处细带或衣襟暗扣忽然崩松滑开一截，露出冷白细腻的肩窝与素白内衣细带边缘——她一手还捧着沉重画盒放不下，另一只手慌忙按住衣领，修长白皙的手指紧抓着布料，耳根红透却进退两难。"
+    },
+    {
+      "id": "BEAT-T2-EROTIC-HIDE-FOOTSTEPS-SHEN",
+      "tier": "tier2",
+      "category": "erotic_accident",
+      "channel": "third_party",
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "沈知韫"
+      ],
+      "time_slots": [
+        "any"
+      ],
+      "min_vigilance": 0,
+      "min_biz": 0,
+      "min_affection": 60,
+      "max_shame": 98,
+      "min_desire": 0,
+      "min_depravity": 0,
+      "requires_unrelieved": false,
+      "requires_door_catch": false,
+      "weight": 17,
+      "cooldown": 9,
+      "once": false,
+      "seed_to_add": null,
+      "requires_seed": null,
+      "objective_event": "两人正凑近低声交谈，走廊外忽然传来管家或大姑妈由远及近的脚步与说话声——沈知韫眉心一紧，为免被撞见落人口实，本能拉着徐志北一同侧身退进书柜盲区/半掩帘后，狭窄缝隙里两人肩胸几乎严丝合缝贴在一处，屏息听着门外脚步在门口停顿半秒。"
+    },
+    {
+      "id": "BEAT-T2-EROTIC-HIDE-FOOTSTEPS-SU",
+      "tier": "tier2",
+      "category": "erotic_accident",
+      "channel": "third_party",
+      "locations": [
+        "徐家主宅"
+      ],
+      "required_cast": [
+        "苏婉青"
+      ],
+      "time_slots": [
+        "any"
+      ],
+      "min_vigilance": 0,
+      "min_biz": 0,
+      "min_affection": 38,
+      "max_shame": 98,
+      "min_desire": 0,
+      "min_depravity": 0,
+      "requires_unrelieved": false,
+      "requires_door_catch": false,
+      "weight": 17,
+      "cooldown": 9,
+      "once": false,
+      "seed_to_add": null,
+      "requires_seed": null,
+      "objective_event": "茶室或偏厅边刚有几分暧昧近距，外头走廊骤然响起旁人走近的动静——苏婉青吓得小脸一白，慌忙拽住徐志北衣袖一起闪进屏风侧后，狭小角落里她丰盈温软的身躯隔着薄衫紧贴着主角胸膛剧烈起伏，一只微凉的手本能捂住自己快要溢出的急喘。"
     }
   ]
 }

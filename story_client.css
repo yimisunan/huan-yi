@@ -1453,7 +1453,40 @@ html[data-theme="ivory"] .advance-btn {
   margin-bottom: 6px;
 }
 
-.decision-ornament { color: var(--gold); display: inline-flex; flex: none; }
+.decision-ornament { color: var(--gold); display: inline-flex; flex: none; transition: color 0.4s ease, opacity 0.4s ease; }
+.decision-ornament.is-cue-subtle { color: rgba(214, 168, 152, 0.78); }
+.decision-ornament.is-cue-accident {
+  color: rgba(216, 142, 132, 0.86);
+  animation: cue-breath 5.5s ease-in-out infinite;
+}
+[data-theme="ivory"] .decision-ornament.is-cue-subtle { color: rgba(154, 96, 84, 0.72); }
+[data-theme="ivory"] .decision-ornament.is-cue-accident { color: rgba(162, 78, 72, 0.82); }
+
+.decision-cue {
+  flex: none;
+  font: 400 10px/1 var(--font-serif);
+  letter-spacing: 0.16em;
+  color: rgba(214, 168, 152, 0.85);
+  opacity: 0.34;
+  user-select: none;
+  white-space: nowrap;
+  transition: opacity 0.35s ease;
+}
+.decision-cue.is-accident {
+  color: rgba(216, 146, 136, 0.9);
+  opacity: 0.42;
+}
+.decision-header:hover .decision-cue { opacity: 0.72; }
+[data-theme="ivory"] .decision-cue { color: rgba(146, 92, 82, 0.85); opacity: 0.38; }
+[data-theme="ivory"] .decision-cue.is-accident { color: rgba(156, 74, 68, 0.9); opacity: 0.46; }
+
+@keyframes cue-breath {
+  0%, 100% { opacity: 0.62; }
+  50% { opacity: 0.92; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .decision-ornament.is-cue-accident { animation: none; opacity: 0.84; }
+}
 
 .decision-header h2 {
   margin: 0;

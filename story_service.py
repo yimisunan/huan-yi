@@ -899,11 +899,21 @@ class StoryService:
 
     def _public_segment(self, value, current, progress):
         public = {k: v for k, v in value.items() if k not in ('audit', 'before_world', 'resolution')}
-        if current and value['id'] == current['id'] and not progress['completed']:
+        in_progress = bool(current and value['id'] == current['id'] and not progress['completed'])
+        if in_progress:
             public['messages'] = public['messages'][:progress['revealed']]
             public['handoff'] = ''
             public.pop('decision', None)
             public.pop('settlement', None)
+        else:
+            audit = value.get('audit')
+            droll = audit.get('director_roll') if isinstance(audit, dict) else None
+            if isinstance(droll, dict) and droll.get('triggered'):
+                cat = droll.get('category') or ''
+                if cat == 'erotic_accident':
+                    public['opportunity_cue'] = 'accident'
+                elif cat == 'sensual_hook' or droll.get('sub_mode') == 'heroine_spark':
+                    public['opportunity_cue'] = 'subtle'
         return public
 
     def interaction_snapshot(self, before=None, limit=None):

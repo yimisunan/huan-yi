@@ -947,7 +947,7 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
             '1. 创作与流转：\n'
             '   - 篇幅由戏核自然呼吸决定（单行防呆上限4000字）：重场写透，日常快节奏亦可干脆短答；一幕一位移（变完回不去），打破礼貌寒暄循环；动作与对白自由穿插，快节奏交锋可连续多行 [D] 零动作直抛，不必机械一动一言。\n'
             + protagonist_rule +
-            '   - 外部变数（仅当 delta 携带 surprise_directive 时生效）：将其化作真实客观动静织入并触发反应；thread_spark 顺着锚点融合双词意象；offstage_clock 且 owner_in_scene=false 时禁瞬移现身或输出 [D:姓名]，只经物件/转述浮现；避开 banned_channels，禁提机制词，不代作应对决定。\n'
+            '   - 外部变数（仅当 delta 携带 surprise_directive 时生效）：将其化作真实客观动静织入并触发反应；thread_spark 顺着锚点融合双词意象；offstage_clock 且 owner_in_scene=false 时禁瞬移现身或输出 [D:姓名]，只经物件/转述浮现；若携带 choice_hook_guide（女主突发意外/微距契机），须在需要主角伸手或表态的临界半拍定格，段末 PROMPT 与 B/C 必须直接锚定该意外作为切入点（B 合法近身协助解围、C 借势压近试探，禁跳回无关寒暄）；避开 banned_channels，禁提机制词，不代作应对决定。\n'
             '   - 特定时刻微回响（仅当 delta 携带 milestone_echo 时生效）：自然间隙用 1 句克制氛围或内心轻顿带过，禁提系统/任务/商城/积分词，不扭转玩家意图。\n'
             '2. 逐行流式格式（禁 JSON/代码块/列表符/中文前缀“旁白：/对白：”，每行直接以英文方括号标签起头）：\n'
             '   [N] 旁白叙述（单行≤4000字，禁任何声学或 XML 标签）\n'
@@ -960,8 +960,8 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
             '   ---DECISION---\n'
             '   PROMPT: 点明本幕刚浮现的具体变数或两难（≤300字，禁空话）\n'
             '   A: 或 A[MOVE:登记地点]: 日常互动（5体力，中性无接触）— 信息撬动/暗线换轨或自然离场转场（≤500字）\n'
-            '   B: 或 B[MOVE:登记地点]: 社交接触（10体力，礼仪接触）— 破冰试探或顺势过渡（≤500字）\n'
-            '   C: 或 C[MOVE:登记地点]: 主动行为（15体力）— 破局亮牌/正面戳破/语境成熟时的亲密推进（≤500字）\n'
+            '   B: 或 B[MOVE:登记地点]: 社交接触（10体力，礼仪接触）— 破冰试探或借突发意外合法近身解围（≤500字）\n'
+            '   C: 或 C[MOVE:登记地点]: 主动行为（15体力）— 破局亮牌/正面戳破/借意外或成熟氛围主动压近推进（≤500字）\n'
             '   转场标记：选项实质包含离开当前地点前往 delta.available_destinations 中另一开放地点时，须在字母后标 [MOVE:登记地点]（禁填当前或未开放地点）。\n'
             '3. 只读工具边界：精编设定与状态已由程序冻结交付，勿重读规则文件；仅当玩家追问极早旧史时按 delta 许可路径行号调用 read_file_part 补查。不写文件、不执行命令。'
         )
@@ -1181,6 +1181,7 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
         delta['breakout_hint'] = breakout_hint
     is_erotic_roll = isinstance(director_roll, dict) and (
         director_roll.get('category') in ('erotic_accident', 'sensual_hook')
+        or director_roll.get('sub_mode') == 'heroine_spark'
         or str(director_roll.get('event_id') or director_roll.get('beat_id') or '').startswith(
             ('BEAT-T0-SENSUAL-', 'BEAT-T1-EROTIC-', 'BEAT-T2-EROTIC-', 'BEAT-T3-EROTIC-', 'BEAT-T4-EROTIC-')
         )

@@ -87,6 +87,7 @@ def default_director():
         'scene_turns': 0,
         'clock_tick_acc': 0,
         'sensual_drought': 0,
+        'heroine_cd': 0,
         'last_time_slot': '',
         'event_cooldowns': {},
         'consumed_once': [],

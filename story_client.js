@@ -5777,6 +5777,9 @@
     };
 
     const curProtagStyle = snapshot?.preferences?.protagonist_style === 'silent' ? 'silent' : 'faithful';
+    const curDirectorPacing = ['slow', 'standard', 'frequent'].includes(snapshot?.preferences?.director_pacing)
+      ? snapshot.preferences.director_pacing
+      : 'standard';
 
     // Sub-tab 1: Display, Narrative & Haptics
     if (subKey === 'display') {
@@ -5799,6 +5802,21 @@
             const res = await api('preferences', { protagonist_style: v });
             if (snapshot && res?.preferences) snapshot.preferences = res.preferences;
             toast(v === 'faithful' ? '已设为忠实演绎（下幕生效）' : '已设为仅动作感官（下幕生效）');
+            renderWorld(true);
+          } catch (err) {
+            toast('保存偏好失败：' + (err?.message || err));
+          } finally {
+            backendPrefBusy = false;
+          }
+        }),
+        mkSwitchRow('女主意外节奏', '调节女主突发意外与推进契机的保底频次（慢热6轮 / 标准4轮 / 密集3轮）', [['slow', '慢热'], ['standard', '标准'], ['frequent', '密集']], curDirectorPacing, async v => {
+          if (backendPrefBusy) return;
+          backendPrefBusy = true;
+          try {
+            const res = await api('preferences', { director_pacing: v });
+            if (snapshot && res?.preferences) snapshot.preferences = res.preferences;
+            const labels = { slow: '慢热写实', standard: '标准节奏', frequent: '密集邂逅' };
+            toast(`女主意外节奏已设为「${labels[v] || v}」（下幕生效）`);
             renderWorld(true);
           } catch (err) {
             toast('保存偏好失败：' + (err?.message || err));
@@ -6643,8 +6661,20 @@
 
     // Decision Choice Cards with Abyssal Scale Weight Preview & Diegetic Inline Confirm (Scheme A)
     const turn = current(), decision = turn?.decision;
+    const oppCue = p?.completed ? (turn?.opportunity_cue || '') : '';
+    const ornEl = $('decisionOrnament');
+    if (ornEl) {
+      ornEl.classList.toggle('is-cue-subtle', oppCue === 'subtle');
+      ornEl.classList.toggle('is-cue-accident', oppCue === 'accident');
+    }
+    const cueEl = $('decisionCue');
+    if (cueEl) {
+      cueEl.hidden = !oppCue;
+      cueEl.classList.toggle('is-accident', oppCue === 'accident');
+      cueEl.textContent = oppCue === 'accident' ? '· 契机' : (oppCue === 'subtle' ? '· 暗涌' : '');
+    }
     const costSig = (intimateOn ? 'I1' : 'I0') + ':' + c.A + ',' + c.B + ',' + c.C;
-    const decisionKey = p?.completed && turn?.id ? (turn.id + '|' + costSig) : '';
+    const decisionKey = p?.completed && turn?.id ? (turn.id + '|' + costSig + '|' + oppCue) : '';
     if ($('choices')) $('choices').classList.toggle('is-intimate-mode', intimateOn);
     if ($('choices').dataset.key !== decisionKey) {
       disarmChoice();

@@ -136,9 +136,9 @@ class LivingDirectorV2Tests(unittest.TestCase):
                 self.assertTrue(ph['soft_omen'] and ph['hard_landing'])
 
         beats = cat['beats']
-        self.assertEqual(len(beats), 61)
+        self.assertEqual(len(beats), 75)
         erotic_beats = [b for b in beats if b.get('category') == 'erotic_accident']
-        self.assertEqual(len(erotic_beats), 17)
+        self.assertEqual(len(erotic_beats), 31)
         self.assertIn('sensual_spark_matrix', cat)
         for b in beats:
             self.assertIn(b.get('channel'), channels, f"beat {b.get('id')} missing valid channel")
@@ -585,17 +585,18 @@ class LivingDirectorV2Tests(unittest.TestCase):
 
     def test_09_four_tier_erotic_accidents_gating_and_category_cooldown(self):
         mem = (self.tmp / rr.FILES[0]).read_text(encoding='utf-8')
-        # 1. At initial high shame (100), erotic accidents are gated out
+        # 1. At initial high shame (100), Tier 1 cold-start external accidents unlock while Tier 2/3/4 remain gated out
         state_view = {'location': '徐家主宅', 'cast': ['沈知韫'], 'items': []}
         runtime_night = {'clock': {'day': 2, 'time': '22:30'}}
-        roll_guarded = sp.roll_director_beat(
+        roll_early = sp.roll_director_beat(
             self.tmp, state_view, mem, runtime_night, '周二',
-            rng=FixedRng([0.01, 0.99, 0.01]),
+            rng=FixedRng([0.01, 0.99]),
         )
-        self.assertTrue(roll_guarded['triggered'])
-        self.assertNotEqual(roll_guarded.get('category'), 'erotic_accident')
+        self.assertTrue(roll_early['triggered'])
+        self.assertIn(roll_early.get('category'), ('erotic_accident', 'sensual_hook'))
+        self.assertNotIn(roll_early.get('tier'), ('tier3', 'tier4'))
 
-        # 2. Lower shame to 50, raise desire to 80, depravity to 22, and unrelieved streak to 1 -> Tier 1..4 erotic accidents unlock
+        # 2. Lower shame to 50, raise desire to 80, depravity to 22, and unrelieved streak to 1 -> Tier 1..4 unlock (T4 reachable)
         high_tension_mem = sp.re.sub(
             r'(\[沈知韫\][^\n]*?好感\s*)\d+([^\n]*?堕落\s*)\d+([^\n]*?欲望\s*)\d+([^\n]*?羞耻\s*)\d+',
             r'\g<1>85\g<2>22\g<3>80\g<4>50',
@@ -606,19 +607,27 @@ class LivingDirectorV2Tests(unittest.TestCase):
             '【回合计数器】\n空耗_连续未纾解_沈知韫: 1\n',
             1,
         )
-        roll_erotic = sp.roll_director_beat(
-            self.tmp, state_view, high_tension_mem, runtime_night, '周二',
-            rng=FixedRng([0.01, 0.99, 0.99]),
-        )
-        self.assertTrue(roll_erotic['triggered'])
-        self.assertEqual(roll_erotic['mode'], 'preset_beat')
-        self.assertEqual(roll_erotic['category'], 'erotic_accident')
-        self.assertEqual(roll_erotic['event_id'], 'BEAT-T4-EROTIC-SHEN-MASTURBATION')
+        seen_t4 = False
+        roll_erotic = None
+        for i in range(40):
+            r = sp.roll_director_beat(
+                self.tmp, state_view, high_tension_mem, runtime_night, '周二',
+                rng=FixedRng([0.01, i / 40.0]),
+            )
+            if r.get('triggered') and r.get('category') == 'erotic_accident':
+                if roll_erotic is None:
+                    roll_erotic = r
+                if r.get('event_id') == 'BEAT-T4-EROTIC-SHEN-MASTURBATION':
+                    seen_t4 = True
+                    roll_erotic = r
+                    break
+        self.assertIsNotNone(roll_erotic)
+        self.assertTrue(seen_t4, 'Tier 4 erotic accident should be reachable under high desire/depravity/unrelieved')
         sd = sp.format_surprise_directive(roll_erotic)
         self.assertEqual(sd.get('category'), 'erotic_accident')
-        self.assertIn('香艳/私密意外', sd['rule'])
+        self.assertIn('choice_hook_guide', sd)
 
-        # 3. Advancing director state sets 3-turn __EROTIC_CATEGORY__ cooldown, preventing immediate back-to-back erotic spam
+        # 3. Advancing director state sets decoupled heroine_cd=1 & __EROTIC_CATEGORY__=2 (without touching global_cooldown)
         after_mem = sp.advance_director_state(
             self.tmp, high_tension_mem, location='徐家主宅',
             director_roll=roll_erotic, effective_progress=True, had_events=True,
@@ -626,49 +635,77 @@ class LivingDirectorV2Tests(unittest.TestCase):
             new_clock={'day': 2, 'time': '22:45'}, day_crossed=False,
         )
         dstate = sp.parse_director_block(after_mem)
-        self.assertEqual(dstate['event_cooldowns'].get('__EROTIC_CATEGORY__'), 3)
-        # Clear global_cooldown & soft_cooldown_penalty to test category cooldown directly
-        dstate['global_cooldown'] = 0
-        dstate['turns_since_beat'] = 3
+        self.assertEqual(dstate['event_cooldowns'].get('__EROTIC_CATEGORY__'), 2)
+        self.assertEqual(dstate['heroine_cd'], 1)
+        self.assertEqual(dstate['sensual_drought'], 0)
+        # Clear heroine_cd only -> __EROTIC_CATEGORY__ still blocks immediate back-to-back erotic_accident before pity
+        dstate['heroine_cd'] = 0
         cooled_mem = sp.write_director_block(high_tension_mem, dstate)
         roll_cooled = sp.roll_director_beat(
             self.tmp, state_view, cooled_mem, runtime_night, '周二',
-            rng=FixedRng([0.01, 0.99, 0.99]),
+            rng=FixedRng([0.01, 0.99]),
         )
         self.assertTrue(roll_cooled['triggered'])
         self.assertNotEqual(roll_cooled.get('category'), 'erotic_accident')
 
-    def test_10_tier0_sensual_hooks_and_drought_boost(self):
+    def test_10_dual_track_hard_pity_calm_streak_pacing_and_cue(self):
         cat = sp.load_world_beats(self.tmp)
         sensual = [b for b in cat['beats'] if b.get('category') == 'sensual_hook']
         self.assertEqual(len(sensual), 12)
         mem = (self.tmp / rr.FILES[0]).read_text(encoding='utf-8')
-        self._set_track_weights({'thread_spark': 0, 'offstage_clock': 0, 'preset_beat': 100})
         state_view = {'location': '徐家主宅', 'cast': ['沈知韫'], 'items': []}
         runtime_eve = {'clock': {'day': 1, 'time': '21:30'}}
-        # Opening shame=100 still permits Tier 0 sensual_hook
-        roll_hook = sp.roll_director_beat(
-            self.tmp, state_view, mem, runtime_eve, '周二',
-            rng=FixedRng([0.01, 0.99, 0.99]),
-        )
-        self.assertTrue(roll_hook['triggered'])
-        self.assertEqual(roll_hook['category'], 'sensual_hook')
-        self.assertEqual(roll_hook['event_id'], 'BEAT-T0-SENSUAL-SHEN-FOOT-HOME')
-        sd = sp.format_surprise_directive(roll_hook)
-        self.assertEqual(sd.get('category'), 'sensual_hook')
-        self.assertIn('魅力微距契机', sd['rule'])
-        # Drought counter boosts probability and resets to 0 when sensual_hook triggers
-        m0 = sp.write_director_block(mem, {'sensual_drought': 0})
-        m5 = sp.write_director_block(mem, {'sensual_drought': 5})
-        p0 = sp.roll_director_beat(self.tmp, state_view, m0, runtime_eve, '周二', rng=FixedRng([0.99]))['probability']
-        p5 = sp.roll_director_beat(self.tmp, state_view, m5, runtime_eve, '周二', rng=FixedRng([0.99]))['probability']
-        self.assertGreater(p5, p0)
-        after_hook = sp.advance_director_state(
-            self.tmp, m5, location='徐家主宅', director_roll=roll_hook,
-            effective_progress=True, had_events=False, memory_fact='她拖鞋滑落',
+
+        # 1. calm_streak increments on quiet turns even when memory_fact >= 24 chars
+        m_quiet = sp.advance_director_state(
+            self.tmp, mem, location='徐家主宅', director_roll={'triggered': False},
+            effective_progress=False, had_events=False,
+            memory_fact='徐志北在主宅客厅与沈知韫闲聊近期家务安排并观察茶盏温度。',
             active_cast=['沈知韫'], new_clock={'day': 1, 'time': '21:45'}, day_crossed=False,
         )
-        self.assertEqual(sp.parse_director_block(after_hook)['sensual_drought'], 0)
+        ds_quiet = sp.parse_director_block(m_quiet)
+        self.assertEqual(ds_quiet['calm_streak'], 1)
+        self.assertEqual(ds_quiet['sensual_drought'], 1)
+
+        # 2. Hard pity guarantees heroine beat at drought >= 4 EVEN when routine global_cooldown > 0
+        m_pity = sp.write_director_block(mem, {
+            'global_cooldown': 2, 'turns_since_beat': 0, 'sensual_drought': 4, 'heroine_cd': 0,
+        })
+        roll_pity = sp.roll_director_beat(
+            self.tmp, state_view, m_pity, runtime_eve, '周二',
+            rng=FixedRng([0.99, 0.5]), pacing_mode='standard',
+        )
+        self.assertTrue(roll_pity['triggered'])
+        self.assertTrue(roll_pity.get('pity_triggered'))
+        self.assertEqual(roll_pity['probability'], 1.0)
+        self.assertIn(roll_pity['category'], ('erotic_accident', 'sensual_hook'))
+        sd = sp.format_surprise_directive(roll_pity)
+        self.assertIn('choice_hook_guide', sd)
+
+        # 3. Slow pacing (pity=6) does NOT hard-pity at drought=4; frequent (pity=3) hard-pities at drought=3
+        roll_slow = sp.roll_director_beat(
+            self.tmp, state_view, m_pity, runtime_eve, '周二',
+            rng=FixedRng([0.99, 0.99]), pacing_mode='slow',
+        )
+        self.assertFalse(roll_slow['triggered'])
+        m_freq = sp.write_director_block(mem, {'global_cooldown': 2, 'sensual_drought': 3, 'heroine_cd': 0})
+        roll_freq = sp.roll_director_beat(
+            self.tmp, state_view, m_freq, runtime_eve, '周二',
+            rng=FixedRng([0.99, 0.5]), pacing_mode='frequent',
+        )
+        self.assertTrue(roll_freq['triggered'] and roll_freq.get('pity_triggered'))
+
+        # 4. Story prefs persistence & _public_segment post-playback opportunity_cue (no spoiler mid-playback)
+        saved_p = ir.save_story_prefs(self.tmp, {'director_pacing': 'frequent'})
+        self.assertEqual(saved_p['director_pacing'], 'frequent')
+        self.assertEqual(ir.load_story_prefs(self.tmp)['director_pacing'], 'frequent')
+        seg = {
+            'id': 'SEG-CUE', 'messages': [{'kind': 'narration', 'speaker': '', 'text': 'demo'}],
+            'decision': {'prompt': 'p', 'options': []}, 'handoff': '',
+            'audit': {'director_roll': {'triggered': True, 'category': 'erotic_accident'}},
+        }
+        self.assertNotIn('opportunity_cue', self.svc._public_segment(seg, seg, {'revealed': 1, 'completed': False}))
+        self.assertEqual(self.svc._public_segment(seg, seg, {'revealed': 1, 'completed': True}).get('opportunity_cue'), 'accident')
 
 
 if __name__ == '__main__':

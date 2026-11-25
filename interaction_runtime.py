@@ -141,8 +141,8 @@ STORY_PREFS_PATH = '.round-runtime/story/prefs.json'
 
 
 def load_story_prefs(root):
-    """Load runtime story preferences (defaults: faithful protagonist presence)."""
-    defaults = {'protagonist_style': 'faithful'}
+    """Load runtime story preferences (defaults: faithful protagonist presence, standard director pacing)."""
+    defaults = {'protagonist_style': 'faithful', 'director_pacing': 'standard'}
     p = Path(root) / STORY_PREFS_PATH
     if not p.is_file():
         return dict(defaults)
@@ -152,6 +152,7 @@ def load_story_prefs(root):
             return dict(defaults)
         return {
             'protagonist_style': sc.normalize_protagonist_style(raw.get('protagonist_style', 'faithful')),
+            'director_pacing': sp.normalize_director_pacing(raw.get('director_pacing', 'standard')),
         }
     except Exception:
         return dict(defaults)
@@ -161,13 +162,18 @@ def save_story_prefs(root, updates):
     """Persist validated runtime story preferences atomically."""
     if not isinstance(updates, dict):
         raise rr.RoundError('偏好设置须为对象')
-    rr._keys(updates, {'protagonist_style'}, '偏好设置')
+    rr._keys(updates, {'protagonist_style', 'director_pacing'}, '偏好设置')
     cur = load_story_prefs(root)
     if 'protagonist_style' in updates:
         val = updates['protagonist_style']
         if val not in ('faithful', 'silent'):
             raise rr.RoundError('主角戏份风格须为 faithful 或 silent')
         cur['protagonist_style'] = val
+    if 'director_pacing' in updates:
+        val = updates['director_pacing']
+        if val not in sp.DIRECTOR_PACING_MODES:
+            raise rr.RoundError('女主意外节奏须为 slow、standard 或 frequent')
+        cur['director_pacing'] = val
     target = Path(root) / STORY_PREFS_PATH
     target.parent.mkdir(parents=True, exist_ok=True)
     rr._atomic(target, rr._json(cur))
@@ -1359,7 +1365,8 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
         director_roll = prior_roll
     elif is_action_turn:
         director_roll = sp.roll_director_beat(
-            story.root, effective, memory, runtime, state.get('weekday', '')
+            story.root, effective, memory, runtime, state.get('weekday', ''),
+            pacing_mode=load_story_prefs(story.root)['director_pacing'],
         )
     else:
         dstate = sp.parse_director_block(memory)

@@ -76,6 +76,14 @@ INTEL_CATALOG_DEFAULT = 'txt文件/商业情报目录.json'
 DIRECTOR_ANCHOR = '【世界导演状态】'
 DIRECTOR_CATALOG_DEFAULT = 'txt文件/世界变故库.json'
 DIRECTOR_SEED_LIMIT = 3
+DIRECTOR_PACING_MODES = ('slow', 'standard', 'frequent')
+
+
+def normalize_director_pacing(val):
+    s = str(val or '').strip().lower()
+    return s if s in DIRECTOR_PACING_MODES else 'standard'
+
+
 DIRECTOR_DEFAULTS = {
     'status': 'active',
     'catalog': DIRECTOR_CATALOG_DEFAULT,
@@ -91,6 +99,14 @@ DIRECTOR_DEFAULTS = {
     'max_thread_age': 12,
     'channel_cooldown_window': 4,
     'clock_tick_interval': 3,
+    'heroine_pity_turns': 4,
+    'heroine_beat_cooldown': 1,
+    'erotic_category_cooldown': 2,
+    'pacing_presets': {
+        'slow': {'heroine_pity_turns': 6, 'heroine_beat_cooldown': 2, 'erotic_category_cooldown': 3, 'heroine_prob_mult': 0.75},
+        'standard': {'heroine_pity_turns': 4, 'heroine_beat_cooldown': 1, 'erotic_category_cooldown': 2, 'heroine_prob_mult': 1.0},
+        'frequent': {'heroine_pity_turns': 3, 'heroine_beat_cooldown': 1, 'erotic_category_cooldown': 1, 'heroine_prob_mult': 1.35},
+    },
 }
 DIRECTOR_VALID_PEOPLE = ('沈知韫', '徐念薇', '苏婉青', '徐承邺', '徐志北')
 DIRECTOR_DEFAULT_CHANNELS = {
@@ -888,6 +904,7 @@ def _default_director_state():
         'scene_turns': 0,
         'clock_tick_acc': 0,
         'sensual_drought': 0,
+        'heroine_cd': 0,
         'last_time_slot': '',
         'event_cooldowns': {},
         'consumed_once': [],
@@ -913,7 +930,7 @@ def parse_director_block(content):
         return out
     if not isinstance(raw, dict):
         return out
-    for int_k in ('calm_streak', 'global_cooldown', 'turns_since_beat', 'scene_turns', 'clock_tick_acc', 'sensual_drought'):
+    for int_k in ('calm_streak', 'global_cooldown', 'turns_since_beat', 'scene_turns', 'clock_tick_acc', 'sensual_drought', 'heroine_cd'):
         val = raw.get(int_k)
         if type(val) is int and val >= 0:
             out[int_k] = val
@@ -995,6 +1012,7 @@ def write_director_block(content, dstate):
         'scene_turns': max(0, int(dstate.get('scene_turns', 0))),
         'clock_tick_acc': max(0, int(dstate.get('clock_tick_acc', 0))),
         'sensual_drought': max(0, int(dstate.get('sensual_drought', 0))),
+        'heroine_cd': max(0, int(dstate.get('heroine_cd', 0))),
         'last_time_slot': str(dstate.get('last_time_slot') or '') if dstate.get('last_time_slot') in ('', 'morning', 'afternoon', 'evening', 'night') else '',
         'event_cooldowns': {k: int(v) for k, v in (dstate.get('event_cooldowns') or {}).items() if int(v) > 0},
         'consumed_once': list(dict.fromkeys(str(x) for x in (dstate.get('consumed_once') or []) if x)),
@@ -1193,6 +1211,7 @@ def format_surprise_directive(director_roll, catalog=None):
     mode = director_roll.get('mode') or 'preset_beat'
     banned = [str(x) for x in (director_roll.get('banned_channels') or []) if isinstance(x, str) and x]
     if mode == 'thread_spark':
+        is_heroine_spark = director_roll.get('sub_mode') == 'heroine_spark'
         sd = {
             'mode': 'thread_spark',
             'tier': director_roll.get('tier', 'tier1'),
@@ -1200,8 +1219,17 @@ def format_surprise_directive(director_roll, catalog=None):
             'move_guide': director_roll.get('move_guide', ''),
             'anchor': director_roll.get('anchor', ''),
             'spark_pair': director_roll.get('spark_pair', ''),
-            'rule': '将锚点与双词意象火花自然融合成真实生活细节或局部变故（软动作留出试探博弈余地，硬动作令既有压力落地）；严禁使用banned_channels所列近期媒介套路，禁提系统/随机/概率/导演词，禁替主角做决定，禁让场外人物瞬移发言，严守K01知情边界。',
+            'rule': (
+                '本幕围绕在场女主的暗流破绽与暧昧微距火花：将锚点与双词意象自然融合成真实近距细节或失守瞬间，在需要主角表态/接茬的半拍停住；严禁使用banned_channels所列近期媒介套路，禁提系统/随机/概率/导演词，禁替主角做决定，禁让场外人物瞬移发言，严守K01知情边界。'
+                if is_heroine_spark else
+                '将锚点与双词意象火花自然融合成真实生活细节或局部变故（软动作留出试探博弈余地，硬动作令既有压力落地）；严禁使用banned_channels所列近期媒介套路，禁提系统/随机/概率/导演词，禁替主角做决定，禁让场外人物瞬移发言，严守K01知情边界。'
+            ),
         }
+        if is_heroine_spark:
+            sd['sub_mode'] = 'heroine_spark'
+            sd['choice_hook_guide'] = (
+                '段末---DECISION---须围绕此刻女主露出的微距破绽展开：A 绅士稳住或顺势带过；B 合法近身照料/顺手解围拉近距离；C 借势压近或主动试探推进。'
+            )
         if banned:
             sd['banned_channels'] = banned
         return sd
@@ -1234,9 +1262,9 @@ def format_surprise_directive(director_roll, catalog=None):
         'tier': director_roll.get('tier', 'tier1'),
         'objective_event': director_roll.get('objective_event', ''),
         'rule': (
-            '本幕真实突发的香艳/私密意外：细腻刻画视觉、气味、体温与角色的羞耻慌乱或生理失控反应，在关键分歧点戛然而止并把进退选择权交给段末decision；禁提系统/随机/概率/导演词，禁替主角做决定，严守K01知情边界。'
+            '本幕真实突发的女主贴身/香艳意外：细腻刻画视觉、气味、体温与女主在当前羞耻值下的真实慌乱、掩饰或生理失控反应，必须在需要徐志北立刻伸手/接茬/决定进退的临界半拍戛然而止，把主动权交给段末decision；禁提系统/随机/概率/导演词，禁替主角做决定，严守K01知情边界。'
             if is_erotic else (
-                '本幕真实发生的日常魅力微距契机：自然织入在场女主的标志性形体细节（美足/美手/36D）、近距气味与徐志北的生理克制反应，把拉近距离或顺势试探的选择权交给段末decision；禁提系统/随机/概率/导演词，禁替主角做决定，严守K01知情边界。'
+                '本幕真实发生的日常魅力微距契机：自然织入在场女主的标志性形体细节（美足/美手/36D）、近距气味与徐志北的生理克制反应，在呼吸交错或视线撞上的半拍停住并把拉近距离/顺势试探的选择权交给段末decision；禁提系统/随机/概率/导演词，禁替主角做决定，严守K01知情边界。'
                 if is_sensual else
                 '本幕真实发生的客观外部变数：自然织入剧情并触发人物反应；禁提系统/随机/概率/导演词，禁替主角做决定，严守K01知情边界。'
             )
@@ -1244,6 +1272,17 @@ def format_surprise_directive(director_roll, catalog=None):
     }
     if is_erotic or is_sensual:
         sd['category'] = cat
+        sd['choice_hook_guide'] = (
+            '段末---DECISION---的PROMPT与B/C选项须直接锚定本次突发意外作为切入点（禁跳回无关日常寒暄）：'
+            'A（5体力）绅士避嫌或替她保住体面解围；'
+            'B（10体力）借本次意外合法近身协助（如递巾帮拭、扶稳肩臂、代解缠绕、帮遮破绽——严守日常B礼仪边界，却实质拉近距离松动防线）；'
+            'C（15体力）趁着失衡/窘境借势压近、贴耳低语或顺水推舟越界试探。'
+            if is_erotic else
+            '段末---DECISION---的PROMPT与B/C选项须直接承接此刻微距契机（禁跳回平淡家常）：'
+            'A（5体力）不动声色收回视线稳住对话；'
+            'B（10体力）借递物/照料顺势靠近半步轻声点破或试探反应；'
+            'C（15体力）主动压近距离或直球撩拨借势推进。'
+        )
     if director_roll.get('linked_seed'):
         sd['linked_foreshadowing'] = director_roll['linked_seed']
     if banned:
@@ -1280,9 +1319,24 @@ def _parse_director_heroine_stats(memory_text, counters):
     return stats
 
 
-def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
-    """Run one Living Director v2 Entropy RNG + Three-Track Salience roll. Freeze once per request_id."""
+def _resolve_director_pacing(cfg, pacing_mode='standard'):
+    key = normalize_director_pacing(pacing_mode)
+    presets = cfg.get('pacing_presets') if isinstance(cfg.get('pacing_presets'), dict) else {}
+    raw = presets.get(key) if isinstance(presets.get(key), dict) else {}
+    fb = DIRECTOR_DEFAULTS['pacing_presets'].get(key, DIRECTOR_DEFAULTS['pacing_presets']['standard'])
+    return {
+        'mode': key,
+        'heroine_pity_turns': max(2, int(raw.get('heroine_pity_turns', cfg.get('heroine_pity_turns', fb['heroine_pity_turns'])))),
+        'heroine_beat_cooldown': max(1, int(raw.get('heroine_beat_cooldown', cfg.get('heroine_beat_cooldown', fb['heroine_beat_cooldown'])))),
+        'erotic_category_cooldown': max(1, int(raw.get('erotic_category_cooldown', cfg.get('erotic_category_cooldown', fb['erotic_category_cooldown'])))),
+        'heroine_prob_mult': max(0.3, min(2.0, float(raw.get('heroine_prob_mult', fb['heroine_prob_mult'])))),
+    }
+
+
+def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None, pacing_mode='standard'):
+    """Run one Living Director v2.1 Dual-Track (Heroine Pity + Routine Entropy RNG) roll. Freeze once per request_id."""
     cfg = director_config(root)
+    pacing = _resolve_director_pacing(cfg, pacing_mode)
     dstate = parse_director_block(memory_text)
     location = (state or {}).get('location', '')
     cast = list((state or {}).get('cast', []))
@@ -1295,55 +1349,30 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
     clocks_cfg = catalog.get('offstage_clocks') or {}
     spark_cfg = catalog.get('spark_matrix') or {}
 
-    # 1. Dynamic probability calculation (Entropy curve + tension + context + mature seeds + ready clocks)
-    base = float(cfg.get('base_prob', 0.08))
-    curve = cfg.get('stagnation_curve') or [0.0, 0.07, 0.16, 0.28, 0.44, 0.62]
-    k = min(max(0, int(dstate['calm_streak'])), len(curve) - 1)
-    p_stag = float(curve[k])
     try:
         counters = rr._counters(memory_text or '')
     except Exception:
         counters = {}
-    if any(int(counters.get(bk, 0)) >= lim for bk, lim in rr.BREAKOUT_LIMITS.items()):
-        p_stag += 0.25
-
     char_stats = _parse_director_heroine_stats(memory_text, counters)
     cooldowns = dstate['event_cooldowns']
     erotic_cd = int(cooldowns.get('__EROTIC_CATEGORY__', 0))
     sensual_drought = max(0, int(dstate.get('sensual_drought', 0)))
+    heroine_cd = max(0, int(dstate.get('heroine_cd', 0)))
 
-    p_tension = 0.0
     max_vig = 0
     for vm in re.finditer(r'^徐承邺_[^\n：:]+[：:]\s*警惕\s*(\d+)', memory_text or '', re.M):
         max_vig = max(max_vig, int(vm.group(1)))
-    p_tension += min(0.24, (max_vig // 20) * 0.06)
     try:
         micro_map = rr._current_micro(memory_text or '')
     except Exception:
         micro_map = {}
-    if any((micro_map.get(n) or {}).get('residual_tension') or (micro_map.get(n) or {}).get('confusion_debt') for n in cast):
-        p_tension += 0.08
     host_biz = 0
     bm = re.search(r'\[系统宿主\][^\n]*?商业嗅觉\s*(-?\d+)', memory_text or '')
     if bm:
         host_biz = int(bm.group(1))
-    if location == '徐家主宅' and '苏婉青' in cast:
-        su_st = char_stats.get('苏婉青') or {'aff': 40, 'sha': 99}
-        if su_st['aff'] < 70 or su_st['sha'] > 80:
-            p_tension += 0.10
-    if erotic_cd <= 0 and location in ('徐家主宅', '市中心顶层公寓', '工作室', '公司'):
-        for cname in cast:
-            cst = char_stats.get(cname)
-            if cst and (cst['des'] >= 30 or cst['fluid_lock'] or cst['unrelieved'] >= 1 or (cst['aff'] >= 50 and cst['sha'] <= 86)):
-                p_tension += 0.10
-                break
-    if host_biz >= 10:
-        istate = parse_intel_block(memory_text or '')
-        icat = load_intel_catalog(root, optional=True)
-        if any(it['id'] not in istate['held'] and it['id'] not in istate['consumed'] and host_biz >= it['min_biz']
-               for it in icat.get('items', [])):
-            p_tension += 0.08
+
     intl_state = (state or {}).get('intimate') if isinstance((state or {}).get('intimate'), dict) else {}
+    intimate_active = bool(intl_state.get('scene_active'))
     present_actors = [a for a in (intl_state.get('present_actors') or []) if a in cast]
     eff_present = set(present_actors) if present_actors else set(cast)
     cur_privacy = str(intl_state.get('privacy') or 'open_public')
@@ -1353,102 +1382,31 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
         d for d in deployed_items
         if d.get('location') == location and int(d.get('detected_risk') or 0) >= 60
     ]
-    if high_risk_devs_here:
-        p_tension += 0.12
-    p_tension = min(0.35, p_tension)
 
     clock = (runtime or {}).get('clock')
-    p_context = 0.10 if _is_boundary_window(clock, weekday) else 0.0
+    slot = _clock_time_slot(clock)
     seeds = dstate['pending_seeds']
     mature_seed_ids = {s['seed_id'] for s in seeds if s.get('age', 0) >= 2}
     all_seed_ids = {s['seed_id'] for s in seeds}
-    p_seed = 0.12 if mature_seed_ids else 0.0
-
-    # Inspect ready offstage clocks (3/4 soft omen or 4/4 hard landing)
-    ready_clocks = []
-    has_hard_clock = False
-    for cid, meta in clocks_cfg.items():
-        cst = dstate['offstage_clocks'].get(cid) or {'p': 0, 'ph': 0, 'so': False, 'cd': 0}
-        if cst['cd'] > 0:
-            continue
-        max_seg = max(2, int(meta.get('max_segments', 4)))
-        soft_at = max(1, min(max_seg - 1, int(meta.get('soft_at', max_seg - 1))))
-        if cst['p'] >= max_seg:
-            has_hard_clock = True
-            ready_clocks.append((cid, meta, cst, 'hard', 3.0))
-        elif cst['p'] >= soft_at and not cst['so']:
-            ready_clocks.append((cid, meta, cst, 'soft', 1.2))
-    p_clock = 0.10 if has_hard_clock else (0.06 if ready_clocks else 0.0)
-    has_heroine_here = any(c in char_stats for c in cast) and location in ('徐家主宅', '市中心顶层公寓', '工作室', '公司')
-    p_sensual_drought = min(0.36, max(0, sensual_drought - 2) * 0.12) if has_heroine_here else 0.0
-
-    if dstate['global_cooldown'] > 0:
-        prob = 0.0
-    else:
-        penalty = float(cfg.get('soft_cooldown_penalty', 0.25)) if dstate['turns_since_beat'] <= 2 else 0.0
-        prob = max(0.0, min(float(cfg.get('max_prob', 0.85)),
-                            base + p_stag + p_tension + p_context + p_seed + p_clock + p_sensual_drought - penalty))
-
-    gen = rng if rng is not None else secrets.SystemRandom()
-    if prob <= 0.0 or gen.random() >= prob:
-        return {'triggered': False, 'probability': round(prob, 4), 'scene_turns_in_place': scene_turns}
-
-    # 2. Prepare shared anti-cliché channel banlist & track weights
+    consumed = set(dstate['consumed_once'])
+    thread_people = {w for t in dstate['active_threads'] for w in t.get('who', [])}
     chan_win = max(1, int(cfg.get('channel_cooldown_window', 4)))
     recent_channels = list(dstate['recent_channels'][-chan_win:])
     recent_channel_set = set(recent_channels)
     banned_labels = [channels_map[c] for c in recent_channels if c in channels_map]
-    track_cfg = cfg.get('track_weights') or {'thread_spark': 45, 'offstage_clock': 30, 'preset_beat': 25}
     tier_weights = cfg.get('tier_weights') or {'tier1': 50, 'tier2': 38, 'tier3': 12}
 
-    # 3. Build candidate pools for the three tracks
-    track_pool = []
+    has_heroine_here = any(c in char_stats for c in cast) and location in ('徐家主宅', '市中心顶层公寓', '工作室', '公司')
+    pity_turns = pacing['heroine_pity_turns']
+    pity_ready = bool(has_heroine_here and not intimate_active and heroine_cd <= 0 and sensual_drought >= pity_turns)
+    drought_boost = 1.0 + min(0.90, max(0, sensual_drought - 1) * 0.25)
 
-    # --- Track 1: Living Threads × Combinatorial Spark Matrix (Mythic GME + PbtA) ---
-    sensual_spark_cfg = catalog.get('sensual_spark_matrix') if isinstance(catalog.get('sensual_spark_matrix'), dict) else {}
-    use_sensual_spark = bool(
-        sensual_spark_cfg
-        and has_heroine_here
-        and (intl_state.get('scene_active') or sensual_drought >= 2)
-    )
-    actions = list(spark_cfg.get('actions') or [])
-    textures = list(spark_cfg.get('textures') or [])
-    if use_sensual_spark:
-        if sensual_spark_cfg.get('actions'):
-            actions = list(sensual_spark_cfg['actions']) + actions
-        if sensual_spark_cfg.get('textures'):
-            textures = list(sensual_spark_cfg['textures']) + textures
-    moves_cfg = spark_cfg.get('moves') or {}
-    soft_moves = moves_cfg.get('soft') or []
-    hard_moves = moves_cfg.get('hard') or []
-    w_t1_base = float(track_cfg.get('thread_spark', 45))
-    if w_t1_base > 0 and actions and textures and (soft_moves or hard_moves):
-        threads = dstate['active_threads']
-        if threads:
-            t_weight = w_t1_base
-            if any(any(w in cast for w in t['who']) for t in threads):
-                t_weight *= 1.25
-            track_pool.append(('thread_spark', t_weight))
-        else:
-            # Early-game fallback anchor (latest L1 / held item / scene atmosphere) with moderated weight
-            track_pool.append(('thread_spark', min(w_t1_base, 20.0)))
-
-    # --- Track 2: Offstage Character Progress Clocks (Blades in the Dark) ---
-    w_t2_base = float(track_cfg.get('offstage_clock', 30))
-    if w_t2_base > 0 and ready_clocks:
-        t2_mult = 2.4 if has_hard_clock else 1.6
-        track_pool.append(('offstage_clock', w_t2_base * t2_mult))
-
-    # --- Track 3: Curated Preset Pivotal Storylets (Salience + Channel Cooldown) ---
-    slot = _clock_time_slot(clock)
-    consumed = set(dstate['consumed_once'])
-    thread_people = {w for t in dstate['active_threads'] for w in t.get('who', [])}
-    preset_candidates = []
+    # Pre-filter all preset beats into decoupled heroine vs routine pools in one pass
+    heroine_candidates = []
+    heroine_pity_fallback = []
+    routine_preset_candidates = []
     has_mature_seed_beat = False
-    has_erotic_beat = False
-    has_sensual_beat = False
     has_device_risk_beat = False
-    drought_boost = 1.0 + min(0.90, max(0, sensual_drought - 2) * 0.30)
     for beat in catalog.get('beats', []):
         bid = beat.get('id', '')
         if not bid or bid in consumed or cooldowns.get(bid, 0) > 0:
@@ -1456,15 +1414,13 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
         bcat = beat.get('category', '')
         is_erotic_beat = bcat == 'erotic_accident'
         is_sensual_beat = bcat == 'sensual_hook'
-        if is_erotic_beat and erotic_cd > 0:
-            continue
+        is_heroine_beat = is_erotic_beat or is_sensual_beat
         locs = beat.get('locations') or []
         if locs and location not in locs:
             continue
         req_cast = beat.get('required_cast') or []
         if any(c not in cast for c in req_cast):
             continue
-        # 撞破/半掩房门类变故仅允许初抵本场景(scene_turns<=1)或目标不在当前房间内(eff_present外)触发，防止正面对面共处时空间瞬移穿帮
         if 'requires_door_catch' in beat:
             is_door_catch = bool(beat.get('requires_door_catch'))
         else:
@@ -1486,18 +1442,17 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
             continue
         if max_vig < int(beat.get('min_vigilance', 0)) or host_biz < int(beat.get('min_biz', 0)):
             continue
-        # Physiological & relationship gates (used by Tier 0 sensual hooks and four-tier erotic accidents)
         min_aff = int(beat.get('min_affection', 0))
         max_sha = int(beat.get('max_shame', 100))
         min_des = int(beat.get('min_desire', 0))
         min_dep = int(beat.get('min_depravity', 0))
         req_unrel = bool(beat.get('requires_unrelieved', False))
-        gate_Target_names = [c for c in req_cast if c in char_stats]
+        gate_target_names = [c for c in req_cast if c in char_stats]
         if (min_aff > 0 or max_sha < 100 or min_des > 0 or min_dep > 0 or req_unrel):
-            if not gate_Target_names:
+            if not gate_target_names:
                 continue
             gate_ok = True
-            for cname in gate_Target_names:
+            for cname in gate_target_names:
                 cst = char_stats[cname]
                 if cst['aff'] < min_aff or cst['sha'] > max_sha or cst['des'] < min_des or cst['dep'] < min_dep:
                     gate_ok = False
@@ -1507,7 +1462,6 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
                     break
             if not gate_ok:
                 continue
-
         req_seed = beat.get('requires_seed')
         if req_seed and req_seed not in all_seed_ids:
             continue
@@ -1518,7 +1472,6 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
         btier = beat.get('tier', 'tier1')
         tw = float(tier_weights.get(btier, 22.0 if btier == 'tier4' else 20.0))
         w = max(1.0, float(beat.get('weight', 10))) * (tw / 30.0)
-        # Salience specificity multipliers (Elan Ruskin / Emily Short)
         if len(locs) == 1:
             w *= 1.45
         elif len(locs) == 2:
@@ -1531,25 +1484,170 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
             w *= 1.20
         if req_cast and any(c in thread_people for c in req_cast):
             w *= 1.40
-        if is_erotic_beat:
-            has_erotic_beat = True
-            w *= (1.85 if req_unrel else 1.55) * drought_boost
-        elif is_sensual_beat:
-            has_sensual_beat = True
-            w *= 1.45 * drought_boost
-        if beat.get('requires_high_risk_device'):
-            has_device_risk_beat = True
-            w *= 2.80
         beat_chan = str(beat.get('channel') or '').strip()
         if beat_chan and beat_chan in recent_channel_set:
-            w *= (0.45 if (is_erotic_beat or is_sensual_beat) else 0.15)
+            w *= (0.45 if is_heroine_beat else 0.15)
         if req_seed and req_seed in mature_seed_ids:
             w *= 3.0
             has_mature_seed_beat = True
         elif req_seed:
             w *= 1.5
-        preset_candidates.append((beat, w))
+        if beat.get('requires_high_risk_device'):
+            has_device_risk_beat = True
+            w *= 2.80
 
+        if is_heroine_beat:
+            if is_erotic_beat:
+                w *= (1.95 if req_unrel else 1.70) * drought_boost
+                if erotic_cd > 0:
+                    heroine_pity_fallback.append((beat, w, True))
+                else:
+                    heroine_candidates.append((beat, w, True))
+            else:
+                w *= 1.15 * drought_boost
+                heroine_candidates.append((beat, w, False))
+        else:
+            routine_preset_candidates.append((beat, w))
+
+    gen = rng if rng is not None else secrets.SystemRandom()
+
+    # 1. Decoupled Heroine Opportunity Track (independent of routine global_cooldown & soft_cooldown_penalty)
+    track_cfg = cfg.get('track_weights') or {'thread_spark': 45, 'offstage_clock': 30, 'preset_beat': 25}
+    w_t3_base = float(track_cfg.get('preset_beat', 25))
+    active_heroine_pool = heroine_candidates or (heroine_pity_fallback if pity_ready else [])
+    if w_t3_base > 0 and has_heroine_here and not intimate_active and heroine_cd <= 0 and active_heroine_pool:
+        heroine_curve = (0.06, 0.14, 0.26, 0.42, 0.58)
+        if pity_ready:
+            p_heroine = 1.0
+        else:
+            base_h = heroine_curve[min(sensual_drought, len(heroine_curve) - 1)]
+            p_heroine = max(0.0, min(0.85, base_h * pacing['heroine_prob_mult']))
+        if pity_ready or gen.random() < p_heroine:
+            weighted_h = [
+                (b, w * ((2.2 if pity_ready else 1.55) if is_er else 1.0))
+                for b, w, is_er in active_heroine_pool
+            ]
+            chosen = _weighted_choice(weighted_h, gen)
+            linked_summary = ''
+            if chosen.get('requires_seed'):
+                for s in seeds:
+                    if s['seed_id'] == chosen['requires_seed']:
+                        linked_summary = s.get('summary', '')
+                        break
+            return {
+                'triggered': True,
+                'mode': 'preset_beat',
+                'track': 'heroine_opportunity',
+                'pacing_mode': pacing['mode'],
+                'pity_triggered': pity_ready,
+                'probability': round(p_heroine, 4),
+                'scene_turns_in_place': scene_turns,
+                'tier': chosen.get('tier', 'tier1'),
+                'event_id': chosen['id'],
+                'category': chosen.get('category', ''),
+                'channel_hint': str(chosen.get('channel') or ''),
+                'banned_channels': banned_labels,
+                'objective_event': chosen['objective_event'],
+                'linked_seed': linked_summary,
+                'seed_to_add': chosen.get('seed_to_add'),
+                'seed_consumed': chosen.get('requires_seed'),
+                'cooldown': int(chosen.get('cooldown', 7)),
+                'once': bool(chosen.get('once', False)),
+            }
+
+    # 2. Routine World Director Track (Entropy curve + tension + context + mature seeds + ready clocks)
+    base = float(cfg.get('base_prob', 0.08))
+    curve = cfg.get('stagnation_curve') or [0.0, 0.07, 0.16, 0.28, 0.44, 0.62]
+    k = min(max(0, int(dstate['calm_streak'])), len(curve) - 1)
+    p_stag = float(curve[k])
+    if any(int(counters.get(bk, 0)) >= lim for bk, lim in rr.BREAKOUT_LIMITS.items()):
+        p_stag += 0.25
+
+    p_tension = 0.0
+    p_tension += min(0.24, (max_vig // 20) * 0.06)
+    if any((micro_map.get(n) or {}).get('residual_tension') or (micro_map.get(n) or {}).get('confusion_debt') for n in cast):
+        p_tension += 0.08
+    if location == '徐家主宅' and '苏婉青' in cast:
+        su_st = char_stats.get('苏婉青') or {'aff': 40, 'sha': 99}
+        if su_st['aff'] < 70 or su_st['sha'] > 80:
+            p_tension += 0.10
+    if host_biz >= 10:
+        istate = parse_intel_block(memory_text or '')
+        icat = load_intel_catalog(root, optional=True)
+        if any(it['id'] not in istate['held'] and it['id'] not in istate['consumed'] and host_biz >= it['min_biz']
+               for it in icat.get('items', [])):
+            p_tension += 0.08
+    if high_risk_devs_here:
+        p_tension += 0.12
+    p_tension = min(0.35, p_tension)
+
+    p_context = 0.10 if _is_boundary_window(clock, weekday) else 0.0
+    p_seed = 0.12 if mature_seed_ids else 0.0
+
+    # Inspect ready offstage clocks (3/4 soft omen or 4/4 hard landing)
+    ready_clocks = []
+    has_hard_clock = False
+    for cid, meta in clocks_cfg.items():
+        cst = dstate['offstage_clocks'].get(cid) or {'p': 0, 'ph': 0, 'so': False, 'cd': 0}
+        if cst['cd'] > 0:
+            continue
+        max_seg = max(2, int(meta.get('max_segments', 4)))
+        soft_at = max(1, min(max_seg - 1, int(meta.get('soft_at', max_seg - 1))))
+        if cst['p'] >= max_seg:
+            has_hard_clock = True
+            ready_clocks.append((cid, meta, cst, 'hard', 3.0))
+        elif cst['p'] >= soft_at and not cst['so']:
+            ready_clocks.append((cid, meta, cst, 'soft', 1.2))
+    p_clock = 0.10 if has_hard_clock else (0.06 if ready_clocks else 0.0)
+
+    if dstate['global_cooldown'] > 0:
+        prob = 0.0
+    else:
+        penalty = float(cfg.get('soft_cooldown_penalty', 0.25)) if dstate['turns_since_beat'] <= 2 else 0.0
+        prob = max(0.0, min(float(cfg.get('max_prob', 0.85)),
+                            base + p_stag + p_tension + p_context + p_seed + p_clock - penalty))
+
+    if prob <= 0.0 or gen.random() >= prob:
+        return {'triggered': False, 'probability': round(prob, 4), 'scene_turns_in_place': scene_turns}
+
+    track_cfg = cfg.get('track_weights') or {'thread_spark': 45, 'offstage_clock': 30, 'preset_beat': 25}
+    track_pool = []
+
+    # --- Track 1: Living Threads × Combinatorial Spark Matrix (Mythic GME + PbtA) ---
+    sensual_spark_cfg = catalog.get('sensual_spark_matrix') if isinstance(catalog.get('sensual_spark_matrix'), dict) else {}
+    use_sensual_spark = bool(
+        sensual_spark_cfg
+        and has_heroine_here
+        and (intimate_active or sensual_drought >= 2)
+    )
+    actions = list(spark_cfg.get('actions') or [])
+    textures = list(spark_cfg.get('textures') or [])
+    if use_sensual_spark:
+        if sensual_spark_cfg.get('actions'):
+            actions = list(sensual_spark_cfg['actions']) + actions
+        if sensual_spark_cfg.get('textures'):
+            textures = list(sensual_spark_cfg['textures']) + textures
+    moves_cfg = spark_cfg.get('moves') or {}
+    soft_moves = moves_cfg.get('soft') or []
+    hard_moves = moves_cfg.get('hard') or []
+    w_t1_base = float(track_cfg.get('thread_spark', 45))
+    if w_t1_base > 0 and actions and textures and (soft_moves or hard_moves):
+        threads = dstate['active_threads']
+        if threads:
+            t_weight = w_t1_base
+            if any(any(w in cast for w in t['who']) for t in threads):
+                t_weight *= 1.25
+            track_pool.append(('thread_spark', t_weight))
+        else:
+            track_pool.append(('thread_spark', min(w_t1_base, 20.0)))
+
+    # --- Track 2: Offstage Character Progress Clocks (Blades in the Dark) ---
+    w_t2_base = float(track_cfg.get('offstage_clock', 30))
+    if w_t2_base > 0 and ready_clocks:
+        t2_mult = 2.4 if has_hard_clock else 1.6
+        track_pool.append(('offstage_clock', w_t2_base * t2_mult))
+
+    # --- Track 3: Curated Routine Preset Pivotal Storylets ---
     if high_risk_devs_here and not has_device_risk_beat:
         top_dev = max(high_risk_devs_here, key=lambda d: int(d.get('detected_risk') or 0))
         spot_txt = top_dev.get('spot') or '隐蔽角落'
@@ -1565,14 +1663,12 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
                 f"室内光线扫过{spot_txt}，暗藏的「{dev_name}」在微弱反光或整理擦拭间隙险些被在场人注意，空气骤然收紧，需决定借动作遮掩、转移视线还是顺势拆除。"
             ),
         }
-        preset_candidates.append((synth_beat, 42.0))
+        routine_preset_candidates.append((synth_beat, 42.0))
         has_device_risk_beat = True
 
     w_t3_base = float(track_cfg.get('preset_beat', 25))
-    if w_t3_base > 0 and preset_candidates:
-        t3_mult = 1.8 if (has_mature_seed_beat or has_device_risk_beat) else (1.35 if (has_erotic_beat or has_sensual_beat) else 1.0)
-        if sensual_drought >= 3 and (has_erotic_beat or has_sensual_beat):
-            t3_mult = max(t3_mult, 1.85)
+    if w_t3_base > 0 and routine_preset_candidates:
+        t3_mult = 1.8 if (has_mature_seed_beat or has_device_risk_beat) else 1.0
         track_pool.append(('preset_beat', w_t3_base * t3_mult))
 
     if not track_pool:
@@ -1580,11 +1676,20 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
 
     chosen_track = _weighted_choice(track_pool, gen)
 
-    # 4. Realize chosen track payload
     if chosen_track == 'thread_spark':
         threads = dstate['active_threads']
         chosen_thread = None
-        if threads:
+        heroines_here = [c for c in cast if c in char_stats]
+        is_heroine_spark = bool(use_sensual_spark and heroines_here)
+        if is_heroine_spark and (not threads or gen.random() < 0.6):
+            thread_id = ''
+            target_h = heroines_here[int(gen.random() * len(heroines_here))]
+            anchor_text = f'围绕{location}中与{target_h}此刻近距相处中的微妙暗流与失守破绽'
+            s_acts = list(sensual_spark_cfg.get('actions') or actions)
+            s_texs = [tx for tx in (sensual_spark_cfg.get('textures') or textures) if isinstance(tx, dict)]
+            actions = s_acts
+            textures = s_texs
+        elif threads:
             weighted_threads = []
             for t in threads:
                 tw_score = 1.5 if any(w in cast for w in t['who']) else 1.0
@@ -1596,6 +1701,7 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
             who_tag = '、'.join(chosen_thread['who']) if chosen_thread['who'] else '当前局势'
             anchor_text = f"承接活体线头[{chosen_thread['id']}]（{who_tag}）：{chosen_thread['topic']}"
             thread_id = chosen_thread['id']
+            is_heroine_spark = bool(is_heroine_spark and any(w in heroines_here for w in chosen_thread.get('who', [])))
         else:
             thread_id = ''
             l1_snip = _extract_latest_l1_snippet(memory_text)
@@ -1636,13 +1742,13 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
         tex_label = str(chosen_tex.get('label') or '')
         chan_hint = str(chosen_tex.get('channel') or '')
         spark_pair = f'{chosen_action} × {tex_label}'
-        return {
+        out_spark = {
             'triggered': True,
             'mode': 'thread_spark',
             'probability': round(prob, 4),
             'scene_turns_in_place': scene_turns,
             'tier': final_tier,
-            'event_id': f"SPARK-{thread_id or 'AMBIENT'}",
+            'event_id': f"SPARK-{thread_id or ('HEROINE' if is_heroine_spark else 'AMBIENT')}",
             'category': 'living_spark',
             'thread_id': thread_id,
             'anchor': anchor_text,
@@ -1661,6 +1767,9 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
             'cooldown': 0,
             'once': False,
         }
+        if is_heroine_spark:
+            out_spark['sub_mode'] = 'heroine_spark'
+        return out_spark
 
     if chosen_track == 'offstage_clock':
         picked = _weighted_choice([(entry, entry[4]) for entry in ready_clocks], gen)
@@ -1701,8 +1810,8 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
             'once': False,
         }
 
-    # Track 3: Curated preset_beat
-    chosen = _weighted_choice(preset_candidates, gen)
+    # Track 3: Curated Routine preset_beat
+    chosen = _weighted_choice(routine_preset_candidates, gen)
     linked_summary = ''
     if chosen.get('requires_seed'):
         for s in seeds:
@@ -1730,9 +1839,12 @@ def roll_director_beat(root, state, memory_text, runtime, weekday, *, rng=None):
 
 
 def advance_director_state(root, memory_text, *, location, director_roll, effective_progress, had_events, memory_fact,
-                           director_echo=None, active_cast=(), new_clock=None, day_crossed=False):
-    """Atomically advance 【世界导演状态】 (threads, clocks, channels, seeds, entropy) on committed paid action."""
+                           director_echo=None, active_cast=(), new_clock=None, day_crossed=False, pacing_mode='standard'):
+    """Atomically advance 【世界导演状态】 (threads, clocks, channels, seeds, dual-track cooldowns & entropy) on committed paid action."""
     cfg = director_config(root)
+    roll = director_roll if isinstance(director_roll, dict) else {}
+    eff_pacing_mode = roll.get('pacing_mode') or pacing_mode
+    pacing = _resolve_director_pacing(cfg, eff_pacing_mode)
     catalog = load_world_beats(root, optional=True)
     channels_map = catalog.get('channels') or DIRECTOR_DEFAULT_CHANNELS
     clocks_cfg = catalog.get('offstage_clocks') or {}
@@ -1742,6 +1854,7 @@ def advance_director_state(root, memory_text, *, location, director_roll, effect
     dstate['scene_turns'] = (dstate['scene_turns'] + 1) if dstate['scene_location'] == location else 1
     dstate['scene_location'] = location
     dstate['global_cooldown'] = max(0, dstate['global_cooldown'] - 1)
+    dstate['heroine_cd'] = max(0, int(dstate.get('heroine_cd', 0)) - 1)
     dstate['turns_since_beat'] = min(999, dstate['turns_since_beat'] + 1)
     dstate['event_cooldowns'] = {k: v - 1 for k, v in dstate['event_cooldowns'].items() if v > 1}
     for s in dstate['pending_seeds']:
@@ -1752,7 +1865,6 @@ def advance_director_state(root, memory_text, *, location, director_roll, effect
     max_thread_age = max(2, int(cfg.get('max_thread_age', 12)))
     echo = director_echo if isinstance(director_echo, dict) else {}
     closed_ids = set(echo.get('close_thread') or [])
-    roll = director_roll if isinstance(director_roll, dict) else {}
     touched_tid = roll.get('thread_id') if (roll.get('triggered') and roll.get('mode') == 'thread_spark') else ''
 
     next_threads = []
@@ -1789,7 +1901,6 @@ def advance_director_state(root, memory_text, *, location, director_roll, effect
                 'touches': 0,
             })
             if len(next_threads) > max_threads:
-                # Evict oldest soft thread first; otherwise oldest overall
                 soft_idx = next((i for i, item in enumerate(next_threads[:-1]) if item['tension'] == 'soft'), 0)
                 next_threads.pop(soft_idx)
     dstate['active_threads'] = next_threads[-max_threads:]
@@ -1857,7 +1968,8 @@ def advance_director_state(root, memory_text, *, location, director_roll, effect
         dstate['recent_channels'].append(used_chan)
         dstate['recent_channels'] = dstate['recent_channels'][-chan_win:]
 
-    # 4. Advance cooldowns, seeds & entropy calm_streak
+    # 4. Advance decoupled cooldowns, seeds & entropy calm_streak
+    is_heroine_beat = bool(roll.get('triggered') and roll.get('category') in ('sensual_hook', 'erotic_accident'))
     if roll.get('triggered'):
         mode = roll.get('mode') or 'preset_beat'
         if mode == 'preset_beat':
@@ -1868,7 +1980,7 @@ def advance_director_state(root, memory_text, *, location, director_roll, effect
                 if roll.get('once') and eid not in dstate['consumed_once']:
                     dstate['consumed_once'].append(eid)
             if roll.get('category') == 'erotic_accident':
-                dstate['event_cooldowns']['__EROTIC_CATEGORY__'] = 3
+                dstate['event_cooldowns']['__EROTIC_CATEGORY__'] = pacing['erotic_category_cooldown']
             consumed_seed = roll.get('seed_consumed')
             if consumed_seed:
                 dstate['pending_seeds'] = [s for s in dstate['pending_seeds'] if s['seed_id'] != consumed_seed]
@@ -1882,17 +1994,20 @@ def advance_director_state(root, memory_text, *, location, director_roll, effect
                     'age': 0,
                 })
                 dstate['pending_seeds'] = dstate['pending_seeds'][-DIRECTOR_SEED_LIMIT:]
-        if roll.get('tier') in ('tier2', 'tier3', 'tier4'):
+        if is_heroine_beat:
+            dstate['heroine_cd'] = pacing['heroine_beat_cooldown']
+            dstate['calm_streak'] = 0
+        elif roll.get('tier') in ('tier2', 'tier3', 'tier4'):
             dstate['global_cooldown'] = max(1, int(cfg.get('global_cooldown', 1)))
             dstate['turns_since_beat'] = 0
             dstate['calm_streak'] = 0
         else:
             dstate['calm_streak'] = max(0, dstate['calm_streak'] - 1)
     else:
-        meaningful = bool(effective_progress or had_events or loc_changed or len((memory_fact or '').strip()) >= 24)
+        meaningful = bool(effective_progress or had_events or loc_changed)
         dstate['calm_streak'] = 0 if meaningful else (dstate['calm_streak'] + 1)
 
-    if roll.get('triggered') and roll.get('category') in ('sensual_hook', 'erotic_accident'):
+    if is_heroine_beat:
         dstate['sensual_drought'] = 0
     else:
         dstate['sensual_drought'] = min(12, int(dstate.get('sensual_drought', 0)) + 1)

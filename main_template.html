@@ -363,10 +363,11 @@
         <!-- Collapsible Decision Choices Panel -->
         <section id="decisionPanel" class="decision-deck" aria-labelledby="decisionPrompt" hidden>
           <div class="decision-header">
-            <span class="decision-ornament" aria-hidden="true">
+            <span id="decisionOrnament" class="decision-ornament" aria-hidden="true">
               <svg viewBox="0 0 22 12" width="22" height="12"><path d="M0 6h6m10 0h6M11 1.5 14.5 6 11 10.5 7.5 6Z" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
             </span>
             <h2 id="decisionPrompt"></h2>
+            <span id="decisionCue" class="decision-cue" hidden aria-hidden="true"></span>
             <button id="deckToggleBtn" type="button" class="deck-peek-btn" aria-label="收起抉择查看剧情">
               <span>看剧情</span>
               <svg viewBox="0 0 24 24" class="chip-svg" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>

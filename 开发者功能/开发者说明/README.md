@@ -83,8 +83,8 @@ huan-yi/                                    # 项目根目录（Android: /storag
 ├── 一键同步GitHub.py                        # 手机端纯标准库增量同步工具
 │
 ├── txt文件/                                # 权威设定、规则、配置与现用资源（SSOT）
-│   ├── 互动运行配置.json                    # 唯一运行参数源（locations、aliases、intimate_continuation_costs 1/2/3 + floor 10 + vigor_*、8 项 operations）
-│   ├── 世界变故库.json                      # 活体世界导演 2.0 统一数据源（61 拍：含 12 条 sensual_hook、17 条 erotic_accident、sensual_spark_matrix）
+│   ├── 互动运行配置.json                    # 唯一运行参数源（locations、aliases、intimate_continuation_costs 1/2/3 + floor 10 + vigor_*、8 项 operations、director 双轨保底与三档节奏预设）
+│   ├── 世界变故库.json                      # 活体世界导演 2.1 统一数据源（75 拍：含 12 条 sensual_hook、31 条 erotic_accident 含 14 条同室破冰意外、sensual_spark_matrix）
 │   ├── 系统商城目录.json                    # 16 件分类商品目录（含可复用 SHOP-013 感官放大 Buff、pack_qty 与 unlock_req）
 │   ├── 商业情报目录.json                    # 商业嗅觉一次性情报唯一目录
 │   ├── 事件注册表.json                      # 6 组 85 个事件标签与算分参数唯一原源（含 HOST_16 魅力精进与 SHAME_02 校准）
