@@ -5179,3 +5179,188 @@ html[data-theme="ivory"] .archive-slot-badge.is-auto {
   accent-color: var(--gold, #d6b278);
   cursor: pointer;
 }
+
+/* ============================================================
+   12. Scoped Sub-Tabs & Collapsible Hub / Bridge Fold Cards
+   ============================================================ */
+
+.sub-pill-bar {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding: 2px 1px 4px;
+  margin-bottom: 2px;
+}
+.sub-pill-bar::-webkit-scrollbar { display: none; }
+
+.sub-pill-btn {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 12.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+}
+.sub-pill-btn.is-active {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+  color: var(--gold-bright);
+}
+.sub-pill-cnt {
+  font-style: normal;
+  font-size: 11px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: inherit;
+  opacity: 0.85;
+  font-variant-numeric: tabular-nums;
+}
+.sub-pill-btn.is-active .sub-pill-cnt {
+  background: rgba(216, 180, 118, 0.22);
+}
+.sub-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gold-bright);
+  flex: none;
+}
+.sub-pill-dot.is-online {
+  background: var(--jade, #6eb893);
+}
+
+.hub-fold {
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  overflow: hidden;
+}
+.hub-fold.pref-fold {
+  padding: 0;
+}
+.hub-fold-summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 13px;
+  cursor: pointer;
+  user-select: none;
+}
+.hub-fold-summary::-webkit-details-marker { display: none; }
+.hub-fold-title {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.hub-fold-title strong {
+  font-size: 13.5px;
+  color: var(--ink);
+  font-weight: 700;
+}
+.hub-fold-title .muted {
+  font-size: 11.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fold-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+}
+.fold-caret {
+  font-size: 12px;
+  color: var(--muted);
+  transition: transform 0.18s ease;
+}
+details[open] > summary .fold-caret {
+  transform: rotate(180deg);
+  color: var(--gold);
+}
+.hub-fold-body {
+  padding: 4px 13px 13px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+}
+
+.bridge-fold {
+  padding: 0 !important;
+  overflow: hidden;
+}
+.bridge-fold > summary.bridge-group-head {
+  list-style: none;
+  padding: 12px 14px;
+  margin: 0;
+  cursor: pointer;
+  user-select: none;
+}
+.bridge-fold > summary.bridge-group-head::-webkit-details-marker { display: none; }
+.bridge-fold-body {
+  padding: 6px 14px 14px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+}
+
+.pref-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.pref-group-head h3 {
+  margin: 0 !important;
+}
+
+.host-chronicle-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 10px 13px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-size: 12px;
+}
+.host-chronicle-strip strong {
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+.action-tabs {
+  margin: 4px 0 10px;
+}
+.action-card-form[hidden] {
+  display: none !important;
+}
+
+html[data-theme="ivory"] .sub-pill-cnt {
+  background: rgba(80, 56, 28, 0.08);
+}
+html[data-theme="ivory"] .sub-pill-btn.is-active {
+  color: #6d4c16;
+}
+

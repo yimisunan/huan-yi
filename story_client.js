@@ -97,6 +97,7 @@
   let ambientPlayers = null, ambientFadeRaf = 0, ambientDuckTimer = null, ambientDucked = false;
   let armedChoice = null, inkCommit = null;
   let activeHubTab = 'host', selectedChar = '', selectedMapPlace = '', historyFilter = 'all';
+  let activeBagSubTab = '', activeShopCat = 'all', activeSystemSubTab = 'display', activeActionTab = 'move';
   let settlementFolded = true, settlementDismissedId = '', deckCollapsed = false, customComposerExpanded = false, lastUiMode = '';
   let activeStream = null, speakingMessageId = '', lastVectorLocation = '';
   let streamPreview = null, earlyStreamPreview = null, handoffPreview = null, sse = null, sseOpen = false, sseRetryTimer = null;
@@ -4342,7 +4343,7 @@
     }
     if (hostAttrs.length) pane.append(grid);
 
-    // 3b. Commercial Sense, One-Time Intel & Business Leverage Card
+    // 3b. Commercial Sense, One-Time Intel & Business Leverage Card (Collapsible)
     const intel = w.intel;
     if (intel && Array.isArray(intel.catalog) && intel.catalog.length) {
       const bizVal = host.stats['商业嗅觉']?.num ?? 0;
@@ -4351,20 +4352,27 @@
       const consumedSet = new Set(intel.consumed || []);
       const armedId = intel.leverage_armed || '';
       const suAb = intel.su_ab_contacts ?? 0;
+      const availCount = intel.catalog.filter(it => !heldSet.has(it.id) && !consumedSet.has(it.id) && bizVal >= (it.min_biz || 0) && suAb >= (it.min_su_ab_contacts || 0)).length;
 
-      const iSec = node('section', 'intel-section');
-      const iHead = node('div', 'intel-head');
-      iHead.append(
+      const iSec = node('details', 'hub-fold intel-section');
+      if (armedId || availCount > 0) iSec.open = true;
+      const iHead = node('summary', 'hub-fold-summary');
+      const iTitleWrap = node('div', 'hub-fold-title');
+      iTitleWrap.append(
         node('strong', '', '商业嗅觉与一次性情报'),
-        node('span', 'quest-badge', '嗅觉 ' + bizVal + ' / 100')
+        node('span', 'muted', '持有 ' + heldSet.size + (availCount ? (' · ' + availCount + ' 项可入库') : '') + (armedId ? ' · 杠杆已预备' : ''))
       );
+      const iRight = node('span', 'fold-right');
+      iRight.append(node('span', 'quest-badge', '嗅觉 ' + bizVal + ' / 100'), node('span', 'fold-caret', '▾'));
+      iHead.append(iTitleWrap, iRight);
       iSec.append(iHead);
 
+      const iBody = node('div', 'hub-fold-body');
       const tierStrip = node('div', 'intel-tier-strip');
       for (const [th, lbl] of [[10, '10 入门'], [30, '30 被看见'], [60, '60 杠杆'], [100, '100 视野']]) {
         tierStrip.append(node('span', 'intel-tier-pill' + (bizVal >= th ? ' is-reached' : ''), lbl));
       }
-      iSec.append(tierStrip);
+      iBody.append(tierStrip);
 
       if (armedId) {
         const armedItem = intel.catalog.find(x => x.id === armedId);
@@ -4375,7 +4383,7 @@
         disarmBtn.disabled = !canTransactDeterministic();
         disarmBtn.onclick = () => void toggleBusinessLeverage('disarm', '');
         banner.append(disarmBtn);
-        iSec.append(banner);
+        iBody.append(banner);
       }
 
       for (const it of intel.catalog) {
@@ -4445,22 +4453,18 @@
           acts.append(cueBtn);
         }
         if (acts.children.length) ic.append(acts);
-        iSec.append(ic);
+        iBody.append(ic);
       }
+      iSec.append(iBody);
       pane.append(iSec);
     }
 
-    // 4. Compact Chronicle Stats
-    const summary = node('section', 'pref-group');
-    summary.append(node('h3', '', '存档概览'));
-    const row = node('div', 'pref-row');
-    const lbl = node('div', 'pref-row-label');
-    lbl.append(
-      node('strong', '', w.interaction.count + ' 段已存剧情 · ' + w.interaction.actions + ' 次登记行动'),
-      node('span', '', pg ? '跨零点或最终体力不足 5 时自动收束记忆回合' : '正式连续演播存档')
+    // 4. Compact Chronicle Stats Bar
+    const summary = node('section', 'host-chronicle-strip');
+    summary.append(
+      node('strong', '', w.interaction.count + ' 段已存剧情 · ' + w.interaction.actions + ' 次行动'),
+      node('span', 'muted', pg ? '跨零点或体力 < 5 自动收束回合' : '正式演播存档')
     );
-    row.append(lbl);
-    summary.append(row);
     pane.append(summary);
 
     return pane;
@@ -4656,7 +4660,7 @@
       body.append(bRow);
     }
 
-    // Deterministic EXP Passive Skill Upgrade Card (Heroines only)
+    // Deterministic EXP Passive Skill Upgrade Card (Heroines only · Collapsible)
     if (PEOPLE.includes(name) && Array.isArray(w.passive_tiers) && w.passive_tiers.length) {
       const rawPassive = charPanel.stats['被动']?.raw || 'Lv.0';
       const lvM = /Lv\.(\d+)/.exec(rawPassive);
@@ -4664,14 +4668,23 @@
       const curTier = w.passive_tiers[curLv] || w.passive_tiers[0];
       const nextTier = w.passive_tiers[curLv + 1] || null;
       const hostExp = panels['系统宿主']?.stats?.['经验值']?.num ?? 0;
+      const canUnlockNow = Boolean(nextTier && hostExp >= nextTier.cost);
 
-      const pCard = node('section', 'passive-card');
-      const pHead = node('div', 'passive-head');
-      pHead.append(
+      const pCard = node('details', 'hub-fold passive-card');
+      if (canUnlockNow) pCard.open = true;
+      const pHead = node('summary', 'hub-fold-summary');
+      const pTitle = node('div', 'hub-fold-title');
+      pTitle.append(
         node('strong', '', '定向被动 · ' + curTier.tag + ' ' + curTier.name),
-        node('span', 'item-tag', '可用经验 ' + hostExp)
+        node('span', 'muted', nextTier ? (canUnlockNow ? ('可解锁下一阶 ' + nextTier.tag) : ('下阶需 ' + nextTier.cost + ' 经验')) : '已达最高阶防线支配')
       );
-      pCard.append(pHead, node('p', 'passive-effect', curTier.effect));
+      const pRight = node('span', 'fold-right');
+      pRight.append(node('span', 'item-tag' + (canUnlockNow ? ' is-effect' : ''), '经验 ' + hostExp), node('span', 'fold-caret', '▾'));
+      pHead.append(pTitle, pRight);
+      pCard.append(pHead);
+
+      const pBody = node('div', 'hub-fold-body');
+      pBody.append(node('p', 'passive-effect', curTier.effect));
 
       if (nextTier) {
         const nextBox = node('div', 'passive-next-box');
@@ -4693,10 +4706,11 @@
           pActs.append(node('span', 'shop-reason-hint', blockReason));
         }
         nextBox.append(pActs);
-        pCard.append(nextBox);
+        pBody.append(nextBox);
       } else {
-        pCard.append(node('span', 'item-tag is-effect', '已达最高阶防线支配'));
+        pBody.append(node('span', 'item-tag is-effect', '已达最高阶防线支配'));
       }
+      pCard.append(pBody);
       body.append(pCard);
     }
 
@@ -4831,99 +4845,11 @@
     const pane = node('div', 'hub-pane');
     const hostPoints = panels['系统宿主']?.stats?.['积分']?.num ?? 0;
 
-    // 1. Quest Contract Section
     const curTask = w.tasks?.current;
-    if (curTask) {
-      const qCard = node('section', 'quest-card');
-      const head = node('div', 'quest-head');
-      head.append(
-        node('div', 'quest-title', curTask.title || '进行中委托'),
-        node('span', 'quest-badge', (QUEST_TIERS[curTask.tier] || curTask.tier || '委托') + ' · ' + (curTask.status || '进行中'))
-      );
-      const metaText = '目标：' + (curTask.target || '系统宿主') + ' · ' + (curTask.attr || '') + ' ≥ ' + (curTask.value ?? '')
-        + (curTask.item_desc ? '\n附赠小物：' + curTask.item_desc : '')
-        + (curTask.issue_round ? '\n发布回合：第 ' + curTask.issue_round + ' 回合' : '');
-      qCard.append(head, node('div', 'quest-meta', metaText));
-
-      const rewardSummary = QUEST_REWARDS[curTask.tier];
-      if (rewardSummary) {
-        const rewardLine = node('div', 'quest-reward-line');
-        rewardLine.append(icon('sparkle', 'chip-svg'), node('span', '', '达成奖励：' + rewardSummary));
-        qCard.append(rewardLine);
-      }
-
-      const targetPanel = panels[curTask.target]?.stats?.[curTask.attr];
-      if (targetPanel && targetPanel.num !== null && Number.isFinite(Number(curTask.value)) && Number(curTask.value) > 0) {
-        const curV = targetPanel.num, reqV = Number(curTask.value);
-        const pct = Math.max(0, Math.min(100, Math.round((curV / reqV) * 100)));
-        const row = node('div', 'vital-row');
-        const top = node('div', 'vital-row-top');
-        top.append(node('span', '', '当前达成进度'), node('b', '', curV + ' / ' + reqV));
-        const track = node('div', 'stat-track');
-        const bar = node('span', 'stat-bar');
-        bar.style.width = pct + '%';
-        bar.style.background = 'linear-gradient(90deg, var(--gold-deep), var(--gold-bright))';
-        track.append(bar);
-        row.append(top, track);
-        qCard.append(row);
-      }
-      pane.append(qCard);
-    } else {
-      const emptyQ = node('section', 'empty-card');
-      emptyQ.append(icon('scroll'), node('p', '', '此刻暂无进行中委托，随剧情推进自动承接下一项'));
-      pane.append(emptyQ);
-    }
-
-    // 1b. Pending Quest Reward One-Click Claim Card (supports pending_items queue)
     const pendingQueue = Array.isArray(w.tasks?.pending_items) && w.tasks.pending_items.length
       ? w.tasks.pending_items
       : (w.tasks?.pending_item ? [w.tasks.pending_item] : []);
-    if (pendingQueue.length) {
-      const rawPending = String(pendingQueue[0]).trim();
-      const pm = /^(TASK-\d+)\s*\|\s*([^|]+?)\s*\|完成回合(\d+)$/.exec(rawPending);
-      const claimCard = node('section', 'quest-claim-card');
-      const cHead = node('div', 'quest-claim-head');
-      const cTitle = node('strong', '');
-      const qSuffix = pendingQueue.length > 1 ? ('（队列共 ' + pendingQueue.length + ' 项）') : '';
-      cTitle.append(icon('gift', 'chip-svg'), node('span', '', (pm ? ('待领委托奖励 · ' + pm[1]) : '待领委托奖励') + qSuffix));
-      cHead.append(cTitle, node('span', 'item-tag is-effect', '0 体力 · 即时入囊'));
-      claimCard.append(cHead, node('p', 'quest-claim-desc', pm ? ('可领取奖励小物：「' + pm[2].trim() + '」（第 ' + pm[3] + ' 回合达成）') : rawPending));
-      if (pendingQueue.length > 1) {
-        const qList = node('p', 'muted', '后续待领：' + pendingQueue.slice(1).join('；'));
-        claimCard.append(qList);
-      }
-      const cActs = node('div', 'quest-claim-actions');
-      const claimBtn = node('button', 'btn-jade', shopBusy ? '领取中…' : '领取委托奖励 · 免费');
-      claimBtn.type = 'button';
-      claimBtn.disabled = !canTransactDeterministic();
-      claimBtn.onclick = () => void claimTaskReward();
-      cActs.append(claimBtn);
-      const reason = transactBlockReason();
-      if (reason && !canTransactDeterministic()) {
-        cActs.append(node('span', 'shop-reason-hint', reason));
-      }
-      claimCard.append(cActs);
-      pane.append(claimCard);
-    }
 
-    if (w.tasks?.history?.length) {
-      const histBox = node('details', 'settlement-details');
-      histBox.style.padding = '0 6px';
-      histBox.append(node('summary', '', '查看已完成委托（' + w.tasks.history.length + '） ▾'));
-      for (const h of w.tasks.history) histBox.append(node('p', 'muted', h));
-      pane.append(histBox);
-    }
-
-    // 2. Quick Jump to System Shop
-    const shopCta = node('button', 'bag-shop-cta');
-    shopCta.type = 'button';
-    const ctaLeft = node('span', 'bag-shop-cta-left');
-    ctaLeft.append(icon('shop', 'chip-svg'), node('span', '', '前往系统商城兑换 / 定制进货 →'));
-    shopCta.append(ctaLeft, node('small', '', '现有 ' + hostPoints + ' 积分 · 0 体力'));
-    shopCta.onclick = () => openHub('shop');
-    pane.append(shopCta);
-
-    // 3. Inventory Section (3-section: 随身持有 / 已部署装置 / 已赠予纪念)
     const allItems = w.items || [];
     const heldItems = allItems.filter(it => (it.fields?.['当前状态'] || '仓库中') !== '已交付');
     const deployedItems = Array.isArray(w.deployed_items) ? w.deployed_items : [];
@@ -4945,6 +4871,112 @@
     const legacyGifted = allItems.filter(it => (it.fields?.['当前状态'] || '') === '已交付');
     const giftedItems = [...deliveredList, ...legacyGifted];
     const castHere = Array.isArray(w.cast) ? w.cast : [];
+
+    // Smart default sub-tab: prioritize claimable quest rewards, else held items
+    const subKey = activeBagSubTab || (pendingQueue.length ? 'quest' : 'held');
+    const subBar = node('div', 'sub-pill-bar');
+    subBar.setAttribute('role', 'tablist');
+    const bagTabs = [
+      ['held', '随身', heldItems.length, false],
+      ['quest', '委托', (curTask ? 1 : 0) + pendingQueue.length, pendingQueue.length > 0],
+      ['deployed', '已部署', deployedItems.length, false],
+      ['gifted', '已赠予', giftedItems.length, false]
+    ];
+    for (const [k, label, cnt, alertDot] of bagTabs) {
+      const btn = node('button', 'sub-pill-btn' + (subKey === k ? ' is-active' : ''));
+      btn.type = 'button';
+      btn.setAttribute('role', 'tab');
+      btn.setAttribute('aria-selected', String(subKey === k));
+      btn.append(node('span', '', label));
+      if (cnt > 0) btn.append(node('em', 'sub-pill-cnt', String(cnt)));
+      if (alertDot) btn.append(node('i', 'sub-pill-dot'));
+      btn.onclick = () => {
+        haptic(8);
+        activeBagSubTab = k;
+        renderWorld(true);
+      };
+      subBar.append(btn);
+    }
+    pane.append(subBar);
+
+    if (subKey === 'quest') {
+      if (pendingQueue.length) {
+        const rawPending = String(pendingQueue[0]).trim();
+        const pm = /^(TASK-\d+)\s*\|\s*([^|]+?)\s*\|完成回合(\d+)$/.exec(rawPending);
+        const claimCard = node('section', 'quest-claim-card');
+        const cHead = node('div', 'quest-claim-head');
+        const cTitle = node('strong', '');
+        const qSuffix = pendingQueue.length > 1 ? ('（队列共 ' + pendingQueue.length + ' 项）') : '';
+        cTitle.append(icon('gift', 'chip-svg'), node('span', '', (pm ? ('待领委托奖励 · ' + pm[1]) : '待领委托奖励') + qSuffix));
+        cHead.append(cTitle, node('span', 'item-tag is-effect', '0 体力 · 即时入囊'));
+        claimCard.append(cHead, node('p', 'quest-claim-desc', pm ? ('可领取奖励小物：「' + pm[2].trim() + '」（第 ' + pm[3] + ' 回合达成）') : rawPending));
+        if (pendingQueue.length > 1) {
+          claimCard.append(node('p', 'muted', '后续待领：' + pendingQueue.slice(1).join('；')));
+        }
+        const cActs = node('div', 'quest-claim-actions');
+        const claimBtn = node('button', 'btn-jade', shopBusy ? '领取中…' : '领取委托奖励 · 免费');
+        claimBtn.type = 'button';
+        claimBtn.disabled = !canTransactDeterministic();
+        claimBtn.onclick = () => void claimTaskReward();
+        cActs.append(claimBtn);
+        const reason = transactBlockReason();
+        if (reason && !canTransactDeterministic()) {
+          cActs.append(node('span', 'shop-reason-hint', reason));
+        }
+        claimCard.append(cActs);
+        pane.append(claimCard);
+      }
+
+      if (curTask) {
+        const qCard = node('section', 'quest-card');
+        const head = node('div', 'quest-head');
+        head.append(
+          node('div', 'quest-title', curTask.title || '进行中委托'),
+          node('span', 'quest-badge', (QUEST_TIERS[curTask.tier] || curTask.tier || '委托') + ' · ' + (curTask.status || '进行中'))
+        );
+        const metaText = '目标：' + (curTask.target || '系统宿主') + ' · ' + (curTask.attr || '') + ' ≥ ' + (curTask.value ?? '')
+          + (curTask.item_desc ? '\n附赠小物：' + curTask.item_desc : '')
+          + (curTask.issue_round ? '\n发布回合：第 ' + curTask.issue_round + ' 回合' : '');
+        qCard.append(head, node('div', 'quest-meta', metaText));
+
+        const rewardSummary = QUEST_REWARDS[curTask.tier];
+        if (rewardSummary) {
+          const rewardLine = node('div', 'quest-reward-line');
+          rewardLine.append(icon('sparkle', 'chip-svg'), node('span', '', '达成奖励：' + rewardSummary));
+          qCard.append(rewardLine);
+        }
+
+        const targetPanel = panels[curTask.target]?.stats?.[curTask.attr];
+        if (targetPanel && targetPanel.num !== null && Number.isFinite(Number(curTask.value)) && Number(curTask.value) > 0) {
+          const curV = targetPanel.num, reqV = Number(curTask.value);
+          const pct = Math.max(0, Math.min(100, Math.round((curV / reqV) * 100)));
+          const row = node('div', 'vital-row');
+          const top = node('div', 'vital-row-top');
+          top.append(node('span', '', '当前达成进度'), node('b', '', curV + ' / ' + reqV));
+          const track = node('div', 'stat-track');
+          const bar = node('span', 'stat-bar');
+          bar.style.width = pct + '%';
+          bar.style.background = 'linear-gradient(90deg, var(--gold-deep), var(--gold-bright))';
+          track.append(bar);
+          row.append(top, track);
+          qCard.append(row);
+        }
+        pane.append(qCard);
+      } else if (!pendingQueue.length) {
+        const emptyQ = node('section', 'empty-card');
+        emptyQ.append(icon('scroll'), node('p', '', '此刻暂无进行中委托，随剧情推进自动承接下一项'));
+        pane.append(emptyQ);
+      }
+
+      if (w.tasks?.history?.length) {
+        const histBox = node('details', 'settlement-details');
+        histBox.style.padding = '0 6px';
+        histBox.append(node('summary', '', '查看已完成委托（' + w.tasks.history.length + '） ▾'));
+        for (const h of w.tasks.history) histBox.append(node('p', 'muted', h));
+        pane.append(histBox);
+      }
+      return pane;
+    }
 
     const renderInlinePicker = (item, usageMode) => {
       if (!bagPickerState || bagPickerState.itemId !== item.id) return null;
@@ -5235,38 +5267,42 @@
       return card;
     };
 
-    if (!heldItems.length && !deployedItems.length && !giftedItems.length) {
-      const emptyBag = node('section', 'empty-card');
-      emptyBag.append(icon('bag'), node('p', '', '行囊暂为空置，完成委托或前往系统商城兑换可获得道具'));
-      pane.append(emptyBag);
-    } else {
+    if (subKey === 'held') {
       if (heldItems.length) {
-        pane.append(node('div', 'bag-section-title', '随身持有（' + heldItems.length + '）'));
         const grid = node('section', 'item-grid');
         for (const item of heldItems) grid.append(renderItemCard(item));
         pane.append(grid);
       } else {
         const emptyHeld = node('section', 'empty-card');
-        emptyHeld.append(icon('bag'), node('p', '', '当前没有随身未赠予的道具'));
+        emptyHeld.append(icon('bag'), node('p', '', '当前没有随身道具，可在系统商城兑换或完成委托获取'));
         pane.append(emptyHeld);
       }
-
+      const shopCta = node('button', 'bag-shop-cta');
+      shopCta.type = 'button';
+      const ctaLeft = node('span', 'bag-shop-cta-left');
+      ctaLeft.append(icon('shop', 'chip-svg'), node('span', '', '前往系统商城兑换 / 定制进货 →'));
+      shopCta.append(ctaLeft, node('small', '', '现有 ' + hostPoints + ' 积分 · 0 体力'));
+      shopCta.onclick = () => openHub('shop');
+      pane.append(shopCta);
+    } else if (subKey === 'deployed') {
       if (deployedItems.length) {
-        pane.append(node('div', 'bag-section-title', '已部署装置（' + deployedItems.length + '）'));
         const dGrid = node('section', 'item-grid');
         for (const dev of deployedItems) dGrid.append(renderDeployedCard(dev));
         pane.append(dGrid);
+      } else {
+        const emptyDep = node('section', 'empty-card');
+        emptyDep.append(icon('bag'), node('p', '', '尚未在任何场所部署隐秘装置'));
+        pane.append(emptyDep);
       }
-
+    } else if (subKey === 'gifted') {
       if (giftedItems.length) {
-        const giftBox = node('details', 'settlement-details');
-        giftBox.style.padding = '0 4px';
-        giftBox.append(node('summary', '', '已赠予纪念（' + giftedItems.length + '） ▾'));
         const gGrid = node('section', 'item-grid');
-        gGrid.style.marginTop = '8px';
         for (const item of giftedItems) gGrid.append(renderItemCard(item));
-        giftBox.append(gGrid);
-        pane.append(giftBox);
+        pane.append(gGrid);
+      } else {
+        const emptyGift = node('section', 'empty-card');
+        emptyGift.append(icon('gift'), node('p', '', '尚未赠予过纪念物品'));
+        pane.append(emptyGift);
       }
     }
 
@@ -5299,17 +5335,27 @@
     balCard.append(balMain, bagBtn);
     pane.append(balCard);
 
-    // 2. AI Dynamic Restock / Shop Inquiry Window
-    const iqCard = node('section', 'shop-inquiry-card');
-    const iqHead = node('div', 'shop-inquiry-head');
+    // 2. AI Dynamic Restock / Shop Inquiry Window (Collapsible)
+    const iqPending = shopInquiryBusy || ['queued', 'claimed'].includes(shopInquiryState?.status);
+    const iqCard = node('details', 'hub-fold shop-inquiry-card');
+    if (iqPending || shopInquiryState?.status === 'completed' || shopInquiryState?.status === 'failed') {
+      iqCard.open = true;
+    }
+    const iqHead = node('summary', 'hub-fold-summary');
     const dynCount = shopCatalog?.dynamic_count ?? (shopCatalog?.items || []).filter(it => it.source === 'ai_restock').length;
     const dynLimit = shopCatalog?.dynamic_limit ?? 30;
-    iqHead.append(
-      node('strong', '', 'AI 定制询货 · 动态进货窗口'),
-      node('span', 'item-tag is-effect', '动态货架 ' + dynCount + '/' + dynLimit + ' · 0 体力')
+    const iqTitleWrap = node('div', 'hub-fold-title');
+    iqTitleWrap.append(
+      node('strong', '', 'AI 定制询货 · 动态进货'),
+      node('span', 'muted', iqPending ? '正在联络调货…' : '点此展开向商城定制目录外好物')
     );
-    iqCard.append(
-      iqHead,
+    const iqRight = node('span', 'fold-right');
+    iqRight.append(node('span', 'item-tag is-effect', '动态 ' + dynCount + '/' + dynLimit), node('span', 'fold-caret', '▾'));
+    iqHead.append(iqTitleWrap, iqRight);
+    iqCard.append(iqHead);
+
+    const iqBody = node('div', 'hub-fold-body');
+    iqBody.append(
       node('p', 'shop-inquiry-sub', '想买目录外的官能助兴好物、居家穿搭或隐秘装备？直接问系统商城，AI 按当前数值档位合规进货上架。')
     );
 
@@ -5327,13 +5373,12 @@
         void submitShopInquiry(qInput.value);
       }
     };
-    const iqPending = shopInquiryBusy || ['queued', 'claimed'].includes(shopInquiryState?.status);
     const iqBtn = node('button', 'btn-gold', iqPending ? '正在调货…' : '询问并进货');
     iqBtn.type = 'button';
     iqBtn.disabled = !online || iqPending || active();
     iqBtn.onclick = () => void submitShopInquiry(qInput.value);
     iqForm.append(qInput, iqBtn);
-    iqCard.append(iqForm);
+    iqBody.append(iqForm);
 
     const iqChips = node('div', 'shop-inquiry-chips');
     for (const preset of [
@@ -5351,17 +5396,17 @@
       };
       iqChips.append(chip);
     }
-    iqCard.append(iqChips);
+    iqBody.append(iqChips);
 
     if (!snapshot?.bridge_connected) {
-      iqCard.append(node('p', 'shop-inquiry-note', '提示：发起 AI 定制进货需保持 Operit 故事桥接（≥ 2.1.8）处于开启状态。'));
+      iqBody.append(node('p', 'shop-inquiry-note', '提示：发起 AI 定制进货需保持 Operit 故事桥接（≥ 2.1.8）处于开启状态。'));
     }
     if (shopInquiryState) {
       const st = shopInquiryState.status;
       if (st === 'queued' || st === 'claimed') {
         const banner = node('div', 'shop-inquiry-reply is-loading');
         banner.append(node('span', '', '⏳ 正在向系统商城联络调货：「' + shopInquiryState.query + '」…'));
-        iqCard.append(banner);
+        iqBody.append(banner);
       } else if (st === 'completed') {
         const banner = node('div', 'shop-inquiry-reply is-ok');
         const names = (shopInquiryState.added_items || []).map(x => '「' + x.name + '」').join('、');
@@ -5369,13 +5414,14 @@
           node('strong', '', shopInquiryState.shopkeeper_reply || '本次定制进货已完成并上架至「AI 定制进货」货架。'),
           names ? node('span', '', '新上架：' + names) : node('span', '', '暂无新增商品（可能与现有货架重名或被安全闸门拦截）')
         );
-        iqCard.append(banner);
+        iqBody.append(banner);
       } else if (st === 'failed' && shopInquiryState.error) {
         const banner = node('div', 'shop-inquiry-reply is-err');
         banner.append(node('span', '', '询货未完成：' + shopInquiryState.error));
-        iqCard.append(banner);
+        iqBody.append(banner);
       }
     }
+    iqCard.append(iqBody);
     pane.append(iqCard);
 
     // 3. Loading / Error / Categorized Catalog Shelves
@@ -5398,13 +5444,43 @@
         ? 'ai_restock'
         : (['sensual', 'covert', 'daily'].includes(it.category) ? it.category : 'daily');
 
-      for (const catKey of SHOP_CATEGORY_ORDER) {
-        const catItems = shopCatalog.items.filter(it => bucketOf(it) === catKey);
-        if (!catItems.length) continue;
+      const presentCats = SHOP_CATEGORY_ORDER
+        .map(k => ({
+          key: k,
+          label: (shopCatalog.categories && shopCatalog.categories[k]?.label) || SHOP_CATEGORY_LABELS[k] || k,
+          items: shopCatalog.items.filter(it => bucketOf(it) === k)
+        }))
+        .filter(g => g.items.length > 0);
+
+      if (activeShopCat !== 'all' && !presentCats.some(g => g.key === activeShopCat)) {
+        activeShopCat = 'all';
+      }
+
+      if (presentCats.length > 1) {
+        const catBar = node('div', 'sub-pill-bar');
+        catBar.setAttribute('role', 'tablist');
+        const allBtn = node('button', 'sub-pill-btn' + (activeShopCat === 'all' ? ' is-active' : ''));
+        allBtn.type = 'button';
+        allBtn.setAttribute('aria-selected', String(activeShopCat === 'all'));
+        allBtn.append(node('span', '', '全部'), node('em', 'sub-pill-cnt', String(shopCatalog.items.length)));
+        allBtn.onclick = () => { haptic(8); activeShopCat = 'all'; renderWorld(true); };
+        catBar.append(allBtn);
+        for (const g of presentCats) {
+          const shortLabel = g.label.replace(/（.*?）/g, '').replace(/\s*·.*$/, '');
+          const b = node('button', 'sub-pill-btn' + (activeShopCat === g.key ? ' is-active' : ''));
+          b.type = 'button';
+          b.setAttribute('aria-selected', String(activeShopCat === g.key));
+          b.append(node('span', '', shortLabel), node('em', 'sub-pill-cnt', String(g.items.length)));
+          b.onclick = () => { haptic(8); activeShopCat = g.key; renderWorld(true); };
+          catBar.append(b);
+        }
+        pane.append(catBar);
+      }
+
+      const visibleCats = activeShopCat === 'all' ? presentCats : presentCats.filter(g => g.key === activeShopCat);
+      for (const { key: catKey, label: catTitle, items: catItems } of visibleCats) {
         const group = node('section', 'shop-tier-group');
         const tHead = node('div', 'shop-tier-head');
-        const catTitle = (shopCatalog.categories && shopCatalog.categories[catKey]?.label)
-          || SHOP_CATEGORY_LABELS[catKey] || catKey;
         tHead.append(
           node('h3', '', catTitle),
           node('span', '', catItems.length + ' 件')
@@ -5501,10 +5577,34 @@
 
   function renderSystemTab() {
     const pane = node('div', 'hub-pane');
+    const subKey = ['display', 'voice', 'ambient', 'bridge'].includes(activeSystemSubTab) ? activeSystemSubTab : 'display';
 
-    // 1. Display & Haptics Preferences
-    const uiGroup = node('section', 'pref-group');
-    uiGroup.append(node('h3', '', '剧场沉浸设置'));
+    const subBar = node('div', 'sub-pill-bar');
+    subBar.setAttribute('role', 'tablist');
+    const sysTabs = [
+      ['display', '剧场显示'],
+      ['voice', '语音与密钥'],
+      ['ambient', '背景音景'],
+      ['bridge', '连接维护']
+    ];
+    for (const [k, label] of sysTabs) {
+      const btn = node('button', 'sub-pill-btn' + (subKey === k ? ' is-active' : ''));
+      btn.type = 'button';
+      btn.setAttribute('role', 'tab');
+      btn.setAttribute('aria-selected', String(subKey === k));
+      btn.append(node('span', '', label));
+      if (k === 'bridge') {
+        const d = node('i', 'sub-pill-dot' + (snapshot?.bridge_connected ? ' is-online' : ''));
+        btn.append(d);
+      }
+      btn.onclick = () => {
+        haptic(8);
+        activeSystemSubTab = k;
+        renderWorld(true);
+      };
+      subBar.append(btn);
+    }
+    pane.append(subBar);
 
     const mkSwitchRow = (title, desc, optionsList, currentVal, onChange) => {
       const row = node('div', 'pref-row');
@@ -5523,331 +5623,374 @@
     };
 
     const curProtagStyle = snapshot?.preferences?.protagonist_style === 'silent' ? 'silent' : 'faithful';
-    uiGroup.append(
-      mkSwitchRow('视觉主题', '暗夜黑金剧场 / 昼间暖纸护眼', [['noir', '黑金'], ['ivory', '暖纸']], prefs.theme, v => { prefs.theme = v; savePrefs(); }),
-      mkSwitchRow('演播呈现方式', '沉浸幕布待结算完成揭幕，杜绝闪屏与半读回退；即时流式边写边看', [['curtain', '沉浸幕布'], ['stream', '即时流式']], prefs.displayMode, v => {
-        prefs.displayMode = v;
-        savePrefs();
-        signature = '';
-        render();
-        controls();
-      }),
-      mkSwitchRow('主角戏份风格', '忠实演绎允许贴合原意的简短主角发言与具身反应（默认静音，可在下方开启主角配音）；仅动作感官禁主角台词', [['faithful', '忠实演绎'], ['silent', '仅动作感官']], curProtagStyle, async v => {
-        if (backendPrefBusy) return;
-        backendPrefBusy = true;
-        try {
-          const res = await api('preferences', { protagonist_style: v });
-          if (snapshot && res?.preferences) snapshot.preferences = res.preferences;
-          toast(v === 'faithful' ? '已设为忠实演绎（下幕生效）' : '已设为仅动作感官（下幕生效）');
-          renderWorld(true);
-        } catch (err) {
-          toast('保存偏好失败：' + (err?.message || err));
-        } finally {
-          backendPrefBusy = false;
-        }
-      }),
-      mkSwitchRow('正文字号', '适应移动端阅读舒适度', [['normal', '标准'], ['large', '大字']], prefs.font, v => { prefs.font = v; savePrefs(); }),
-      mkSwitchRow('触感微振', '点按剧情与抉择时轻振反馈', [[true, '开启'], [false, '关闭']], prefs.haptics, v => { prefs.haptics = v; savePrefs(); }),
-      mkSwitchRow('场景氛围光影', '随当前地点空镜与情绪变化柔和染光', [[true, '开启'], [false, '静默']], prefs.backdrop, v => { prefs.backdrop = v; savePrefs(); }),
-      mkSwitchRow('电影插页', '切场空镜与角色入场横幅，零额外消耗', [[true, '开启'], [false, '纯文字']], prefs.cinemaPlates, v => { prefs.cinemaPlates = v; savePrefs(); signature = ''; render(); }),
-      mkSwitchRow('焦点景深阅读', '最新一段全清晰，上文轻柔退远', [[true, '开启'], [false, '关闭']], prefs.readingDof, v => { prefs.readingDof = v; savePrefs(); applyReadingFocus(); }),
-      mkSwitchRow('落笔防误触', '无弹窗沉浸确认：原位称重落印与 1.8s 收墨撤回', [['inline', '原位轻确认'], ['critical', '仅关键动作'], ['off', '直出']], prefs.confirmMode, v => { prefs.confirmMode = v; savePrefs(); disarmChoice(); })
-    );
-    pane.append(uiGroup);
 
-    // 2. Fish Audio Key Cache & Voice Quality Tier
-    const voiceGroup = node('section', 'pref-group');
-    voiceGroup.append(node('h3', '', 'Fish Audio 密钥与语音品质'));
+    // Sub-tab 1: Display, Narrative & Haptics
+    if (subKey === 'display') {
+      const uiGroup = node('section', 'pref-group');
+      uiGroup.append(node('h3', '', '核心阅读与演播'));
+      uiGroup.append(
+        mkSwitchRow('视觉主题', '暗夜黑金剧场 / 昼间暖纸护眼', [['noir', '黑金'], ['ivory', '暖纸']], prefs.theme, v => { prefs.theme = v; savePrefs(); }),
+        mkSwitchRow('正文字号', '适应移动端阅读舒适度', [['normal', '标准'], ['large', '大字']], prefs.font, v => { prefs.font = v; savePrefs(); }),
+        mkSwitchRow('演播呈现方式', '沉浸幕布待结算完成揭幕，杜绝闪屏；即时流式边写边看', [['curtain', '沉浸幕布'], ['stream', '即时流式']], prefs.displayMode, v => {
+          prefs.displayMode = v;
+          savePrefs();
+          signature = '';
+          render();
+          controls();
+        }),
+        mkSwitchRow('主角戏份风格', '忠实演绎允许简短主角发言与具身反应；仅动作感官禁主角台词', [['faithful', '忠实演绎'], ['silent', '仅动作感官']], curProtagStyle, async v => {
+          if (backendPrefBusy) return;
+          backendPrefBusy = true;
+          try {
+            const res = await api('preferences', { protagonist_style: v });
+            if (snapshot && res?.preferences) snapshot.preferences = res.preferences;
+            toast(v === 'faithful' ? '已设为忠实演绎（下幕生效）' : '已设为仅动作感官（下幕生效）');
+            renderWorld(true);
+          } catch (err) {
+            toast('保存偏好失败：' + (err?.message || err));
+          } finally {
+            backendPrefBusy = false;
+          }
+        }),
+        mkSwitchRow('落笔防误触', '原位称重落印与 1.8s 收墨撤回，无全屏弹窗', [['inline', '原位轻确认'], ['critical', '仅关键动作'], ['off', '直出']], prefs.confirmMode, v => { prefs.confirmMode = v; savePrefs(); disarmChoice(); })
+      );
+      pane.append(uiGroup);
 
-    const keyRow = node('div', 'pref-row');
-    const keyLbl = node('div', 'pref-row-label');
-    const keyTitle = node('strong', '', 'Fish Audio 密钥（本机受保护缓存）');
-    const keyDesc = node('span', '', '正在检测本地受保护缓存 (.cache/fish_api_key.json)…');
-    keyLbl.append(keyTitle, keyDesc);
-    const keyBadge = node('span', 'cost-chip', '检测中');
-    keyRow.append(keyLbl, keyBadge);
-    voiceGroup.append(keyRow);
-
-    const keyFormRow = node('div', 'action-row');
-    keyFormRow.style.marginTop = '8px';
-    const keyInput = node('input', '');
-    keyInput.type = 'password';
-    keyInput.autocomplete = 'off';
-    keyInput.spellcheck = false;
-    keyInput.placeholder = '粘贴你的 Fish Audio API Key（不上传 GitHub，一键同步与新档重置均受保护）';
-    keyInput.style.cssText = 'flex:1;min-width:140px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font-size:13px;';
-    const keySaveBtn = node('button', 'btn-outline', '保存');
-    keySaveBtn.type = 'button';
-    const keyTestBtn = node('button', 'btn-outline', '保存并测试');
-    keyTestBtn.type = 'button';
-    const keyClearBtn = node('button', 'btn-outline', '清除');
-    keyClearBtn.type = 'button';
-    keyFormRow.append(keyInput, keySaveBtn, keyTestBtn, keyClearBtn);
-    voiceGroup.append(keyFormRow);
-
-    const tierRow = node('div', 'pref-row');
-    tierRow.style.marginTop = '12px';
-    const tierLbl = node('div', 'pref-row-label');
-    const tierDesc = node('span', '', '三大女主（沈知韫/苏婉青/徐念薇）随分档切换模型；旁白、动作与主角恒走免费档（$0），徐承邺及次要NPC静默无声。');
-    tierLbl.append(node('strong', '', '语音品质分档（默认零费用）'), tierDesc);
-    const tierSwitch = node('div', 'seg-switch');
-    const tierDefs = [
-      ['free', '标准免费 ($0)'],
-      ['pro', '稳定付费'],
-      ['drama', '旗舰 Drama3']
-    ];
-    const tierButtons = new Map();
-    const markTierActive = activeTier => {
-      for (const [tid, btn] of tierButtons) {
-        btn.setAttribute('aria-pressed', String(tid === activeTier));
-      }
-    };
-
-    const protagRow = node('div', 'pref-row');
-    protagRow.style.marginTop = '10px';
-    const protagLbl = node('div', 'pref-row-label');
-    const protagDesc = node('span', '', '开启后朗读 AI 正文中的 [D:徐志北]（不读玩家提交气泡），恒走免费档，需在声学工坊为徐志北绑定男声音色。');
-    protagLbl.append(node('strong', '', '主角配音（徐志北）'), protagDesc);
-    const protagSwitch = node('div', 'seg-switch');
-    const protagButtons = new Map();
-
-    const actModeRow = node('div', 'pref-row');
-    actModeRow.style.marginTop = '10px';
-    const actModeLbl = node('div', 'pref-row-label');
-    const actModeDesc = node('span', '', '区分旁白 [N] 与舞台动作 [A]：「独立动作」默认继承旁白音色并以轻快微弱韵律（1.03x / -1.5dB）区分，亦可到声学工坊绑定第二音色。');
-    actModeLbl.append(node('strong', '', '动作声线模式（[A] 区分）'), actModeDesc);
-    const actModeSwitch = node('div', 'seg-switch');
-    const actModeButtons = new Map();
-
-    const actScopeRow = node('div', 'pref-row');
-    actScopeRow.style.marginTop = '10px';
-    const actScopeLbl = node('div', 'pref-row-label');
-    const actScopeDesc = node('span', '', '控制动作配音覆盖范围：默认朗读全部 [A:*]（含主角动作，避免听觉断层），也可仅朗读三女主动作。');
-    actScopeLbl.append(node('strong', '', '动作配音范围'), actScopeDesc);
-    const actScopeSwitch = node('div', 'seg-switch');
-    const actScopeButtons = new Map();
-
-    const markRoutingUI = cfg => {
-      const s = cfg?.__settings__ || {};
-      const pOn = s.protagonist_voice_enabled === true;
-      const aMode = s.action_voice_mode || 'follow_narrator';
-      const aScope = s.action_voice_scope || 'all';
-      for (const [val, btn] of protagButtons) btn.setAttribute('aria-pressed', String(val === pOn));
-      for (const [val, btn] of actModeButtons) btn.setAttribute('aria-pressed', String(val === aMode));
-      for (const [val, btn] of actScopeButtons) btn.setAttribute('aria-pressed', String(val === aScope));
-      const hasProtagVoice = hasUsableVoiceSlot(cfg?.['徐志北']);
-      const hints = [];
-      if (curProtagStyle === 'silent') hints.push('当前为「仅动作感官」模式，切回「忠实演绎」后方有主角台词');
-      if (pOn && !hasProtagVoice) hints.push('尚未在声学工坊为徐志北绑定音色（点右上进入 /admin 绑定 Fish 或 Edge 男声即可发声）');
-      if (!hints.length) {
-        hints.push(hasProtagVoice ? '已绑定徐志北音色；开启后朗读 AI 正文 [D:徐志北]（恒走免费档，不读玩家输入气泡）' : '开启后朗读 AI 正文 [D:徐志北]（不读玩家输入气泡）；可在声学工坊为徐志北选定男声 Fish 或 Edge 音色');
-      }
-      protagDesc.textContent = hints.join('；');
-      actScopeRow.style.opacity = aMode === 'muted' ? '0.55' : '';
-    };
-
-    const applyRoutingPatch = async (patch, okMsg) => {
-      try {
-        const res = await VoiceClient.setVoiceRouting(patch);
-        invalidateVoiceConfig();
-        if (res && res.config) voiceConfigCache = res.config;
-        segmentDomCache.clear();
-        signature = '';
-        render();
-        markRoutingUI(voiceConfigCache);
-        void loadVoiceConfig().catch(() => null);
-        toast(okMsg || res?.msg || '语音路由已更新');
-      } catch (err) {
-        toast('语音路由保存失败：' + (err?.message || err));
-      }
-    };
-
-    for (const [val, label] of [[true, '开启'], [false, '关闭']]) {
-      const b = node('button', '', label);
-      b.type = 'button';
-      b.setAttribute('aria-pressed', 'false');
-      b.onclick = () => { haptic(8); void applyRoutingPatch({ protagonist_voice_enabled: val }, val ? '已开启主角配音（徐志北）' : '已关闭主角配音'); };
-      protagButtons.set(val, b);
-      protagSwitch.append(b);
+      const visualFold = node('details', 'hub-fold pref-fold');
+      const vSum = node('summary', 'hub-fold-summary');
+      const vTitle = node('div', 'hub-fold-title');
+      const onFlags = [
+        prefs.cinemaPlates ? '插页' : '',
+        prefs.backdrop ? '光影' : '',
+        prefs.readingDof ? '景深' : '',
+        prefs.haptics ? '微振' : ''
+      ].filter(Boolean);
+      vTitle.append(
+        node('strong', '', '细节视觉与触感'),
+        node('span', 'muted', onFlags.length ? ('已开启：' + onFlags.join(' · ')) : '已全部静默')
+      );
+      vSum.append(vTitle, node('span', 'fold-caret', '▾'));
+      visualFold.append(vSum);
+      const vBody = node('div', 'hub-fold-body');
+      vBody.append(
+        mkSwitchRow('电影插页', '切场空镜与角色入场横幅，零额外消耗', [[true, '开启'], [false, '纯文字']], prefs.cinemaPlates, v => { prefs.cinemaPlates = v; savePrefs(); signature = ''; render(); }),
+        mkSwitchRow('场景氛围光影', '随当前地点空镜与情绪变化柔和染光', [[true, '开启'], [false, '静默']], prefs.backdrop, v => { prefs.backdrop = v; savePrefs(); }),
+        mkSwitchRow('焦点景深阅读', '最新一段全清晰，上文轻柔退远', [[true, '开启'], [false, '关闭']], prefs.readingDof, v => { prefs.readingDof = v; savePrefs(); applyReadingFocus(); }),
+        mkSwitchRow('触感微振', '点按剧情与抉择时轻振反馈', [[true, '开启'], [false, '关闭']], prefs.haptics, v => { prefs.haptics = v; savePrefs(); })
+      );
+      visualFold.append(vBody);
+      pane.append(visualFold);
+      return pane;
     }
-    protagRow.append(protagLbl, protagSwitch);
 
-    for (const [val, label] of [['follow_narrator', '跟随旁白'], ['separate', '独立动作'], ['muted', '动作静音']]) {
-      const b = node('button', '', label);
-      b.type = 'button';
-      b.setAttribute('aria-pressed', 'false');
-      b.onclick = () => {
-        haptic(8);
-        const msg = val === 'separate' ? '已切至独立动作声线（可与旁白区分听感）' : (val === 'muted' ? '已将动作描写设为静音' : '已将动作声线设为跟随旁白');
-        void applyRoutingPatch({ action_voice_mode: val }, msg);
+    // Sub-tab 2: Voice Quality, Multi-channel Routing & Fish API Key
+    if (subKey === 'voice') {
+      const voiceGroup = node('section', 'pref-group');
+      const vHeader = node('div', 'pref-group-head');
+      const voiceStudioBtn = node('a', 'btn-outline is-tiny', '打开声学工坊 ↗');
+      voiceStudioBtn.href = '/admin';
+      voiceStudioBtn.target = '_blank';
+      voiceStudioBtn.rel = 'noopener';
+      vHeader.append(node('h3', '', '语音品质与声道路由'), voiceStudioBtn);
+      voiceGroup.append(vHeader);
+
+      const tierRow = node('div', 'pref-row');
+      const tierLbl = node('div', 'pref-row-label');
+      const tierDesc = node('span', '', '三女主随分档切换模型；旁白、动作与主角恒走免费档（$0）。');
+      tierLbl.append(node('strong', '', '语音品质分档'), tierDesc);
+      const tierSwitch = node('div', 'seg-switch');
+      const tierDefs = [
+        ['free', '免费 ($0)'],
+        ['pro', '稳定付费'],
+        ['drama', 'Drama3']
+      ];
+      const tierButtons = new Map();
+      const markTierActive = activeTier => {
+        for (const [tid, btn] of tierButtons) {
+          btn.setAttribute('aria-pressed', String(tid === activeTier));
+        }
       };
-      actModeButtons.set(val, b);
-      actModeSwitch.append(b);
-    }
-    actModeRow.append(actModeLbl, actModeSwitch);
 
-    for (const [val, label] of [['all', '全部含主角'], ['heroines', '仅三女主']]) {
-      const b = node('button', '', label);
-      b.type = 'button';
-      b.setAttribute('aria-pressed', 'false');
-      b.onclick = () => { haptic(8); void applyRoutingPatch({ action_voice_scope: val }, val === 'all' ? '动作配音覆盖全部角色（含主角）' : '动作配音仅覆盖三女主'); };
-      actScopeButtons.set(val, b);
-      actScopeSwitch.append(b);
-    }
-    actScopeRow.append(actScopeLbl, actScopeSwitch);
+      const protagRow = node('div', 'pref-row');
+      const protagLbl = node('div', 'pref-row-label');
+      const protagDesc = node('span', '', '开启后朗读 AI 正文中的 [D:徐志北]（恒走免费档，需绑定男声音色）。');
+      protagLbl.append(node('strong', '', '主角配音（徐志北）'), protagDesc);
+      const protagSwitch = node('div', 'seg-switch');
+      const protagButtons = new Map();
 
-    const refreshVoiceKeyAndTier = async () => {
-      try {
-        const [st, cfg] = await Promise.all([
-          VoiceClient.getFishKeyStatus().catch(() => null),
-          loadVoiceConfig().catch(() => null)
-        ]);
-        if (st && st.configured) {
-          keyBadge.textContent = '已配置';
-          const srcName = st.source === 'local_cache' ? '本地受保护缓存 (.cache/fish_api_key.json)' : '环境变量';
-          keyDesc.textContent = `当前密钥：${st.masked || '已隐藏'} · 来源：${srcName}（一键同步与新档重置均受保护）`;
-        } else {
-          keyBadge.textContent = '未配置';
-          keyDesc.textContent = '尚未保存 Fish API Key；填入保存后主页与声学工坊共用，永不写入同步代码。';
+      const actModeRow = node('div', 'pref-row');
+      const actModeLbl = node('div', 'pref-row-label');
+      const actModeDesc = node('span', '', '区分旁白 [N] 与舞台动作 [A]：「独立动作」默认继承旁白并微调韵律。');
+      actModeLbl.append(node('strong', '', '动作声线模式'), actModeDesc);
+      const actModeSwitch = node('div', 'seg-switch');
+      const actModeButtons = new Map();
+
+      const actScopeRow = node('div', 'pref-row');
+      const actScopeLbl = node('div', 'pref-row-label');
+      const actScopeDesc = node('span', '', '控制动作配音覆盖范围：默认朗读全部 [A:*]，也可仅朗读三女主。');
+      actScopeLbl.append(node('strong', '', '动作配音范围'), actScopeDesc);
+      const actScopeSwitch = node('div', 'seg-switch');
+      const actScopeButtons = new Map();
+
+      const markRoutingUI = cfg => {
+        const s = cfg?.__settings__ || {};
+        const pOn = s.protagonist_voice_enabled === true;
+        const aMode = s.action_voice_mode || 'follow_narrator';
+        const aScope = s.action_voice_scope || 'all';
+        for (const [val, btn] of protagButtons) btn.setAttribute('aria-pressed', String(val === pOn));
+        for (const [val, btn] of actModeButtons) btn.setAttribute('aria-pressed', String(val === aMode));
+        for (const [val, btn] of actScopeButtons) btn.setAttribute('aria-pressed', String(val === aScope));
+        const hasProtagVoice = hasUsableVoiceSlot(cfg?.['徐志北']);
+        const hints = [];
+        if (curProtagStyle === 'silent') hints.push('当前为「仅动作感官」模式，切回「忠实演绎」后方有主角台词');
+        if (pOn && !hasProtagVoice) hints.push('尚未在声学工坊为徐志北绑定音色');
+        if (!hints.length) {
+          hints.push(hasProtagVoice ? '已绑定徐志北音色；开启后朗读 AI [D:徐志北]（恒免费）' : '开启后朗读 AI [D:徐志北]；可在声学工坊选定男声音色');
         }
-        const curTier = cfg?.__settings__?.voice_tier || 'free';
-        markTierActive(curTier);
-        markRoutingUI(cfg);
-      } catch (_) {
-        keyBadge.textContent = '待检测';
-      }
-    };
-    const doSaveKey = async verify => {
-      const val = keyInput.value.trim();
-      if (!val) { toast('请先粘贴 Fish Audio API Key'); return; }
-      keySaveBtn.disabled = keyTestBtn.disabled = true;
-      try {
-        const res = await VoiceClient.saveFishKey(val, verify);
-        keyInput.value = '';
-        invalidateVoiceConfig();
-        toast(res.msg || '密钥已保存至本机受保护缓存');
-        await refreshVoiceKeyAndTier();
-      } catch (err) {
-        toast(err.message || '保存密钥失败');
-      } finally {
-        keySaveBtn.disabled = keyTestBtn.disabled = false;
-      }
-    };
-    keySaveBtn.onclick = () => { haptic(8); void doSaveKey(false); };
-    keyTestBtn.onclick = () => { haptic(8); void doSaveKey(true); };
-    keyClearBtn.onclick = async () => {
-      haptic(8);
-      try {
-        const res = await VoiceClient.clearFishKey();
-        invalidateVoiceConfig();
-        toast(res.msg || '已清除本机缓存密钥');
-        await refreshVoiceKeyAndTier();
-      } catch (err) {
-        toast(err.message || '清除失败');
-      }
-    };
-    for (const [tid, label] of tierDefs) {
-      const b = node('button', '', label);
-      b.type = 'button';
-      b.setAttribute('aria-pressed', 'false');
-      b.onclick = async () => {
-        haptic(8);
-        if (tid === 'drama' && !window.confirm('旗舰导演档（Drama 3）将对三大女主全部台词启用导演声演，旁白、动作与主角仍免费。按字节计费较高（促销后约 $50/百万字节），确认切换？')) {
-          return;
-        }
+        protagDesc.textContent = hints.join('；');
+        actScopeRow.style.opacity = aMode === 'muted' ? '0.55' : '';
+      };
+
+      const applyRoutingPatch = async (patch, okMsg) => {
         try {
-          const res = await VoiceClient.setVoiceTier(tid);
+          const res = await VoiceClient.setVoiceRouting(patch);
           invalidateVoiceConfig();
-          activeVoiceTier = res.tier || tid;
-          if (res.config) voiceConfigCache = res.config;
+          if (res && res.config) voiceConfigCache = res.config;
           segmentDomCache.clear();
           signature = '';
           render();
-          markTierActive(activeVoiceTier);
           markRoutingUI(voiceConfigCache);
           void loadVoiceConfig().catch(() => null);
-          toast((res.msg || '语音品质档位已切换') + '（已刷新本幕音频缓存）');
+          toast(okMsg || res?.msg || '语音路由已更新');
         } catch (err) {
-          toast(err.message || '档位切换失败');
+          toast('语音路由保存失败：' + (err?.message || err));
         }
       };
-      tierButtons.set(tid, b);
-      tierSwitch.append(b);
-    }
-    tierRow.append(tierLbl, tierSwitch);
-    voiceGroup.append(tierRow, protagRow, actModeRow, actScopeRow);
-    pane.append(voiceGroup);
-    void refreshVoiceKeyAndTier();
 
-    // 2.5 Local Offline Ambient Soundscape
-    const ambGroup = node('section', 'pref-group');
-    ambGroup.append(node('h3', '', '本地背景音景'));
-    ambGroup.append(
-      mkSwitchRow(
-        '环境背景音',
-        '随昼夜/情绪自动淡入淡出循环背景音，人声播报时自动压低背景音（Audio Ducking）',
-        [[true, '开启'], [false, '静音']],
-        prefs.ambientAudio,
-        v => { prefs.ambientAudio = v; savePrefs(); }
-      )
-    );
-    const volRow = node('div', 'pref-row');
-    const volLbl = node('div', 'pref-row-label');
-    const volPct = Math.round((Number(prefs.ambientVolume) || 0.32) * 100);
-    const volValSpan = node('span', '', `当前背景音量：${volPct}%（播报人声时自动压低至约 28%）`);
-    volLbl.append(node('strong', '', '氛围背景音量'), volValSpan);
-    const volCtrl = node('div', 'audio-vol-wrap');
-    const volSlider = node('input', 'audio-vol-slider');
-    volSlider.type = 'range';
-    volSlider.min = '5';
-    volSlider.max = '85';
-    volSlider.step = '5';
-    volSlider.value = String(volPct);
-    volSlider.oninput = () => {
-      const pct = Math.max(5, Math.min(85, Number(volSlider.value) || 32));
-      prefs.ambientVolume = +(pct / 100).toFixed(2);
-      volValSpan.textContent = `当前背景音量：${pct}%（播报人声时自动压低至约 28%）`;
-      savePrefs();
-    };
-    volCtrl.append(volSlider);
-    volRow.append(volLbl, volCtrl);
-    ambGroup.append(volRow);
-
-    const ambKeys = Object.keys(audioAssets?.ambient || {});
-    const ambCount = ambKeys.length;
-    const assetRow = node('div', 'pref-row');
-    const assetLbl = node('div', 'pref-row-label');
-    assetLbl.append(
-      node('strong', '', ambCount > 0 ? `已挂载本地背景音（${ambCount} 首）` : '等待放入本地背景音'),
-      node(
-        'span',
-        '',
-        ambCount > 0
-          ? `已加载：${ambKeys.join(' / ')}（目录：txt文件/audio/ambient/）`
-          : '将背景音（calm_home / rain_night / tension_stealth / intimate_warm / aftermath_quiet，支持 .mp3/.ogg/.wav）放入 txt文件/audio/ambient/ 后点刷新即刻生效。'
-      )
-    );
-    const assetRefreshBtn = node('button', 'btn-outline', '刷新检测');
-    assetRefreshBtn.type = 'button';
-    assetRefreshBtn.onclick = async () => {
-      haptic(8);
-      assetRefreshBtn.disabled = true;
-      try {
-        await loadAudioAssets(true);
-        const c = Object.keys(audioAssets.ambient || {}).length;
-        toast(c > 0 ? `检测到 ${c} 首本地背景音景` : '暂未在 txt文件/audio/ambient/ 检测到背景音文件');
-        renderWorld(true);
-      } finally {
-        assetRefreshBtn.disabled = false;
+      for (const [val, label] of [[true, '开启'], [false, '关闭']]) {
+        const b = node('button', '', label);
+        b.type = 'button';
+        b.setAttribute('aria-pressed', 'false');
+        b.onclick = () => { haptic(8); void applyRoutingPatch({ protagonist_voice_enabled: val }, val ? '已开启主角配音（徐志北）' : '已关闭主角配音'); };
+        protagButtons.set(val, b);
+        protagSwitch.append(b);
       }
-    };
-    assetRow.append(assetLbl, assetRefreshBtn);
-    ambGroup.append(assetRow);
-    pane.append(ambGroup);
+      protagRow.append(protagLbl, protagSwitch);
 
-    // 3. Audio & Bridge Operations
+      for (const [val, label] of [['follow_narrator', '跟随旁白'], ['separate', '独立动作'], ['muted', '动作静音']]) {
+        const b = node('button', '', label);
+        b.type = 'button';
+        b.setAttribute('aria-pressed', 'false');
+        b.onclick = () => {
+          haptic(8);
+          const msg = val === 'separate' ? '已切至独立动作声线（可与旁白区分听感）' : (val === 'muted' ? '已将动作描写设为静音' : '已将动作声线设为跟随旁白');
+          void applyRoutingPatch({ action_voice_mode: val }, msg);
+        };
+        actModeButtons.set(val, b);
+        actModeSwitch.append(b);
+      }
+      actModeRow.append(actModeLbl, actModeSwitch);
+
+      for (const [val, label] of [['all', '全部含主角'], ['heroines', '仅三女主']]) {
+        const b = node('button', '', label);
+        b.type = 'button';
+        b.setAttribute('aria-pressed', 'false');
+        b.onclick = () => { haptic(8); void applyRoutingPatch({ action_voice_scope: val }, val === 'all' ? '动作配音覆盖全部角色（含主角）' : '动作配音仅覆盖三女主'); };
+        actScopeButtons.set(val, b);
+        actScopeSwitch.append(b);
+      }
+      actScopeRow.append(actScopeLbl, actScopeSwitch);
+
+      for (const [tid, label] of tierDefs) {
+        const b = node('button', '', label);
+        b.type = 'button';
+        b.setAttribute('aria-pressed', 'false');
+        b.onclick = async () => {
+          haptic(8);
+          if (tid === 'drama' && !window.confirm('旗舰导演档（Drama 3）将对三大女主全部台词启用导演声演，旁白、动作与主角仍免费。按字节计费较高（促销后约 $50/百万字节），确认切换？')) {
+            return;
+          }
+          try {
+            const res = await VoiceClient.setVoiceTier(tid);
+            invalidateVoiceConfig();
+            activeVoiceTier = res.tier || tid;
+            if (res.config) voiceConfigCache = res.config;
+            segmentDomCache.clear();
+            signature = '';
+            render();
+            markTierActive(activeVoiceTier);
+            markRoutingUI(voiceConfigCache);
+            void loadVoiceConfig().catch(() => null);
+            toast((res.msg || '语音品质档位已切换') + '（已刷新本幕音频缓存）');
+          } catch (err) {
+            toast(err.message || '档位切换失败');
+          }
+        };
+        tierButtons.set(tid, b);
+        tierSwitch.append(b);
+      }
+      tierRow.append(tierLbl, tierSwitch);
+      voiceGroup.append(tierRow, protagRow, actModeRow, actScopeRow);
+      pane.append(voiceGroup);
+
+      // Collapsible Fish API Key Card (auto-opens only when unconfigured)
+      const keyFold = node('details', 'hub-fold pref-fold');
+      const keySum = node('summary', 'hub-fold-summary');
+      const keyTitleWrap = node('div', 'hub-fold-title');
+      const keyDesc = node('span', 'muted', '正在检测本地受保护缓存 (.cache/fish_api_key.json)…');
+      keyTitleWrap.append(node('strong', '', 'Fish Audio API 密钥'), keyDesc);
+      const keyRight = node('span', 'fold-right');
+      const keyBadge = node('span', 'cost-chip', '检测中');
+      keyRight.append(keyBadge, node('span', 'fold-caret', '▾'));
+      keySum.append(keyTitleWrap, keyRight);
+      keyFold.append(keySum);
+
+      const keyBody = node('div', 'hub-fold-body');
+      const keyFormRow = node('div', 'action-row');
+      const keyInput = node('input', '');
+      keyInput.type = 'password';
+      keyInput.autocomplete = 'off';
+      keyInput.spellcheck = false;
+      keyInput.placeholder = '粘贴 Fish Audio API Key（仅存本机受保护缓存）';
+      keyInput.style.cssText = 'flex:1;min-width:140px;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface-2);color:var(--ink);font-size:13px;';
+      const keySaveBtn = node('button', 'btn-outline', '保存');
+      keySaveBtn.type = 'button';
+      const keyTestBtn = node('button', 'btn-outline', '保存并测试');
+      keyTestBtn.type = 'button';
+      const keyClearBtn = node('button', 'btn-outline', '清除');
+      keyClearBtn.type = 'button';
+      keyFormRow.append(keyInput, keySaveBtn, keyTestBtn, keyClearBtn);
+      keyBody.append(keyFormRow);
+      keyFold.append(keyBody);
+      pane.append(keyFold);
+
+      const refreshVoiceKeyAndTier = async () => {
+        try {
+          const [st, cfg] = await Promise.all([
+            VoiceClient.getFishKeyStatus().catch(() => null),
+            loadVoiceConfig().catch(() => null)
+          ]);
+          if (st && st.configured) {
+            keyBadge.textContent = '已配置';
+            const srcName = st.source === 'local_cache' ? '本地缓存' : '环境变量';
+            keyDesc.textContent = `${st.masked || '已隐藏'} · ${srcName}（点此更改/清除）`;
+          } else {
+            keyBadge.textContent = '未配置';
+            keyDesc.textContent = '尚未保存 Fish API Key，展开填入后主页与工坊共用';
+            keyFold.open = true;
+          }
+          const curTier = cfg?.__settings__?.voice_tier || 'free';
+          markTierActive(curTier);
+          markRoutingUI(cfg);
+        } catch (_) {
+          keyBadge.textContent = '待检测';
+        }
+      };
+      const doSaveKey = async verify => {
+        const val = keyInput.value.trim();
+        if (!val) { toast('请先粘贴 Fish Audio API Key'); return; }
+        keySaveBtn.disabled = keyTestBtn.disabled = true;
+        try {
+          const res = await VoiceClient.saveFishKey(val, verify);
+          keyInput.value = '';
+          invalidateVoiceConfig();
+          toast(res.msg || '密钥已保存至本机受保护缓存');
+          await refreshVoiceKeyAndTier();
+        } catch (err) {
+          toast(err.message || '保存密钥失败');
+        } finally {
+          keySaveBtn.disabled = keyTestBtn.disabled = false;
+        }
+      };
+      keySaveBtn.onclick = () => { haptic(8); void doSaveKey(false); };
+      keyTestBtn.onclick = () => { haptic(8); void doSaveKey(true); };
+      keyClearBtn.onclick = async () => {
+        haptic(8);
+        try {
+          const res = await VoiceClient.clearFishKey();
+          invalidateVoiceConfig();
+          toast(res.msg || '已清除本机缓存密钥');
+          await refreshVoiceKeyAndTier();
+        } catch (err) {
+          toast(err.message || '清除失败');
+        }
+      };
+      void refreshVoiceKeyAndTier();
+      return pane;
+    }
+
+    // Sub-tab 3: Local Offline Ambient Soundscape
+    if (subKey === 'ambient') {
+      const ambGroup = node('section', 'pref-group');
+      ambGroup.append(node('h3', '', '本地背景音景'));
+      ambGroup.append(
+        mkSwitchRow(
+          '环境背景音',
+          '随昼夜/情绪自动淡入淡出循环，人声播报时自动压低背景音（Audio Ducking）',
+          [[true, '开启'], [false, '静音']],
+          prefs.ambientAudio,
+          v => { prefs.ambientAudio = v; savePrefs(); }
+        )
+      );
+      const volRow = node('div', 'pref-row');
+      const volLbl = node('div', 'pref-row-label');
+      const volPct = Math.round((Number(prefs.ambientVolume) || 0.32) * 100);
+      const volValSpan = node('span', '', `当前背景音量：${volPct}%（播报人声时自动压低至约 28%）`);
+      volLbl.append(node('strong', '', '氛围背景音量'), volValSpan);
+      const volCtrl = node('div', 'audio-vol-wrap');
+      const volSlider = node('input', 'audio-vol-slider');
+      volSlider.type = 'range';
+      volSlider.min = '5';
+      volSlider.max = '85';
+      volSlider.step = '5';
+      volSlider.value = String(volPct);
+      volSlider.oninput = () => {
+        const pct = Math.max(5, Math.min(85, Number(volSlider.value) || 32));
+        prefs.ambientVolume = +(pct / 100).toFixed(2);
+        volValSpan.textContent = `当前背景音量：${pct}%（播报人声时自动压低至约 28%）`;
+        savePrefs();
+      };
+      volCtrl.append(volSlider);
+      volRow.append(volLbl, volCtrl);
+      ambGroup.append(volRow);
+
+      const ambKeys = Object.keys(audioAssets?.ambient || {});
+      const ambCount = ambKeys.length;
+      const assetRow = node('div', 'pref-row');
+      const assetLbl = node('div', 'pref-row-label');
+      assetLbl.append(
+        node('strong', '', ambCount > 0 ? `已挂载本地背景音（${ambCount} 首）` : '等待放入本地背景音'),
+        node(
+          'span',
+          '',
+          ambCount > 0
+            ? `已加载：${ambKeys.join(' / ')}（目录：txt文件/audio/ambient/）`
+            : '将背景音（calm_home / rain_night / tension_stealth / intimate_warm / aftermath_quiet，支持 .mp3/.ogg/.wav）放入 txt文件/audio/ambient/ 后点刷新即刻生效。'
+        )
+      );
+      const assetRefreshBtn = node('button', 'btn-outline', '刷新检测');
+      assetRefreshBtn.type = 'button';
+      assetRefreshBtn.onclick = async () => {
+        haptic(8);
+        assetRefreshBtn.disabled = true;
+        try {
+          await loadAudioAssets(true);
+          const c = Object.keys(audioAssets.ambient || {}).length;
+          toast(c > 0 ? `检测到 ${c} 首本地背景音景` : '暂未在 txt文件/audio/ambient/ 检测到背景音文件');
+          renderWorld(true);
+        } finally {
+          assetRefreshBtn.disabled = false;
+        }
+      };
+      assetRow.append(assetLbl, assetRefreshBtn);
+      ambGroup.append(assetRow);
+      pane.append(ambGroup);
+      return pane;
+    }
+
+    // Sub-tab 4: Bridge & Maintenance
     const srvGroup = node('section', 'pref-group');
-    srvGroup.append(node('h3', '', '语音与本地连接'));
+    srvGroup.append(node('h3', '', '本地服务与桥接'));
 
     const bRow = node('div', 'pref-row');
     const bLbl = node('div', 'pref-row-label');
@@ -5874,7 +6017,7 @@
       openConnectionDialog();
     };
 
-    const voiceLink = node('a', 'btn-outline', '打开语音工坊');
+    const voiceLink = node('a', 'btn-outline', '打开声学工坊');
     voiceLink.href = '/admin';
     voiceLink.target = '_blank';
     voiceLink.rel = 'noopener';
@@ -5889,6 +6032,9 @@
   function worldSigFor(w) {
     return JSON.stringify({
       tab: activeHubTab,
+      bagSub: activeBagSubTab,
+      shopCat: activeShopCat,
+      sysSub: activeSystemSubTab,
       char: selectedChar,
       place: selectedMapPlace,
       prefs,
@@ -7347,15 +7493,29 @@
   }
   $('retry').onclick = () => void runRetry(Boolean(snapshot?.task?.has_stage1_checkpoint));
 
-  const openActionSheet = () => {
+  const switchActionTab = tab => {
+    activeActionTab = tab === 'give' ? 'give' : 'move';
+    document.querySelectorAll('#actionTabs [data-action-tab]').forEach(b => {
+      b.setAttribute('aria-selected', String(b.dataset.actionTab === activeActionTab));
+    });
+    if ($('moveForm')) $('moveForm').hidden = activeActionTab !== 'move';
+    if ($('giveForm')) $('giveForm').hidden = activeActionTab !== 'give';
+  };
+  document.querySelectorAll('#actionTabs [data-action-tab]').forEach(b => {
+    b.onclick = () => { haptic(8); switchActionTab(b.dataset.actionTab); };
+  });
+
+  const openActionSheet = (tab = '') => {
     if (blocked()) return;
     haptic(8);
+    if (tab) switchActionTab(tab);
+    else switchActionTab(activeActionTab);
     $('actionStatus').textContent = '出行与赠礼将作为本次自定义行动提交。';
     render();
     $('actionDialog').showModal();
   };
-  $('actions').onclick = openActionSheet;
-  if ($('quickActionBtn')) $('quickActionBtn').onclick = openActionSheet;
+  $('actions').onclick = () => openActionSheet();
+  if ($('quickActionBtn')) $('quickActionBtn').onclick = () => openActionSheet();
   if ($('sheetBagBtn')) {
     $('sheetBagBtn').onclick = () => {
       haptic(8);
@@ -7367,7 +7527,7 @@
     $('sheetMoveBtn').onclick = () => {
       haptic(8);
       closeComposerSheet();
-      openActionSheet();
+      openActionSheet('move');
     };
   }
 

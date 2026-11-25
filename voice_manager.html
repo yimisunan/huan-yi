@@ -1013,6 +1013,370 @@
       .studio-dock.is-idle .dock-idle-hint { font-size: 11.5px; }
       .studio-dock.is-idle .btn-save-all { min-width: 124px; min-height: 42px; padding: 8px 14px; font-size: 13px; }
     }
+
+    /* Compact Global Toolbar & Collapsible Key Drawer */
+    .studio-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px 10px;
+      padding: 9px 12px;
+      margin-bottom: 10px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+    }
+    .toolbar-tiers {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .toolbar-label {
+      font-size: 11.5px;
+      color: var(--muted);
+      font-weight: 600;
+      margin-right: 2px;
+    }
+    .tier-chip {
+      min-height: 32px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      color: var(--ink-soft);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .tier-chip.is-tier-active {
+      border-color: var(--gold);
+      background: var(--gold-soft);
+      color: var(--gold-bright);
+    }
+    .toolbar-tools {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: auto;
+    }
+    .tool-chip-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      min-height: 34px;
+      padding: 4px 11px;
+      border-radius: 999px;
+      border: 1px solid var(--line-strong);
+      background: var(--surface-2);
+      color: var(--ink-soft);
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .tool-chip-btn:hover,
+    .tool-chip-btn.is-active {
+      border-color: var(--gold);
+      background: var(--gold-soft);
+      color: var(--gold-bright);
+    }
+    .key-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--amber);
+      flex: none;
+    }
+    .key-dot.is-ok { background: var(--jade, #6eb893); }
+    .fav-count-badge {
+      padding: 0 6px;
+      border-radius: 999px;
+      font-size: 11px;
+      background: rgba(216, 180, 118, 0.18);
+      color: var(--gold-bright);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .studio-key-drawer {
+      margin-bottom: 12px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      display: grid;
+      gap: 10px;
+    }
+    .studio-key-drawer[hidden] { display: none; }
+    .key-drawer-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+      gap: 12px;
+    }
+    .key-drawer-note {
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--muted);
+      padding: 10px 12px;
+      border-radius: 10px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+    }
+    .key-drawer-note strong { color: var(--ink-soft); }
+
+    /* 3-Tab Role Workbench */
+    .studio-tabs {
+      display: flex;
+      gap: 6px;
+      padding: 4px;
+      margin: 0 0 14px;
+      border-radius: 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+    }
+    .studio-tab {
+      flex: 1 1 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      min-height: 38px;
+      padding: 6px 10px;
+      border: 0;
+      border-radius: 9px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.16s ease, color 0.16s ease;
+    }
+    .studio-tab.is-active {
+      background: var(--gold-soft);
+      color: var(--gold-bright);
+      box-shadow: inset 0 0 0 1px rgba(216, 180, 118, 0.32);
+    }
+
+    .star-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      min-height: 36px;
+      padding: 6px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--line-strong);
+      background: var(--surface-2);
+      color: var(--ink-soft);
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .star-btn.is-faved {
+      border-color: var(--gold);
+      background: var(--gold-soft);
+      color: var(--gold-bright);
+    }
+
+    /* Rich Search Result Rows (Audition / Apply / Star) */
+    .search-list {
+      display: grid;
+      gap: 7px;
+      margin-top: 8px;
+      max-height: 290px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+    .search-row-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+    }
+    .search-row-info {
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .search-row-info strong {
+      font-size: 12.5px;
+      color: var(--ink);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .search-row-info small {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .row-actions {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      flex: none;
+    }
+    .mini-act-btn {
+      min-height: 30px;
+      padding: 4px 9px;
+      border-radius: 8px;
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      color: var(--ink-soft);
+      font-size: 11.5px;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .mini-act-btn:hover { border-color: var(--gold); color: var(--gold-bright); }
+    .mini-act-btn.is-primary {
+      border-color: rgba(216, 180, 118, 0.45);
+      background: var(--gold-soft);
+      color: var(--gold-bright);
+    }
+    .mini-act-btn.is-faved {
+      border-color: var(--gold);
+      color: var(--gold-bright);
+    }
+    .mini-act-btn.is-danger:hover {
+      border-color: rgba(212, 105, 105, 0.55);
+      color: var(--danger);
+    }
+
+    /* Visual Favorites Manager */
+    .fav-toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .fav-toolbar input {
+      flex: 1 1 180px;
+    }
+    .fav-list {
+      display: grid;
+      gap: 9px;
+    }
+    .fav-card {
+      padding: 11px 13px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      display: grid;
+      gap: 8px;
+    }
+    .fav-card.is-current {
+      border-color: var(--gold);
+      background: linear-gradient(135deg, rgba(216, 180, 118, 0.1), var(--surface-2));
+    }
+    .fav-card-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .fav-card-meta {
+      min-width: 0;
+      display: grid;
+      gap: 2px;
+    }
+    .fav-card-title {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .fav-card-note {
+      font-size: 12px;
+      color: var(--ink-soft);
+      line-height: 1.45;
+    }
+    .fav-card-id {
+      font-size: 11px;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .fav-card-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+    }
+    .fav-edit-box {
+      display: grid;
+      gap: 8px;
+      padding-top: 8px;
+      border-top: 1px solid var(--line);
+    }
+    .fav-empty {
+      padding: 26px 16px;
+      text-align: center;
+      border-radius: 12px;
+      border: 1px dashed var(--line-strong);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    /* Folded Parameter Groups */
+    .param-fold {
+      margin-top: 10px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      overflow: hidden;
+    }
+    .param-fold > summary {
+      list-style: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 11px 13px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .param-fold > summary::-webkit-details-marker { display: none; }
+    .param-fold-sum-val {
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-left: auto;
+      text-align: right;
+    }
+    .param-fold-body {
+      padding: 10px 13px 13px;
+      border-top: 1px solid var(--line);
+    }
+    .voice-chip-wrap {
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      padding-right: 2px;
+    }
+    .voice-chip-wrap .voice-chip { border: 0; background: transparent; }
+
+    @media (max-width: 820px) {
+      .key-drawer-grid { grid-template-columns: 1fr; }
+      .studio-toolbar { padding: 8px 10px; }
+      .toolbar-tools { width: 100%; justify-content: space-between; margin-left: 0; }
+    }
   </style>
 </head>
 <body>
@@ -1041,34 +1405,48 @@
     </div>
   </header>
 
-  <section class="top-meta-grid">
-    <div class="wallet-panel">
-      <div class="wallet-row">
-        <div class="wallet-title">
-          <svg viewBox="0 0 24 24" class="icon-svg" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M16 12h3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
-          <span>Fish Audio 密钥与账户额度</span>
-        </div>
-        <button class="btn-wallet" type="button" onclick="loadFishWallet()">刷新余额</button>
-      </div>
-      <div id="fish-key-status" class="wallet-data" style="margin-bottom:8px;">正在检测本机受保护密钥缓存…</div>
-      <div class="inline-row" style="margin-bottom:8px;">
-        <input id="studio-fish-key" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴你的 Fish Audio API Key（仅存本机 .cache/）" style="flex:1;min-width:180px;">
-        <button class="btn-small" type="button" onclick="saveStudioFishKey()">保存密钥</button>
-        <button class="btn-small" type="button" onclick="clearStudioFishKey()">清除</button>
-      </div>
-      <div id="fish-wallet-data" class="wallet-data">尚未查询 · 点右上刷新</div>
+  <section class="studio-toolbar" aria-label="全局音质与快捷工具">
+    <div class="toolbar-tiers">
+      <span class="toolbar-label">全局分档</span>
+      <button class="tier-chip" type="button" data-tier-btn="free" onclick="applyStudioVoiceTier('free')">免费 $0</button>
+      <button class="tier-chip" type="button" data-tier-btn="pro" onclick="applyStudioVoiceTier('pro')">稳定 Pro</button>
+      <button class="tier-chip" type="button" data-tier-btn="drama" onclick="applyStudioVoiceTier('drama')">旗舰 Drama3</button>
+      <span id="studio-tier-badge" class="toolbar-label" style="color:var(--gold);margin-left:4px;">检测中…</span>
     </div>
-    <div class="protocol-banner">
-      <div><strong>多声道路由：</strong><strong>沈知韫、苏婉青、徐念薇</strong>随分档切换模型；<strong>旁白、动作（可与旁白区分）、徐志北（默认关闭，可随时开启）</strong>恒走免费档；徐承邺及次要 NPC 静默无声。</div>
-      <div style="margin-top:6px;"><strong>全局品质分档（旁白/动作/主角恒走免费档）：</strong>
-        <span id="studio-tier-badge" style="color:var(--gold);font-weight:600;">检测中…</span>
+    <div class="toolbar-tools">
+      <button type="button" class="tool-chip-btn" id="toggle-key-drawer-btn" onclick="toggleKeyDrawer()">
+        <i id="key-drawer-dot" class="key-dot"></i>
+        <span>密钥与额度</span>
+      </button>
+      <button type="button" class="tool-chip-btn" id="open-fav-tab-btn" onclick="openStudioFavorites()">
+        <span>★ 收藏夹</span>
+        <span id="toolbar-fav-count" class="fav-count-badge">0</span>
+      </button>
+    </div>
+  </section>
+
+  <section id="studio-key-drawer" class="studio-key-drawer" hidden aria-label="Fish Audio 密钥与额度">
+    <div class="key-drawer-grid">
+      <div>
+        <div class="wallet-row" style="margin-bottom:6px;">
+          <div class="wallet-title">
+            <svg viewBox="0 0 24 24" class="icon-svg" aria-hidden="true"><rect x="3" y="6" width="18" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M16 12h3" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span>Fish Audio 密钥与账户额度</span>
+          </div>
+          <button class="btn-wallet" type="button" onclick="loadFishWallet()">刷新余额</button>
+        </div>
+        <div id="fish-key-status" class="wallet-data" style="margin-bottom:8px;">正在检测本机受保护密钥缓存…</div>
+        <div class="inline-row" style="margin-bottom:8px;">
+          <input id="studio-fish-key" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴你的 Fish Audio API Key（仅存本机 .cache/）" style="flex:1;min-width:160px;">
+          <button class="btn-small" type="button" onclick="saveStudioFishKey()">保存密钥</button>
+          <button class="btn-small" type="button" onclick="clearStudioFishKey()">清除</button>
+        </div>
+        <div id="fish-wallet-data" class="wallet-data">尚未查询 · 点右上刷新</div>
       </div>
-      <div class="inline-row" style="margin-top:6px;gap:6px;">
-        <button class="btn-small" type="button" data-tier-btn="free" onclick="applyStudioVoiceTier('free')">标准免费档 ($0·推荐)</button>
-        <button class="btn-small" type="button" data-tier-btn="pro" onclick="applyStudioVoiceTier('pro')">稳定生产档 (S2.1 Pro)</button>
-        <button class="btn-small" type="button" data-tier-btn="drama" onclick="applyStudioVoiceTier('drama')">旗舰导演档 (Drama 3·高消费)</button>
+      <div class="key-drawer-note">
+        <div><strong>多声道路由：</strong><strong>沈知韫 / 苏婉青 / 徐念薇</strong>随全局分档切换模型；<strong>旁白 / 动作 / 徐志北</strong>恒走免费档（$0）；徐承邺及次要 NPC 静默无声。</div>
+        <div style="margin-top:6px;">正式语气由台词内标签驱动；「试听情绪」仅用于试听，保存配置时 <code>emotion</code> 自动清空。</div>
       </div>
-      <div style="margin-top:6px;">正式语气由台词内标签驱动；「试听情感」仅用于试听，保存配置时 <code>emotion</code> 清空。</div>
     </div>
   </section>
 
@@ -1109,6 +1487,9 @@
     let fishVoiceSearchResults = [];
     let fishVoiceSearchStatus = "";
     let currentPage = 0;
+    let activeStudioTab = 'voice';
+    let repoFilterQuery = '';
+    let editingRepoId = '';
     let repoItems = [];
     let activeTestObjectUrl = null;
     let activePreviewCharacter = '';
@@ -1334,16 +1715,48 @@
         });
     }
 
+    function updateRepoCountBadge() {
+        const badge = document.getElementById('toolbar-fav-count');
+        if (badge) badge.textContent = String(repoItems.length);
+        const favBtn = document.getElementById('open-fav-tab-btn');
+        if (favBtn && favBtn.classList && favBtn.classList.toggle) {
+            favBtn.classList.toggle('is-active', activeStudioTab === 'favorites');
+        }
+    }
+
+    function toggleKeyDrawer(forceState) {
+        const drawer = document.getElementById('studio-key-drawer');
+        const btn = document.getElementById('toggle-key-drawer-btn');
+        if (!drawer) return;
+        const nextOpen = typeof forceState === 'boolean' ? forceState : !!drawer.hidden;
+        drawer.hidden = !nextOpen;
+        if (btn && btn.classList && btn.classList.toggle) btn.classList.toggle('is-active', nextOpen);
+    }
+
+    function setStudioTab(tab) {
+        activeStudioTab = ['voice', 'favorites', 'params'].includes(tab) ? tab : 'voice';
+        updateRepoCountBadge();
+        renderEditor();
+    }
+
+    function openStudioFavorites() {
+        setStudioTab(activeStudioTab === 'favorites' ? 'voice' : 'favorites');
+    }
+
     async function loadStudioFishKey() {
         const el = document.getElementById('fish-key-status');
+        const dot = document.getElementById('key-drawer-dot');
         if (!el) return;
         try {
             const st = await VoiceClient.getFishKeyStatus();
             if (st && st.configured) {
                 const srcLabel = st.source === 'local_cache' ? '本地受保护缓存 (.cache/fish_api_key.json)' : '环境变量';
                 el.innerHTML = `<strong style="color:var(--sage,#7fb896);">已配置密钥</strong> ${escapeHtml(st.masked || '已隐藏')} · 来源：${escapeHtml(srcLabel)}`;
+                if (dot && dot.classList && dot.classList.toggle) dot.classList.toggle('is-ok', true);
             } else {
                 el.innerHTML = '<span style="color:var(--amber);">尚未配置 Fish Audio 密钥（请在下方粘贴保存；一键同步与新档重置均受保护）</span>';
+                if (dot && dot.classList && dot.classList.toggle) dot.classList.toggle('is-ok', false);
+                toggleKeyDrawer(true);
             }
         } catch (err) {
             el.textContent = '密钥状态检测失败：' + (err.message || '请检查后端服务');
@@ -1474,7 +1887,7 @@
                 if (Array.isArray(data.voices) && data.voices.length) edgeVoices = data.voices;
                 edgeDefaultVoice = data.default || edgeDefaultVoice;
             }),
-            VoiceClient.requestJson('/api/voice_repo').then(data => { repoItems = data.items || []; })
+            VoiceClient.requestJson('/api/voice_repo').then(data => { repoItems = data.items || []; updateRepoCountBadge(); })
         ];
         const results = await Promise.allSettled(jobs);
         refreshEditorPreservingDraft();
@@ -1610,12 +2023,53 @@
             </div>
         ` : '');
 
+        updateRepoCountBadge();
+
         if (edgeMode) {
             const rateNum = parseRate(cfg.rate);
             const pitchNum = parsePitch(cfg.pitch);
             const speakerHtml = edgeVoices.map(v =>
                 `<option value="${escapeHtml(v.id)}" ${currentSpeaker === v.id ? 'selected' : ''}>${escapeHtml(v.name)}</option>`
             ).join('');
+            const tabKey = activeStudioTab === 'favorites' ? 'favorites' : 'voice';
+
+            const edgeBodyHtml = tabKey === 'favorites'
+                ? renderFavoritesPanelHtml(character, currentSpeaker, true)
+                : `
+                    <div class="voice-dashboard">
+                        <section class="tool-panel">
+                            <div class="panel-title">Edge 发音人与韵律 <span>${escapeHtml(currentSpeaker || edgeDefaultVoice)}</span></div>
+                            <div class="form-group">
+                                <label>发音人</label>
+                                <select onchange="updateEdgeSpeaker('${jsChar}', this.value)">${speakerHtml}</select>
+                                <div class="hint">来自本机 Edge 真实可用中文音色。</div>
+                            </div>
+                            <div class="param-grid">
+                                <div class="slider-row">
+                                    <div class="slider-header"><span>语速 rate</span><span class="slider-val" id="rate-val-${attrChar}">${formatRate(rateNum)}</span></div>
+                                    <input type="range" min="-20" max="30" step="1" value="${rateNum}" oninput="updateEdgeSlider('${jsChar}', 'rate', this.value, 'rate-val-${jsChar}')">
+                                </div>
+                                <div class="slider-row">
+                                    <div class="slider-header"><span>音高 pitch</span><span class="slider-val" id="pitch-val-${attrChar}">${formatPitch(pitchNum)}</span></div>
+                                    <input type="range" min="-20" max="20" step="1" value="${pitchNum}" oninput="updateEdgeSlider('${jsChar}', 'pitch', this.value, 'pitch-val-${jsChar}')">
+                                </div>
+                            </div>
+                            <button type="button" class="secondary-action" style="margin-top:12px;" onclick="applyNarrationFilmPreset('${jsChar}')">应用电影旁白预设（-8% / -4Hz）</button>
+                            <div class="hint">Edge 回退会自动剥除 Fish 方括号、Drama 3 尖括号和音素标签。</div>
+                        </section>
+                        <section class="tool-panel">
+                            <div class="panel-title">试听台 <span>Edge 实时合成</span></div>
+                            <div class="form-group">
+                                <label>试听文本</label>
+                                <textarea id="test-text-${attrChar}" rows="5">${escapeHtml(sampleTexts[character] || sampleTexts["default"])}</textarea>
+                            </div>
+                            <div class="btn-group">
+                                <button class="btn-test" data-test-char="${attrChar}" onclick="testVoice('${jsChar}')">试听与生成</button>
+                                <a id="download-link-${attrChar}" class="download-btn">下载音频</a>
+                            </div>
+                        </section>
+                    </div>
+                `;
 
             card.innerHTML = `
                 <div class="card-head">
@@ -1632,39 +2086,11 @@
                     </div>
                 </div>
                 ${roleRoutingBanner}
-                <div class="voice-dashboard">
-                    <section class="tool-panel">
-                        <div class="panel-title">Edge 发音人与韵律 <span>${escapeHtml(currentSpeaker || edgeDefaultVoice)}</span></div>
-                        <div class="form-group">
-                            <label>发音人</label>
-                            <select onchange="updateEdgeSpeaker('${jsChar}', this.value)">${speakerHtml}</select>
-                            <div class="hint">来自本机 Edge 真实可用中文音色。</div>
-                        </div>
-                        <div class="param-grid">
-                            <div class="slider-row">
-                                <div class="slider-header"><span>语速 rate</span><span class="slider-val" id="rate-val-${attrChar}">${formatRate(rateNum)}</span></div>
-                                <input type="range" min="-20" max="30" step="1" value="${rateNum}" oninput="updateEdgeSlider('${jsChar}', 'rate', this.value, 'rate-val-${jsChar}')">
-                            </div>
-                            <div class="slider-row">
-                                <div class="slider-header"><span>音高 pitch</span><span class="slider-val" id="pitch-val-${attrChar}">${formatPitch(pitchNum)}</span></div>
-                                <input type="range" min="-20" max="20" step="1" value="${pitchNum}" oninput="updateEdgeSlider('${jsChar}', 'pitch', this.value, 'pitch-val-${jsChar}')">
-                            </div>
-                        </div>
-                        <button type="button" class="secondary-action" style="margin-top:14px;" onclick="applyNarrationFilmPreset('${jsChar}')">应用电影旁白预设（-8% / -4Hz）</button>
-                        <div class="hint">Edge 回退会自动剥除 Fish 方括号、Drama 3 尖括号和音素标签。</div>
-                    </section>
-                    <section class="tool-panel">
-                        <div class="panel-title">试听台 <span>Edge 实时合成</span></div>
-                        <div class="form-group">
-                            <label>试听文本</label>
-                            <textarea id="test-text-${attrChar}" rows="6">${escapeHtml(sampleTexts[character] || sampleTexts["default"])}</textarea>
-                        </div>
-                        <div class="btn-group">
-                            <button class="btn-test" data-test-char="${attrChar}" onclick="testVoice('${jsChar}')">试听与生成</button>
-                            <a id="download-link-${attrChar}" class="download-btn">下载音频</a>
-                        </div>
-                    </section>
+                <div class="studio-tabs" role="tablist">
+                    <button type="button" class="studio-tab ${tabKey === 'voice' ? 'is-active' : ''}" role="tab" aria-selected="${tabKey === 'voice'}" onclick="setStudioTab('voice')">Edge 音色与试听</button>
+                    <button type="button" class="studio-tab ${tabKey === 'favorites' ? 'is-active' : ''}" role="tab" aria-selected="${tabKey === 'favorites'}" onclick="setStudioTab('favorites')">★ Fish 收藏夹 (${repoItems.length})</button>
                 </div>
+                ${edgeBodyHtml}
             `;
         } else {
             if (testEmotions[character] === undefined) testEmotions[character] = "";
@@ -1678,6 +2104,9 @@
             const isDrama3 = currentFishTtsModel === 'drama-3';
             const repIgnored = isS21 || isDrama3;
             const isFree = currentFishTtsModel === 's2.1-pro-free';
+            const curFaved = !inheritsNarrator && currentSpeaker && isVoiceFavorited(currentSpeaker);
+            const curDisplayName = inheritsNarrator ? '自动继承「旁白」音色' : voiceDisplayName(currentSpeaker);
+            const tabKey = ['voice', 'favorites', 'params'].includes(activeStudioTab) ? activeStudioTab : 'voice';
 
             const modelHtml = fishTtsModels.map(m =>
                 `<option value="${escapeHtml(m.id)}" ${currentFishTtsModel === m.id ? 'selected' : ''}>${escapeHtml(m.name)}</option>`
@@ -1713,6 +2142,187 @@
                 `<button type="button" class="preset-pill" onclick="applyFishPreset('${jsChar}', '${escapeJsStr(id)}')">${escapeHtml(p.name)}</button>`
             ).join('');
 
+            let bodyPanelHtml = '';
+            if (tabKey === 'voice') {
+                bodyPanelHtml = `
+                    <div class="voice-dashboard">
+                        <section class="tool-panel">
+                            <div class="panel-title">当前音色与查找 <span>${inheritsNarrator ? '继承「旁白」' : (currentSpeaker ? '已绑定' : '未绑定')}</span></div>
+                            <div class="current-summary">
+                                <div>
+                                    <strong>${escapeHtml(curDisplayName)}</strong>
+                                    <small>${inheritsNarrator ? '可从收藏夹或下方搜索绑定独立第二音色' : (currentSpeaker ? escapeHtml(shortenRepoId(currentSpeaker)) : '请从收藏夹或下方搜索绑定音色 ID')} · ${escapeHtml(currentFishTtsModel)}</small>
+                                </div>
+                                ${(!inheritsNarrator && currentSpeaker) ? `<button type="button" class="mini-act-btn ${curFaved ? 'is-faved' : 'is-primary'}" onclick="quickFavoriteVoice(decodeURIComponent('${encodeURIComponent(currentSpeaker)}'), decodeURIComponent('${encodeURIComponent(curDisplayName)}'), '${jsChar}')">${curFaved ? '★ 已收藏' : '☆ 收藏当前'}</button>` : '<span class="engine-tag fish">当前生效</span>'}
+                            </div>
+                            <div class="form-group">
+                                <label>Fish TTS 推理模型</label>
+                                <select onchange="updateFishTtsModel('${jsChar}', this.value); renderEditor();">${modelHtml}</select>
+                                <div class="hint">${escapeHtml(MODEL_NOTES[currentFishTtsModel] || '')}</div>
+                            </div>
+                            <div class="form-group">
+                                <label>快速从收藏夹切换（共 ${repoItems.length} 个 · <a href="javascript:void(0)" style="color:var(--gold);text-decoration:none;" onclick="setStudioTab('favorites')">打开收藏夹试听管理 →</a>）</label>
+                                <select id="repo-select-${attrChar}" onchange="pullRepoVoice('${jsChar}', this.value)">${repoOptionsHtml(currentSpeaker)}</select>
+                            </div>
+                            <div class="form-group">
+                                <label>搜索 Fish 公开音色，或直接粘贴 reference_id</label>
+                                <div class="inline-row">
+                                    <input type="text" id="fish-search-${attrChar}" value="${escapeHtml(fishVoiceSearchQuery)}" placeholder="例如：温柔、御姐、旁白，或完整 ID" onkeydown="if(event.key==='Enter'){event.preventDefault();searchOrApplyVoice('${jsChar}');}">
+                                    <button type="button" class="btn-small btn-test" onclick="searchOrApplyVoice('${jsChar}')">搜索 / 应用</button>
+                                </div>
+                                ${fishVoiceSearchHtml(character)}
+                            </div>
+                            ${fishVoiceChipsHtml(character, cfg, currentSpeaker)}
+                        </section>
+
+                        <section class="tool-panel">
+                            <div class="panel-title">导演试听台 <span>试听标签不写入配置</span></div>
+                            <div class="form-group">
+                                <label>试听文本</label>
+                                <textarea id="test-text-${attrChar}" rows="5">${escapeHtml(sampleTexts[character] || sampleTexts["default"])}</textarea>
+                            </div>
+                            <details class="param-fold" style="margin:0 0 12px;">
+                                <summary><span>试听情绪与快捷导演标签</span><span class="param-fold-sum-val">${currentEmotion ? escapeHtml(currentEmotion) : '按需展开'} ▾</span></summary>
+                                <div class="param-fold-body">
+                                    <div class="form-group">
+                                        <label>临时试听情绪前置</label>
+                                        <select onchange="setTestEmotion('${jsChar}', this.value)">${emotionHtml}</select>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label>一键插入标签（S2.1 / Drama 3 / 注音）</label>
+                                        <div class="cue-bar">${cueButtons}</div>
+                                    </div>
+                                </div>
+                            </details>
+                            <div class="btn-group">
+                                <button class="btn-test" data-test-char="${attrChar}" onclick="testVoice('${jsChar}')">试听与生成</button>
+                                <a id="download-link-${attrChar}" class="download-btn">下载音频</a>
+                            </div>
+                        </section>
+                    </div>
+                `;
+            } else if (tabKey === 'favorites') {
+                bodyPanelHtml = renderFavoritesPanelHtml(character, currentSpeaker, false, inheritsNarrator);
+            } else {
+                const fmtSummary = `${fishCfg.format.toUpperCase()} · ${(fishCfg.sample_rate / 1000).toFixed(fishCfg.sample_rate % 1000 ? 1 : 0)}kHz · ${fishCfg.language || '自动'}`;
+                const sampleSummary = `temp ${fishCfg.temperature.toFixed(2)} · top_p ${fishCfg.top_p.toFixed(2)} · ${fishCfg.latency}`;
+                const advSummary = `tokens ${fishCfg.max_new_tokens} · 守卫${fishCfg.quality_guard ? '开' : '关'}${fishCfg.pronunciation_dictionary_id ? ' · 词典已配' : ''}`;
+                bodyPanelHtml = `
+                    <section class="tool-panel wide">
+                        <div class="panel-title">角色声学预设与核心参数 <span>按需展开进阶项</span></div>
+                        <div class="preset-strip">${presetButtons}</div>
+
+                        <div class="param-section">
+                            <div class="param-section-head"><span>1. 韵律与动态响度（最常用）</span><small>影响语速、响度与贴耳低语质感</small></div>
+                            <div class="param-grid">
+                                <div class="slider-row"><div class="slider-header"><span>语速 speed</span><span class="slider-val" id="fish-speed-val-${attrChar}">${fishCfg.speed.toFixed(2)}</span></div><input type="range" min="0.5" max="2.0" step="0.05" value="${fishCfg.speed}" oninput="updateFishParam('${jsChar}', 'speed', this.value, 'fish-speed-val-${jsChar}', 2)"></div>
+                                <div class="slider-row"><div class="slider-header"><span>音量增益 volume (dB)</span><span class="slider-val" id="fish-volume-val-${attrChar}">${fishCfg.volume.toFixed(1)}</span></div><input type="range" min="-20" max="20" step="0.5" value="${fishCfg.volume}" oninput="updateFishParam('${jsChar}', 'volume', this.value, 'fish-volume-val-${jsChar}', 1)"></div>
+                            </div>
+                            <div class="toggle-grid">
+                                <label class="toggle-card">
+                                    <input type="checkbox" ${fishCfg.normalize_loudness ? 'checked' : ''} onchange="updateFishBool('${jsChar}', 'normalize_loudness', this.checked, true)">
+                                    <div><strong>响度归一化 normalize_loudness</strong><span>默认开启使各句音量平稳；<strong>关闭</strong>后可保留低语/气声的真实轻柔动态。</span></div>
+                                </label>
+                                <label class="toggle-card">
+                                    <input type="checkbox" ${fishCfg.condition_on_previous_chunks ? 'checked' : ''} onchange="updateFishBool('${jsChar}', 'condition_on_previous_chunks', this.checked, false)">
+                                    <div><strong>跨分块声线延续</strong><span>长台词跨分块保持音色与语调连贯。</span></div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <details class="param-fold">
+                            <summary><span>2. 表现力、采样与响应延迟</span><span class="param-fold-sum-val">${escapeHtml(sampleSummary)} ▾</span></summary>
+                            <div class="param-fold-body">
+                                <div class="param-grid">
+                                    <div class="slider-row"><div class="slider-header"><span>表现力 temperature</span><span class="slider-val" id="fish-temperature-val-${attrChar}">${fishCfg.temperature.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.01" value="${fishCfg.temperature}" oninput="updateFishParam('${jsChar}', 'temperature', this.value, 'fish-temperature-val-${jsChar}', 2)"><small class="param-help">默认 0.70；越低越稳，越高起伏越大。</small></div>
+                                    <div class="slider-row"><div class="slider-header"><span>核采样 top_p</span><span class="slider-val" id="fish-top-p-val-${attrChar}">${fishCfg.top_p.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.01" value="${fishCfg.top_p}" oninput="updateFishParam('${jsChar}', 'top_p', this.value, 'fish-top-p-val-${jsChar}', 2)"><small class="param-help">默认 0.70；过低（如 &lt;0.2）容易声音发呆。</small></div>
+                                    <div class="slider-row"><div class="slider-header"><span>分块长度 chunk_length</span><span class="slider-val" id="fish-chunk-val-${attrChar}">${fishCfg.chunk_length}</span></div><input type="range" min="100" max="300" step="10" value="${fishCfg.chunk_length}" oninput="updateFishParam('${jsChar}', 'chunk_length', this.value, 'fish-chunk-val-${jsChar}', 0)"><small class="param-help">100–300；小块出声快，大块语境连贯。</small></div>
+                                    <div class="slider-row"><div class="slider-header"><span>最小分块 min_chunk_length</span><span class="slider-val" id="fish-min-chunk-val-${attrChar}">${fishCfg.min_chunk_length}</span></div><input type="range" min="0" max="100" step="5" value="${fishCfg.min_chunk_length}" oninput="updateFishParam('${jsChar}', 'min_chunk_length', this.value, 'fish-min-chunk-val-${jsChar}', 0)"><small class="param-help">末段短句最小阈值，不超过分块长度。</small></div>
+                                </div>
+                                <div class="form-group" style="margin-top:12px;margin-bottom:0;">
+                                    <label>延迟与稳定模式 latency</label>
+                                    <select onchange="updateFishLatency('${jsChar}', this.value)">
+                                        <option value="normal" ${fishCfg.latency === 'normal' ? 'selected' : ''}>normal（最高音质与稳定度 · 叙事首选）</option>
+                                        <option value="balanced" ${fishCfg.latency === 'balanced' ? 'selected' : ''}>balanced（~300ms 首包 · 交互均衡）</option>
+                                        <option value="low" ${fishCfg.latency === 'low' ? 'selected' : ''}>low（极速流式响应）</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </details>
+
+                        <details class="param-fold">
+                            <summary><span>3. 音频格式、码率与中文规范</span><span class="param-fold-sum-val">${escapeHtml(fmtSummary)} ▾</span></summary>
+                            <div class="param-fold-body">
+                                <div class="param-grid three">
+                                    <div class="form-group">
+                                        <label>输出格式 format</label>
+                                        <select onchange="updateFishFormat('${jsChar}', this.value)">
+                                            <option value="mp3" ${fishCfg.format === 'mp3' ? 'selected' : ''}>MP3（兼容性最佳 / 支持流式）</option>
+                                            <option value="opus" ${fishCfg.format === 'opus' ? 'selected' : ''}>Opus（48kHz 轻量高效 · 手机省流）</option>
+                                            <option value="wav" ${fishCfg.format === 'wav' ? 'selected' : ''}>WAV（无损母带 · 体积较大）</option>
+                                        </select>
+                                    </div>
+                                    ${bitrateBlock}
+                                    <div class="form-group">
+                                        <label>采样率 sample_rate</label>
+                                        <select onchange="updateFishField('${jsChar}', 'sample_rate', Number(this.value), true)">${rateOpts}</select>
+                                    </div>
+                                </div>
+                                <div class="param-grid" style="margin-top:6px;">
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label>文本规范化语言 language</label>
+                                        <select onchange="updateFishField('${jsChar}', 'language', this.value, false)">
+                                            <option value="" ${fishCfg.language === '' ? 'selected' : ''}>自动检测（中英混排推荐）</option>
+                                            <option value="zh-CN" ${fishCfg.language === 'zh-CN' ? 'selected' : ''}>zh-CN（简体中文数字/日期规范）</option>
+                                            <option value="zh-TW" ${fishCfg.language === 'zh-TW' ? 'selected' : ''}>zh-TW（繁体中文规范）</option>
+                                            <option value="en" ${fishCfg.language === 'en' ? 'selected' : ''}>en（英文规范）</option>
+                                            <option value="ja" ${fishCfg.language === 'ja' ? 'selected' : ''}>ja（日文规范）</option>
+                                        </select>
+                                    </div>
+                                    <label class="toggle-card" style="align-self:end;">
+                                        <input type="checkbox" ${fishCfg.normalize ? 'checked' : ''} onchange="updateFishBool('${jsChar}', 'normalize', this.checked, false)">
+                                        <div><strong>文本规范化 normalize</strong><span>自动把时间、数字、百分比转为自然口语。</span></div>
+                                    </label>
+                                </div>
+                            </div>
+                        </details>
+
+                        <details class="param-fold">
+                            <summary><span>4. 高级推理、质量守卫与发音词典</span><span class="param-fold-sum-val">${escapeHtml(advSummary)} ▾</span></summary>
+                            <div class="param-fold-body">
+                                <div class="param-grid">
+                                    <div class="slider-row"><div class="slider-header"><span>单块最大帧数 max_new_tokens</span><span class="slider-val" id="fish-tokens-val-${attrChar}">${fishCfg.max_new_tokens}</span></div><input type="range" min="256" max="4096" step="128" value="${fishCfg.max_new_tokens}" oninput="updateFishParam('${jsChar}', 'max_new_tokens', this.value, 'fish-tokens-val-${jsChar}', 0)"><small class="param-help">默认 1024；长情绪戏或慢语速被截断时可调高。</small></div>
+                                    <div class="slider-row"><div class="slider-header"><span>早停阈值 early_stop_threshold</span><span class="slider-val" id="fish-early-val-${attrChar}">${fishCfg.early_stop_threshold.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.05" value="${fishCfg.early_stop_threshold}" oninput="updateFishParam('${jsChar}', 'early_stop_threshold', this.value, 'fish-early-val-${jsChar}', 2)"><small class="param-help">默认 1.00；一般无需调低。</small></div>
+                                    <div class="slider-row" style="${repIgnored ? 'opacity:0.55;' : ''}">
+                                        <div class="slider-header">
+                                            <span>重复抑制 repetition_penalty ${repIgnored ? '<span class="warn-chip">S2.1 / Drama 3 已忽略</span>' : ''}</span>
+                                            <span class="slider-val" id="fish-repetition-val-${attrChar}">${fishCfg.repetition_penalty.toFixed(2)}</span>
+                                        </div>
+                                        <input type="range" min="1.0" max="2.0" step="0.01" value="${fishCfg.repetition_penalty}" ${repIgnored ? 'disabled' : ''} oninput="updateFishParam('${jsChar}', 'repetition_penalty', this.value, 'fish-repetition-val-${jsChar}', 2)">
+                                        <small class="param-help">${repIgnored ? 'S2.1 与 Drama 3 后端发包已自动省略。' : '仅对旧版 S1/S2 兼容模型生效。'}</small>
+                                    </div>
+                                    <label class="toggle-card" style="align-self:start;">
+                                        <input type="checkbox" ${fishCfg.quality_guard ? 'checked' : ''} onchange="updateFishBool('${jsChar}', 'quality_guard', this.checked, false)">
+                                        <div><strong>质量守卫 quality-guard</strong><span>自动拦截异常破音/吞字。</span></div>
+                                    </label>
+                                </div>
+                                <div class="param-grid" style="margin-top:12px;">
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label>云端发音词典 ID（可选）</label>
+                                        <input type="text" id="fish-dict-id-${attrChar}" value="${escapeHtml(fishCfg.pronunciation_dictionary_id)}" placeholder="Fish 官网发布的 Dictionary ID" oninput="updateFishField('${jsChar}', 'pronunciation_dictionary_id', this.value, false)">
+                                    </div>
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label>词典版本 version（可选）</label>
+                                        <input type="text" id="fish-dict-ver-${attrChar}" value="${escapeHtml(fishCfg.pronunciation_dictionary_version)}" placeholder="留空或填已发布版本号" oninput="updateFishField('${jsChar}', 'pronunciation_dictionary_version', this.value, false)">
+                                    </div>
+                                </div>
+                                <span class="hint" style="margin-top:8px;">专有词/多音字（如 沈知韫 yùn、徐承邺 yè）可在 Fish 平台创建 Pronunciation Dictionary 并填入此处，详见项目内 <code>开发者功能/开发者说明/语音引擎升级方案/</code>。</span>
+                            </div>
+                        </details>
+                    </section>
+                `;
+            }
+
             card.innerHTML = `
                 <div class="card-head">
                     <div class="card-identity">
@@ -1722,191 +2332,24 @@
                             <div class="tag-row">
                                 <span class="engine-tag ${isDrama3 ? 'drama' : 'fish'}">${escapeHtml(currentFishTtsModel)}</span>
                                 ${isFree ? '<span class="engine-tag free">$0 免费档</span>' : ''}
-                                ${inheritsNarrator ? '<span class="engine-tag edge">继承「旁白」音色</span>' : ''}
-                                ${!fishCfg.normalize_loudness ? '<span class="engine-tag drama">保留低语动态</span>' : ''}
-                                <span class="engine-tag fish">${escapeHtml(fishCfg.format.toUpperCase())} · ${(fishCfg.sample_rate / 1000).toFixed(fishCfg.sample_rate % 1000 ? 1 : 0)}kHz</span>
+                                ${inheritsNarrator ? '<span class="engine-tag edge">继承「旁白」</span>' : ''}
+                                ${!fishCfg.normalize_loudness ? '<span class="engine-tag drama">保留低语</span>' : ''}
                             </div>
                         </div>
                     </div>
                     <div class="inline-row" style="gap:6px;">
-                        ${isActionRole && !inheritsNarrator ? `<button type="button" class="secondary-action" onclick="resetActionInheritVoice()">恢复继承旁白</button>` : ''}
-                        ${FREE_DEFAULT_ROLES.has(character) ? `<button type="button" class="secondary-action" onclick="switchRoleToEdge('${jsChar}')">切换 Edge 免费音色</button>` : ''}
+                        ${(!inheritsNarrator && currentSpeaker) ? `<button type="button" class="star-btn ${curFaved ? 'is-faved' : ''}" onclick="quickFavoriteVoice(decodeURIComponent('${encodeURIComponent(currentSpeaker)}'), decodeURIComponent('${encodeURIComponent(curDisplayName)}'), '${jsChar}')">${curFaved ? '★ 已收藏' : '☆ 收藏当前'}</button>` : ''}
+                        ${isActionRole && !inheritsNarrator ? `<button type="button" class="secondary-action" onclick="resetActionInheritVoice()">继承旁白</button>` : ''}
+                        ${FREE_DEFAULT_ROLES.has(character) ? `<button type="button" class="secondary-action" onclick="switchRoleToEdge('${jsChar}')">切 Edge</button>` : ''}
                     </div>
                 </div>
                 ${roleRoutingBanner}
-
-                <div class="voice-dashboard">
-                    <section class="tool-panel">
-                        <div class="panel-title">音色与推理模型 <span>${inheritsNarrator ? '继承「旁白」音色' : (currentSpeaker ? '已绑定 reference_id' : '未绑定音色')}</span></div>
-                        <div class="form-group">
-                            <label>Fish TTS 模型</label>
-                            <select onchange="updateFishTtsModel('${jsChar}', this.value); renderEditor();">${modelHtml}</select>
-                            <div class="model-callout">${escapeHtml(MODEL_NOTES[currentFishTtsModel] || '')}</div>
-                        </div>
-                        <div class="current-summary">
-                            <div>
-                                <strong>${inheritsNarrator ? '自动继承「旁白」音色（独立韵律偏移）' : escapeHtml(voiceDisplayName(currentSpeaker))}</strong>
-                                <small>${inheritsNarrator ? '可在下方从仓库或搜索绑定独立第二音色' : (currentSpeaker ? escapeHtml(shortenRepoId(currentSpeaker)) : '请从仓库或下方搜索绑定音色 ID')} · ${escapeHtml(currentFishTtsModel)}</small>
-                            </div>
-                            <span class="engine-tag fish">当前生效</span>
-                        </div>
-                        <div class="form-group">
-                            <label>全局语音仓库（跨角色收藏池）</label>
-                            <select id="repo-select-${attrChar}" onchange="pullRepoVoice('${jsChar}', this.value)">${repoOptionsHtml(currentSpeaker)}</select>
-                        </div>
-                        <details class="advanced-panel">
-                            <summary>搜索公开音色、收藏与候选池</summary>
-                            <div style="margin-top:10px;">
-                                <div class="form-group">
-                                    <label>搜索公开音色或直接粘贴 reference_id</label>
-                                    <div class="inline-row">
-                                        <input type="text" id="fish-search-${attrChar}" value="${escapeHtml(fishVoiceSearchQuery)}" placeholder="例如：温柔、御姐、旁白，或完整 ID">
-                                        <button type="button" class="btn-small btn-test" onclick="searchOrApplyVoice('${jsChar}')">搜索 / 应用</button>
-                                    </div>
-                                    ${fishVoiceSearchHtml(character)}
-                                </div>
-                                <div class="form-group">
-                                    <label>加入长期语音仓库</label>
-                                    <div class="inline-row">
-                                        <input type="text" id="repo-id-${attrChar}" placeholder="音色 ID">
-                                        <input type="text" id="repo-name-${attrChar}" placeholder="名称" style="max-width:110px;">
-                                        <input type="text" id="repo-note-${attrChar}" placeholder="备注" style="max-width:120px;">
-                                        <button type="button" class="btn-small secondary-action" onclick="addRepoVoice('${jsChar}')">收藏</button>
-                                    </div>
-                                </div>
-                                ${fishVoiceChipsHtml(character, cfg, currentSpeaker)}
-                            </div>
-                        </details>
-                    </section>
-
-                    <section class="tool-panel">
-                        <div class="panel-title">导演试听台 <span>试听标签不写入配置</span></div>
-                        <div class="form-group">
-                            <label>临时试听情绪前置</label>
-                            <select onchange="setTestEmotion('${jsChar}', this.value)">${emotionHtml}</select>
-                        </div>
-                        <div class="form-group">
-                            <label>快捷插入标签（S2.1 / Drama 3 / 中文注音）</label>
-                            <div class="cue-bar">${cueButtons}</div>
-                            <textarea id="test-text-${attrChar}" rows="5">${escapeHtml(sampleTexts[character] || sampleTexts["default"])}</textarea>
-                            <span class="hint">可直接在正文插入 <code>[soft timid voice]</code>、<code>&lt;whisper&gt;…&lt;/whisper&gt;</code>（Drama 3）或 <code>&lt;|phoneme_start|&gt;yun4&lt;|phoneme_end|&gt;</code> 测试发音。</span>
-                        </div>
-                        <div class="btn-group">
-                            <button class="btn-test" data-test-char="${attrChar}" onclick="testVoice('${jsChar}')">试听与生成</button>
-                            <a id="download-link-${attrChar}" class="download-btn">下载音频</a>
-                        </div>
-                    </section>
-
-                    <section class="tool-panel wide">
-                        <div class="panel-title">角色声学预设与核心参数 <span>对照 Fish Audio 2026 官方 /v1/tts 规范</span></div>
-                        <div class="preset-strip">${presetButtons}</div>
-
-                        <div class="param-section">
-                            <div class="param-section-head"><span>1. 韵律与动态响度（Prosody）</span><small>影响语速、响度与贴耳低语质感</small></div>
-                            <div class="param-grid">
-                                <div class="slider-row"><div class="slider-header"><span>语速 speed</span><span class="slider-val" id="fish-speed-val-${attrChar}">${fishCfg.speed.toFixed(2)}</span></div><input type="range" min="0.5" max="2.0" step="0.05" value="${fishCfg.speed}" oninput="updateFishParam('${jsChar}', 'speed', this.value, 'fish-speed-val-${jsChar}', 2)"></div>
-                                <div class="slider-row"><div class="slider-header"><span>音量增益 volume (dB)</span><span class="slider-val" id="fish-volume-val-${attrChar}">${fishCfg.volume.toFixed(1)}</span></div><input type="range" min="-20" max="20" step="0.5" value="${fishCfg.volume}" oninput="updateFishParam('${jsChar}', 'volume', this.value, 'fish-volume-val-${jsChar}', 1)"></div>
-                            </div>
-                            <div class="toggle-grid">
-                                <label class="toggle-card">
-                                    <input type="checkbox" ${fishCfg.normalize_loudness ? 'checked' : ''} onchange="updateFishBool('${jsChar}', 'normalize_loudness', this.checked, true)">
-                                    <div><strong>响度归一化 normalize_loudness</strong><span>默认开启使各句音量平稳；<strong>关闭</strong>后可保留低语/气声的真实轻柔动态，避免把耳语拉响。</span></div>
-                                </label>
-                                <label class="toggle-card">
-                                    <input type="checkbox" ${fishCfg.condition_on_previous_chunks ? 'checked' : ''} onchange="updateFishBool('${jsChar}', 'condition_on_previous_chunks', this.checked, false)">
-                                    <div><strong>跨分块声线延续 condition_on_previous_chunks</strong><span>长台词跨分块保持音色与语调连贯。</span></div>
-                                </label>
-                            </div>
-                        </div>
-
-                        <div class="param-section">
-                            <div class="param-section-head"><span>2. 表现力、采样与响应延迟</span><small>平衡起伏、稳定性与首字速度</small></div>
-                            <div class="param-grid">
-                                <div class="slider-row"><div class="slider-header"><span>表现力 temperature</span><span class="slider-val" id="fish-temperature-val-${attrChar}">${fishCfg.temperature.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.01" value="${fishCfg.temperature}" oninput="updateFishParam('${jsChar}', 'temperature', this.value, 'fish-temperature-val-${jsChar}', 2)"><small class="param-help">默认 0.70；越低越稳，越高起伏越大。</small></div>
-                                <div class="slider-row"><div class="slider-header"><span>核采样 top_p</span><span class="slider-val" id="fish-top-p-val-${attrChar}">${fishCfg.top_p.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.01" value="${fishCfg.top_p}" oninput="updateFishParam('${jsChar}', 'top_p', this.value, 'fish-top-p-val-${jsChar}', 2)"><small class="param-help">默认 0.70；过低（如 &lt;0.2）容易声音发呆。</small></div>
-                                <div class="slider-row"><div class="slider-header"><span>分块长度 chunk_length</span><span class="slider-val" id="fish-chunk-val-${attrChar}">${fishCfg.chunk_length}</span></div><input type="range" min="100" max="300" step="10" value="${fishCfg.chunk_length}" oninput="updateFishParam('${jsChar}', 'chunk_length', this.value, 'fish-chunk-val-${jsChar}', 0)"><small class="param-help">100–300；小块出声快，大块语境连贯。</small></div>
-                                <div class="slider-row"><div class="slider-header"><span>最小分块 min_chunk_length</span><span class="slider-val" id="fish-min-chunk-val-${attrChar}">${fishCfg.min_chunk_length}</span></div><input type="range" min="0" max="100" step="5" value="${fishCfg.min_chunk_length}" oninput="updateFishParam('${jsChar}', 'min_chunk_length', this.value, 'fish-min-chunk-val-${jsChar}', 0)"><small class="param-help">末段短句最小阈值，不超过分块长度。</small></div>
-                            </div>
-                            <div class="form-group" style="margin-top:12px;">
-                                <label>延迟与稳定模式 latency</label>
-                                <select onchange="updateFishLatency('${jsChar}', this.value)">
-                                    <option value="normal" ${fishCfg.latency === 'normal' ? 'selected' : ''}>normal（最高音质与稳定度 · 叙事首选）</option>
-                                    <option value="balanced" ${fishCfg.latency === 'balanced' ? 'selected' : ''}>balanced（~300ms 首包 · 交互均衡）</option>
-                                    <option value="low" ${fishCfg.latency === 'low' ? 'selected' : ''}>low（极速流式响应）</option>
-                                </select>
-                            </div>
-                        </div>
-
-                        <div class="param-section">
-                            <div class="param-section-head"><span>3. 音频格式、码率与中文文本规范（2026 新参数）</span><small>Opus 更省流，zh-CN 防数字误读</small></div>
-                            <div class="param-grid three">
-                                <div class="form-group">
-                                    <label>输出格式 format</label>
-                                    <select onchange="updateFishFormat('${jsChar}', this.value)">
-                                        <option value="mp3" ${fishCfg.format === 'mp3' ? 'selected' : ''}>MP3（兼容性最佳 / 支持流式）</option>
-                                        <option value="opus" ${fishCfg.format === 'opus' ? 'selected' : ''}>Opus（48kHz 轻量高效 · 手机省流）</option>
-                                        <option value="wav" ${fishCfg.format === 'wav' ? 'selected' : ''}>WAV（无损母带 · 体积较大）</option>
-                                    </select>
-                                </div>
-                                ${bitrateBlock}
-                                <div class="form-group">
-                                    <label>采样率 sample_rate</label>
-                                    <select onchange="updateFishField('${jsChar}', 'sample_rate', Number(this.value), true)">${rateOpts}</select>
-                                </div>
-                            </div>
-                            <div class="param-grid" style="margin-top:6px;">
-                                <div class="form-group">
-                                    <label>文本规范化语言 language</label>
-                                    <select onchange="updateFishField('${jsChar}', 'language', this.value, false)">
-                                        <option value="" ${fishCfg.language === '' ? 'selected' : ''}>自动检测（中英混排推荐）</option>
-                                        <option value="zh-CN" ${fishCfg.language === 'zh-CN' ? 'selected' : ''}>zh-CN（简体中文数字/日期规范）</option>
-                                        <option value="zh-TW" ${fishCfg.language === 'zh-TW' ? 'selected' : ''}>zh-TW（繁体中文规范）</option>
-                                        <option value="en" ${fishCfg.language === 'en' ? 'selected' : ''}>en（英文规范）</option>
-                                        <option value="ja" ${fishCfg.language === 'ja' ? 'selected' : ''}>ja（日文规范）</option>
-                                    </select>
-                                    <span class="hint">仅决定数字/日期/符号怎么念，不改变角色音色或口音。</span>
-                                </div>
-                                <label class="toggle-card" style="align-self:end;">
-                                    <input type="checkbox" ${fishCfg.normalize ? 'checked' : ''} onchange="updateFishBool('${jsChar}', 'normalize', this.checked, false)">
-                                    <div><strong>文本规范化 normalize</strong><span>自动把时间（如 15:30）、数字、百分比转为自然口语；关闭时保留原文朗读。</span></div>
-                                </label>
-                            </div>
-                        </div>
-
-                        <details class="advanced-panel" style="margin-top:8px;">
-                            <summary>4. 高级推理、质量守卫与发音词典</summary>
-                            <div class="param-section" style="margin-top:8px;">
-                                <div class="param-grid">
-                                    <div class="slider-row"><div class="slider-header"><span>单块最大帧数 max_new_tokens</span><span class="slider-val" id="fish-tokens-val-${attrChar}">${fishCfg.max_new_tokens}</span></div><input type="range" min="256" max="4096" step="128" value="${fishCfg.max_new_tokens}" oninput="updateFishParam('${jsChar}', 'max_new_tokens', this.value, 'fish-tokens-val-${jsChar}', 0)"><small class="param-help">默认 1024；长情绪戏或慢语速被截断时可调至 1536–2048。</small></div>
-                                    <div class="slider-row"><div class="slider-header"><span>早停阈值 early_stop_threshold</span><span class="slider-val" id="fish-early-val-${attrChar}">${fishCfg.early_stop_threshold.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.05" value="${fishCfg.early_stop_threshold}" oninput="updateFishParam('${jsChar}', 'early_stop_threshold', this.value, 'fish-early-val-${jsChar}', 2)"><small class="param-help">默认 1.00；一般无需调低。</small></div>
-                                    <div class="slider-row" style="${repIgnored ? 'opacity:0.55;' : ''}">
-                                        <div class="slider-header">
-                                            <span>重复抑制 repetition_penalty ${repIgnored ? '<span class="warn-chip">S2.1 / Drama 3 官方已忽略</span>' : ''}</span>
-                                            <span class="slider-val" id="fish-repetition-val-${attrChar}">${fishCfg.repetition_penalty.toFixed(2)}</span>
-                                        </div>
-                                        <input type="range" min="1.0" max="2.0" step="0.01" value="${fishCfg.repetition_penalty}" ${repIgnored ? 'disabled' : ''} oninput="updateFishParam('${jsChar}', 'repetition_penalty', this.value, 'fish-repetition-val-${jsChar}', 2)">
-                                        <small class="param-help">${repIgnored ? 'Fish Audio 官方确认该项在 S2.1 与 Drama 3 上不起作用，后端发包已自动省略。' : '仅对旧版 S1/S2 兼容模型生效。'}</small>
-                                    </div>
-                                    <label class="toggle-card" style="align-self:start;">
-                                        <input type="checkbox" ${fishCfg.quality_guard ? 'checked' : ''} onchange="updateFishBool('${jsChar}', 'quality_guard', this.checked, false)">
-                                        <div><strong>质量守卫 quality-guard</strong><span>请求附带 <code>features: ["quality-guard"]</code>，由后端自动拦截异常破音/吞字。</span></div>
-                                    </label>
-                                </div>
-                                <div class="param-grid" style="margin-top:12px;">
-                                    <div class="form-group">
-                                        <label>云端发音词典 ID（可选）</label>
-                                        <input type="text" id="fish-dict-id-${attrChar}" value="${escapeHtml(fishCfg.pronunciation_dictionary_id)}" placeholder="在 Fish 官网创建发布后的 Dictionary ID" oninput="updateFishField('${jsChar}', 'pronunciation_dictionary_id', this.value, false)">
-                                    </div>
-                                    <div class="form-group">
-                                        <label>词典版本 version（可选）</label>
-                                        <input type="text" id="fish-dict-ver-${attrChar}" value="${escapeHtml(fishCfg.pronunciation_dictionary_version)}" placeholder="留空或填已发布版本号" oninput="updateFishField('${jsChar}', 'pronunciation_dictionary_version', this.value, false)">
-                                    </div>
-                                </div>
-                                <span class="hint">专有词/多音字（如 沈知韫 yùn、徐承邺 yè）可在 Fish 平台创建 Pronunciation Dictionary 并填入此处，详见项目内 <code>开发者功能/开发者说明/语音引擎升级方案/</code>。</span>
-                            </div>
-                        </details>
-                    </section>
+                <div class="studio-tabs" role="tablist">
+                    <button type="button" class="studio-tab ${tabKey === 'voice' ? 'is-active' : ''}" role="tab" aria-selected="${tabKey === 'voice'}" onclick="setStudioTab('voice')">音色与试听</button>
+                    <button type="button" class="studio-tab ${tabKey === 'favorites' ? 'is-active' : ''}" role="tab" aria-selected="${tabKey === 'favorites'}" onclick="setStudioTab('favorites')">★ 收藏夹 (${repoItems.length})</button>
+                    <button type="button" class="studio-tab ${tabKey === 'params' ? 'is-active' : ''}" role="tab" aria-selected="${tabKey === 'params'}" onclick="setStudioTab('params')">参数微调</button>
                 </div>
+                ${bodyPanelHtml}
             `;
         }
 
@@ -2292,16 +2735,35 @@
             });
     }
 
+    function isVoiceFavorited(id) {
+        return !!id && repoItems.some(item => item && item.id === id);
+    }
+
     function fishVoiceSearchHtml(char) {
         const status = fishVoiceSearchStatus ? `<div class="fish-search-status">${escapeHtml(fishVoiceSearchStatus)}</div>` : '';
         if (!fishVoiceSearchResults.length) return status;
         const jsChar = escapeJsStr(char);
-        const buttons = fishVoiceSearchResults.slice(0, 20).map(v => {
+        const rows = fishVoiceSearchResults.slice(0, 20).map(v => {
             const id = String(v.id || '');
             const name = String(v.name || id);
-            return `<button type="button" class="fish-search-result" title="${escapeHtml(name + ' · ' + id)}" onclick="setCurrentVoiceId('${jsChar}', decodeURIComponent('${encodeURIComponent(id)}'))">${escapeHtml(name)}</button>`;
+            const encId = encodeURIComponent(id);
+            const encName = encodeURIComponent(name);
+            const faved = isVoiceFavorited(id);
+            return `
+                <div class="search-row-card">
+                    <div class="search-row-info" title="${escapeHtml(name + ' · ' + id)}">
+                        <strong>${escapeHtml(name)}</strong>
+                        <small>${escapeHtml(shortenRepoId(id))}</small>
+                    </div>
+                    <div class="row-actions">
+                        <button type="button" class="mini-act-btn" onclick="previewLibraryVoice('${jsChar}', decodeURIComponent('${encId}'))">▶ 试听</button>
+                        <button type="button" class="mini-act-btn is-primary" onclick="setCurrentVoiceId('${jsChar}', decodeURIComponent('${encId}'))">✓ 选用</button>
+                        <button type="button" class="mini-act-btn ${faved ? 'is-faved' : ''}" title="${faved ? '取消收藏' : '收藏到全局语音库'}" onclick="quickFavoriteVoice(decodeURIComponent('${encId}'), decodeURIComponent('${encName}'), '${jsChar}')">${faved ? '★' : '☆'}</button>
+                    </div>
+                </div>
+            `;
         }).join('');
-        return `${status}<div class="fish-search-results">${buttons}</div>`;
+        return `${status}<div class="search-list">${rows}</div>`;
     }
 
     function setCurrentVoiceId(char, id) {
@@ -2311,6 +2773,7 @@
         configData[char].voice_ids = ids;
         configData[char].voice = `fish:${id || ''}`;
         configData[char].emotion = "";
+        setManagerStatus(`已为「${char}」切换音色：${voiceDisplayName(id)}（记得点右下保存全部）`);
         renderEditor();
     }
 
@@ -2331,11 +2794,17 @@
         const jsChar = escapeJsStr(char);
         const chips = ids.map(id => {
             const isCur = id === currentSpeaker;
-            const label = escapeHtml(shortenRepoId(id));
+            const display = voiceDisplayName(id);
+            const label = escapeHtml(display === id ? shortenRepoId(id) : display);
             const enc = encodeURIComponent(id);
+            const encName = encodeURIComponent(display === id ? '' : display);
+            const faved = isVoiceFavorited(id);
             const curTag = isCur ? '<span class="chip-cur">当前</span>' : '';
-            return `<button type="button" class="voice-chip${isCur ? ' current' : ''}" title="${escapeHtml(id)}" onclick="setCurrentVoiceId('${jsChar}', decodeURIComponent('${enc}'))">${label}${curTag}</button>` +
-                   `<button type="button" class="voice-chip-del" aria-label="删除候选音色" title="删除" onclick="removeVoiceId('${jsChar}', decodeURIComponent('${enc}'))">×</button>`;
+            return `<span class="voice-chip-wrap">` +
+                   `<button type="button" class="voice-chip${isCur ? ' current' : ''}" title="${escapeHtml(id)}" onclick="setCurrentVoiceId('${jsChar}', decodeURIComponent('${enc}'))">${label}${curTag}</button>` +
+                   `<button type="button" class="voice-chip-del" style="color:${faved ? 'var(--gold-bright)' : 'var(--muted)'};" aria-label="${faved ? '已收藏' : '收藏该音色'}" title="${faved ? '已收藏（点击取消）' : '一键收藏'}" onclick="quickFavoriteVoice(decodeURIComponent('${enc}'), decodeURIComponent('${encName}'), '${jsChar}')">${faved ? '★' : '☆'}</button>` +
+                   `<button type="button" class="voice-chip-del" aria-label="删除候选音色" title="移除候选" onclick="removeVoiceId('${jsChar}', decodeURIComponent('${enc}'))">×</button>` +
+                   `</span>`;
         }).join('');
         return `<div class="voice-chips"><span class="chips-label">角色候选 (${ids.length})：</span>${chips}</div>`;
     }
@@ -2346,13 +2815,165 @@
     }
 
     function repoOptionsHtml(currentSpeaker) {
-        if (!repoItems.length) return '<option value="">（语音库为空 · 展开下方收藏 ID）</option>';
+        if (!repoItems.length) return '<option value="">（收藏夹为空 · 切至「★ 收藏夹」或点星标收藏）</option>';
         const opts = repoItems.map(v => {
             const sel = currentSpeaker === v.id ? ' selected' : '';
             const label = v.name ? `${v.name} · ${shortenRepoId(v.id)}` : shortenRepoId(v.id);
             return `<option value="${escapeHtml(v.id)}"${sel}>${escapeHtml(label)}</option>`;
         }).join('');
-        return `<option value="">（从全局语音仓库选择）</option>${opts}`;
+        return `<option value="">（快速选择已收藏音色）</option>${opts}`;
+    }
+
+    function setRepoFilter(val) {
+        repoFilterQuery = String(val || '');
+        refreshEditorPreservingDraft();
+    }
+
+    function startEditRepo(id) {
+        editorDrafts.delete('fav-edit-name');
+        editorDrafts.delete('fav-edit-note');
+        editingRepoId = editingRepoId === id ? '' : id;
+        renderEditor();
+    }
+
+    function cancelEditRepo() {
+        editorDrafts.delete('fav-edit-name');
+        editorDrafts.delete('fav-edit-note');
+        editingRepoId = '';
+        renderEditor();
+    }
+
+    function saveRepoEdit(id) {
+        const nameEl = document.getElementById('fav-edit-name');
+        const noteEl = document.getElementById('fav-edit-note');
+        const name = nameEl ? nameEl.value.trim() : '';
+        const note = noteEl ? noteEl.value.trim() : '';
+        VoiceClient.requestJson('/api/voice_repo', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, name, note })
+        })
+        .then(res => {
+            if (res.items) repoItems = res.items;
+            editorDrafts.delete('fav-edit-name');
+            editorDrafts.delete('fav-edit-note');
+            editingRepoId = '';
+            updateRepoCountBadge();
+            setManagerStatus(res.msg || '已更新收藏信息');
+            renderEditor();
+        })
+        .catch(err => setManagerStatus(err.message || '更新失败，请检查后端服务', true));
+    }
+
+    function quickFavoriteVoice(id, suggestedName, charContext) {
+        if (!id) { setManagerStatus('当前角色尚未绑定可收藏的 Fish 音色 ID', true); return; }
+        if (isVoiceFavorited(id)) {
+            deleteRepoVoice(id);
+            return;
+        }
+        const fallbackName = (suggestedName && suggestedName !== id && suggestedName !== 'Fish 默认音色')
+            ? suggestedName
+            : (charContext ? `${charContext} 音色` : '');
+        VoiceClient.requestJson('/api/voice_repo', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id, name: fallbackName, note: charContext ? `常用：${charContext}` : '' })
+        })
+        .then(res => {
+            if (res.items) repoItems = res.items;
+            updateRepoCountBadge();
+            setManagerStatus(res.msg || `已收藏「${fallbackName || shortenRepoId(id)}」`);
+            renderEditor();
+        })
+        .catch(err => setManagerStatus(err.message || '收藏失败，请检查后端服务', true));
+    }
+
+    function applyFavoriteToRole(character, id) {
+        if (!configData[character] || !id) return;
+        if (isEdgeChar(character, configData[character])) {
+            switchRoleToFishFree(character);
+        }
+        pullRepoVoice(character, id);
+        setManagerStatus(`已将「${voiceDisplayName(id)}」应用到「${character}」（记得点右下保存全部）`);
+    }
+
+    function renderFavoritesPanelHtml(character, currentSpeaker, isEdgeMode, inheritsNarrator) {
+        const jsChar = escapeJsStr(character);
+        const attrChar = escapeHtml(character);
+        const q = repoFilterQuery.trim().toLowerCase();
+        const filtered = repoItems.filter(v => {
+            if (!q) return true;
+            return (v.name || '').toLowerCase().includes(q)
+                || (v.note || '').toLowerCase().includes(q)
+                || (v.id || '').toLowerCase().includes(q);
+        });
+        const canQuickFavCurrent = !isEdgeMode && !inheritsNarrator && !!currentSpeaker && !isVoiceFavorited(currentSpeaker);
+        const curName = canQuickFavCurrent ? voiceDisplayName(currentSpeaker) : '';
+
+        const listHtml = !filtered.length
+            ? `<div class="fav-empty">${repoItems.length ? '没有匹配的收藏音色，试试清空筛选词。' : '收藏夹还是空的。<br>在「音色与试听」里点当前音色或搜索结果旁的 <strong>☆</strong>，就能一键收入收藏夹，跨角色随时试听和选用！'}</div>`
+            : `<div class="fav-list">${filtered.map(v => {
+                const id = String(v.id || '');
+                const encId = encodeURIComponent(id);
+                const isCur = !isEdgeMode && !inheritsNarrator && currentSpeaker === id;
+                const isEditing = editingRepoId === id;
+                const title = v.name ? escapeHtml(v.name) : '<span style="color:var(--muted);">未命名音色</span>';
+                const editHtml = isEditing ? `
+                    <div class="fav-edit-box">
+                        <div class="inline-row">
+                            <input type="text" id="fav-edit-name" value="${escapeHtml(v.name || '')}" placeholder="音色名称（如：冷感御姐 / 轻柔人妻）" style="flex:1;">
+                            <input type="text" id="fav-edit-note" value="${escapeHtml(v.note || '')}" placeholder="备注（适用角色/语气特点）" style="flex:1;">
+                        </div>
+                        <div class="row-actions" style="justify-content:flex-end;">
+                            <button type="button" class="mini-act-btn" onclick="cancelEditRepo()">取消</button>
+                            <button type="button" class="mini-act-btn is-primary" onclick="saveRepoEdit(decodeURIComponent('${encId}'))">保存备注</button>
+                        </div>
+                    </div>
+                ` : '';
+                return `
+                    <article class="fav-card${isCur ? ' is-current' : ''}">
+                        <div class="fav-card-top">
+                            <div class="fav-card-meta">
+                                <div class="fav-card-title">
+                                    <span>${title}</span>
+                                    ${isCur ? '<span class="engine-tag fish">当前生效</span>' : ''}
+                                </div>
+                                ${v.note ? `<div class="fav-card-note">${escapeHtml(v.note)}</div>` : ''}
+                                <div class="fav-card-id">${escapeHtml(shortenRepoId(id))}</div>
+                            </div>
+                        </div>
+                        <div class="fav-card-actions">
+                            <button type="button" class="mini-act-btn" onclick="previewLibraryVoice('${jsChar}', decodeURIComponent('${encId}'))">▶ 试听</button>
+                            <button type="button" class="mini-act-btn is-primary" onclick="applyFavoriteToRole('${jsChar}', decodeURIComponent('${encId}'))">${isCur ? '✓ 当前已用' : `✓ 设为「${attrChar}」`}</button>
+                            <button type="button" class="mini-act-btn" onclick="startEditRepo(decodeURIComponent('${encId}'))">✎ ${isEditing ? '收起' : '改名/备注'}</button>
+                            <button type="button" class="mini-act-btn is-danger" style="margin-left:auto;" onclick="deleteRepoVoice(decodeURIComponent('${encId}'))">🗑 删除</button>
+                        </div>
+                        ${editHtml}
+                    </article>
+                `;
+            }).join('')}</div>`;
+
+        return `
+            <section class="tool-panel wide">
+                <div class="panel-title">★ 全局音色收藏夹（跨角色通用） <span>共 ${repoItems.length} 个收藏</span></div>
+                <div class="fav-toolbar">
+                    <input type="text" id="fav-filter-input" value="${escapeHtml(repoFilterQuery)}" placeholder="按名称、备注或 ID 筛选收藏…" oninput="setRepoFilter(this.value)">
+                    ${canQuickFavCurrent ? `<button type="button" class="btn-small btn-test" onclick="quickFavoriteVoice(decodeURIComponent('${encodeURIComponent(currentSpeaker)}'), decodeURIComponent('${encodeURIComponent(curName)}'), '${jsChar}')">☆ 收藏当前「${attrChar}」</button>` : ''}
+                </div>
+                <details class="param-fold" style="margin:0 0 12px;">
+                    <summary><span>＋ 手动粘贴音色 ID 加入收藏夹</span><span class="param-fold-sum-val">粘贴 ID ▾</span></summary>
+                    <div class="param-fold-body">
+                        <div class="inline-row">
+                            <input type="text" id="repo-id-${attrChar}" placeholder="粘贴 Fish reference_id" style="flex:1.4;">
+                            <input type="text" id="repo-name-${attrChar}" placeholder="名称（如：冷感御姐）" style="flex:1;">
+                            <input type="text" id="repo-note-${attrChar}" placeholder="备注（可选）" style="flex:1;">
+                            <button type="button" class="btn-small btn-test" onclick="addRepoVoice('${jsChar}')">加入收藏</button>
+                        </div>
+                    </div>
+                </details>
+                ${listHtml}
+            </section>
+        `;
     }
 
     function addRepoVoice(character) {
@@ -2368,7 +2989,8 @@
         })
         .then(res => {
             if (res.items) repoItems = res.items;
-            setManagerStatus(res.msg || (res.status === 'success' ? '已加入语音库' : '加入失败'), res.status !== 'success');
+            updateRepoCountBadge();
+            setManagerStatus(res.msg || (res.status === 'success' ? '已加入收藏夹' : '加入失败'), res.status !== 'success');
             if (idInput) idInput.value = '';
             if (nameInput) nameInput.value = '';
             if (noteInput) noteInput.value = '';
@@ -2378,11 +3000,13 @@
     }
 
     function deleteRepoVoice(id) {
-        if (!id || !confirm('从语音库删除该音色？')) return;
+        if (!id || !confirm('从收藏夹移除该音色？')) return;
         VoiceClient.requestJson('/api/voice_repo?id=' + encodeURIComponent(id), { method: 'DELETE' })
         .then(res => {
             if (res.items) repoItems = res.items;
-            setManagerStatus(res.msg || '已从语音库删除');
+            if (editingRepoId === id) editingRepoId = '';
+            updateRepoCountBadge();
+            setManagerStatus(res.msg || '已从收藏夹移除');
             renderEditor();
         })
         .catch(err => setManagerStatus(err.message || '删除失败，请检查后端服务', true));
@@ -2416,7 +3040,8 @@
             }
         }
         const textArea = document.getElementById('test-text-' + char);
-        let text = textArea ? textArea.value.trim() : (sampleTexts[char] || sampleTexts.default);
+        const draftText = editorDrafts.get('test-text-' + char);
+        let text = textArea ? textArea.value.trim() : ((draftText && draftText.trim()) || sampleTexts[char] || sampleTexts.default);
         text = text.replace(/[｛{]([^｜|}\r\n]+)[｜|]([^｝}\r\n]+)[｝}]/g, '$1').replace(/[\(（【].*?[\)）】]|\*.*?\*/g, '').trim();
         if (!text) { setTesterStatus('请输入需要试听的文本。'); return; }
         const button = Array.from(document.querySelectorAll('button.btn-test[data-test-char]')).find(b => b.dataset.testChar === char) || null;

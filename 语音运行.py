@@ -1008,6 +1008,24 @@ def add_voice_repo():
     return jsonify({'status': 'success', 'msg': '已加入语音库', 'items': items, 'count': len(items)})
 
 
+@app.route('/api/voice_repo', methods=['PATCH'])
+def update_voice_repo():
+    data = request.json or {}
+    vid = _normalize_voice_repo_id(data.get('id'))
+    if not vid:
+        return jsonify({'status': 'error', 'msg': '缺少音色 ID'}), 400
+    items = _load_voice_repo()
+    target = next((x for x in items if x['id'] == vid), None)
+    if target is None:
+        return jsonify({'status': 'error', 'msg': '未找到该收藏音色', 'items': items, 'count': len(items)}), 404
+    if 'name' in data:
+        target['name'] = str(data.get('name') or '').strip()
+    if 'note' in data:
+        target['note'] = str(data.get('note') or '').strip()
+    _save_voice_repo(items)
+    return jsonify({'status': 'success', 'msg': '已更新收藏备注', 'items': items, 'count': len(items)})
+
+
 @app.route('/api/voice_repo', methods=['DELETE'])
 def delete_voice_repo():
     vid = (request.args.get('id') or '').strip()

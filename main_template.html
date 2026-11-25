@@ -502,7 +502,10 @@
         <svg viewBox="0 0 24 24" class="hud-svg"><path d="M6 6 18 18M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
       </button>
     </div>
-    <p class="muted sheet-intro">选择前往其他地点，或将行囊中的整组物品交予同席人物。按当前自定义档位结算体力。</p>
+    <div id="actionTabs" class="hub-tabs action-tabs" role="tablist" aria-label="行动分类">
+      <button type="button" class="hub-tab" role="tab" data-action-tab="move" aria-selected="true">前往他处</button>
+      <button type="button" class="hub-tab" role="tab" data-action-tab="give" aria-selected="false">赠予人物</button>
+    </div>
 
     <form id="moveForm" class="action-card-form">
       <div class="action-card-head">
@@ -517,7 +520,7 @@
       </div>
     </form>
 
-    <form id="giveForm" class="action-card-form">
+    <form id="giveForm" class="action-card-form" hidden>
       <div class="action-card-head">
         <h3>赠予在场人物</h3>
         <span class="cost-chip">整组交付</span>
@@ -628,91 +631,98 @@
         <a href="/admin" target="_blank" rel="noopener" class="btn-outline">声学工坊</a>
       </div>
 
-      <div class="bridge-group-card">
-        <div class="bridge-group-head">
+      <details class="bridge-group-card bridge-fold">
+        <summary class="bridge-group-head">
           <h3>主模型 · 前景演播</h3>
-          <span id="storyPrimaryBadge" class="cost-chip">功能槽</span>
-        </div>
-        <div class="picker-block">
-          <label for="storyPrimaryMode">主模型来源</label>
-          <select id="storyPrimaryMode">
-            <option value="slot">跟随 Operit 功能槽（默认 CHAT）</option>
-            <option value="fixed">故事专属固定模型（不改 Operit 主聊天）</option>
-          </select>
-        </div>
-        <div class="picker-block">
-          <label id="storyPrimaryTargetLabel" for="storyPrimaryTarget">主模型选择</label>
-          <select id="storyPrimaryTarget"></select>
-        </div>
-        <p id="storyPrimaryStatus" class="muted" role="status"></p>
-      </div>
-
-      <div class="bridge-group-card">
-        <div class="bridge-group-head">
-          <h3>副模型 · 后台结算</h3>
-          <span id="storyDualBadge" class="cost-chip">双阶段流式</span>
-        </div>
-        <div class="picker-block">
-          <label for="storyDualStage">演播与结算模式</label>
-          <select id="storyDualStage" aria-describedby="storySettlementStatus">
-            <option value="dual">双阶段流式（主模型演播 + 副模型后台结算 · 推荐）</option>
-            <option value="single">单阶段精简（v2 前缀缓存 · 单次 JSON）</option>
-          </select>
-        </div>
-        <div id="storySettlementControls" class="bridge-subgrid">
+          <span class="fold-right"><span id="storyPrimaryBadge" class="cost-chip">功能槽</span><span class="fold-caret" aria-hidden="true">▾</span></span>
+        </summary>
+        <div class="bridge-fold-body">
           <div class="picker-block">
-            <label for="storySettlementSlot">副模型功能槽</label>
-            <select id="storySettlementSlot"></select>
-          </div>
-          <div class="picker-block">
-            <label id="storyBindSlotLabel" for="storyBindSlotModel">直接修改该功能槽绑定的模型</label>
-            <div class="action-row">
-              <select id="storyBindSlotModel"></select>
-              <button id="storyBindSlotBtn" type="button" class="btn-outline compact-btn">绑定</button>
-            </div>
-            <p class="muted">会直接更新 Operit 全局该功能槽绑定；若不想动默认摘要，可先改选 TRANSLATION 或 TITLE_GENERATION。</p>
-          </div>
-          <div class="picker-block">
-            <label for="storySettlementThinkingMode">副模型思考策略</label>
-            <select id="storySettlementThinkingMode">
-              <option value="auto">智能自适应（首轮极速免思考，重试自动开思考 · 推荐）</option>
-              <option value="off">常关（极速非思考）</option>
-              <option value="on">常开（深度思考，最稳但稍慢）</option>
+            <label for="storyPrimaryMode">主模型来源</label>
+            <select id="storyPrimaryMode">
+              <option value="slot">跟随 Operit 功能槽（默认 CHAT）</option>
+              <option value="fixed">故事专属固定模型（不改 Operit 主聊天）</option>
             </select>
-            <p class="muted">Operit 2 接口仅提供思考开关；若需细调思考深度可在 Operit 模型参数页配置。</p>
           </div>
+          <div class="picker-block">
+            <label id="storyPrimaryTargetLabel" for="storyPrimaryTarget">主模型选择</label>
+            <select id="storyPrimaryTarget"></select>
+          </div>
+          <p id="storyPrimaryStatus" class="muted" role="status"></p>
         </div>
-        <p id="storySettlementStatus" class="muted" role="status"></p>
-      </div>
+      </details>
 
-      <div class="bridge-group-card">
-        <div class="bridge-group-head">
+      <details class="bridge-group-card bridge-fold">
+        <summary class="bridge-group-head">
+          <h3>副模型 · 后台结算</h3>
+          <span class="fold-right"><span id="storyDualBadge" class="cost-chip">双阶段流式</span><span class="fold-caret" aria-hidden="true">▾</span></span>
+        </summary>
+        <div class="bridge-fold-body">
+          <div class="picker-block">
+            <label for="storyDualStage">演播与结算模式</label>
+            <select id="storyDualStage" aria-describedby="storySettlementStatus">
+              <option value="dual">双阶段流式（主模型演播 + 副模型后台结算 · 推荐）</option>
+              <option value="single">单阶段精简（v2 前缀缓存 · 单次 JSON）</option>
+            </select>
+          </div>
+          <div id="storySettlementControls" class="bridge-subgrid">
+            <div class="picker-block">
+              <label for="storySettlementSlot">副模型功能槽</label>
+              <select id="storySettlementSlot"></select>
+            </div>
+            <div class="picker-block">
+              <label id="storyBindSlotLabel" for="storyBindSlotModel">直接修改该功能槽绑定的模型</label>
+              <div class="action-row">
+                <select id="storyBindSlotModel"></select>
+                <button id="storyBindSlotBtn" type="button" class="btn-outline compact-btn">绑定</button>
+              </div>
+              <p class="muted">会直接更新 Operit 全局该功能槽绑定；若不想动默认摘要，可先改选 TRANSLATION 或 TITLE_GENERATION。</p>
+            </div>
+            <div class="picker-block">
+              <label for="storySettlementThinkingMode">副模型思考策略</label>
+              <select id="storySettlementThinkingMode">
+                <option value="auto">智能自适应（首轮极速免思考，重试自动开思考 · 推荐）</option>
+                <option value="off">常关（极速非思考）</option>
+                <option value="on">常开（深度思考，最稳但稍慢）</option>
+              </select>
+              <p class="muted">Operit 2 接口仅提供思考开关；若需细调思考深度可在 Operit 模型参数页配置。</p>
+            </div>
+          </div>
+          <p id="storySettlementStatus" class="muted" role="status"></p>
+        </div>
+      </details>
+
+      <details class="bridge-group-card bridge-fold">
+        <summary class="bridge-group-head">
           <h3>会话与防漂移</h3>
+          <span class="fold-right"><span class="cost-chip">切窗与重置</span><span class="fold-caret" aria-hidden="true">▾</span></span>
+        </summary>
+        <div class="bridge-fold-body">
+          <div class="picker-block">
+            <label for="storySessionPolicy">剧情会话沿用</label>
+            <select id="storySessionPolicy" aria-describedby="storySessionHelp">
+              <option value="continuous">持续沿用（推荐）</option>
+              <option value="service_restart">重启 Python 服务后新建</option>
+              <option value="per_action">每次新行动新建</option>
+            </select>
+          </div>
+          <div class="picker-block">
+            <label for="storyMaxTurns">同场景防漂移自动切窗轮数</label>
+            <select id="storyMaxTurns">
+              <option value="6">每 6 轮自动开干净新会话</option>
+              <option value="8">每 8 轮自动开干净新会话</option>
+              <option value="10">每 10 轮自动开干净新会话（推荐）</option>
+              <option value="12">每 12 轮自动开干净新会话</option>
+              <option value="15">每 15 轮自动开干净新会话</option>
+              <option value="20">每 20 轮自动开干净新会话</option>
+              <option value="30">每 30 轮自动开干净新会话</option>
+            </select>
+          </div>
+          <p id="storySessionHelp" class="muted">重试沿用当前会话；新会话携带正式记忆与已接受剧情，失败草稿不入档。</p>
+          <p id="storySessionStatus" class="muted" role="status"></p>
+          <div class="world-actions flush"><button id="storySessionReset" type="button" class="btn-outline">下次行动新建会话</button></div>
         </div>
-        <div class="picker-block">
-          <label for="storySessionPolicy">剧情会话沿用</label>
-          <select id="storySessionPolicy" aria-describedby="storySessionHelp">
-            <option value="continuous">持续沿用（推荐）</option>
-            <option value="service_restart">重启 Python 服务后新建</option>
-            <option value="per_action">每次新行动新建</option>
-          </select>
-        </div>
-        <div class="picker-block">
-          <label for="storyMaxTurns">同场景防漂移自动切窗轮数</label>
-          <select id="storyMaxTurns">
-            <option value="6">每 6 轮自动开干净新会话</option>
-            <option value="8">每 8 轮自动开干净新会话</option>
-            <option value="10">每 10 轮自动开干净新会话（推荐）</option>
-            <option value="12">每 12 轮自动开干净新会话</option>
-            <option value="15">每 15 轮自动开干净新会话</option>
-            <option value="20">每 20 轮自动开干净新会话</option>
-            <option value="30">每 30 轮自动开干净新会话</option>
-          </select>
-        </div>
-        <p id="storySessionHelp" class="muted">重试沿用当前会话；新会话携带正式记忆与已接受剧情，失败草稿不入档。</p>
-        <p id="storySessionStatus" class="muted" role="status"></p>
-        <div class="world-actions flush"><button id="storySessionReset" type="button" class="btn-outline">下次行动新建会话</button></div>
-      </div>
+      </details>
 
       <p class="muted sheet-pad">保持 Operit 小窗可见；也可直接在 Operit 左侧插件栏打开「故事桥接」原生设置页，双端参数实时同步。</p>
       <details class="tech-details">
