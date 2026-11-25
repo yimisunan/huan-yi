@@ -2409,7 +2409,7 @@ body.kb-open #composer { max-height: 62dvh; }
   .layout {
     display: grid;
     grid-template-columns: 280px minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto auto;
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
   }
 
   .scene-info {
@@ -2417,7 +2417,7 @@ body.kb-open #composer { max-height: 62dvh; }
     flex-direction: column;
     gap: 18px;
     grid-column: 1;
-    grid-row: 1 / 4;
+    grid-row: 1 / 5;
     border-right: 1px solid var(--line);
     padding: 20px 18px;
     background: rgba(18, 15, 12, 0.56);
@@ -2466,9 +2466,9 @@ body.kb-open #composer { max-height: 62dvh; }
   .scene-links { display: flex; gap: 14px; margin-top: 3px; }
   .text-link-btn { min-height: 30px; padding: 2px 0; font-size: 12px; color: var(--gold); display: inline-flex; align-items: center; }
 
-  #stream { grid-column: 2; grid-row: 1; padding: 24px clamp(26px, 5vw, 68px); }
-  .settlement-float { grid-column: 2; grid-row: 2; padding: 4px 28px 0; }
-  #composer { grid-column: 2; grid-row: 3; max-height: 60dvh; }
+  #stream { grid-column: 2; grid-row: 2; padding: 24px clamp(26px, 5vw, 68px); }
+  .settlement-float { grid-column: 2; grid-row: 3; padding: 4px 28px 0; }
+  #composer { grid-column: 2; grid-row: 4; max-height: 60dvh; }
   .composer-inner { padding: 8px 28px 12px; }
   .game-dock { display: none !important; }
   .footnote { display: flex; justify-content: space-between; font-size: 10.5px; color: var(--muted); padding: 2px 4px 0; }
@@ -4744,32 +4744,38 @@ html[data-theme="ivory"] .map-device-badge {
    ============================================================ */
 
 .scene-atmosphere-pills {
-  position: sticky;
-  top: 6px;
-  z-index: 6;
+  flex: 0 0 auto;
+  position: relative;
+  z-index: 4;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: 6px;
   align-items: center;
-  justify-content: center;
-  margin: 0 auto 10px;
-  padding: 5px 10px;
-  max-width: 680px;
-  border-radius: 999px;
-  background: rgba(18, 15, 13, 0.72);
-  border: 1px solid rgba(214, 178, 120, 0.22);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  width: 100%;
+  margin: 0;
+  padding: 4px 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  background: rgba(16, 13, 11, 0.84);
+  border-bottom: 1px solid rgba(214, 178, 120, 0.14);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
+.scene-atmosphere-pills::-webkit-scrollbar { display: none; }
+.scene-atmosphere-pills > :first-child { margin-left: auto; }
+.scene-atmosphere-pills > :last-child { margin-right: auto; }
 .scene-atmosphere-pills[hidden] { display: none; }
 .privacy-pill,
 .trace-chip {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  padding: 2px 9px;
+  padding: 1.5px 9px;
   border-radius: 999px;
   font-size: 11px;
-  line-height: 1.45;
+  line-height: 1.4;
   letter-spacing: 0.25px;
   white-space: nowrap;
 }
@@ -4800,8 +4806,8 @@ html[data-theme="ivory"] .map-device-badge {
   color: #c7e1f0;
 }
 html[data-theme="ivory"] .scene-atmosphere-pills {
-  background: rgba(250, 245, 236, 0.86);
-  border-color: rgba(150, 112, 58, 0.24);
+  background: rgba(248, 243, 234, 0.88);
+  border-bottom-color: rgba(150, 112, 58, 0.16);
 }
 html[data-theme="ivory"] .privacy-pill { color: #7e5921; background: rgba(184, 138, 68, 0.12); }
 html[data-theme="ivory"] .privacy-pill.is-thin_wall,
@@ -4809,6 +4815,13 @@ html[data-theme="ivory"] .privacy-pill.is-under_cover,
 html[data-theme="ivory"] .privacy-pill.is-intimate { color: #8c2c44; background: rgba(196, 78, 108, 0.1); }
 html[data-theme="ivory"] .trace-chip { color: #7c3b34; background: rgba(186, 98, 86, 0.1); }
 html[data-theme="ivory"] .trace-chip.is-tension { color: #2b5a78; background: rgba(74, 128, 162, 0.11); }
+@media (min-width: 860px) {
+  .scene-atmosphere-pills {
+    grid-column: 2;
+    grid-row: 1;
+    padding: 5px 24px;
+  }
+}
 
 /* Intimate Slow-Burn Choice & Quick Chips */
 #choices.is-intimate-mode .story-option.is-intimate-opt {
