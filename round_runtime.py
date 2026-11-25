@@ -1019,6 +1019,89 @@ def _atomic(path, data):
 
 
 _LOCK_DEPTH = threading.local()
+_ANDROID_FUSE_PREFIXES = ('/storage/emulated/', '/sdcard/', '/mnt/media_rw/')
+_LOCK_FALLBACK_ERRNOS = {
+    errno.ENOENT, errno.ESTALE, errno.EACCES, errno.EPERM,
+    errno.ENOTSUP, errno.EINVAL, errno.EROFS,
+}
+_LOCKF_DEGRADE_ERRNOS = {
+    errno.ENOTSUP, errno.EINVAL, errno.ENOSYS,
+    errno.EACCES, errno.EPERM, errno.ENOLCK,
+}
+
+
+def _is_android_fuse_path(path):
+    text = str(path).replace('\\', '/')
+    return any(text.startswith(prefix) for prefix in _ANDROID_FUSE_PREFIXES)
+
+
+def _process_lock_candidates(root):
+    root_path = Path(root).resolve()
+    local_lock = root_path / '.round-runtime' / 'lock'
+    digest = hashlib.sha256(str(root_path).encode('utf-8')).hexdigest()[:16]
+    tmp_lock = Path(tempfile.gettempdir()) / 'huan-yi-locks' / f'{digest}.lock'
+    if _is_android_fuse_path(root_path):
+        return (tmp_lock, local_lock)
+    return (local_lock, tmp_lock)
+
+
+@contextmanager
+def acquire_process_lock(root, *, timeout=10.0, conflict_message='已有其他进程正在提交'):
+    import fcntl
+    handle = None
+    locked = False
+    last_exc = None
+    for candidate in _process_lock_candidates(root):
+        try:
+            candidate.parent.mkdir(parents=True, exist_ok=True)
+            handle = candidate.open('a+b')
+            try:
+                handle.seek(0, os.SEEK_END)
+                if handle.tell() == 0:
+                    handle.write(b'1\n')
+                    handle.flush()
+            except OSError:
+                pass
+            break
+        except OSError as exc:
+            last_exc = exc
+            if handle is not None:
+                try:
+                    handle.close()
+                except OSError:
+                    pass
+                handle = None
+    if handle is None:
+        if last_exc is not None and getattr(last_exc, 'errno', None) not in _LOCK_FALLBACK_ERRNOS:
+            raise last_exc
+        yield
+        return
+    try:
+        deadline = time.monotonic() + max(0.0, float(timeout))
+        while True:
+            try:
+                fcntl.lockf(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                locked = True
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise ConflictError(conflict_message)
+                time.sleep(0.05)
+            except OSError as exc:
+                if exc.errno in _LOCKF_DEGRADE_ERRNOS:
+                    break
+                raise
+        yield
+    finally:
+        if locked:
+            try:
+                fcntl.lockf(handle, fcntl.LOCK_UN)
+            except OSError:
+                pass
+        try:
+            handle.close()
+        except OSError:
+            pass
 
 
 class RoundStore:
@@ -1039,7 +1122,6 @@ class RoundStore:
 
     @contextmanager
     def _locked(self):
-        import fcntl
         if not self.thread_lock.acquire(timeout=10):
             raise ConflictError('已有回合正在提交，请稍后重试')
         depths = getattr(_LOCK_DEPTH, 'counts', None)
@@ -1057,23 +1139,13 @@ class RoundStore:
                     depths[key] = depth
                 return
             self.runtime.mkdir(parents=True, exist_ok=True)
-            with self._path('.round-runtime/lock').open('a+b') as handle:
-                deadline = time.monotonic() + 10
-                while True:
-                    try:
-                        fcntl.lockf(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                        break
-                    except BlockingIOError:
-                        if time.monotonic() >= deadline:
-                            raise ConflictError('已有其他进程正在提交')
-                        time.sleep(0.05)
+            with acquire_process_lock(self.root, timeout=10.0, conflict_message='已有其他进程正在提交'):
                 depths[key] = 1
                 try:
                     self._recover()
                     yield
                 finally:
                     depths.pop(key, None)
-                    fcntl.lockf(handle, fcntl.LOCK_UN)
         finally:
             self.thread_lock.release()
 

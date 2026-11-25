@@ -2406,11 +2406,34 @@ def register_story_routes(app, root, *, tts_prewarmer=None):
     def story_error(exc):
         return jsonify(error=str(exc)), 409 if isinstance(exc, rr.ConflictError) else 400
 
+    def _append_story_error_log(exc):
+        import traceback
+        orig = getattr(exc, 'original_exception', None) or exc
+        log_path = service.root / '日志' / 'story_error.log'
+        stamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
+        tb = ''.join(traceback.format_exception(type(orig), orig, orig.__traceback__))
+        entry = f'[{stamp}] {request.method} {request.path}\n{tb}\n'
+        try:
+            log_path.parent.mkdir(parents=True, exist_ok=True)
+            if log_path.is_file() and log_path.stat().st_size > 262144:
+                tail = log_path.read_bytes()[-131072:]
+                log_path.write_bytes(tail)
+            with log_path.open('a', encoding='utf-8') as out:
+                out.write(entry)
+        except OSError:
+            pass
+        return orig
+
     @app.errorhandler(500)
     def story_internal_error(exc):
         if not request.path.startswith('/api/story/'):
             return exc
-        return jsonify(error='本地故事服务内部异常，请检查日志后重试。', status=500), 500
+        orig = _append_story_error_log(exc)
+        err_name = type(orig).__name__
+        return jsonify(
+            error=f'本地故事服务内部异常（{err_name}），详情已写入「日志/story_error.log」，请检查后重试。',
+            status=500,
+        ), 500
 
     def body():
         value = rr.load_request(request.get_data(as_text=True))

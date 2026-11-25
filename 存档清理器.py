@@ -172,21 +172,16 @@ def server_running(port=None):
 def reset_lock(root, *, port=None):
     if server_running(port=port):
         raise RuntimeError('请先停止Pydroid3本地服务及Operit故事桥接，再运行清理器')
-    import fcntl
+    import round_runtime as rr
     runtime = safe(root, '.round-runtime')
     runtime.mkdir(exist_ok=True)
-    lock = safe(root, '.round-runtime/lock')
-    with lock.open('a+b') as handle:
-        try:
-            fcntl.lockf(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise RuntimeError('回合正在提交，未清理任何存档') from exc
-        try:
+    try:
+        with rr.acquire_process_lock(root, timeout=0.0, conflict_message='回合正在提交，未清理任何存档'):
             if server_running(port=port):
                 raise RuntimeError('本地服务仍在运行，未清理任何存档')
             yield
-        finally:
-            fcntl.lockf(handle, fcntl.LOCK_UN)
+    except rr.ConflictError as exc:
+        raise RuntimeError(str(exc)) from exc
 
 
 def sync_dir(path):
