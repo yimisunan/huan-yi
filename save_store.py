@@ -207,6 +207,8 @@ def normalize_keepsake_dict(raw, fallback_id='KS-001'):
         else:
             kind = 'accessory'
     method = str(raw.get('method') or 'stolen').strip()
+    if method == 'kept_after':
+        method = 'taken_intimate'
     if method not in KEEPSAKE_METHODS:
         method = 'stolen'
     cond = str(raw.get('condition') or 'fresh_warm').strip()
@@ -232,6 +234,7 @@ def default_intimate():
         'scene_active': False,
         'session_beats': 0,
         'session_orgasms': {name: 0 for name in HEROINES},
+        'session_charm_gained': False,
         'privacy': 'open_public',
         'sub_location': '',
         'present_actors': [],
@@ -574,6 +577,7 @@ def normalize_state(raw):
     intl = base['intimate']
     intl['scene_active'] = bool(raw_int.get('scene_active', False))
     intl['session_beats'] = max(0, _parse_int(raw_int.get('session_beats'), 0)) if intl['scene_active'] else 0
+    intl['session_charm_gained'] = bool(raw_int.get('session_charm_gained', False)) if intl['scene_active'] else False
     raw_sorg = raw_int.get('session_orgasms') if isinstance(raw_int.get('session_orgasms'), dict) else {}
     for name in HEROINES:
         intl['session_orgasms'][name] = max(0, _parse_int(raw_sorg.get(name), 0)) if intl['scene_active'] else 0
@@ -1349,11 +1353,27 @@ def render_memory_txt(state, mem_layers):
     lines.append('')
 
     intl = state.get('intimate') or default_intimate()
+    hp = intl.get('host_phys') or default_host_phys()
+    bd = intl.get('body_dev') or default_body_dev()
+    ks_list = [k for k in (intl.get('keepsakes') or []) if isinstance(k, dict) and k.get('name')]
+    has_host_phys = (
+        int(hp.get('desire', 0) or 0) > 0
+        or int(hp.get('vigor', 100) if hp.get('vigor') is not None else 100) < 100
+        or int(hp.get('release_count', 0) or 0) > 0
+        or bool(hp.get('fetishes'))
+    )
+    has_body_dev = any(
+        int((bd.get(h) or {}).get(z, 0) or 0) > 0
+        for h in HEROINES for z in BODY_ZONES
+    )
     has_intimate_notes = (
         intl.get('scene_active')
         or intl.get('privacy', 'open_public') != 'open_public'
         or bool(intl.get('sub_location'))
         or int(intl.get('noise_risk') or 0) > 0
+        or has_host_phys
+        or has_body_dev
+        or bool(ks_list)
         or any(
             (intl.get('attire', {}).get(h) or {}).get('state', 'neat') != 'neat'
             or (intl.get('attire', {}).get(h) or {}).get('outfit', 'default') != 'default'
@@ -1370,9 +1390,21 @@ def render_memory_txt(state, mem_layers):
         mode_lbl = f"亲密进行中(第{intl.get('session_beats', 0)}拍)" if intl.get('scene_active') else '常规态'
         actors_lbl = '、'.join(intl.get('present_actors') or []) or '按地点常规在场'
         lines.append(f"场景：{sub_loc} | 隐私：{priv_lbl} | 状态：{mode_lbl} | 声响风险：{int(intl.get('noise_risk') or 0)} | 同室：{actors_lbl}")
+        if has_host_phys:
+            fet_txt = (' | 癖好：' + '、'.join(hp.get('fetishes') or [])) if hp.get('fetishes') else ''
+            lines.append(
+                f"  宿主生理：欲望 {int(hp.get('desire', 0) or 0)}/100 | 亲密耐力 {int(hp.get('vigor', 100) if hp.get('vigor') is not None else 100)}/100"
+                f" | 累计释放 {int(hp.get('release_count', 0) or 0)}次{fet_txt}"
+            )
         for h in HEROINES:
             att = (intl.get('attire') or {}).get(h) or {}
             trs = (intl.get('traces') or {}).get(h) or []
+            h_bd = bd.get(h) or {}
+            sig_z = HEROINE_SIGNATURE_ZONES.get(h, '')
+            dev_bits = [
+                f"{BODY_ZONE_LABELS.get(z, z)}{'★' if z == sig_z else ''}{int(h_bd.get(z, 0) or 0)}"
+                for z in BODY_ZONES if int(h_bd.get(z, 0) or 0) > 0
+            ]
             bits = []
             if att.get('outfit', 'default') != 'default' or att.get('state', 'neat') != 'neat':
                 bits.append(f"衣着={att.get('outfit', 'default')}({ATTIRE_LABELS.get(att.get('state', 'neat'), '整洁')})")
@@ -1380,11 +1412,19 @@ def render_memory_txt(state, mem_layers):
                 bits.append('已获赠=' + '、'.join(att['gifted_items']))
             if trs:
                 bits.append('痕迹=' + '、'.join(f"{t['kind']}({t['turns']}轮)" for t in trs))
+            if dev_bits:
+                bits.append('身体开发=' + '/'.join(dev_bits))
             if bits:
                 lines.append(f"  {h}：" + '；'.join(bits))
         ih_active = [f"{k}:{INTER_HEROINE_LABELS.get(int(v), str(v))}" for k, v in (intl.get('inter_heroine') or {}).items() if int(v or 0) > 0]
         if ih_active:
             lines.append('  女主暗流：' + ' | '.join(ih_active))
+        if ks_list:
+            ks_rows = [
+                f"{k['id']}·{k['owner']}的{k['name']}({KEEPSAKE_METHOD_LABELS.get(k.get('method', ''), '留存')}/{KEEPSAKE_CONDITION_LABELS.get(k.get('condition', ''), '余香')}/{'失主已知' if k.get('owner_aware') else '失主未觉'})"
+                for k in ks_list[:12]
+            ]
+            lines.append('  私密贴身珍藏：' + '；'.join(ks_rows))
         lines.append('')
 
     lines.append('【世界导演状态】')
@@ -1561,8 +1601,9 @@ def load_bundle(root, files=None):
                     base_state=state,
                 )
                 if mem_drifted:
-                    # Preserve JSON-only mechanics/runtime/dynamic_catalog and layer metadata (prologue_active / known_by) across .txt syncs.
+                    # Preserve JSON-only mechanics/intimate/runtime/dynamic_catalog and layer metadata (prologue_active / known_by) across .txt syncs.
                     migrated_state['mechanics'] = copy.deepcopy(state['mechanics'])
+                    migrated_state['intimate'] = copy.deepcopy(state['intimate'])
                     migrated_state['shop']['dynamic_catalog'] = copy.deepcopy(state['shop'].get('dynamic_catalog') or [])
                     migrated_state['shop']['next_dyn_seq'] = int(state['shop'].get('next_dyn_seq') or 1)
                     if not data_rt_drifted:

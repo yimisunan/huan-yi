@@ -381,6 +381,152 @@ class AdultSystemsV4Tests(unittest.TestCase):
         self.assertEqual(len(st_r['intimate']['keepsakes']), 1)
         self.assertEqual(st_r['intimate']['keepsakes'][0]['id'], ks1_id)
 
+    def test_06_persistence_txt_drift_kept_after_alias_charm_balance_and_daytime_cooling(self):
+        st, ly, rc = self._load()
+        st['panels']['系统宿主']['魅力'] = 76
+        st['panels']['沈知韫']['羞耻'] = 88
+        st['panels']['沈知韫']['堕落'] = 5
+        st['intimate']['scene_active'] = True
+        st['intimate']['host_phys']['desire'] = 95
+        st['intimate']['body_dev']['沈知韫']['foot'] = 32
+        self._save(st, ly, rc)
+
+        # 1. kept_after alias normalizes cleanly to taken_intimate
+        ss_alias = rr._validate_scene_state({
+            'keepsake_adds': [
+                {'owner': '沈知韫', 'name': '暗纹真丝睡袜', 'kind': 'stockings', 'method': 'kept_after', 'condition': 'fresh_warm'},
+            ],
+        }, ['沈知韫'])
+        self.assertEqual(ss_alias['keepsake_adds'][0]['method'], 'taken_intimate')
+
+        # 2. First synced_climax grants +1 Charm; second in SAME session is blocked by session_charm_gained anti-farming cap
+        m1 = ic.advance_intimate_state(
+            st,
+            {'shame_events': {'沈知韫': ['外射_体表面部']}, 'ds_events': {'沈知韫': ['触发高潮_绝顶清算']}},
+            scene_state={'intimate_active': True, **ss_alias},
+            active_cast=['沈知韫'],
+            category='C',
+        )
+        self.assertTrue(m1['synced_climax'])
+        self.assertEqual(m1['charm_milestone_gain'], 1)
+        self.assertEqual(st['panels']['系统宿主']['魅力'], 77)
+        self.assertTrue(st['intimate']['session_charm_gained'])
+
+        st['intimate']['host_phys']['desire'] = 95
+        m2 = ic.advance_intimate_state(
+            st,
+            {'shame_events': {'沈知韫': ['外射_体表面部']}, 'ds_events': {'沈知韫': ['触发高潮_绝顶清算']}},
+            scene_state={'intimate_active': True},
+            active_cast=['沈知韫'],
+            category='C',
+        )
+        self.assertTrue(m2['synced_climax'])
+        self.assertEqual(m2['charm_milestone_gain'], 0)
+        self.assertEqual(st['panels']['系统宿主']['魅力'], 77)
+
+        # 3. Balanced Charm penalties: caught (-2), collapse (-1), premature keepsake confront (-1), floor 60
+        m_caught = ic.advance_intimate_state(
+            st,
+            {'vigilance_events': {'沈知韫': ['目击确认']}},
+            active_cast=['沈知韫'],
+        )
+        self.assertEqual(m_caught['charm_penalty'], 2)
+        self.assertEqual(st['panels']['系统宿主']['魅力'], 75)
+
+        ks_id = st['intimate']['keepsakes'][0]['id']
+        m_premature = ic.advance_intimate_state(
+            st,
+            {},
+            operation={'code': 'keepsake_action', 'keepsake_id': ks_id, 'action_type': 'confront'},
+            active_cast=['沈知韫'],
+        )
+        self.assertEqual(m_premature['charm_penalty'], 1)
+        self.assertEqual(st['panels']['系统宿主']['魅力'], 74)
+
+        # Floor 60 guard prevents penalties from dragging Charm below 60
+        st['panels']['系统宿主']['魅力'] = 61
+        ic.advance_intimate_state(
+            st,
+            {'vigilance_events': {'沈知韫': ['证据实锤']}},
+            sleep_kind='collapse',
+            active_cast=['沈知韫'],
+        )
+        self.assertEqual(st['panels']['系统宿主']['魅力'], 60)
+
+        # 4. Daytime non-intimate elapsed_hours >= 2 cools host desire naturally
+        st['intimate']['scene_active'] = False
+        st['intimate']['host_phys']['desire'] = 55
+        ic.advance_intimate_state(st, {}, category='B', elapsed_hours=3)
+        self.assertEqual(st['intimate']['host_phys']['desire'], 40)
+
+        # 5. render_memory_txt renders host_phys, body_dev, and keepsakes; .txt drift preserves intimate JSON truth
+        self._save(st, ly, rc)
+        mem_path = self.root / save_store.RENDERED_MEMORY_PATH
+        mem_txt = mem_path.read_text(encoding='utf-8')
+        self.assertIn('宿主生理：欲望 40/100', mem_txt)
+        self.assertIn('身体开发=玉足★32', mem_txt)
+        self.assertIn('私密贴身珍藏：KS-001·沈知韫的暗纹真丝睡袜', mem_txt)
+
+        # Simulate external .txt edit causing mem_drifted -> load_bundle must preserve intimate state intact
+        mem_path.write_text(mem_txt + '\n', encoding='utf-8')
+        st_reloaded, _, _ = self._load()
+        self.assertEqual(st_reloaded['intimate']['body_dev']['沈知韫']['foot'], 32)
+        self.assertEqual(len(st_reloaded['intimate']['keepsakes']), 1)
+        self.assertEqual(st_reloaded['intimate']['keepsakes'][0]['method'], 'taken_intimate')
+
+    def test_07_cleaner_save_slots_reset_and_github_sync_seed_protection(self):
+        import importlib.util
+
+        def _load_mod(path: Path, name: str):
+            spec = importlib.util.spec_from_file_location(name, path)
+            mod = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(mod)
+            return mod
+
+        cleaner = _load_mod(ROOT / '存档清理器.py', '_test_cleaner_v4')
+        syncer = _load_mod(ROOT / '一键同步GitHub.py', '_test_sync_v4')
+
+        # 1. GitHub sync protects 存档/save_state.json & data.json as seed-only once local saves exist
+        self.assertTrue(syncer.is_seed_only(save_store.SAVE_STATE_PATH))
+        self.assertTrue(syncer.is_seed_only(save_store.RENDERED_MEMORY_PATH))
+        self.assertTrue(syncer.is_seed_only('data.json'))
+        self.assertTrue(syncer._seed_dir_has_existing_data(self.root, '存档/'))
+
+        # 2. Populate v4 progression, create save slot, reset to fresh save, then restore slot -> 100% intact
+        st, ly, rc = self._load()
+        st['panels']['系统宿主']['魅力'] = 88
+        st['intimate']['host_phys']['desire'] = 64
+        st['intimate']['host_phys']['vigor'] = 72
+        st['intimate']['body_dev']['苏婉青']['chest'] = 58
+        st['intimate']['keepsakes'] = [save_store.normalize_keepsake_dict({
+            'id': 'KS-001', 'owner': '苏婉青', 'name': '浅粉蕾丝贴身内裤',
+            'kind': 'panties', 'method': 'stolen', 'condition': 'fresh_warm',
+        })]
+        self._save(st, ly, rc)
+
+        slot = cleaner.create_save_slot(self.root, label='v4打磨测试槽', kind='manual')
+        self.assertEqual(slot['panel_summary']['host']['魅力'], 88)
+        self.assertEqual(slot['panel_summary']['host']['私密珍藏'], 1)
+
+        # Reset initializes fresh default v4 structure (no legacy corruption)
+        cleaner._reset_files(self.root, keep_backup=False, no_prologue=True)
+        st_fresh, _, _ = self._load()
+        self.assertEqual(st_fresh['panels']['系统宿主']['魅力'], 70)
+        self.assertEqual(st_fresh['intimate']['host_phys']['vigor'], 100)
+        self.assertEqual(st_fresh['intimate']['keepsakes'], [])
+        self.assertEqual(st_fresh['intimate']['body_dev']['苏婉青']['chest'], 0)
+
+        # Restore slot recovers every single v4 field losslessly
+        cleaner.restore_save_slot(self.root, slot['id'], auto_backup_current=False)
+        st_back, _, _ = self._load()
+        self.assertEqual(st_back['panels']['系统宿主']['魅力'], 88)
+        self.assertEqual(st_back['intimate']['host_phys']['desire'], 64)
+        self.assertEqual(st_back['intimate']['host_phys']['vigor'], 72)
+        self.assertEqual(st_back['intimate']['body_dev']['苏婉青']['chest'], 58)
+        self.assertEqual(len(st_back['intimate']['keepsakes']), 1)
+        self.assertEqual(st_back['intimate']['keepsakes'][0]['name'], '浅粉蕾丝贴身内裤')
+
 
 if __name__ == '__main__':
     unittest.main()
+

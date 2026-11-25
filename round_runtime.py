@@ -681,6 +681,8 @@ def _validate_scene_state(raw, active_cast, building_cast=None):
                 continue
             kind = str(item.get('kind') or '').strip()
             method = str(item.get('method') or 'stolen').strip()
+            if method == 'kept_after':
+                method = 'taken_intimate'
             if method not in save_store.KEEPSAKE_METHODS:
                 method = 'stolen'
             cond = str(item.get('condition') or 'fresh_warm').strip()

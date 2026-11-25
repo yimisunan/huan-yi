@@ -5375,8 +5375,8 @@
     };
 
     const ksMeta = w.keepsake_meta || {};
-    const ksKinds = ksMeta.kinds || { panties: '贴身内裤', stockings: '丝袜', bra: '贴身内衣', accessory: '贴身小物' };
-    const ksMethods = ksMeta.methods || { stolen: '暗中偷藏', kept_after: '亲密留存', gifted: '亲手交出' };
+    const ksKinds = ksMeta.kinds || { panties: '贴身内裤', stockings: '丝袜长袜', bra: '贴身内衣', nightwear: '睡裙家居', accessory: '私密贴物' };
+    const ksMethods = ksMeta.methods || { stolen: '暗中偷藏', taken_intimate: '亲密留存', gifted: '亲手交出' };
     const ksConds = ksMeta.conditions || { fresh_warm: '尚带体温余香', stained_damp: '沾有微潮水痕', faded: '余香渐淡' };
 
     const renderKeepsakeCard = ks => {

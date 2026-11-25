@@ -278,11 +278,14 @@ def _summarize_save_state(st_obj, data_obj):
     round_num = int(rt.get('memory_round') or (data_obj.get('round') if isinstance(data_obj, dict) else 0) or 1)
     panels = (st_obj.get('panels') or {}) if isinstance(st_obj, dict) else {}
     host_p = panels.get('系统宿主') or {}
+    intl_p = (st_obj.get('intimate') or {}) if isinstance(st_obj, dict) else {}
     panel_summary = {
         'host': {
             '体力': int(host_p.get('体力', 100) or 0),
             '积分': int(host_p.get('积分', 0) or 0),
+            '魅力': int(host_p.get('魅力', 70) or 70),
             '商业嗅觉': int(host_p.get('商业嗅觉', 0) or 0),
+            '私密珍藏': len(intl_p.get('keepsakes') or []),
         },
         'heroines': {
             h: {

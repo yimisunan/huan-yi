@@ -4017,6 +4017,7 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
         intl['scene_active'] = False
         intl['session_beats'] = 0
         intl['session_orgasms'] = {h: 0 for h in save_store.HEROINES}
+        intl['session_charm_gained'] = False
         intl['noise_risk'] = 0
         intl['privacy'] = 'open_public'
         intl['sub_location'] = ''
@@ -4034,6 +4035,7 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
         intl['scene_active'] = False
         intl['session_beats'] = 0
         intl['session_orgasms'] = {h: 0 for h in save_store.HEROINES}
+        intl['session_charm_gained'] = False
         intl['noise_risk'] = 0
         intl['privacy'] = 'open_public'
         intl['sub_location'] = ''
@@ -4044,13 +4046,22 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
     intimate_ds_tags = {_event_tag('DS_04'), _event_tag('DS_06'), _event_tag('DS_07'), _event_tag('DS_14'), _event_tag('DS_15'), _event_tag('DS_16'), _event_tag('DS_17')}
     climax_tag = _event_tag('DS_17')
     creampie_tags = {_event_tag('SHAME_06'), _event_tag('SHAME_07')}
-    release_shame_tags = {_event_tag('SHAME_06'), _event_tag('SHAME_07'), _event_tag('SHAME_08'), _event_tag('SHAME_09')}
+    release_shame_tags = {_event_tag('SHAME_05'), _event_tag('SHAME_06'), _event_tag('SHAME_07')}
+    charm_backlash_shame_tags = {_event_tag('SHAME_09'), _event_tag('SHAME_14')}
+    charm_caught_vig_tags = {_event_tag('VIGILANCE_01'), _event_tag('VIGILANCE_02')}
+    vig_ev = (events or {}).get('vigilance_events') or {}
     high_noise_shame = {_event_tag('SHAME_03'), _event_tag('SHAME_04')}
     sensory_ds_tags = {_event_tag('DS_01'), _event_tag('DS_02'), _event_tag('DS_03')}
 
     triggered_intimate = False
     climax_hit = False
     host_released = False
+    shame_backlash_hit = False
+    vig_caught_hit = any(
+        bool(set(vtags or ()) & charm_caught_vig_tags)
+        for vtags in vig_ev.values()
+        if isinstance(vtags, list)
+    )
     adrenaline_vigor = bool(_event_tag('HOST_03') in host_ev or _event_tag('HOST_04') in host_ev)
     max_shame_noise = 0
     max_desire_c_gain = 0
@@ -4063,6 +4074,8 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
             triggered_intimate = True
         if stags & release_shame_tags:
             host_released = True
+        if stags & charm_backlash_shame_tags:
+            shame_backlash_hit = True
         if _event_tag('SHAME_07') in stags:
             adrenaline_vigor = True
         if (dtags & sensory_ds_tags) or (_event_tag('SHAME_20') in stags):
@@ -4176,8 +4189,9 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
             if existing is not None:
                 if raw_ks.get('condition') in save_store.KEEPSAKE_CONDITIONS:
                     existing['condition'] = raw_ks['condition']
-                if raw_ks.get('method') in save_store.KEEPSAKE_METHODS:
-                    existing['method'] = raw_ks['method']
+                m_raw = 'taken_intimate' if raw_ks.get('method') == 'kept_after' else raw_ks.get('method')
+                if m_raw in save_store.KEEPSAKE_METHODS:
+                    existing['method'] = m_raw
                 if isinstance(raw_ks.get('desc'), str) and raw_ks['desc'].strip():
                     existing['desc'] = raw_ks['desc'].strip()[:80]
                 if clock_str:
@@ -4220,12 +4234,13 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
             intl['scene_active'] = False
             intl['session_beats'] = 0
             intl['session_orgasms'] = {h: 0 for h in save_store.HEROINES}
+            intl['session_charm_gained'] = False
             intl['noise_risk'] = max(0, int(intl.get('noise_risk', 0) or 0) - 25)
         elif intl.get('scene_active'):
             # 维持亲密中进行（如 A 档喘息/调情缓拍）
             intl['session_beats'] = int(intl.get('session_beats', 0) or 0) + 1
 
-    # 5.5 宿主欲望（Desire）与亲密耐力（Vigor）双池推进、同频共振与自动里程碑魅力成长
+    # 5.5 宿主欲望（Desire）与亲密耐力（Vigor）双池推进、同频共振与魅力增减平衡
     cur_h_des = max(0, min(100, int(hp.get('desire', 0) or 0)))
     cur_h_vig = max(0, min(100, int(hp.get('vigor', 100) or 0)))
     vc = vigor_costs if isinstance(vigor_costs, dict) else {'A': 2, 'B': 4, 'C': 7, 'release': 12}
@@ -4243,8 +4258,11 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
             cur_h_des = min(100, cur_h_des + des_gain)
         elif location_changed and not intl.get('scene_active'):
             cur_h_des = max(0, cur_h_des - 15)
-        elif not intl.get('scene_active') and op_code != 'keepsake_action' and category == 'A':
-            cur_h_des = max(0, cur_h_des - 6)
+        elif not intl.get('scene_active') and op_code != 'keepsake_action':
+            if int(elapsed_hours or 0) >= 2:
+                cur_h_des = max(0, cur_h_des - min(30, int(elapsed_hours) * 5))
+            elif category == 'A':
+                cur_h_des = max(0, cur_h_des - 6)
 
         # 亲密进行态按档位温和消耗独立耐力（与日间体力彻底解耦）
         if intl.get('scene_active') or was_scene_active or triggered_intimate:
@@ -4274,12 +4292,46 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
 
     hp['fetishes'] = derive_host_fetishes(bd, ks_list)
 
-    # 自动里程碑魅力精进（每轮至多 +1：首次部位开发至 Lv.2/3 或 同频共振绝顶）
+    # 5.6 魅力增减平衡结算：
+    # - 增长防刷：部位首破 Lv.2/3（不可重复里程碑）或 同频共振绝顶（每场亲密会话限 1 次），单轮至多 +1，上限 100；
+    # - 合理消减（保底 60、单轮封顶 -2）：被徐承邺当场目击/实锤(-2)、女主严重耻感反弹/苏醒反噬(-1)、力竭累倒(-1)、
+    #   或对高羞耻低堕落女主过早亮出偷藏贴身物遭反感(-1)。
     charm_milestone_gain = 0
-    if (dev_milestones or synced_climax) and eff_charm < 100:
+    sync_charm_eligible = bool(synced_climax and not intl.get('session_charm_gained'))
+    if (dev_milestones or sync_charm_eligible) and eff_charm < 100:
         charm_milestone_gain = 1
-        host_panel = state.setdefault('panels', {}).setdefault('系统宿主', {})
-        host_panel['魅力'] = min(100, int(host_panel.get('魅力', eff_charm) or eff_charm) + 1)
+        if sync_charm_eligible:
+            intl['session_charm_gained'] = True
+
+    charm_penalty = 0
+    charm_penalty_reasons = []
+    if vig_caught_hit:
+        charm_penalty += 2
+        charm_penalty_reasons.append('目击实锤失态')
+    if shame_backlash_hit:
+        charm_penalty += 1
+        charm_penalty_reasons.append('防线反噬失控')
+    if sleep_kind == 'collapse':
+        charm_penalty += 1
+        charm_penalty_reasons.append('体能透支累倒')
+    if op_code == 'keepsake_action' and (operation or {}).get('action_type') == 'confront':
+        ks_id = str((operation or {}).get('keepsake_id') or '').strip()
+        ks_obj = next((k for k in ks_list if isinstance(k, dict) and k.get('id') == ks_id), None)
+        owner = (ks_obj or {}).get('owner', '')
+        owner_p = (state.get('panels') or {}).get(owner) or {}
+        if owner in save_store.HEROINES and int(owner_p.get('羞耻', 100) or 0) >= 75 and int(owner_p.get('堕落', 0) or 0) < 15:
+            charm_penalty += 1
+            charm_penalty_reasons.append('过早亮出私藏遭反感')
+    charm_penalty = min(2, charm_penalty)
+
+    host_panel = state.setdefault('panels', {}).setdefault('系统宿主', {})
+    cur_charm_panel = int(host_panel.get('魅力', eff_charm) or eff_charm)
+    net_charm_delta = charm_milestone_gain - charm_penalty
+    if net_charm_delta > 0:
+        host_panel['魅力'] = min(100, cur_charm_panel + net_charm_delta)
+    elif net_charm_delta < 0:
+        floor_c = min(cur_charm_panel, 60)
+        host_panel['魅力'] = max(floor_c, cur_charm_panel + net_charm_delta)
 
     # 6. 隔墙/同席潜行声响暴露风险与同栋楼女主疑心联动
     stealth_alert = False
@@ -4314,6 +4366,8 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
         'dev_milestones': dev_milestones,
         'synced_climax': synced_climax,
         'charm_milestone_gain': charm_milestone_gain,
+        'charm_penalty': charm_penalty,
+        'charm_penalty_reasons': charm_penalty_reasons,
         'keepsakes_added': keepsakes_added,
         'body_acts_used': resolved_body_acts,
     }
