@@ -124,9 +124,38 @@
     return { ...COSTS };
   }
 
+  function staminaGuard(w = snapshot?.world) {
+    const g = w?.intimate?.stamina_guard || w?.progression?.stamina_guard;
+    if (g && typeof g === 'object') {
+      return {
+        active: Boolean(g.active),
+        floor: Number.isFinite(Number(g.floor)) ? Number(g.floor) : 10,
+        vigor: Number.isFinite(Number(g.vigor)) ? Number(g.vigor) : 100,
+        min_vigor: Number.isFinite(Number(g.min_vigor)) ? Number(g.min_vigor) : 15
+      };
+    }
+    return { active: false, floor: 10, vigor: 100, min_vigor: 15 };
+  }
+
+  function applyStaminaFloorClient(rawCost, w = snapshot?.world) {
+    const cost = Math.max(0, Number(rawCost) || 0);
+    const g = staminaGuard(w);
+    if (!g.active) return cost;
+    const pg = w?.progression;
+    const cur = Number.isFinite(Number(pg?.stamina)) ? Number(pg.stamina) : 100;
+    if (cur <= g.floor) return 0;
+    return Math.min(cost, Math.max(0, cur - g.floor));
+  }
+
   function optionCost(optId, w = snapshot?.world) {
     const c = activeCosts(w);
-    return c[optId] ?? COSTS[optId] ?? 0;
+    const raw = c[optId] ?? COSTS[optId] ?? 0;
+    return applyStaminaFloorClient(raw, w);
+  }
+
+  function customReserveCost(w = snapshot?.world) {
+    const c = activeCosts(w);
+    return applyStaminaFloorClient(c.C, w);
   }
 
   function optionLabel(optId, w = snapshot?.world) {
@@ -1664,10 +1693,11 @@
     }
   }
 
-  function populateQuickChipsInto(bar, heldIds, catalog, sensualItems, isSheetBar) {
+  function populateQuickChipsInto(bar, heldIds, catalog, sensualItems, isSheetBar, keepsakes = [], castHere = []) {
     if (!bar) return;
     const sIds = (sensualItems || []).map(x => x.id + ':' + x.name).join(',');
-    const sig = heldIds.join(',') + '|' + sIds + (isSheetBar ? ':s' : ':b');
+    const kIds = (keepsakes || []).slice(0, 2).map(k => (k.id || '') + ':' + (k.name || '') + ':' + (castHere.includes(k.owner) ? '1' : '0')).join(',');
+    const sig = heldIds.join(',') + '|' + sIds + '|' + kIds + (isSheetBar ? ':s' : ':b');
     if (bar.dataset.sig === sig && bar.childElementCount > 0) return;
     bar.dataset.sig = sig;
     bar.replaceChildren();
@@ -1705,6 +1735,25 @@
       bar.append(chip);
     }
 
+    for (const ks of (keepsakes || []).slice(0, 2)) {
+      if (!ks || !ks.id || !ks.name) continue;
+      const ownerHere = castHere.includes(ks.owner);
+      const actType = ownerHere ? 'confront' : 'sniff_play';
+      const chip = node('button', 'bracket-chip is-keepsake', '🎀 私藏：' + ks.owner + '·' + ks.name);
+      chip.type = 'button';
+      chip.onclick = () => {
+        haptic(8);
+        attachOperationToComposer({
+          operation: { code: 'keepsake_action', keepsake_id: ks.id, action_type: actType },
+          label: (ownerHere ? '👀 当面出示「' : '🫧 私下嗅闻「') + ks.owner + '的' + ks.name + '」',
+          defaultAction: ownerHere
+            ? ('（指尖勾出暗中藏着的那件「' + ks.name + '」，在' + ks.owner + '眼前轻轻一晃）')
+            : ('（避开视线取出暗中收存的「' + ks.owner + '的' + ks.name + '」，指腹摩挲着布料凑近轻嗅）')
+        });
+      };
+      bar.append(chip);
+    }
+
     for (const iid of heldIds) {
       const item = catalog.find(x => x.id === iid);
       const label = item?.name || iid;
@@ -1735,9 +1784,11 @@
     const heldIds = w?.intel?.held || [];
     const catalog = w?.intel?.catalog || [];
     const sensual = heldSensualItems(w);
-    populateQuickChipsInto($('bracketChips'), heldIds, catalog, sensual, false);
+    const keepsakes = Array.isArray(w?.intimate?.keepsakes) ? w.intimate.keepsakes : [];
+    const castHere = Array.isArray(w?.cast) ? w.cast : [];
+    populateQuickChipsInto($('bracketChips'), heldIds, catalog, sensual, false, keepsakes, castHere);
     if (forceSheet || composerSheetOpen || $('sheetQuickChips')) {
-      populateQuickChipsInto($('sheetQuickChips'), heldIds, catalog, sensual, true);
+      populateQuickChipsInto($('sheetQuickChips'), heldIds, catalog, sensual, true, keepsakes, castHere);
     }
   }
 
@@ -2112,11 +2163,15 @@
     $('cancelTask').hidden = !isAct || !task?.reservation;
     $('cancelTask').disabled = posting || progressing;
 
-    const pg = progression(), res = task?.reservation;
+    const pg = progression(), res = task?.reservation, sg = staminaGuard();
+    const hpStatus = snapshot?.world?.intimate?.host_phys;
+    const vigorTxt = (isIntimateActive() || (hpStatus && Number(hpStatus.vigor) < 100))
+      ? (' · 耐力 ' + (hpStatus?.vigor ?? sg.vigor ?? 100) + (sg.active ? '(护航)' : ''))
+      : '';
     $('resourceStatus').textContent = pg
       ? (res?.status === 'held'
           ? '已暂扣 ' + res.quote.total + ' · 原体力 ' + res.quote.before + ' · 结算后判断疲惫'
-          : '体力 ' + pg.stamina + ' / 100 · 道具可恢复额度 ' + pg.item_budget)
+          : '体力 ' + pg.stamina + ' / 100' + vigorTxt + ' · 道具恢复额度 ' + pg.item_budget)
         + (pg.runtime.clock ? ' · 第' + pg.runtime.clock.day + '天 ' + pg.runtime.clock.time : '')
       : '';
     $('resourceStatus').hidden = !pg;
@@ -2124,15 +2179,16 @@
     const hasUsableRecovery = $('recoveryItem').options.length > 1;
     const hideMobileRecovery = isMobileViewport() && pg && pg.stamina > 30;
     $('recoveryWrap').hidden = !hasUsableRecovery || hideMobileRecovery;
-    $('form').classList.toggle('is-low-stamina', !!(pg && pg.stamina <= 45));
+    $('form').classList.toggle('is-low-stamina', !!(pg && pg.stamina <= 45 && !sg.active));
     $('useRecovery').disabled = ordinaryBlocked() || !$('recoveryItem').value || !pg || pg.item_budget <= 0 || pg.stamina >= 100;
 
+    const custCost = customReserveCost();
     const isPureRec = !pendingItemAttachment && pureRecovery();
-    const sendCostLabel = isPureRec ? '免费恢复' : (pg ? '-15⚡' : '提交');
+    const sendCostLabel = isPureRec ? '免费恢复' : (pg ? (custCost > 0 ? ('-' + custCost + '⚡') : '护航0⚡') : '提交');
     const inputDisabled = !ready || posting || progressing || !online || !storageOK || !!cache.pending || isAct;
     const draftStr = ($('input')?.value || '');
     const hasDraftOrAttach = Boolean(draftStr.trim() || pendingItemAttachment);
-    const sendDisabled = ordinaryBlocked() || (!isPureRec && !afford(15));
+    const sendDisabled = ordinaryBlocked() || (!isPureRec && !afford(custCost));
     $('sendCost').textContent = sendCostLabel;
     $('send').disabled = sendDisabled;
     $('input').disabled = inputDisabled;
@@ -2142,14 +2198,14 @@
     if ($('sheetSendBtn')) $('sheetSendBtn').disabled = sendDisabled || !hasDraftOrAttach;
     if ($('sheetCharCount')) $('sheetCharCount').textContent = draftStr.length + ' / 2000';
     if ($('sheetBagBtn')) $('sheetBagBtn').disabled = base;
-    if ($('sheetMoveBtn')) $('sheetMoveBtn').disabled = ordinaryBlocked() || !afford(15);
+    if ($('sheetMoveBtn')) $('sheetMoveBtn').disabled = ordinaryBlocked() || !afford(custCost);
     if (composerSheetOpen && (!showDecisions || inputDisabled)) closeComposerSheet();
 
     $('actions').hidden = !ready || rest || previewOn;
-    $('actions').disabled = ordinaryBlocked() || !afford(15);
-    if ($('quickActionBtn')) $('quickActionBtn').disabled = ordinaryBlocked() || !afford(15);
-    $('move').disabled = ordinaryBlocked() || !afford(15) || !$('destination').value;
-    $('give').disabled = ordinaryBlocked() || !afford(15) || !$('item').value || !$('recipient').value;
+    $('actions').disabled = ordinaryBlocked() || !afford(custCost);
+    if ($('quickActionBtn')) $('quickActionBtn').disabled = ordinaryBlocked() || !afford(custCost);
+    $('move').disabled = ordinaryBlocked() || !afford(custCost) || !$('destination').value;
+    $('give').disabled = ordinaryBlocked() || !afford(custCost) || !$('item').value || !$('recipient').value;
 
     $('choices').querySelectorAll('button').forEach(b => {
       b.disabled = ordinaryBlocked() || !afford(optionCost(b.dataset.option));
@@ -4291,11 +4347,20 @@
       return row;
     };
 
+    const sg = staminaGuard(w);
+    const hp = w?.intimate?.host_phys || {};
+    const vigorVal = Number.isFinite(Number(hp.vigor)) ? Number(hp.vigor) : sg.vigor;
+    const desireVal = Number.isFinite(Number(hp.desire)) ? Number(hp.desire) : 0;
+    const desireTag = desireVal >= 85 ? ' · 临界蓄满' : (desireVal >= 60 ? ' · 欲火灼烫' : '');
+    const vigorTag = sg.active ? (' · 护航锁底' + sg.floor) : (vigorVal <= 15 ? ' · 耐力见底' : '');
+
     vDetails.append(
       mkVitalRow('当前体力', staminaVal + ' / 100', staminaVal, staminaVal < 20 ? 'var(--crimson)' : 'linear-gradient(90deg, var(--jade), var(--gold-bright))'),
+      mkVitalRow('亲密耐力（精力）', vigorVal + ' / 100' + vigorTag, vigorVal, vigorVal <= 15 ? 'var(--crimson)' : 'linear-gradient(90deg, #6e59a8, #b694f6)'),
+      mkVitalRow('宿主欲望', desireVal + ' / 100' + desireTag, desireVal, desireVal >= 85 ? 'linear-gradient(90deg, #b83b5e, #ff7096)' : 'linear-gradient(90deg, #8e4658, #d87a8f)'),
       mkVitalRow('道具恢复额度', budgetVal + ' / 20', (budgetVal / 20) * 100, 'linear-gradient(90deg, var(--gold-deep), var(--gold-bright))')
     );
-    const note = node('p', 'muted', 'A 5 · B 10 · C 15 体力；安稳整夜入眠恢复至满值并重置额度。');
+    const note = node('p', 'muted', '日常 A 5 / B 10 / C 15；亲密第2拍起体力折减为 1/2/3 且耐力 ≥ 15 时体力锁底 10 不断电；安稳整夜后体力与耐力同步满恢复。');
     note.style.margin = '2px 0 0';
     vDetails.append(note);
     vitals.append(vDetails);
@@ -4342,6 +4407,47 @@
       grid.append(tile);
     }
     if (hostAttrs.length) pane.append(grid);
+
+    // 3a. Charm 5-Tier Perks & Host Fetish Card (Collapsible)
+    const cTier = w.host_charm_tier;
+    const fetishes = Array.isArray(hp.fetishes) ? hp.fetishes.filter(Boolean) : [];
+    if (cTier || fetishes.length) {
+      const cCard = node('details', 'hub-fold charm-tier-card');
+      const cHead = node('summary', 'hub-fold-summary');
+      const cTitleWrap = node('div', 'hub-fold-title');
+      const cSubText = fetishes.length
+        ? ('已显露 ' + fetishes.length + ' 项癖好' + (cTier?.summary ? ' · ' + cTier.summary : ''))
+        : (cTier?.summary || '随魅力升阶解锁专属被动增益');
+      cTitleWrap.append(
+        node('strong', '', '魅力阶梯 · ' + (cTier?.name || '清俊克制')),
+        node('span', 'muted', cSubText)
+      );
+      const cRight = node('span', 'fold-right');
+      if (cTier) {
+        cRight.append(node('span', 'quest-badge', cTier.next_at ? ('魅力 ' + cTier.charm + ' → ' + cTier.next_at) : ('魅力 ' + cTier.charm + ' · 最高阶')));
+      }
+      cRight.append(node('span', 'fold-caret', '▾'));
+      cHead.append(cTitleWrap, cRight);
+      cCard.append(cHead);
+
+      const cBody = node('div', 'hub-fold-body');
+      if (cTier) {
+        const strip = node('div', 'intel-tier-strip');
+        for (const [th, lbl] of [[70, '70 清俊'], [75, '75 锋芒'], [85, '85 磁吸'], [95, '95 魅影']]) {
+          strip.append(node('span', 'intel-tier-pill' + ((cTier.charm ?? 70) >= th ? ' is-reached' : ''), lbl));
+        }
+        cBody.append(strip);
+        if (cTier.summary) cBody.append(node('p', 'intel-desc', cTier.summary));
+      }
+      if (fetishes.length) {
+        const fRow = node('div', 'fetish-chip-row');
+        fRow.append(node('span', 'muted', '显露癖好：'));
+        for (const f of fetishes) fRow.append(node('span', 'fetish-chip', '✦ ' + f));
+        cBody.append(fRow);
+      }
+      cCard.append(cBody);
+      pane.append(cCard);
+    }
 
     // 3b. Commercial Sense, One-Time Intel & Business Leverage Card (Collapsible)
     const intel = w.intel;
@@ -4660,6 +4766,62 @@
       body.append(bRow);
     }
 
+    // 5-Zone Body Development & Signature Sensitive Zone Card (Heroines only · Collapsible)
+    if (PEOPLE.includes(name)) {
+      const bzMeta = w.body_zone_meta || {};
+      const zones = Array.isArray(bzMeta.zones) && bzMeta.zones.length ? bzMeta.zones : ['oral', 'hand', 'chest', 'foot', 'core'];
+      const zLabels = bzMeta.labels || { oral: '口舌', hand: '纤手', chest: '胸乳', foot: '玉足', core: '深处' };
+      const sigMap = bzMeta.signatures || { '沈知韫': 'foot', '苏婉青': 'chest', '徐念薇': 'hand' };
+      const lvLabels = Array.isArray(bzMeta.level_labels) && bzMeta.level_labels.length >= 4
+        ? bzMeta.level_labels : ['生涩防备', '敏感初开', '熟稔沉溺', '彻底开发'];
+      const sigZone = sigMap[name] || '';
+      const hDev = w.intimate?.body_dev?.[name] || {};
+      const sigScore = sigZone ? Math.max(0, Math.min(100, Number(hDev[sigZone]) || 0)) : 0;
+      const sigLv = sigScore >= 80 ? 3 : sigScore >= 50 ? 2 : sigScore >= 20 ? 1 : 0;
+      const devCount = zones.filter(z => (Number(hDev[z]) || 0) >= 20).length;
+
+      const bdCard = node('details', 'hub-fold body-dev-card');
+      const bdHead = node('summary', 'hub-fold-summary');
+      const bdTitle = node('div', 'hub-fold-title');
+      bdTitle.append(
+        node('strong', '', '身体开发 · 部位敏感度'),
+        node('span', 'muted', (sigZone ? ('招牌 ' + (zLabels[sigZone] || sigZone) + ' Lv.' + sigLv + ' · ') : '') + '已开敏 ' + devCount + ' / ' + zones.length + ' 部位')
+      );
+      const bdRight = node('span', 'fold-right');
+      bdRight.append(
+        sigZone ? node('span', 'sig-zone-pill', '★ 招牌：' + (zLabels[sigZone] || sigZone)) : node('span', 'item-tag', '5 部位'),
+        node('span', 'fold-caret', '▾')
+      );
+      bdHead.append(bdTitle, bdRight);
+      bdCard.append(bdHead);
+
+      const bdBody = node('div', 'hub-fold-body');
+      const bdGrid = node('div', 'body-dev-grid');
+      for (const z of zones) {
+        const sc = Math.max(0, Math.min(100, Number(hDev[z]) || 0));
+        const lv = sc >= 80 ? 3 : sc >= 50 ? 2 : sc >= 20 ? 1 : 0;
+        const isSig = z === sigZone;
+        const item = node('div', 'body-dev-item' + (isSig ? ' is-signature' : ''));
+        const top = node('div', 'body-dev-top');
+        top.append(
+          node('span', 'body-dev-name', (zLabels[z] || z) + (isSig ? ' ★' : '')),
+          node('b', '', 'Lv.' + lv + ' · ' + sc)
+        );
+        const track = node('div', 'stat-track');
+        const fill = node('span', 'stat-bar');
+        fill.style.width = sc + '%';
+        fill.style.background = isSig
+          ? 'linear-gradient(90deg, #b83b5e, #f2b483)'
+          : 'linear-gradient(90deg, #7d4a69, #d48ba8)';
+        track.append(fill);
+        item.append(top, track, node('div', 'body-dev-lv', lvLabels[lv] || ''));
+        bdGrid.append(item);
+      }
+      bdBody.append(bdGrid);
+      bdCard.append(bdBody);
+      body.append(bdCard);
+    }
+
     // Deterministic EXP Passive Skill Upgrade Card (Heroines only · Collapsible)
     if (PEOPLE.includes(name) && Array.isArray(w.passive_tiers) && w.passive_tiers.length) {
       const rawPassive = charPanel.stats['被动']?.raw || 'Lv.0';
@@ -4783,12 +4945,13 @@
     const travelBar = node('section', 'map-travel-bar');
     const info = node('div', 'map-travel-info');
     const isHere = selectedMapPlace === currentLoc;
-    const travelAllowed = !isHere && !ordinaryBlocked() && afford(15);
+    const travelCost = customReserveCost(w);
+    const travelAllowed = !isHere && !ordinaryBlocked() && afford(travelCost);
     const reasonText = isHere ? '你此刻正身处此地'
       : !canDecide() ? '请先读完本段剧情后再启程'
       : resting() ? '当前需先完成休整'
-      : !afford(15) ? '当前体力不足 15'
-      : '将作为自定义行动提交 · 暂扣 15 体力';
+      : !afford(travelCost) ? ('当前体力不足 ' + travelCost)
+      : (travelCost > 0 ? ('将作为自定义行动提交 · 暂扣 ' + travelCost + ' 体力') : '亲密护航中 · 将作为自定义行动提交');
     info.append(node('strong', '', selectedMapPlace), node('span', '', reasonText));
     const goBtn = node('button', 'cta-gold', isHere ? '当前位置' : '前往此地');
     goBtn.type = 'button';
@@ -4871,6 +5034,9 @@
     const legacyGifted = allItems.filter(it => (it.fields?.['当前状态'] || '') === '已交付');
     const giftedItems = [...deliveredList, ...legacyGifted];
     const castHere = Array.isArray(w.cast) ? w.cast : [];
+    const custCost = customReserveCost(w);
+    const custBadge = custCost > 0 ? (' (-' + custCost + '⚡)') : ' (护航0⚡)';
+    const keepsakes = Array.isArray(w?.intimate?.keepsakes) ? w.intimate.keepsakes.filter(k => k && k.id && k.name) : [];
 
     // Smart default sub-tab: prioritize claimable quest rewards, else held items
     const subKey = activeBagSubTab || (pendingQueue.length ? 'quest' : 'held');
@@ -4878,6 +5044,7 @@
     subBar.setAttribute('role', 'tablist');
     const bagTabs = [
       ['held', '随身', heldItems.length, false],
+      ['keepsakes', '珍藏', keepsakes.length, false],
       ['quest', '委托', (curTask ? 1 : 0) + pendingQueue.length, pendingQueue.length > 0],
       ['deployed', '已部署', deployedItems.length, false],
       ['gifted', '已赠予', giftedItems.length, false]
@@ -4998,9 +5165,9 @@
         }
         box.append(chips);
         const foot = node('div', 'bag-picker-foot');
-        const confirmBtn = node('button', 'btn-gold', '挂载并写行动 (-15⚡)');
+        const confirmBtn = node('button', 'btn-gold', '挂载并写行动' + custBadge);
         confirmBtn.type = 'button';
-        confirmBtn.disabled = ordinaryBlocked() || !afford(15);
+        confirmBtn.disabled = ordinaryBlocked() || !afford(custCost);
         confirmBtn.onclick = () => {
           const tgt = bagPickerState.target || '室内氛围';
           attachOperationToComposer({
@@ -5046,9 +5213,9 @@
         box.append(hideLabel);
 
         const foot = node('div', 'bag-picker-foot');
-        const confirmBtn = node('button', 'btn-gold', '挂载部署行动 (-15⚡)');
+        const confirmBtn = node('button', 'btn-gold', '挂载部署行动' + custBadge);
         confirmBtn.type = 'button';
-        confirmBtn.disabled = ordinaryBlocked() || !afford(15);
+        confirmBtn.disabled = ordinaryBlocked() || !afford(custCost);
         confirmBtn.onclick = () => {
           const spot = String(spotInput.value || bagPickerState.spot || '隐蔽角落').trim() || '隐蔽角落';
           const hidden = hideChk.checked;
@@ -5096,9 +5263,9 @@
           box.append(qtyRow);
         }
         const foot = node('div', 'bag-picker-foot');
-        const confirmBtn = node('button', 'btn-gold', '挂载赠予行动 (-15⚡)');
+        const confirmBtn = node('button', 'btn-gold', '挂载赠予行动' + custBadge);
         confirmBtn.type = 'button';
-        confirmBtn.disabled = ordinaryBlocked() || !afford(15);
+        confirmBtn.disabled = ordinaryBlocked() || !afford(custCost);
         confirmBtn.onclick = () => {
           const who = bagPickerState.recipient || castHere[0];
           const qty = bagPickerState.qty || 1;
@@ -5175,7 +5342,7 @@
           const isOpen = bagPickerState?.itemId === item.id && bagPickerState?.mode === 'use';
           const btn = node('button', isOpen ? 'btn-gold' : 'btn-outline', usageMode === 'consumable_target' ? '使用 / 作用目标' : '在行动中使用');
           btn.type = 'button';
-          btn.disabled = ordinaryBlocked() || !afford(15);
+          btn.disabled = ordinaryBlocked() || !afford(custCost);
           btn.onclick = () => {
             haptic(8);
             bagPickerState = isOpen ? null : { mode: 'use', itemId: item.id, target: castHere[0] || '室内氛围' };
@@ -5187,7 +5354,7 @@
           const isOpen = bagPickerState?.itemId === item.id && bagPickerState?.mode === 'deploy';
           const btn = node('button', isOpen ? 'btn-gold' : 'btn-outline', '安装到当前地点');
           btn.type = 'button';
-          btn.disabled = ordinaryBlocked() || !afford(15);
+          btn.disabled = ordinaryBlocked() || !afford(custCost);
           btn.onclick = () => {
             haptic(8);
             bagPickerState = isOpen ? null : { mode: 'deploy', itemId: item.id, spot: DEPLOY_SPOT_PRESETS[0], hidden: true };
@@ -5199,7 +5366,7 @@
           const isOpen = bagPickerState?.itemId === item.id && bagPickerState?.mode === 'gift';
           const giftBtn = node('button', isOpen ? 'btn-gold' : 'btn-outline', '赠予在场人物');
           giftBtn.type = 'button';
-          giftBtn.disabled = ordinaryBlocked() || !afford(15);
+          giftBtn.disabled = ordinaryBlocked() || !afford(custCost);
           giftBtn.onclick = () => {
             haptic(8);
             bagPickerState = isOpen ? null : { mode: 'gift', itemId: item.id, recipient: castHere[0], qty: 1 };
@@ -5235,7 +5402,7 @@
       const acts = node('div', 'item-card-actions');
       const inspectBtn = node('button', 'btn-gold', '📱 远程查看画面');
       inspectBtn.type = 'button';
-      inspectBtn.disabled = ordinaryBlocked() || !afford(15);
+      inspectBtn.disabled = ordinaryBlocked() || !afford(custCost);
       inspectBtn.onclick = () => {
         haptic(10);
         attachOperationToComposer({
@@ -5249,7 +5416,7 @@
       const sameLoc = dev.location === w.location;
       const retBtn = node('button', 'btn-outline', '拆除回收');
       retBtn.type = 'button';
-      retBtn.disabled = !sameLoc || ordinaryBlocked() || !afford(15);
+      retBtn.disabled = !sameLoc || ordinaryBlocked() || !afford(custCost);
       if (!sameLoc) retBtn.title = '需先前往 ' + dev.location + ' 才可回收';
       retBtn.onclick = () => {
         haptic(10);
@@ -5263,6 +5430,99 @@
       if (!sameLoc) {
         acts.append(node('span', 'shop-reason-hint', '回收需先前往 ' + dev.location));
       }
+      card.append(acts);
+      return card;
+    };
+
+    const ksMeta = w.keepsake_meta || {};
+    const ksKinds = ksMeta.kinds || { panties: '贴身内裤', stockings: '丝袜长袜', bra: '贴身内衣', nightwear: '睡裙家居', accessory: '私密贴物' };
+    const ksMethods = ksMeta.methods || { stolen: '暗中偷藏', taken_intimate: '亲密留存', gifted: '亲手交出' };
+    const ksConds = ksMeta.conditions || { fresh_warm: '尚带体温余香', stained_damp: '沾有微潮水痕', faded: '余香渐淡' };
+
+    const renderKeepsakeCard = ks => {
+      const card = node('article', 'item-card keepsake-card');
+      const top = node('div', 'item-card-top');
+      top.append(
+        node('span', 'item-card-name', ks.owner + ' · ' + ks.name),
+        node('span', 'keepsake-owner-pill', ksKinds[ks.kind] || '贴身珍藏')
+      );
+      card.append(top);
+
+      const tags = node('div', 'item-tags');
+      tags.append(
+        node('span', 'item-tag', ksMethods[ks.method] || '私密留存'),
+        node('span', 'item-tag is-effect', ksConds[ks.condition] || '尚带余香'),
+        node('span', 'item-tag' + (ks.owner_aware ? ' is-timer' : ''), ks.owner_aware ? '失主已知晓' : '失主未察觉')
+      );
+      if (ks.clock) tags.append(node('span', 'item-tag', ks.clock));
+      card.append(tags);
+
+      if (ks.desc) card.append(node('p', 'item-desc', ks.desc));
+
+      const ownerHere = castHere.includes(ks.owner);
+      const ownerLoc = w.presence?.[ks.owner]?.location || '';
+      const homeOk = (['沈知韫', '徐念薇'].includes(ks.owner) && w.location === '徐家主宅')
+        || (ks.owner === '苏婉青' && w.location === '市中心顶层公寓');
+      const canReturn = ownerHere || w.location === ks.location || w.location === ownerLoc || homeOk;
+      const canPay = !ordinaryBlocked() && afford(custCost);
+
+      const acts = node('div', 'item-card-actions keepsake-actions');
+
+      const sniffBtn = node('button', 'btn-outline', '🫧 私下嗅闻/把玩');
+      sniffBtn.type = 'button';
+      sniffBtn.disabled = !canPay;
+      sniffBtn.onclick = () => {
+        haptic(10);
+        attachOperationToComposer({
+          operation: { code: 'keepsake_action', keepsake_id: ks.id, action_type: 'sniff_play' },
+          label: '🫧 嗅闻把玩「' + ks.owner + '的' + ks.name + '」',
+          defaultAction: '（取出暗中收存的「' + ks.owner + '的' + ks.name + '」，指腹摩挲着轻薄布料凑近轻嗅）'
+        });
+      };
+      acts.append(sniffBtn);
+
+      const confBtn = node('button', ownerHere ? 'btn-gold' : 'btn-outline', '👀 当面出示试探');
+      confBtn.type = 'button';
+      confBtn.disabled = !canPay || !ownerHere;
+      if (!ownerHere) confBtn.title = '需与 ' + ks.owner + ' 身处同一场景';
+      confBtn.onclick = () => {
+        haptic(10);
+        attachOperationToComposer({
+          operation: { code: 'keepsake_action', keepsake_id: ks.id, action_type: 'confront' },
+          label: '👀 当面出示「' + ks.owner + '的' + ks.name + '」',
+          defaultAction: '（指尖勾出暗中藏着的那件「' + ks.name + '」，在' + ks.owner + '眼前慢慢摊开）'
+        });
+      };
+      acts.append(confBtn);
+
+      const useIntBtn = node('button', 'btn-outline', '🎭 亲密穿戴复用');
+      useIntBtn.type = 'button';
+      useIntBtn.disabled = !canPay || !ownerHere;
+      if (!ownerHere) useIntBtn.title = '需与 ' + ks.owner + ' 身处同一场景';
+      useIntBtn.onclick = () => {
+        haptic(10);
+        attachOperationToComposer({
+          operation: { code: 'keepsake_action', keepsake_id: ks.id, action_type: 'use_intimate' },
+          label: '🎭 亲密复用「' + ks.owner + '的' + ks.name + '」',
+          defaultAction: '（拿出收存的「' + ks.name + '」，贴着' + ks.owner + '低声让她重新换上或在亲密间复用）'
+        });
+      };
+      acts.append(useIntBtn);
+
+      const retKsBtn = node('button', 'btn-outline', '🤫 悄悄放回原处');
+      retKsBtn.type = 'button';
+      retKsBtn.disabled = !canPay || !canReturn;
+      if (!canReturn) retKsBtn.title = '需回到 ' + ks.owner + ' 居所或原藏匿地点';
+      retKsBtn.onclick = () => {
+        haptic(10);
+        attachOperationToComposer({
+          operation: { code: 'keepsake_action', keepsake_id: ks.id, action_type: 'return_secret' },
+          label: '🤫 悄悄放回「' + ks.owner + '的' + ks.name + '」',
+          defaultAction: '（趁无人留意，把这件「' + ks.name + '」悄悄放回' + ks.owner + '的衣橱或原处）'
+        });
+      };
+      acts.append(retKsBtn);
+
       card.append(acts);
       return card;
     };
@@ -5284,6 +5544,16 @@
       shopCta.append(ctaLeft, node('small', '', '现有 ' + hostPoints + ' 积分 · 0 体力'));
       shopCta.onclick = () => openHub('shop');
       pane.append(shopCta);
+    } else if (subKey === 'keepsakes') {
+      if (keepsakes.length) {
+        const kGrid = node('section', 'item-grid');
+        for (const ks of keepsakes) kGrid.append(renderKeepsakeCard(ks));
+        pane.append(kGrid);
+      } else {
+        const emptyKs = node('section', 'empty-card');
+        emptyKs.append(icon('bag'), node('p', '', '尚未收录私密珍藏，在剧情中暗中留存或由对方交出的贴身物件会收录于此'));
+        pane.append(emptyKs);
+      }
     } else if (subKey === 'deployed') {
       if (deployedItems.length) {
         const dGrid = node('section', 'item-grid');
@@ -5318,6 +5588,9 @@
     const hostBiz = shopCatalog?.host_biz ?? (panels['系统宿主']?.stats?.['商业嗅觉']?.num ?? 0);
     const maxAff = shopCatalog?.max_affection ?? Math.max(0, ...PEOPLE.map(n => panels[n]?.stats?.['好感']?.num ?? 0));
     const points = shopCatalog && shopCatalog.revision === snapshot?.revision ? shopCatalog.points : hostPoints;
+    const charmDisc = Number(shopCatalog?.charm_discount ?? w?.host_charm_tier?.shop_discount ?? 1);
+    const discPct = Math.round(charmDisc * 100);
+    const discLabel = charmDisc < 1 ? (' · 魅力优待 ' + (discPct % 10 === 0 ? (discPct / 10) : (discPct / 10).toFixed(1)) + '折') : '';
 
     // 1. Balance Hero Card
     const balCard = node('section', 'shop-balance-card');
@@ -5327,7 +5600,7 @@
     balMain.append(
       balLabel,
       node('div', 'shop-balance-num', String(points)),
-      node('div', 'shop-balance-sub', '商业嗅觉 ' + hostBiz + ' · 最高好感 ' + maxAff + ' · 0 体力即时入囊')
+      node('div', 'shop-balance-sub', '商业嗅觉 ' + hostBiz + ' · 最高好感 ' + maxAff + discLabel + ' · 0 体力即时入囊')
     );
     const bagBtn = node('button', 'btn-outline', '查看行囊');
     bagBtn.type = 'button';
@@ -5492,15 +5765,20 @@
           const cap = item.max_per_save;
           const soldOut = cap !== null && cap !== undefined && bought >= cap;
           const unlocked = item.unlocked !== false;
-          const enough = points >= item.price;
+          const basePrice = Number(item.base_price ?? item.price);
+          const effPrice = Number(item.effective_price ?? item.price);
+          const hasDisc = effPrice < basePrice;
+          const enough = points >= effPrice;
           const canBuy = !soldOut && unlocked && enough && canTransactDeterministic();
           const packQty = Number(item.pack_qty || 1);
 
           const card = node('article', 'shop-item-card' + (soldOut ? ' is-soldout' : '') + (!unlocked ? ' is-locked' : ''));
           const top = node('div', 'shop-item-top');
           const nameWrap = node('span', 'shop-item-name', item.name + (packQty > 1 ? (' ×' + packQty) : ''));
-          const pricePill = node('span', 'shop-price-pill');
-          pricePill.append(icon('coin', 'chip-svg'), node('span', '', item.price + ' 积分'));
+          const pricePill = node('span', 'shop-price-pill' + (hasDisc ? ' is-discounted' : ''));
+          pricePill.append(icon('coin', 'chip-svg'));
+          if (hasDisc) pricePill.append(node('s', 'shop-price-base', String(basePrice)));
+          pricePill.append(node('span', '', effPrice + ' 积分'));
           top.append(nameWrap, pricePill);
           card.append(top);
 
@@ -5530,7 +5808,7 @@
           const buyLabel = soldOut ? '已售罄'
             : !unlocked ? '未解锁'
             : shopBusy ? '兑换中…'
-            : ('兑换 · ' + item.price + ' 积分');
+            : ('兑换 · ' + effPrice + ' 积分');
           const buyBtn = node('button', 'btn-gold', buyLabel);
           buyBtn.type = 'button';
           buyBtn.disabled = !canBuy;
@@ -5548,7 +5826,7 @@
           let reason = '';
           if (soldOut) reason = '已达本档限购上限';
           else if (!unlocked) reason = item.unlock_reason || item.unlock_hint || '尚未满足解锁门槛';
-          else if (!enough) reason = '还差 ' + (item.price - points) + ' 积分';
+          else if (!enough) reason = '还差 ' + (effPrice - points) + ' 积分';
           else if (blockReason) reason = blockReason;
           if (reason) footer.append(node('span', 'shop-reason-hint', reason));
 
@@ -6309,8 +6587,20 @@
     if (im.scene_active) {
       const beat = Math.max(1, Number(im.session_beats) || 1);
       const c = activeCosts(w);
+      const sg = staminaGuard(w);
       const disc = (c.B < COSTS.B || c.C < COSTS.C) ? ` · 折减 ${c.A}/${c.B}/${c.C}⚡` : '';
-      pills.push({ cls: 'privacy-pill is-intimate', text: `亲密慢燃 · 第${beat}拍${disc}` });
+      const guardTag = sg.active ? ` · 锁底${sg.floor}` : '';
+      pills.push({ cls: 'privacy-pill is-intimate', text: `亲密慢燃 · 第${beat}拍${disc}${guardTag}` });
+    }
+    const hp = im.host_phys;
+    if (hp && typeof hp === 'object') {
+      const hDes = Number(hp.desire) || 0;
+      const hVig = Number.isFinite(Number(hp.vigor)) ? Number(hp.vigor) : 100;
+      if (im.scene_active || hDes >= 40) {
+        const desTxt = hDes >= 85 ? `欲 ${hDes}·临界` : `欲 ${hDes}`;
+        const vigTxt = im.scene_active ? ` · 耐力 ${hVig}` : '';
+        pills.push({ cls: 'trace-chip ' + (hDes >= 85 ? 'is-desire-peak' : 'is-host-phys'), text: desTxt + vigTxt });
+      }
     }
     const cast = (Array.isArray(im.present_actors) && im.present_actors.length) ? im.present_actors : (w.cast || []);
     const heroCast = cast.filter(n => PEOPLE.includes(n));
@@ -6352,11 +6642,13 @@
   function render() {
     const w = snapshot?.world, p = snapshot?.playback;
     const c = activeCosts(w);
+    const sg = staminaGuard(w);
+    const custCost = customReserveCost(w);
     const intimateOn = isIntimateActive(w);
     $('policyNote').textContent = progression()
       ? (intimateOn
-        ? `亲密慢燃 · A ${c.A} · B ${c.B} · C ${c.C} 体力 · 自定义暂扣15退差`
-        : `A ${c.A} · B ${c.B} · C ${c.C} 体力 · 自定义暂扣15退差`)
+        ? `亲密护航 · A ${optionCost('A', w)} · B ${optionCost('B', w)} · C ${optionCost('C', w)} 体力${sg.active ? `（锁底${sg.floor} · 耐力${sg.vigor}）` : ''} · 自定义暂扣${custCost}退差`
+        : `A ${c.A} · B ${c.B} · C ${c.C} 体力 · 自定义暂扣${custCost}退差`)
       : '按设定与存档推进 · 本段读完后抉择';
     $('sceneTitle').textContent = w?.location || '正在回到现场';
     $('sceneMeta').textContent = w ? (w.cast.length ? w.cast.join(' · ') + ' 在场' : '此刻独处') : '读取存档中…';
@@ -6365,7 +6657,7 @@
     renderSceneAtmospherePills(w);
 
     // Dock & Topbar notification dots
-    const hasBagNotice = !!(w?.tasks?.current || w?.tasks?.pending_item || w?.items?.length > 0);
+    const hasBagNotice = !!(w?.tasks?.current || w?.tasks?.pending_item || w?.items?.length > 0 || w?.intimate?.keepsakes?.length > 0);
     if ($('dockRosterDot')) $('dockRosterDot').hidden = !(w?.cast?.length > 0);
     if ($('dockBagDot')) $('dockBagDot').hidden = !hasBagNotice;
     if ($('hudMenuDot')) $('hudMenuDot').hidden = !hasBagNotice;
@@ -7453,7 +7745,7 @@
       const hasContent = Boolean($('sheetInput').value.trim() || pendingItemAttachment);
       if ($('sheetSendBtn')) {
         const isPureRec = !pendingItemAttachment && pureRecovery();
-        $('sheetSendBtn').disabled = !hasContent || ordinaryBlocked() || (!isPureRec && !afford(15));
+        $('sheetSendBtn').disabled = !hasContent || ordinaryBlocked() || (!isPureRec && !afford(customReserveCost()));
       }
       scheduleDraftControlsSave();
     });

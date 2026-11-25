@@ -479,10 +479,13 @@ def view(store, files=None):
     weekday = sp.derive_weekday(data, memory, (runtime or {}).get('clock'), save_state=bundle_state)
     intl_snap = copy.deepcopy(bundle_state.get('intimate') or save_store.default_intimate())
     tier_costs = sp.active_costs(store.root, files) if runtime is not None else dict(sp.COSTS)
+    guard_info = sp.stamina_guard_info(store.root, files) if runtime is not None else {'active': False, 'floor': 10, 'vigor': 100, 'min_vigor': 15}
     intl_snap['active_costs'] = tier_costs
+    intl_snap['stamina_guard'] = guard_info
     progression = {'runtime': runtime, 'stamina': sp.stamina(store.root, files),
                    'costs': tier_costs, 'base_costs': sp.COSTS,
                    'intimate_mode': bool(intl_snap.get('scene_active')),
+                   'stamina_guard': guard_info,
                    'item_budget': 20 - runtime['item_recovered']} if runtime is not None else None
     intel_cat = sp.load_intel_catalog(store.root, optional=True)
     intel_state = sp.parse_intel_block(memory)
@@ -501,6 +504,8 @@ def view(store, files=None):
     trace_map = mech.get('masturbation_trace') or {}
     counters_map = bundle_state.get('counters') or {}
     panels_dict = bundle_state.get('panels') or {}
+    host_charm_val = int(((panels_dict.get('系统宿主') or {}).get('魅力', 70)) or 70)
+    host_charm_tier = engine.charm_tier_info(host_charm_val)
     physiology = {}
     for hname in save_store.HEROINES:
         hpanel = panels_dict.get(hname) or {}
@@ -534,6 +539,19 @@ def view(store, files=None):
             'delivered_items': delivered_items,
             'delivered_intimate_gifts': delivered_intimate_gifts,
             'intimate': intl_snap,
+            'host_charm_tier': host_charm_tier,
+            'body_zone_meta': {
+                'zones': list(save_store.BODY_ZONES),
+                'labels': dict(save_store.BODY_ZONE_LABELS),
+                'signatures': dict(save_store.HEROINE_SIGNATURE_ZONES),
+                'level_labels': [engine.BODY_DEV_LEVEL_LABELS[i] for i in range(4)],
+            },
+            'keepsake_meta': {
+                'kinds': dict(save_store.KEEPSAKE_KIND_LABELS),
+                'methods': dict(save_store.KEEPSAKE_METHOD_LABELS),
+                'conditions': dict(save_store.KEEPSAKE_CONDITION_LABELS),
+                'actions': dict(save_store.KEEPSAKE_ACTION_LABELS),
+            },
             'buffs': parsed_buffs,
             'micro_states': parse_micro_states(memory),
             'physiology': physiology,
@@ -578,12 +596,12 @@ def travel_intent(root, text):
 
 
 def operation(root, files, proposed, text='', explicit=False):
-    """Validate player travel, transfer, item usage, device deployment, retrieval, and remote inspection."""
+    """Validate player travel, transfer, item usage, device deployment, retrieval, inspection, and keepsake actions."""
     if proposed is None:
         return None
     rr._keys(
         proposed,
-        {'code', 'destination', 'item_id', 'recipient', 'quantity', 'target', 'spot', 'hidden'},
+        {'code', 'destination', 'item_id', 'recipient', 'quantity', 'target', 'spot', 'hidden', 'keepsake_id', 'action_type'},
         'operation',
         {'code'},
     )
@@ -703,6 +721,28 @@ def operation(root, files, proposed, text='', explicit=False):
         if dev is None:
             raise rr.RoundError('未找到可远程查看的已部署装置')
         return {'code': 'inspect_deployed', 'item_id': proposed['item_id']}
+    if code == 'keepsake_action':
+        rr._keys(proposed, {'code', 'keepsake_id', 'action_type'}, 'keepsake_action', {'code', 'keepsake_id', 'action_type'})
+        ks_id = str(proposed.get('keepsake_id') or '').strip()
+        act_type = str(proposed.get('action_type') or '').strip()
+        if not re.fullmatch(r'KS-\d+', ks_id):
+            raise rr.RoundError('私密珍藏编号无效')
+        if act_type not in save_store.KEEPSAKE_ACTIONS:
+            raise rr.RoundError('不支持的私密珍藏互动方式')
+        bundle_state, _, _ = save_store.load_bundle(root, files)
+        ks_list = (bundle_state.get('intimate') or {}).get('keepsakes') or []
+        ks = next((it for it in ks_list if isinstance(it, dict) and it.get('id') == ks_id), None)
+        if ks is None:
+            raise rr.RoundError('该私密珍藏物品不存在或已归还')
+        owner = ks.get('owner', '')
+        if act_type in ('confront', 'use_intimate') and owner not in cast_here:
+            raise rr.RoundError(f'当面出示或亲密复用须与失主 {owner} 身处同一场景')
+        if act_type == 'return_secret':
+            owner_loc = (presence.get(owner) or {}).get('location', '')
+            home_ok = (owner in ('沈知韫', '徐念薇') and player_place == '徐家主宅') or (owner == '苏婉青' and player_place == '市中心顶层公寓')
+            if not (owner in cast_here or player_place == ks.get('location') or player_place == owner_loc or home_ok):
+                raise rr.RoundError(f"悄悄放回须在 {owner} 居所或原藏匿处（{ks.get('location') or '失主住处'}）")
+        return {'code': 'keepsake_action', 'keepsake_id': ks_id, 'action_type': act_type}
     raise rr.RoundError('未登记的正式行动；请先明确可执行范围')
 
 
@@ -1155,6 +1195,54 @@ def _describe_operation_context(resolved, state, bundle_state, mem_text):
             'quantity': qty,
             'instruction': f"玩家将「{item['name']}」×{qty} 亲手赠予在场的 {resolved.get('recipient', '')}（{item.get('desc', '')[:80]}）；请具体描写递交时的手部接触、拆看反应与角色性格回应。",
         }
+    if code == 'keepsake_action':
+        ks_list = (bundle_state.get('intimate') or {}).get('keepsakes') or []
+        ks = next((it for it in ks_list if isinstance(it, dict) and it.get('id') == resolved.get('keepsake_id')), None)
+        if not ks:
+            return None
+        owner = ks.get('owner', '')
+        kname = ks.get('name', '')
+        act_type = resolved.get('action_type', '')
+        cond_lbl = save_store.KEEPSAKE_CONDITION_LABELS.get(ks.get('condition', ''), '尚带余香')
+        method_lbl = save_store.KEEPSAKE_METHOD_LABELS.get(ks.get('method', ''), '私密留存')
+        aware_str = '失主此前已知晓' if ks.get('owner_aware') else '失主此前浑然未觉'
+        reaction_spine = {
+            '沈知韫': '端庄克制骤裂、耳根与锁骨泛起潮红、声音压低发颤，羞愤与隐秘悸动交织',
+            '苏婉青': '先是一瞬微怔随即唇角挑起危险魅惑的弧度，反客为主试探质问或顺势挑逗',
+            '徐念薇': '清冷疏离外壳骤然绷紧、耳尖发烫、眼神冷厉闪躲并强装镇定低声斥责',
+        }.get(owner, '神色微妙变化')
+        if act_type == 'sniff_play':
+            inst = (
+                f"玩家取出私密珍藏「{owner}的{kname}」（来源：{method_lbl}；状态：{cond_lbl}；{aware_str}）私下嗅闻把玩。"
+                + ("当前室内仍有他人在场，须刻画背身/掩饰的禁忌紧张感与随时被瞥见的窒息节奏；" if state.get('cast') else "独处时刻画布料质感、残留体温/体香与主角欲望急剧上涌的感官细节；")
+                + "严禁代打高潮或擅自射精，仅呈现欲望翻涌与把玩张力。"
+            )
+        elif act_type == 'confront':
+            inst = (
+                f"玩家当着在场的 {owner} 面亮出私密珍藏「{kname}」（来源：{method_lbl}；状态：{cond_lbl}；{aware_str}）以试探其反应。"
+                f"请紧扣 {owner} 性格呈现即时反应（{reaction_spine}），并依据当前堕落/羞耻/好感深度推进羞耻破防或拉扯博弈。"
+            )
+        elif act_type == 'use_intimate':
+            inst = (
+                f"玩家在亲密互动中拿出「{owner}的{kname}」（状态：{cond_lbl}；{aware_str}），让 {owner} 重新穿戴、套弄或作为缠绕/擦拭的贴身情趣道具复用。"
+                f"请落实布料拉扯、温热贴肤、湿润水痕与 {owner} 羞耻又顺从/挣扎的声息反应（{reaction_spine}）。"
+            )
+        else:
+            inst = (
+                f"玩家将此前收存的「{owner}的{kname}」（状态：{cond_lbl}；{aware_str}）悄然放回原处或留置在 {owner} 容易发现的隐蔽位置。"
+                f"请细腻刻画归还时的潜行动作与布料折痕/微潮痕迹留下的后续悬念。"
+            )
+        return {
+            'kind': 'keepsake_action',
+            'keepsake': {
+                'id': ks['id'], 'owner': owner, 'name': kname,
+                'kind': ks.get('kind', ''), 'method': ks.get('method', ''),
+                'condition': ks.get('condition', ''), 'owner_aware': bool(ks.get('owner_aware')),
+                'desc': ks.get('desc', ''),
+            },
+            'action_type': act_type,
+            'instruction': inst,
+        }
     return None
 
 
@@ -1300,6 +1388,7 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
                     {'code': 'deploy_item', 'item_id': 'ITEM-编号', 'spot': '安装点位', 'hidden': True},
                     {'code': 'retrieve_item', 'item_id': 'ITEM-编号'},
                     {'code': 'inspect_deployed', 'item_id': 'ITEM-编号'},
+                    {'code': 'keepsake_action', 'keepsake_id': 'KS-编号', 'action_type': 'sniff_play|confront|use_intimate|return_secret'},
                 ]},
             'player_private_state': {'memory': projection['text'], 'items': state['items'],
                 'deployed_items': state.get('deployed_items', []), 'tasks': state['tasks'],
@@ -1338,7 +1427,7 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
     rr._atomic(story.store._path(relative), raw)
     contract = {'messages': [{'kind': 'dialogue|action|narration', 'speaker': '在场人物或旁白空串', 'text': '本段剧情'}],
                  'decision': {'prompt': '本段真实抉择', 'options': [{'id': k, 'text': '当前可行的下一步行为'} for k in OPTION_NAMES]},
-                'operation': 'null或一个合法move_player/transfer_item/use_item/deploy_item/retrieve_item/inspect_deployed对象；不填成本或任意状态patch',
+                'operation': 'null或一个合法move_player/transfer_item/use_item/deploy_item/retrieve_item/inspect_deployed/keepsake_action对象；不填成本或任意状态patch',
                 'handoff': '无待处理时空字符串',
                 'checks': {'intent': '具体依据', 'knowledge': '本场信息边界', 'action': '操作与正文一致或无动作', 'pace': '本段推进及此处交还控制权的依据'}}
     intimate_mode_now = bool(eff_intl.get('scene_active'))
