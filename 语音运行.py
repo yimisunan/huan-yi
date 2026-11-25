@@ -23,7 +23,7 @@ except NameError:
     BASE_DIR = os.getcwd()
 CONFIG_FILE = os.path.join(BASE_DIR, 'voice_config.json')
 FISH_KEY_CACHE_FILE = os.path.join(BASE_DIR, '.cache', 'fish_api_key.json')
-PHONEME_MAP_FILE = os.path.join(BASE_DIR, '语音引擎升级方案', 'character_phoneme_map.json')
+PHONEME_MAP_FILE = os.path.join(BASE_DIR, 'txt文件', 'character_phoneme_map.json')
 TTS_MAX_TEXT_LENGTH = 12000
 TEMP_AUDIO_MAX_AGE_SECONDS = 6 * 60 * 60
 FILE_WRITE_LOCK = threading.RLock()

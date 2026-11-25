@@ -3,7 +3,7 @@
 Android / Pydroid 3 + Operit 2 本地互动叙事项目。正式首页支持双阶段流式微幕演播、逐句点按、自动语音与预取、段末抉择、三档体力结算、游戏时钟、随机序幕及分层记忆。
 
 - **玩家上手**：请直接阅读根目录 [游玩指南.md](游玩指南.md)（依赖安装、Operit 2 `CHAT` + `SUMMARY` 模型配置、操作与排障）。
-- **开发与维护**：先读 [开发者说明](开发者说明/README.md)、[AGENTS.md](AGENTS.md)、[新窗口交接](scene_chat_dev/src/新窗口交接.md) 与 [维护环境说明](scene_chat_dev/src/维护环境.md)。当前桥接版本为 **2.1.1**；跑测试用 `bash scene_chat_dev/run_tests.sh`（加 `--fast` 先拷到 `/tmp`）。
+- **开发与维护**：先读 [开发者说明](开发者功能/开发者说明/README.md)、[AGENTS.md](AGENTS.md)、[新窗口交接](scene_chat_dev/src/新窗口交接.md) 与 [维护环境说明](scene_chat_dev/src/维护环境.md)。当前桥接版本为 **2.1.8**；跑测试用 `bash scene_chat_dev/run_tests.sh`（加 `--fast` 先拷到 `/tmp`）。
 
 ## 运行
 
@@ -11,7 +11,7 @@ Android / Pydroid 3 + Operit 2 本地互动叙事项目。正式首页支持双�
 
 Fish 语音密钥从环境变量 `FISH_API_KEY` 读取，请在启动进程环境中设置，不要提交密钥。
 
-Operit 2 桥接源码在 `scene_chat_dev/local.story.operit_bridge/`，现用成品为 [故事桥接 2.1.1](scene_chat_dev/artifacts/故事桥接-continuous-2.1.1.toolpkg)（插件 ID：`local.story.operit_bridge`）。更新插件须运行 `python3 scene_chat_dev/build.py` 并同 ID 导入；修改 Python 须重启 Pydroid 3；修改前端刷新页面。
+Operit 2 桥接源码在 `scene_chat_dev/local.story.operit_bridge/`，现用成品为 [故事桥接 2.1.8](scene_chat_dev/artifacts/故事桥接-continuous-2.1.8.toolpkg)（插件 ID：`local.story.operit_bridge`）。更新插件须运行 `python3 scene_chat_dev/build.py` 并同 ID 导入；修改 Python 须重启 Pydroid 3；修改前端刷新页面。
 
 ## 下载和更新
 
@@ -22,6 +22,6 @@ Operit 2 桥接源码在 `scene_chat_dev/local.story.operit_bridge/`，现用成
 
 ## 收录范围与手机图库防扫描
 
-仓库保留当前源码、权威规则与人物设定、现用立绘、初始 `存档/` 模板与音色配置、现役桥接源码与唯一安装包（v2.1.1）、维护测试及精简归档文档。仓库内 `data.json` 为空档初始快照，首次游玩请点首页「新游戏」生成序幕。
+仓库保留当前源码、权威规则与人物设定、现用立绘、初始 `存档/` 模板与音色配置、现役桥接源码与唯一安装包（v2.1.8）、维护测试及精简归档文档。仓库内 `data.json` 为空档初始快照，首次游玩请点首页「新游戏」生成序幕。
 
 `scene_chat_dev/src/scene_live/` 与 `scene_chat_dev/src/legacy_visibility.json` 仍被运行服务引用，不可删除；`scene_chat_dev/.nomedia` 与 `txt文件/image/.nomedia` 已随仓库提供，防止 Android 媒体库误扫 `types/*.d.ts`（会被识别为 `.ts` 视频）与角色立绘污染手机相册。

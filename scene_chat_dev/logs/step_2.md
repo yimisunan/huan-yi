@@ -1,1 +1,0 @@
-角色卡重名修复：现场只读账本确认两条scene请求failed，错误为角色卡名称已存在。场景专用角色改为场景交流·项目只读，完整回合保留故事生成·项目只读；补显式sceneSession配置赋值。备份main.js.bak与manifest.json.bak-1.4.0保留。桥接路由、角色名称独立断言PASS；1.4.1同ID导入成功，status核验版本，start核验running=true。未重试failed任务，未生成故事。下一步用户点击重试原消息，真实创建/绑定/生成链待验。回滚：导入artifacts/故事桥接-scene_chat-1.4.0.toolpkg。
