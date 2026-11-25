@@ -1082,18 +1082,25 @@ class StoryService:
                 *[{**it, 'source': 'static'} for it in catalog['items']],
                 *[{**it, 'source': it.get('source') or 'ai_restock'} for it in dyn_items if isinstance(it, dict)],
             ]
+            host_charm = int(((st.get('panels') or {}).get('系统宿主') or {}).get('魅力', 70) or 70)
+            charm_tier = engine.charm_tier_info(host_charm)
+            shop_disc = float(charm_tier.get('shop_discount', 1.0) or 1.0)
             items = []
             for item in all_catalog_items:
                 bought = shop_state['redeemed'].get(item['id'], 0)
                 cap = item.get('max_per_save')
                 remaining = None if cap is None else max(0, cap - bought)
                 chk = sp.evaluate_unlock_req(item.get('unlock_req'), host_biz, heroine_affs)
+                base_price = int(item['price'])
+                eff_price = max(1, int(round(base_price * shop_disc))) if shop_disc < 1.0 else base_price
                 items.append({
                     **item,
+                    'base_price': base_price,
+                    'effective_price': eff_price,
                     'redeemed_count': bought,
                     'remaining': remaining,
                     'sold_out': cap is not None and bought >= cap,
-                    'affordable': (points or 0) >= item['price'],
+                    'affordable': (points or 0) >= eff_price,
                     'unlocked': chk['unlocked'],
                     'unlock_reason': chk['reason'],
                     'unlock_hint': chk['hint'],
@@ -1102,6 +1109,8 @@ class StoryService:
                 'version': catalog['version'],
                 'tiers': catalog['tiers'],
                 'categories': catalog.get('categories', {}),
+                'charm_discount': shop_disc,
+                'charm_tier': charm_tier,
                 'items': items,
                 'points': points if points is not None else 0,
                 'host_biz': host_biz,

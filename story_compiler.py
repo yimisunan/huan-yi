@@ -94,7 +94,7 @@ _OPT_TRAILING_MOVE_RE = re.compile(r'\s*\[(?i:MOVE)[:：]\s*([^\]]+?)\s*\]\s*[�
 _DEFAULT_DECISION_PROMPT = '此刻，你准备怎么回应？'
 _INTIMATE_TURN_RE = re.compile(
     r'强吻|亲吻|舌吻|拥吻|轻吻|热吻|吻(?:上|住|下|向|过|了|进|着|落|她|在)|抚摸|爱抚|轻揉|揉捏|按摩|按揉|摩挲|轻抚|抚过|贴近|凑近|抱紧|搂住|揽住|贴住|靠在怀里|压倒|推倒|扑倒|抱上床|抱进卧室|上床|'
-    r'脱衣|脱掉|褪下|掀起裙|解开衣|解开扣|扯开|撕破|撩起|衣领|领口|肩带|睡裙|睡衣|内衣|底裤|丝袜|黑丝|脚踝|玉足|美足|足背|足弓|脚尖|脚趾|手腕|指尖|锁骨|后颈|腰线|胸线|36D|大腿内侧|腿间|乳房|乳尖|酥胸|丰臀|私处|下身|小穴|穴口|'
+    r'脱衣|脱掉|褪下|掀起裙|解开衣|解开扣|扯开|撕破|撩起|衣领|领口|肩带|睡裙|睡衣|内衣|内裤|底裤|丝袜|黑丝|偷藏|私藏|嗅闻|脚踝|玉足|美足|足背|足弓|脚尖|脚趾|手腕|指尖|锁骨|后颈|腰线|胸线|36D|大腿内侧|腿间|乳房|乳尖|酥胸|丰臀|私处|下身|小穴|穴口|'
     r'体香|沐浴露|耳垂|耳畔|耳边|精油|催情|桃露|香薰|眼罩|滚轮|润滑|束缚|项圈|丝带|摄像头|针孔|偷拍|监听|'
     r'足交|乳交|手交|素股|胸推|口交|颜射|射精|潮吹|舔|吮|咬|啃|捏|掐|揉|磨|蹭|跨坐|压在身下|按在墙上|把玩|掰开|'
     r'挺入|抽插|顶入|撞击|调教|侍奉|跪下含|含住|指奸|后入|骑乘|内射|外射|吞精|自慰|自渎|换衣|洗澡|沐浴|走光|湿身|高潮|性爱|做爱|情欲|亲密接触'
@@ -371,7 +371,7 @@ def _needs_intimate_turn(text='', selected=None, operation_context=None, state=N
         det = operation_context.get('detail')
         if isinstance(det, dict):
             kind = det.get('kind')
-            if kind == 'inspect_deployed':
+            if kind in ('inspect_deployed', 'keepsake_action'):
                 return True
             if kind in ('use_item', 'transfer_item'):
                 it = det.get('item') or {}
@@ -632,9 +632,31 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
         st_desc = '偏低（注意体力消耗）' if st < 20 else ('中等' if st < 50 else '充沛')
         biz = int(re.match(r'-?\d+', host.get('商业嗅觉', '0')).group(0)) if re.match(r'-?\d+', host.get('商业嗅觉', '0')) else 0
         charm = int(re.match(r'-?\d+', host.get('魅力', '70')).group(0)) if re.match(r'-?\d+', host.get('魅力', '70')) else 70
-        charm_desc = '（高魅力压场：临近压迫与目光停留具显著磁吸感）' if charm >= 75 else ''
+        ctier = ic.charm_tier_info(charm)
+        charm_desc = f'（{ctier["name"]}：{ctier["brief"]}）' if charm >= 75 and ctier.get('brief') else ''
+        hp = intl.get('host_phys') if isinstance(intl.get('host_phys'), dict) else {}
+        h_des = int(hp.get('desire', 0) or 0)
+        h_vig = int(hp.get('vigor', 100) if hp.get('vigor') is not None else 100)
+        h_fets = [f for f in (hp.get('fetishes') or []) if isinstance(f, str) and f.strip()]
+        phys_parts = []
+        if h_des >= 85:
+            phys_parts.append('宿主欲望蓄满临界(边缘控场，严禁代打擅自射精，须由玩家自主决断克制或释放)')
+        elif h_des >= 60:
+            phys_parts.append('宿主欲火灼烫(呼吸沉热、侵略感抬升)')
+        elif h_des >= 30:
+            phys_parts.append('宿主情欲渐起')
+        if intl.get('scene_active') or h_vig < 80:
+            if h_vig <= 15:
+                phys_parts.append('亲密耐力见底(呼吸渐重，宜稍作缓冲或温存收束)')
+            elif h_vig < 45:
+                phys_parts.append(f'亲密耐力偏低({h_vig})')
+            else:
+                phys_parts.append('亲密耐力充沛(护航中，日间体力锁底不中断)')
+        if h_fets:
+            phys_parts.append('显露癖好：' + '、'.join(h_fets[:4]))
+        phys_clause = ('；' + '；'.join(phys_parts)) if phys_parts else ''
         extra = f'，积分{host.get("积分", "0")}，经验值{host.get("经验值", "0")}' if include_points else ''
-        notes.append(f'宿主状态：体力{st}({st_desc})，魅力{charm}{charm_desc}，商业嗅觉{biz}[{_biz_sense_desc(biz)}]{extra}。')
+        notes.append(f'宿主状态：体力{st}({st_desc})，魅力{charm}{charm_desc}，商业嗅觉{biz}[{_biz_sense_desc(biz)}]{extra}{phys_clause}。')
 
     if intel_state['held']:
         name_map = {it['id']: it['name'] for it in (intel_catalog or {}).get('items', [])}
@@ -729,6 +751,23 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
             if tr_txt:
                 flags.append('身体留痕/余韵：' + tr_txt)
 
+        bd_all = intl.get('body_dev') if isinstance(intl.get('body_dev'), dict) else {}
+        h_bd = bd_all.get(name) if isinstance(bd_all.get(name), dict) else {}
+        sig_z = save_store.HEROINE_SIGNATURE_ZONES.get(name)
+        dev_items = []
+        for z in save_store.BODY_ZONES:
+            sc = int(h_bd.get(z, 0) or 0)
+            if sc >= 20:
+                lv = ic.body_dev_level(sc)
+                star = '★' if z == sig_z else ''
+                dev_items.append(f"{save_store.BODY_ZONE_LABELS.get(z, z)}{star}Lv.{lv}({ic.BODY_DEV_LEVEL_LABELS.get(lv, '')})")
+        if dev_items:
+            sig_lbl = save_store.BODY_ZONE_LABELS.get(sig_z, '')
+            flags.append(f'身体开发(招牌敏感带={sig_lbl})：' + '、'.join(dev_items))
+        elif intl.get('scene_active') and sig_z:
+            sig_lbl = save_store.BODY_ZONE_LABELS.get(sig_z, '')
+            flags.append(f'招牌敏感带={sig_lbl}(针对触碰更易破防升温)')
+
         if not remote:
             ms = micro_map.get(name) or {}
             if ms.get('momentary_ease'):
@@ -814,6 +853,17 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
         if ih_hot:
             sp_parts.append('女主间暗流：' + '、'.join(ih_hot))
         notes.append('空间与私密态势：' + '；'.join(sp_parts) + '。')
+
+    # 私密贴身收藏态势（仅持有时注入，守知情隔离）
+    ks_list = [k for k in (intl.get('keepsakes') or []) if isinstance(k, dict) and k.get('name')]
+    if ks_list:
+        here_ks = [k for k in ks_list if k.get('owner') in cast] or ks_list[:3]
+        ks_txt = '、'.join(
+            f"{k.get('id', '')}·{k.get('owner', '')}的{k.get('name', '')}"
+            f"[{save_store.KEEPSAKE_CONDITION_LABELS.get(k.get('condition', ''), '余香')}/{'失主已知' if k.get('owner_aware') else '失主未觉'}]"
+            for k in here_ks[:4]
+        )
+        notes.append(f'宿主私密珍藏（随身暗藏，未主动出示前严禁失主凭空撞破；若偷藏且失主在场可自然流露一丝丢件微惑）：{ks_txt}。')
 
     # 远程监控对象态势（inspect_deployed 激活时透传远程地点女主真实生理/余韵/衣着）
     remote_targets = [r for r in ((state or {}).get('remote_vitals_targets') or []) if r in save_store.HEROINES and r not in cast]
@@ -1376,8 +1426,9 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
         '13. 段末抉择兜底补全（仅缺省时触发）：若 foreground_script 末尾已含完整 ---DECISION--- 与 A/B/C 三项抉择，请省略 fallback_decision；'
         '仅当 foreground_script 正文有效但漏写或截断了 ---DECISION--- / A/B/C 抉择时，补充 fallback_decision={"prompt":"点明当前局面的简短提示(<=300字)","options":[{"id":"A","text":"日常互动(<=500字)"},{"id":"B","text":"社交接触(<=500字)"},{"id":"C","text":"主动行为(<=500字)"}]}'
         '（三项须互不相同且承接本幕末尾局面；含跨地点转场时可给该项附带 "operation":{"code":"move_player","destination":"合法开放地点"}，无转场勿填 operation）。\n'
-        '14. 空间隐私与亲密态势增量 resolution.scene_state（可选，无变化直接省略或写""）：仅当本幕真实发生了房门反锁/隔墙偷欢/同席桌下暗触/子区切换/衣着凌乱褪衣换装/新增吻痕潮红痕迹/女主间疑心或共谋变化，或正式进入/收束亲密状态时填写：'
-        '{"intimate_active":true或false,"privacy":"open_public|semi_open|thin_wall|under_cover|locked_private","sub_location":"<=48字子区名","present_actors":["当前房内实际同席角色"],"attire_updates":{"女主名":{"outfit":"穿搭名或default","state":"neat|disheveled|half_undressed|wet|torn"}},"trace_adds":{"女主名":[{"kind":"吻痕|指印|潮红|发丝凌乱","desc":"<=60字","turns":4,"visible":true}]},"inter_heroine_deltas":{"A->B":1或-1}}（所有子键均可选，严禁虚构未发生的痕迹或状态）。\n\n'
+        '14. 空间隐私与亲密态势增量 resolution.scene_state（可选，无变化直接省略或写""）：仅当本幕真实发生了房门反锁/隔墙偷欢/同席桌下暗触/子区切换/衣着凌乱褪衣换装/新增吻痕潮红痕迹/女主间疑心或共谋变化/身体部位开发互动/主角明确释放/偷藏或收下贴身衣物，或正式进入/收束亲密状态时填写：'
+        '{"intimate_active":true或false,"privacy":"open_public|semi_open|thin_wall|under_cover|locked_private","sub_location":"<=48字子区名","present_actors":["当前房内实际同席角色"],"attire_updates":{"女主名":{"outfit":"穿搭名或default","state":"neat|disheveled|half_undressed|wet|torn"}},"trace_adds":{"女主名":[{"kind":"吻痕|指印|潮红|发丝凌乱","desc":"<=60字","turns":4,"visible":true}]},"inter_heroine_deltas":{"A->B":1或-1},"body_acts":{"女主名":["oral|hand|chest|foot|core"]},"host_release":true,"keepsake_adds":[{"owner":"女主名","name":"衣物名","kind":"panties|stockings|bra|accessory","method":"stolen|kept_after|gifted","condition":"fresh_warm|stained_damp|faded","desc":"<=60字"}],"keepsake_updates":[{"id":"KS-编号","owner_aware":true,"condition":"stained_damp"}]}'
+        '（所有子键均可选；贴身偷藏/留存衣物只走keepsake_adds严禁塞入resolution.items；严禁虚构未发生行为）。\n\n'
         '【合法事件标签白名单】\n'
         + json.dumps(catalog, ensure_ascii=False, separators=(',', ':'))
         + '\n\n【事件触发判定精简规则】\n'

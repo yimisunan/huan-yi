@@ -125,6 +125,106 @@ INTER_HEROINE_LABELS = {
     2: '撞破掌握',
     3: '默契共谋',
 }
+BODY_ZONES = ('oral', 'hand', 'chest', 'foot', 'core')
+BODY_ZONE_LABELS = {
+    'oral': '口舌',
+    'hand': '纤手',
+    'chest': '胸乳',
+    'foot': '玉足',
+    'core': '深处',
+}
+HEROINE_SIGNATURE_ZONES = {
+    '沈知韫': 'foot',
+    '苏婉青': 'chest',
+    '徐念薇': 'hand',
+}
+KEEPSAKE_KINDS = ('panties', 'stockings', 'bra', 'nightwear', 'accessory')
+KEEPSAKE_KIND_LABELS = {
+    'panties': '贴身内裤',
+    'stockings': '丝袜长袜',
+    'bra': '贴身内衣',
+    'nightwear': '睡裙家居',
+    'accessory': '私密贴物',
+}
+KEEPSAKE_METHODS = ('stolen', 'taken_intimate', 'gifted')
+KEEPSAKE_METHOD_LABELS = {
+    'stolen': '暗中偷藏',
+    'taken_intimate': '亲密留存',
+    'gifted': '亲手交出',
+}
+KEEPSAKE_CONDITIONS = ('fresh_warm', 'stained_damp', 'faded')
+KEEPSAKE_CONDITION_LABELS = {
+    'fresh_warm': '尚带体温余香',
+    'stained_damp': '沾有微潮水痕',
+    'faded': '余香渐淡',
+}
+KEEPSAKE_ACTIONS = ('sniff_play', 'confront', 'use_intimate', 'return_secret')
+KEEPSAKE_ACTION_LABELS = {
+    'sniff_play': '私下嗅闻把玩',
+    'confront': '当面出示试探',
+    'use_intimate': '亲密穿戴复用',
+    'return_secret': '悄悄放回原处',
+}
+
+
+def default_host_phys():
+    return {
+        'desire': 0,
+        'vigor': 100,
+        'release_count': 0,
+        'edging_streak': 0,
+        'fetishes': [],
+    }
+
+
+def default_body_dev():
+    return {
+        name: {z: 0 for z in BODY_ZONES}
+        for name in HEROINES
+    }
+
+
+def normalize_keepsake_dict(raw, fallback_id='KS-001'):
+    if not isinstance(raw, dict):
+        return None
+    owner = str(raw.get('owner') or '').strip()
+    name = str(raw.get('name') or '').strip()[:32]
+    if owner not in HEROINES or not name:
+        return None
+    ks_id = str(raw.get('id') or '').strip()
+    if not re.fullmatch(r'KS-\d+', ks_id):
+        ks_id = fallback_id
+    kind = str(raw.get('kind') or 'panties').strip()
+    if kind not in KEEPSAKE_KINDS:
+        if re.search(r'丝袜|黑丝|肉丝|过膝袜|长袜|袜', name):
+            kind = 'stockings'
+        elif re.search(r'文胸|胸罩|内衣|抹胸', name):
+            kind = 'bra'
+        elif re.search(r'睡裙|睡衣|吊带', name):
+            kind = 'nightwear'
+        elif re.search(r'内裤|底裤|胖次|蕾丝裤', name):
+            kind = 'panties'
+        else:
+            kind = 'accessory'
+    method = str(raw.get('method') or 'stolen').strip()
+    if method not in KEEPSAKE_METHODS:
+        method = 'stolen'
+    cond = str(raw.get('condition') or 'fresh_warm').strip()
+    if cond not in KEEPSAKE_CONDITIONS:
+        cond = 'fresh_warm'
+    return {
+        'id': ks_id,
+        'owner': owner,
+        'name': name,
+        'kind': kind,
+        'method': method,
+        'condition': cond,
+        'location': str(raw.get('location') or '').strip()[:24],
+        'clock': str(raw.get('clock') or '').strip()[:24],
+        'owner_aware': bool(raw.get('owner_aware', method == 'gifted')),
+        'desc': str(raw.get('desc') or '').strip()[:80],
+        'interactions': max(0, _parse_int(raw.get('interactions'), 0)),
+    }
 
 
 def default_intimate():
@@ -142,6 +242,10 @@ def default_intimate():
         },
         'traces': {name: [] for name in HEROINES},
         'inter_heroine': {pair: 0 for pair in INTER_HEROINE_PAIRS},
+        'host_phys': default_host_phys(),
+        'body_dev': default_body_dev(),
+        'keepsakes': [],
+        'next_keepsake_seq': 1,
     }
 
 
@@ -517,6 +621,44 @@ def normalize_state(raw):
     raw_ih = raw_int.get('inter_heroine') if isinstance(raw_int.get('inter_heroine'), dict) else {}
     for pair in INTER_HEROINE_PAIRS:
         intl['inter_heroine'][pair] = max(0, min(3, _parse_int(raw_ih.get(pair), 0)))
+    # Host Physiology (Desire / Vigor / Release / Fetishes)
+    raw_hp = raw_int.get('host_phys') if isinstance(raw_int.get('host_phys'), dict) else {}
+    hp = intl['host_phys']
+    hp['desire'] = max(0, min(100, _parse_int(raw_hp.get('desire'), 0)))
+    hp['vigor'] = max(0, min(100, _parse_int(raw_hp.get('vigor'), 100)))
+    hp['release_count'] = max(0, _parse_int(raw_hp.get('release_count'), 0))
+    hp['edging_streak'] = max(0, min(20, _parse_int(raw_hp.get('edging_streak'), 0)))
+    raw_fet = raw_hp.get('fetishes')
+    if isinstance(raw_fet, list):
+        hp['fetishes'] = list(dict.fromkeys(
+            str(x).strip()[:24] for x in raw_fet if isinstance(x, str) and str(x).strip()
+        ))[:8]
+    # Heroine Body Development (5 zones: oral / hand / chest / foot / core)
+    raw_bd = raw_int.get('body_dev') if isinstance(raw_int.get('body_dev'), dict) else {}
+    for name in HEROINES:
+        rb = raw_bd.get(name) if isinstance(raw_bd.get(name), dict) else {}
+        for z in BODY_ZONES:
+            intl['body_dev'][name][z] = max(0, min(100, _parse_int(rb.get(z), 0)))
+    # Intimate Keepsakes (Trophy / Panties / Stockings Collection)
+    raw_ks = raw_int.get('keepsakes')
+    max_ks_seq = 0
+    clean_ks = []
+    if isinstance(raw_ks, list):
+        seen_ids = set()
+        for idx_ks, item in enumerate(raw_ks):
+            norm_k = normalize_keepsake_dict(item, fallback_id=f'KS-{idx_ks + 1:03d}')
+            if not norm_k:
+                continue
+            while norm_k['id'] in seen_ids:
+                max_ks_seq += 1
+                norm_k['id'] = f'KS-{max_ks_seq:03d}'
+            seen_ids.add(norm_k['id'])
+            m_ks = re.fullmatch(r'KS-(\d+)', norm_k['id'])
+            if m_ks:
+                max_ks_seq = max(max_ks_seq, int(m_ks.group(1)))
+            clean_ks.append(norm_k)
+    intl['keepsakes'] = clean_ks[:24]
+    intl['next_keepsake_seq'] = max(_parse_int(raw_int.get('next_keepsake_seq'), 1), max_ks_seq + 1)
     # Vigilance
     raw_vig = raw.get('vigilance') if isinstance(raw.get('vigilance'), dict) else {}
     if raw_vig.get('位置'):

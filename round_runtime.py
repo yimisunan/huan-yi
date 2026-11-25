@@ -576,6 +576,7 @@ def _validate_scene_state(raw, active_cast, building_cast=None):
     allowed_keys = {
         'intimate_active', 'privacy', 'sub_location', 'present_actors',
         'attire_updates', 'trace_adds', 'inter_heroine_deltas',
+        'body_acts', 'host_release', 'keepsake_adds', 'keepsake_updates',
     }
     _keys(raw, allowed_keys, 'scene_state')
     out = {}
@@ -583,6 +584,10 @@ def _validate_scene_state(raw, active_cast, building_cast=None):
         if type(raw['intimate_active']) is not bool:
             raise RoundError('scene_state.intimate_active须为布尔值')
         out['intimate_active'] = raw['intimate_active']
+    if 'host_release' in raw and raw['host_release'] not in (None, ''):
+        if type(raw['host_release']) is not bool:
+            raise RoundError('scene_state.host_release须为布尔值')
+        out['host_release'] = raw['host_release']
     if 'privacy' in raw and raw['privacy'] not in (None, ''):
         priv = str(raw['privacy']).strip()
         if priv not in save_store.PRIVACY_LEVELS:
@@ -649,6 +654,72 @@ def _validate_scene_state(raw, active_cast, building_cast=None):
                     clean_ih[pair] = step
         if clean_ih:
             out['inter_heroine_deltas'] = clean_ih
+    if 'body_acts' in raw and raw['body_acts'] not in (None, ''):
+        ba = raw['body_acts']
+        if not isinstance(ba, dict):
+            raise RoundError('scene_state.body_acts须为对象')
+        clean_ba = {}
+        for who, zones in ba.items():
+            if who not in ROUND_NPCS or not isinstance(zones, list):
+                continue
+            clean_z = list(dict.fromkeys(str(z).strip() for z in zones if isinstance(z, str) and str(z).strip() in save_store.BODY_ZONES))
+            if clean_z:
+                clean_ba[who] = clean_z
+        if clean_ba:
+            out['body_acts'] = clean_ba
+    if 'keepsake_adds' in raw and raw['keepsake_adds'] not in (None, ''):
+        ka = raw['keepsake_adds']
+        if not isinstance(ka, list):
+            raise RoundError('scene_state.keepsake_adds须为数组')
+        clean_ka = []
+        for item in ka[:3]:
+            if not isinstance(item, dict):
+                continue
+            owner = str(item.get('owner') or '').strip()
+            kname = str(item.get('name') or '').strip()[:32]
+            if owner not in ROUND_NPCS or not kname:
+                continue
+            kind = str(item.get('kind') or '').strip()
+            method = str(item.get('method') or 'stolen').strip()
+            if method not in save_store.KEEPSAKE_METHODS:
+                method = 'stolen'
+            cond = str(item.get('condition') or 'fresh_warm').strip()
+            if cond not in save_store.KEEPSAKE_CONDITIONS:
+                cond = 'fresh_warm'
+            entry = {
+                'owner': owner,
+                'name': kname,
+                'method': method,
+                'condition': cond,
+                'desc': str(item.get('desc') or '').strip()[:80],
+            }
+            if kind in save_store.KEEPSAKE_KINDS:
+                entry['kind'] = kind
+            if 'owner_aware' in item and type(item['owner_aware']) is bool:
+                entry['owner_aware'] = item['owner_aware']
+            clean_ka.append(entry)
+        if clean_ka:
+            out['keepsake_adds'] = clean_ka
+    if 'keepsake_updates' in raw and raw['keepsake_updates'] not in (None, ''):
+        ku = raw['keepsake_updates']
+        if not isinstance(ku, list):
+            raise RoundError('scene_state.keepsake_updates须为数组')
+        clean_ku = []
+        for item in ku[:4]:
+            if not isinstance(item, dict):
+                continue
+            kid = str(item.get('id') or '').strip()
+            if not re.fullmatch(r'KS-\d+', kid):
+                continue
+            patch = {'id': kid}
+            if 'owner_aware' in item and type(item['owner_aware']) is bool:
+                patch['owner_aware'] = item['owner_aware']
+            if item.get('condition') in save_store.KEEPSAKE_CONDITIONS:
+                patch['condition'] = item['condition']
+            if len(patch) > 1:
+                clean_ku.append(patch)
+        if clean_ku:
+            out['keepsake_updates'] = clean_ku
     return out or None
 
 

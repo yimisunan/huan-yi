@@ -160,6 +160,135 @@ def _has_sensual_buff(char_buffs):
     return False
 
 
+CHARM_TIERS = (
+    {
+        'tier': 0, 'min': 0, 'max': 69, 'name': '寻常气场', 'next_at': 70,
+        'aff_bonus': 0, 'violation_mitigation': 0.0, 'deep_mitigation': 0.0,
+        'shame_extra_drop': 0, 'orgasm_mult_bonus': 0.0, 'shop_discount': 1.0,
+        'release_vigor_cost': 12, 'brief': '',
+        'summary': '基础基准，达到 75 阶后开始解锁破冰与商城优待',
+    },
+    {
+        'tier': 1, 'min': 70, 'max': 74, 'name': '清俊克制', 'next_at': 75,
+        'aff_bonus': 0, 'violation_mitigation': 0.0, 'deep_mitigation': 0.0,
+        'shame_extra_drop': 0, 'orgasm_mult_bonus': 0.0, 'shop_discount': 1.0,
+        'release_vigor_cost': 12, 'brief': '气度沉稳克制',
+        'summary': '稳健起步（升至 75 阶解锁破冰好感+1、轻中越界减罚25%、商城9折）',
+    },
+    {
+        'tier': 2, 'min': 75, 'max': 84, 'name': '锋芒初显', 'next_at': 85,
+        'aff_bonus': 1, 'violation_mitigation': 0.25, 'deep_mitigation': 0.0,
+        'shame_extra_drop': 0, 'orgasm_mult_bonus': 0.0, 'shop_discount': 0.90,
+        'release_vigor_cost': 11, 'brief': '高魅力压场：临近压迫与目光停留具显著磁吸感，正面破冰更易松动防备',
+        'summary': '正面好感+1 · 轻中越界减罚25% · 魅力突破门限60(+2欲) · 商城9折 · 释放耐力-11',
+    },
+    {
+        'tier': 3, 'min': 85, 'max': 94, 'name': '磁吸掌控', 'next_at': 95,
+        'aff_bonus': 1, 'violation_mitigation': 0.40, 'deep_mitigation': 0.0,
+        'shame_extra_drop': 1, 'orgasm_mult_bonus': 0.08, 'shop_discount': 0.85,
+        'release_vigor_cost': 9, 'brief': '极强磁吸掌控：贴近半步即可令对方呼吸失拍，亲密节奏拿捏游刃有余',
+        'summary': '正面好感+1 · 轻中越界减罚40% · C档破防额外-1羞耻 · 高潮+8% · 商城85折 · 释放耐力-9',
+    },
+    {
+        'tier': 4, 'min': 95, 'max': 100, 'name': '深渊魅影', 'next_at': None,
+        'aff_bonus': 2, 'violation_mitigation': 0.50, 'deep_mitigation': 0.20,
+        'shame_extra_drop': 2, 'orgasm_mult_bonus': 0.15, 'shop_discount': 0.85,
+        'release_vigor_cost': 8, 'brief': '深渊魅影气场：极具压倒性荷尔蒙引力，高羞耻防线亦会在凝视与低语下先一步发软',
+        'summary': '正面好感+2 · 轻中越界减罚50%/重度20% · C档额外-2羞耻 · 高潮+15% · 商城85折 · 释放耐力-8',
+    },
+)
+
+BODY_DEV_LEVEL_LABELS = {0: '生涩防备', 1: '敏感初开', 2: '熟稔沉溺', 3: '彻底开发'}
+
+_BODY_ACT_PATTERNS = {
+    'oral': re.compile(r'口交|深喉|吞精|含住[^\n。！？]{0,8}(?:舔|吮|吞|弄)|唇舌[^\n。！？]{0,8}(?:侍奉|包裹|舔)|舌尖[^\n。！？]{0,6}(?:绕|舔|勾)'),
+    'hand': re.compile(r'手交|套弄|撸动|纤手[^\n。！？]{0,8}(?:握|抚|揉|侍奉)|握住[^\n。！？]{0,8}(?:上下|缓缓|揉搓)|十指相扣[^\n。！？]{0,10}(?:磨|压|吻)'),
+    'chest': re.compile(r'乳交|胸推|夹住[^\n。！？]{0,8}(?:磨|蹭|耸)|(?:揉捏|吮吸|含住|轻咬)[^\n。！？]{0,8}(?:胸|乳|峰|尖)|锁骨[^\n。！？]{0,8}(?:舔|吮|吻痕)'),
+    'foot': re.compile(r'足交|黑丝[^\n。！？]{0,8}(?:踩|蹭|勾|抚|脱)|(?:玉足|足弓|足心|脚背|脚踝|脚趾)[^\n。！？]{0,10}(?:吻|舔|吮|揉|握|踩|蹭)'),
+    'core': re.compile(r'内射|外射|素股|抽插|顶弄|指尖探入|深处撞击|整根(?:没入|进出|顶)|(?:插入|进入)[^\n。！？]{0,8}(?:体内|深处|花|湿热)'),
+}
+
+
+def charm_tier_info(charm):
+    val = max(0, min(100, int(charm or 0)))
+    for row in CHARM_TIERS:
+        if row['min'] <= val <= row['max']:
+            return dict(row, charm=val)
+    return dict(CHARM_TIERS[0], charm=val)
+
+
+def body_dev_level(score):
+    val = max(0, min(100, int(score or 0)))
+    if val >= 80:
+        return 3
+    if val >= 50:
+        return 2
+    if val >= 20:
+        return 1
+    return 0
+
+
+def infer_body_acts_from_prose(prose_text, events, explicit_acts=None):
+    """Merge Stage 2 body_acts with deterministic prose fallback (only for heroines with intimate events this turn)."""
+    out = {}
+    if isinstance(explicit_acts, dict):
+        for who, zones in explicit_acts.items():
+            if who in save_store.HEROINES and isinstance(zones, list):
+                clean = [z for z in zones if z in save_store.BODY_ZONES]
+                if clean:
+                    out[who] = list(dict.fromkeys(clean))
+    text = str(prose_text or '')
+    if not text:
+        return out
+    shame_ev = (events or {}).get('shame_events') or {}
+    ds_ev = (events or {}).get('ds_events') or {}
+    intimate_s = {
+        _event_tag('SHAME_01'), _event_tag('SHAME_02'), _event_tag('SHAME_03'),
+        _event_tag('SHAME_04'), _event_tag('SHAME_05'), _event_tag('SHAME_06'),
+        _event_tag('SHAME_07'), _event_tag('SHAME_08'), _event_tag('SHAME_09'),
+    }
+    intimate_d = {_event_tag('DS_04'), _event_tag('DS_14'), _event_tag('DS_15'), _event_tag('DS_16'), _event_tag('DS_17')}
+    engaged = [
+        h for h in save_store.HEROINES
+        if (set(shame_ev.get(h) or ()) & intimate_s) or (set(ds_ev.get(h) or ()) & intimate_d)
+    ]
+    if not engaged:
+        return out
+    detected = [z for z, pat in _BODY_ACT_PATTERNS.items() if pat.search(text)]
+    if not detected:
+        return out
+    for h in engaged:
+        if h not in out:
+            if len(engaged) == 1 or h in text:
+                out[h] = list(detected)
+    return out
+
+
+def derive_host_fetishes(body_dev, keepsakes):
+    """Deterministically derive readable kink/fetish imprints from sustained development & trophy collection."""
+    bd = body_dev if isinstance(body_dev, dict) else {}
+    ks = keepsakes if isinstance(keepsakes, list) else []
+    marks = []
+    foot_max = max((int((bd.get(h) or {}).get('foot', 0) or 0) for h in save_store.HEROINES), default=0)
+    chest_max = max((int((bd.get(h) or {}).get('chest', 0) or 0) for h in save_store.HEROINES), default=0)
+    hand_max = max((int((bd.get(h) or {}).get('hand', 0) or 0) for h in save_store.HEROINES), default=0)
+    oral_max = max((int((bd.get(h) or {}).get('oral', 0) or 0) for h in save_store.HEROINES), default=0)
+    core_max = max((int((bd.get(h) or {}).get('core', 0) or 0) for h in save_store.HEROINES), default=0)
+    if int((bd.get('沈知韫') or {}).get('foot', 0) or 0) >= 20 or foot_max >= 25 or any(k.get('kind') == 'stockings' for k in ks if isinstance(k, dict)):
+        marks.append('足踝黑丝控')
+    if int((bd.get('苏婉青') or {}).get('chest', 0) or 0) >= 20 or chest_max >= 25 or any(k.get('kind') == 'bra' for k in ks if isinstance(k, dict)):
+        marks.append('胸乳沉溺')
+    if int((bd.get('徐念薇') or {}).get('hand', 0) or 0) >= 20 or hand_max >= 25:
+        marks.append('纤手执念')
+    if oral_max >= 30:
+        marks.append('口舌侍奉控')
+    if len(ks) >= 2 or any(isinstance(k, dict) and k.get('method') == 'stolen' and int(k.get('interactions') or 0) >= 1 for k in ks):
+        marks.append('贴身私藏癖')
+    if core_max >= 45:
+        marks.append('深处支配欲')
+    return marks[:6]
+
+
 def process_host_system(host_events, shame_events, memory_file):
     """
     宿主核心引擎：三轨竞标结算、动态体力代偿与魅力精进
@@ -257,11 +386,11 @@ def process_host_system(host_events, shame_events, memory_file):
         "商业嗅觉": cur_biz
     }
 
-def process_shame_system(shame_events, memory_file, *, privacy='open_public'):
+def process_shame_system(shame_events, memory_file, *, privacy='open_public', host_charm=70, body_acts=None):
     """
     语义化规则包：羞耻系统后台自动化物理计算引擎
     将 AI 前端的打标（如 'C烈度_轻度', '首次', '内射_首次核爆' 等）转换为绝对数值计算，
-    支持堕落乘数、被动 Lv.4 防线支配、隐私潜行压迫加成、首杀附加、同质化免疫与堕落侵蚀上限夹紧。
+    支持堕落乘数、被动 Lv.4 防线支配、高魅力破防、招牌敏感带穿透、隐私潜行压迫加成、首杀附加、同质化免疫与堕落侵蚀上限夹紧。
     """
     if not shame_events or not os.path.exists(memory_file):
         return {}
@@ -271,6 +400,8 @@ def process_shame_system(shame_events, memory_file, *, privacy='open_public'):
     
     computed_shame_changes = {}
     is_stealth_taboo = privacy in ('thin_wall', 'under_cover')
+    charm_info = charm_tier_info(host_charm)
+    acts_map = body_acts if isinstance(body_acts, dict) else {}
     
     for char_name, tags in shame_events.items() if shame_events else []:
         if not tags or not isinstance(tags, list):
@@ -331,10 +462,18 @@ def process_shame_system(shame_events, memory_file, *, privacy='open_public'):
         if c_delta == 0 and special_delta == 0 and _event_tag('SHAME_10') not in tags:
             continue
 
-        # 2.5 被动 Lv.4 防线支配：活跃越界额外削减 2 点防线；空间隐私潜行压迫 ×1.25
+        # 2.5 被动 Lv.4 防线支配、高魅力破防、招牌敏感带命中与空间隐私潜行压迫
         if cur_passive >= 4 and c_delta < 0:
             c_delta -= 2
             print(f" [羞耻引擎] 👑 {char_name} 触发【被动 Lv.4 防线支配】：精准命中防线弱点，羞耻额外 -2。")
+        if charm_info['shame_extra_drop'] > 0 and c_delta < 0:
+            c_delta -= charm_info['shame_extra_drop']
+            print(f" [羞耻引擎] ✨ 宿主魅力({charm_info['charm']}·{charm_info['name']})压场：羞耻防线额外 -{charm_info['shame_extra_drop']}。")
+        sig_zone = save_store.HEROINE_SIGNATURE_ZONES.get(char_name)
+        char_acts = acts_map.get(char_name) or ()
+        if sig_zone and sig_zone in char_acts and c_delta < 0:
+            c_delta -= 1
+            print(f" [羞耻引擎] 🔥 命中 {char_name} 招牌敏感带【{save_store.BODY_ZONE_LABELS.get(sig_zone, sig_zone)}】，防线额外穿透 -1。")
         if is_stealth_taboo and c_delta < 0:
             c_delta = -max(abs(c_delta) + 1, int(round(abs(c_delta) * 1.25)))
             print(f" [羞耻引擎] 🤫 {char_name} 处于【{privacy} 禁忌潜行压迫】，羞耻降幅 ×1.25 -> {c_delta}。")
@@ -489,11 +628,11 @@ def fluid_lock_floor_for_turns(turns):
     return 0
 
 
-def process_desire_stamina_system(ds_events, memory_file, *, creampie_chars=None, active_cast=None, host_charm=70, privacy='open_public', climax_out=None):
+def process_desire_stamina_system(ds_events, memory_file, *, creampie_chars=None, active_cast=None, host_charm=70, privacy='open_public', climax_out=None, body_dev=None, body_acts=None, host_desire=0):
     """
     语义化规则包：生理体力与欲望高潮后台计算引擎
-    接管欲望自然渗漏、复合感官刺激、刺激上限(80)、临界突破(100，含体液锁定期与魅力协同)、
-    隐私潜行肾上腺素、欲望/堕落调制高潮增速、场景切换回落、被动Lv.3双倍消耗、
+    接管欲望自然渗漏、复合感官刺激、招牌敏感带协同、刺激上限(80)、临界突破(100，含体液锁定期与魅力协同)、
+    隐私潜行肾上腺素、欲望/堕落/魅力/部位开发/宿主边缘控场调制高潮增速、场景切换回落、被动Lv.3双倍消耗、
     体力消耗、三阶体液锁定、自慰暗中纾解与自动高潮清算。
     """
     if (not ds_events and not creampie_chars and not active_cast) or not os.path.exists(memory_file):
@@ -505,6 +644,10 @@ def process_desire_stamina_system(ds_events, memory_file, *, creampie_chars=None
     computed_changes = {}
     parsed_buffs = parse_persistent_buffs(content)
     is_stealth_taboo = privacy in ('thin_wall', 'under_cover')
+    charm_info = charm_tier_info(host_charm)
+    bd_map = body_dev if isinstance(body_dev, dict) else {}
+    acts_map = body_acts if isinstance(body_acts, dict) else {}
+    host_edging = int(host_desire or 0) >= 85
     iter_items = list((ds_events or {}).items())
     seen_chars = {c for c, _ in iter_items}
     for c_extra in (creampie_chars or ()):
@@ -541,9 +684,12 @@ def process_desire_stamina_system(ds_events, memory_file, *, creampie_chars=None
         cur_org = int(match_org.group(1)) if match_org else 0
         cur_passive = int(match_pas.group(1)) if match_pas else 0
         drain_mult = 2 if cur_passive >= 3 else 1
+        char_acts = list(acts_map.get(char_name) or ())
+        sig_zone = save_store.HEROINE_SIGNATURE_ZONES.get(char_name)
+        sig_hit = bool(sig_zone and sig_zone in char_acts)
         
         seepage_eligible = (cur_shame < 40 and cur_aff > 75)
-        if char_name in passive_only_chars and not seepage_eligible:
+        if char_name in passive_only_chars and not seepage_eligible and not sig_hit:
             continue
 
         new_des = cur_des
@@ -598,7 +744,11 @@ def process_desire_stamina_system(ds_events, memory_file, *, creampie_chars=None
         sensory_add = min(5, int(round(s_vals[0] + 0.5 * (s_vals[1] + s_vals[2]))))
         new_des += sensory_add
 
-        # 3.5 空间隐私潜行肾上腺素 (+2) 与高魅力压迫协同 (+2)
+        # 3.5 空间隐私潜行肾上腺素 (+2)、招牌敏感带命中 (+3) 与高魅力压迫协同 (+2)
+        if sig_hit:
+            new_des += 3
+            has_active_arousal = True
+            print(f" [欲望引擎] 🔥 命中 {char_name} 招牌敏感带【{save_store.BODY_ZONE_LABELS.get(sig_zone, sig_zone)}】，欲望额外 +3。")
         if is_stealth_taboo and has_active_arousal:
             new_des += 2
             print(f" [欲望引擎] 🤫 {char_name} 处于【{privacy} 偷欢潜行态】，禁忌肾上腺素驱动欲望额外 +2。")
@@ -630,13 +780,21 @@ def process_desire_stamina_system(ds_events, memory_file, *, creampie_chars=None
             new_des = max(semen_floor, new_des)
             print(f" [欲望引擎] 🔒 {char_name} 处于/触发【体液锁定({lock_turns}回合)】，欲望被强制钳制在不低于 {semen_floor}。")
 
-        # 5.5 欲望/堕落对高潮增速的耦合调制 + 场景切换与睡眠高潮自然消退
+        # 5.5 欲望/堕落/高魅力/部位开发/宿主边缘蓄势对高潮增速的耦合调制 + 场景切换与睡眠高潮自然消退
         if raw_org_add > 0:
             eff_des = min(100, max(0, new_des))
-            org_mult = 0.6 + 0.4 * (eff_des / 100.0) + 0.3 * (min(100, max(0, cur_dep)) / 100.0)
+            char_bd = bd_map.get(char_name) if isinstance(bd_map.get(char_name), dict) else {}
+            zone_candidates = char_acts if char_acts else (['core'] if raw_org_add >= 30 else [])
+            max_z_lv = max((body_dev_level(char_bd.get(z, 0)) for z in zone_candidates), default=0)
+            dev_bonus = {0: 0.0, 1: 0.05, 2: 0.12, 3: 0.22}.get(max_z_lv, 0.0)
+            edge_bonus = 0.10 if host_edging else 0.0
+            org_mult = (
+                0.6 + 0.4 * (eff_des / 100.0) + 0.3 * (min(100, max(0, cur_dep)) / 100.0)
+                + charm_info['orgasm_mult_bonus'] + dev_bonus + edge_bonus
+            )
             mod_org_add = int(round(raw_org_add * org_mult))
             new_org += mod_org_add
-            print(f" [生理引擎] {char_name} 高潮累积耦合调制：原始+{raw_org_add} × {org_mult:.2f} (欲望{eff_des}/堕落{cur_dep}) -> +{mod_org_add}")
+            print(f" [生理引擎] {char_name} 高潮累积耦合调制：原始+{raw_org_add} × {org_mult:.2f} (欲望{eff_des}/堕落{cur_dep}/魅力+{charm_info['orgasm_mult_bonus']:.2f}/开发+{dev_bonus:.2f}/控场+{edge_bonus:.2f}) -> +{mod_org_add}")
         elif has_scene_decay and new_org > 0:
             new_org = max(0, new_org - _event_param('DS_05', 'new_org_02'))
             print(f" [生理引擎] {char_name} 场景切换未继续刺激，高潮余波回落至 {new_org}。")
@@ -680,11 +838,11 @@ def process_desire_stamina_system(ds_events, memory_file, *, creampie_chars=None
     return computed_changes
 
 
-def process_affection_system(affection_events, shame_events, memory_file, *, business_leverage=False, leverage_meta=None, su_85_unlocked=None, unlock_out=None):
+def process_affection_system(affection_events, shame_events, memory_file, *, business_leverage=False, leverage_meta=None, su_85_unlocked=None, unlock_out=None, host_charm=None):
     """
     语义化规则包：好感度畸变与阻滞计算引擎
     监听 SHAME_EVENTS 中的越界行为，结合当前面板实现自动掉分、高羞耻完好防线修正、合理化闭环、
-    意外撞破自渎把柄折半与被动 Lv.2 减半。
+    意外撞破自渎把柄折半、高魅力破冰加成与越界缓和及被动 Lv.2 减半。
     处理苏婉青的 85 分背德天花板持久化锁死，以及商业杠杆（C烈度越界好感惩罚减半，可与被动 Lv.2 叠加）。
     """
     if not affection_events and not shame_events:
@@ -694,6 +852,13 @@ def process_affection_system(affection_events, shame_events, memory_file, *, bus
         
     with open(memory_file, "r", encoding="utf-8") as f:
         content = f.read()
+
+    if host_charm is None:
+        m_hc = re.search(r"\[系统宿主\].*?魅力\s*(-?\d+)", content)
+        eff_host_charm = int(m_hc.group(1)) if m_hc else 70
+    else:
+        eff_host_charm = int(host_charm)
+    charm_info = charm_tier_info(eff_host_charm)
 
     stage_root = os.path.dirname(os.path.dirname(os.path.abspath(memory_file)))
     persisted_su_unlocked = False
@@ -770,6 +935,15 @@ def process_affection_system(affection_events, shame_events, memory_file, *, bus
                 print(f" [好感引擎] 🕯️ {char_name} 触发【官能辅助 BUFF 缓和】：轻中度越界好感惩罚减半 {violation_drop} -> {halved_buff}")
                 violation_drop = halved_buff
 
+        # 高魅力越界缓和（75+轻中度减罚 25%/40%/50%；95+深重度减罚 20%）
+        if violation_drop < 0:
+            is_deep_heavy = (_event_tag('SHAME_03') in s_tags or _event_tag('SHAME_04') in s_tags)
+            mit_ratio = charm_info['deep_mitigation'] if is_deep_heavy else charm_info['violation_mitigation']
+            if mit_ratio > 0:
+                mitigated = int(round(violation_drop * (1.0 - mit_ratio)))
+                print(f" [好感引擎] ✨ 宿主魅力({charm_info['charm']}·{charm_info['name']})缓和：越界好感惩罚减免 {int(mit_ratio * 100)}% ({violation_drop} -> {mitigated})")
+                violation_drop = mitigated
+
         # 被动 Lv.2（认知欺诈滤镜）：C烈度越界好感惩罚减半，与商业杠杆独立叠加
         if cur_passive >= 2 and violation_drop < 0:
             halved_passive = int(violation_drop / 2)
@@ -790,17 +964,35 @@ def process_affection_system(affection_events, shame_events, memory_file, *, bus
             
         new_aff += violation_drop
         
-        # 2. 手动标签结算
+        # 2. 手动标签结算（高魅力 75+ 正面互动额外破冰加成）
+        positive_gain = 0
         for tag in a_tags:
             if tag == _event_tag('AFFECTION_01'): new_aff -= _event_param('AFFECTION_01', 'new_aff_01')
             elif tag == _event_tag('AFFECTION_02'): new_aff -= _event_param('AFFECTION_02', 'new_aff_01')
-            elif tag == _event_tag('AFFECTION_03'): new_aff += (_event_param('AFFECTION_03', 'new_aff_02') if cur_aff < _event_param('AFFECTION_03', 'cur_aff_01') else _event_param('AFFECTION_03', 'new_aff_03'))
-            elif tag == _event_tag('AFFECTION_04'): new_aff += (_event_param('AFFECTION_04', 'new_aff_02') if cur_shame <= _event_param('AFFECTION_04', 'cur_shame_01') else _event_param('AFFECTION_04', 'new_aff_03'))
-            elif tag == _event_tag('AFFECTION_05'): new_aff += _event_param('AFFECTION_05', 'new_aff_01')
-            elif tag == _event_tag('AFFECTION_06'): new_aff += (_event_param('AFFECTION_06', 'new_aff_02') if cur_aff < _event_param('AFFECTION_06', 'cur_aff_01') else _event_param('AFFECTION_06', 'new_aff_03'))
-            elif tag == _event_tag('AFFECTION_07'): new_aff += _event_param('AFFECTION_07', 'new_aff_01')
-            elif tag == _event_tag('AFFECTION_10'): new_aff += (_event_param('AFFECTION_10', 'new_aff_02') if cur_aff < _event_param('AFFECTION_10', 'cur_aff_01') else _event_param('AFFECTION_10', 'new_aff_03'))
-            elif tag == _event_tag('AFFECTION_11'): new_aff += _event_param('AFFECTION_11', 'new_aff_01')
+            elif tag == _event_tag('AFFECTION_03'):
+                g = (_event_param('AFFECTION_03', 'new_aff_02') if cur_aff < _event_param('AFFECTION_03', 'cur_aff_01') else _event_param('AFFECTION_03', 'new_aff_03'))
+                new_aff += g; positive_gain += g
+            elif tag == _event_tag('AFFECTION_04'):
+                g = (_event_param('AFFECTION_04', 'new_aff_02') if cur_shame <= _event_param('AFFECTION_04', 'cur_shame_01') else _event_param('AFFECTION_04', 'new_aff_03'))
+                new_aff += g; positive_gain += g
+            elif tag == _event_tag('AFFECTION_05'):
+                g = _event_param('AFFECTION_05', 'new_aff_01')
+                new_aff += g; positive_gain += g
+            elif tag == _event_tag('AFFECTION_06'):
+                g = (_event_param('AFFECTION_06', 'new_aff_02') if cur_aff < _event_param('AFFECTION_06', 'cur_aff_01') else _event_param('AFFECTION_06', 'new_aff_03'))
+                new_aff += g; positive_gain += g
+            elif tag == _event_tag('AFFECTION_07'):
+                g = _event_param('AFFECTION_07', 'new_aff_01')
+                new_aff += g; positive_gain += g
+            elif tag == _event_tag('AFFECTION_10'):
+                g = (_event_param('AFFECTION_10', 'new_aff_02') if cur_aff < _event_param('AFFECTION_10', 'cur_aff_01') else _event_param('AFFECTION_10', 'new_aff_03'))
+                new_aff += g; positive_gain += g
+            elif tag == _event_tag('AFFECTION_11'):
+                g = _event_param('AFFECTION_11', 'new_aff_01')
+                new_aff += g; positive_gain += g
+        if positive_gain > 0 and charm_info['aff_bonus'] > 0:
+            new_aff += charm_info['aff_bonus']
+            print(f" [好感引擎] ✨ 宿主魅力({charm_info['charm']}·{charm_info['name']})破冰加成：正面好感额外 +{charm_info['aff_bonus']}。")
             
         # 3. 专属阻力锁：苏婉青的背德天花板（触发 AFFECTION_08/09 即永久持久化解锁至 95）
         cap = 100
@@ -3343,11 +3535,14 @@ def _execute_injection_internal(current_round, story_nodes, memory_deltas, panel
 
 def apply_story_events(events, task_issue, memory_round, *, business_leverage=False,
                        current_day=None, active_cast=None, pre_event_content=None,
-                       insomnia_targets=None, defer_task=False, privacy=None):
+                       insomnia_targets=None, defer_task=False, privacy=None, body_acts=None):
     """Settle accepted event tags with deterministic cross-window mechanics persistence (in-memory pipeline: depravity -> shame -> affection -> ds -> host)."""
     state, layers, _ = save_store.load_bundle(BASE_DIR)
-    eff_privacy = str(privacy or (state.get('intimate') or {}).get('privacy') or 'open_public')
+    intl_now = state.get('intimate') or {}
+    eff_privacy = str(privacy or intl_now.get('privacy') or 'open_public')
     host_charm = int(((state.get('panels') or {}).get('系统宿主') or {}).get('魅力', 70) or 70)
+    body_dev_now = intl_now.get('body_dev') if isinstance(intl_now.get('body_dev'), dict) else {}
+    host_desire_now = int(((intl_now.get('host_phys') or {}).get('desire', 0)) or 0)
     norm_events, mech_notes = _normalize_deterministic_events(
         state, events, current_day=current_day, active_cast=active_cast, insomnia_targets=insomnia_targets,
     )
@@ -3430,7 +3625,9 @@ def apply_story_events(events, task_issue, memory_round, *, business_leverage=Fa
                 panels.setdefault(who, {})['内射'] = cur_cnt + inc
             if _event_tag('SHAME_20') in (tags or ()):
                 masturbation_out[who] = 2
-        for who, val in process_shame_system(shame, MEMORY_FILE, privacy=eff_privacy).items():
+        for who, val in process_shame_system(
+            shame, MEMORY_FILE, privacy=eff_privacy, host_charm=host_charm, body_acts=body_acts,
+        ).items():
             panels.setdefault(who, {})['羞耻'] = val
         _flush_sim()
 
@@ -3439,7 +3636,7 @@ def apply_story_events(events, task_issue, memory_round, *, business_leverage=Fa
             norm_events['affection_events'], shame, MEMORY_FILE,
             business_leverage=business_leverage, leverage_meta=leverage_meta,
             su_85_unlocked=bool(state['mechanics'].get('su_affection_85_unlocked')),
-            unlock_out=unlock_out,
+            unlock_out=unlock_out, host_charm=host_charm,
         ).items():
             panels.setdefault(who, {})['好感'] = val
         _flush_sim()
@@ -3450,7 +3647,8 @@ def apply_story_events(events, task_issue, memory_round, *, business_leverage=Fa
         for who, values in process_desire_stamina_system(
             norm_events['ds_events'], MEMORY_FILE, creampie_chars=creampie_chars,
             active_cast=heroine_cast, host_charm=host_charm, privacy=eff_privacy,
-            climax_out=auto_climax,
+            climax_out=auto_climax, body_dev=body_dev_now, body_acts=body_acts,
+            host_desire=host_desire_now,
         ).items():
             panels.setdefault(who, {}).update({k: values[k] for k in ('欲望', '体力', '高潮')})
         climax_tag = _event_tag('DS_17')
@@ -3504,7 +3702,7 @@ def apply_story_events(events, task_issue, memory_round, *, business_leverage=Fa
 
 
 def consume_story_recovery_item(item_id, recovery, memory_round):
-    """Consume precisely one held registered item via save_store; append usage even for a remaining stack."""
+    """Consume precisely one held registered item via save_store; append usage even for a remaining stack and replenish vigor."""
     state, layers, _ = save_store.load_bundle(BASE_DIR)
     active = state['items']['active']
     idx = next((i for i, it in enumerate(active) if it.get('id') == item_id), None)
@@ -3516,7 +3714,8 @@ def consume_story_recovery_item(item_id, recovery, memory_round):
     cur_sta = int(state['panels']['系统宿主']['体力'])
     if recovery <= 0 or cur_sta + recovery > 100:
         raise ValueError('实际恢复量无效')
-    usage = '游戏回合' + str(memory_round) + ' - 使用1份，宿主体力恢复' + str(recovery)
+    vigor_gain = 15 if recovery <= 10 else 25
+    usage = '游戏回合' + str(memory_round) + ' - 使用1份，宿主体力恢复' + str(recovery) + '（亲密耐力+' + str(vigor_gain) + '）'
     if int(item['quantity']) == 1:
         done = copy.deepcopy(active.pop(idx))
         done['status'] = '已消耗'
@@ -3528,6 +3727,8 @@ def consume_story_recovery_item(item_id, recovery, memory_round):
         item['quantity'] = int(item['quantity']) - 1
         item['usage_record'] = _merge_usage(item.get('usage_record'), usage)
     state['panels']['系统宿主']['体力'] = cur_sta + recovery
+    hp = state.setdefault('intimate', save_store.default_intimate()).setdefault('host_phys', save_store.default_host_phys())
+    hp['vigor'] = min(100, int(hp.get('vigor', 100) or 0) + vigor_gain)
     save_store.save_bundle(BASE_DIR, state, layers)
 
 
@@ -3711,18 +3912,80 @@ def apply_interaction_operation(operation, *, clock_str=''):
         deployed[idx] = dev
         save_store.save_bundle(BASE_DIR, state, layers)
         return {'code': code, 'item_id': dev['id'], 'item_name': dev['name'], 'location': dev.get('location', ''), 'spot': dev.get('spot', ''), 'detected_risk': dev['detected_risk']}
+    if code == 'keepsake_action':
+        state, layers, _ = save_store.load_bundle(BASE_DIR)
+        intl = state.setdefault('intimate', save_store.default_intimate())
+        ks_list = intl.setdefault('keepsakes', [])
+        ks_id = str(operation.get('keepsake_id') or '').strip()
+        act_type = str(operation.get('action_type') or '').strip()
+        idx = next((i for i, it in enumerate(ks_list) if isinstance(it, dict) and it.get('id') == ks_id), None)
+        if idx is None:
+            raise ValueError('该私密珍藏物品不存在或已归还')
+        if act_type not in save_store.KEEPSAKE_ACTIONS:
+            raise ValueError('不支持的私密珍藏互动方式')
+        ks = copy.deepcopy(ks_list[idx])
+        hp = intl.setdefault('host_phys', save_store.default_host_phys())
+        if act_type == 'return_secret':
+            ks_list.pop(idx)
+        else:
+            ks['interactions'] = int(ks.get('interactions') or 0) + 1
+            if act_type == 'sniff_play':
+                hp['desire'] = min(100, int(hp.get('desire', 0) or 0) + 18)
+            elif act_type == 'confront':
+                ks['owner_aware'] = True
+            elif act_type == 'use_intimate':
+                ks['owner_aware'] = True
+                if ks.get('condition') == 'faded':
+                    ks['condition'] = 'stained_damp'
+            ks_list[idx] = ks
+        hp['fetishes'] = derive_host_fetishes(intl.get('body_dev'), ks_list)
+        save_store.save_bundle(BASE_DIR, state, layers)
+        return {
+            'code': code,
+            'keepsake_id': ks_id,
+            'action_type': act_type,
+            'owner': ks.get('owner', ''),
+            'name': ks.get('name', ''),
+            'owner_aware': bool(ks.get('owner_aware')),
+        }
     raise ValueError('不支持的正式互动操作')
 
 
 _WASH_OFF_TRACE_KINDS = frozenset({'潮红', '腿软潮红', '汗息', '衣领凌乱', '极敏余韵', '体液残留', '水痕', '香气混杂'})
 
 
+def _alloc_keepsake_id(intl):
+    seq = int(intl.get('next_keepsake_seq', 1) or 1)
+    existing = [
+        int(it['id'].split('-')[1])
+        for it in (intl.get('keepsakes') or [])
+        if isinstance(it, dict) and re.fullmatch(r'KS-\d+', str(it.get('id') or ''))
+    ]
+    seq = max(seq, (max(existing) + 1) if existing else 1)
+    intl['next_keepsake_seq'] = seq + 1
+    return f'KS-{seq:03d}'
+
+
 def advance_intimate_state(state, events, *, scene_state=None, active_cast=None, building_cast=None,
-                           sleep_kind='none', location_changed=False):
-    """Deterministically advance save_state['intimate'] (privacy/stealth/attire/traces/inter_heroine/session beats & device risk)."""
+                           sleep_kind='none', location_changed=False, category='A', host_charm=None,
+                           prose_text='', clock_str='', location='', elapsed_hours=0,
+                           operation=None, vigor_costs=None, body_acts=None):
+    """Deterministically advance save_state['intimate'] (privacy/stealth/attire/traces/inter_heroine/host_phys/body_dev/keepsakes/session beats & device risk)."""
     intl = state.setdefault('intimate', save_store.default_intimate())
+    hp = intl.setdefault('host_phys', save_store.default_host_phys())
+    bd = intl.setdefault('body_dev', save_store.default_body_dev())
+    ks_list = intl.setdefault('keepsakes', [])
+    for hname in save_store.HEROINES:
+        bd.setdefault(hname, {z: 0 for z in save_store.BODY_ZONES})
+        for z in save_store.BODY_ZONES:
+            bd[hname].setdefault(z, 0)
+
     shame_ev = (events or {}).get('shame_events') or {}
     ds_ev = (events or {}).get('ds_events') or {}
+    host_ev = (events or {}).get('host_events') or []
+    eff_charm = int(host_charm if host_charm is not None else (((state.get('panels') or {}).get('系统宿主') or {}).get('魅力', 70) or 70))
+    charm_info = charm_tier_info(eff_charm)
+    was_scene_active = bool(intl.get('scene_active'))
 
     def _upsert_trace(hname, kind, desc, turns, visible=True):
         arr = intl.setdefault('traces', {}).setdefault(hname, [])
@@ -3749,7 +4012,7 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
                 kept.append({**tr, 'turns': rem})
         intl.setdefault('traces', {})[hname] = kept
 
-    # 2. 跨地点或整夜睡眠重置场内亲密会话与隐私（痕迹与衣着按规则保留或整理）
+    # 2. 跨地点或整夜睡眠重置场内亲密会话与隐私（痕迹、衣着与贴身珍藏气味按规则演变）
     if sleep_kind == 'overnight':
         intl['scene_active'] = False
         intl['session_beats'] = 0
@@ -3764,6 +4027,9 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
         for dev in (state.get('items', {}).get('deployed') or []):
             if isinstance(dev, dict) and int(dev.get('detected_risk') or 0) > 0:
                 dev['detected_risk'] = max(0, int(dev['detected_risk']) - 3)
+        for ks in ks_list:
+            if isinstance(ks, dict) and ks.get('condition') == 'fresh_warm':
+                ks['condition'] = 'faded'
     elif location_changed:
         intl['scene_active'] = False
         intl['session_beats'] = 0
@@ -3773,21 +4039,46 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
         intl['sub_location'] = ''
         intl['present_actors'] = []
 
-    # 3. 依据本轮事件判定亲密进行态与自动身体余韵痕迹
+    # 3. 依据本轮事件判定亲密进行态、宿主释放、肾上腺素与自动身体余韵痕迹
     intimate_shame_tags = {_event_tag('SHAME_02'), _event_tag('SHAME_03'), _event_tag('SHAME_04'), _event_tag('SHAME_06'), _event_tag('SHAME_07')}
     intimate_ds_tags = {_event_tag('DS_04'), _event_tag('DS_06'), _event_tag('DS_07'), _event_tag('DS_14'), _event_tag('DS_15'), _event_tag('DS_16'), _event_tag('DS_17')}
     climax_tag = _event_tag('DS_17')
     creampie_tags = {_event_tag('SHAME_06'), _event_tag('SHAME_07')}
+    release_shame_tags = {_event_tag('SHAME_06'), _event_tag('SHAME_07'), _event_tag('SHAME_08'), _event_tag('SHAME_09')}
     high_noise_shame = {_event_tag('SHAME_03'), _event_tag('SHAME_04')}
+    sensory_ds_tags = {_event_tag('DS_01'), _event_tag('DS_02'), _event_tag('DS_03')}
 
     triggered_intimate = False
     climax_hit = False
+    host_released = False
+    adrenaline_vigor = bool(_event_tag('HOST_03') in host_ev or _event_tag('HOST_04') in host_ev)
     max_shame_noise = 0
+    max_desire_c_gain = 0
+    sensory_hit = False
+    heroine_c_intensity = {}
     for hname in save_store.HEROINES:
         stags = set(shame_ev.get(hname) or ())
         dtags = set(ds_ev.get(hname) or ())
         if (stags & intimate_shame_tags) or (dtags & intimate_ds_tags):
             triggered_intimate = True
+        if stags & release_shame_tags:
+            host_released = True
+        if _event_tag('SHAME_07') in stags:
+            adrenaline_vigor = True
+        if (dtags & sensory_ds_tags) or (_event_tag('SHAME_20') in stags):
+            sensory_hit = True
+        if _event_tag('SHAME_04') in stags or (stags & creampie_tags):
+            max_desire_c_gain = max(max_desire_c_gain, 28)
+            heroine_c_intensity[hname] = 'heavy'
+        elif _event_tag('SHAME_03') in stags:
+            max_desire_c_gain = max(max_desire_c_gain, 22)
+            heroine_c_intensity[hname] = 'deep'
+        elif _event_tag('SHAME_02') in stags:
+            max_desire_c_gain = max(max_desire_c_gain, 14)
+            heroine_c_intensity[hname] = 'mid'
+        elif _event_tag('SHAME_01') in stags or _event_tag('DS_04') in dtags:
+            max_desire_c_gain = max(max_desire_c_gain, 8)
+            heroine_c_intensity[hname] = 'light'
         if stags & high_noise_shame:
             max_shame_noise = max(max_shame_noise, 20)
         elif _event_tag('SHAME_02') in stags:
@@ -3802,6 +4093,8 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
 
     # 4. 合并 Stage 2 校验后的 scene_state 增量
     ss = scene_state if isinstance(scene_state, dict) else {}
+    if ss.get('host_release') is True:
+        host_released = True
     if ss.get('privacy') in save_store.PRIVACY_LEVELS:
         intl['privacy'] = ss['privacy']
     if isinstance(ss.get('sub_location'), str) and ss['sub_location'].strip():
@@ -3840,6 +4133,83 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
                 step = max(-1, min(1, delta))
                 ih[pair] = max(0, min(3, int(ih.get(pair, 0) or 0) + step))
 
+    # 4.5 身体开发度与招牌敏感带成长（Stage 2 body_acts + 确定性正文印证兜底）
+    resolved_body_acts = body_acts if isinstance(body_acts, dict) else infer_body_acts_from_prose(
+        prose_text, events, explicit_acts=ss.get('body_acts')
+    )
+    dev_milestones = []
+    service_desire_bonus = 0
+    for hname, zones in resolved_body_acts.items():
+        if hname not in save_store.HEROINES or not isinstance(zones, list):
+            continue
+        tier_hit = heroine_c_intensity.get(hname, 'light')
+        base_gain = 12 if tier_hit in ('deep', 'heavy') else 6
+        sig_zone = save_store.HEROINE_SIGNATURE_ZONES.get(hname)
+        for z in zones:
+            if z not in save_store.BODY_ZONES:
+                continue
+            old_val = int(bd[hname].get(z, 0) or 0)
+            old_lv = body_dev_level(old_val)
+            gain = int(round(base_gain * (1.35 if z == sig_zone else 1.0)))
+            new_val = min(100, old_val + gain)
+            bd[hname][z] = new_val
+            new_lv = body_dev_level(new_val)
+            if new_lv > old_lv and new_lv >= 2:
+                dev_milestones.append({'heroine': hname, 'zone': z, 'label': save_store.BODY_ZONE_LABELS.get(z, z), 'level': new_lv})
+            if z in ('oral', 'hand', 'chest', 'foot'):
+                service_desire_bonus = max(service_desire_bonus, 4 + new_lv * 2)
+
+    # 4.6 私密贴身收藏登记与更新（keepsake_adds / keepsake_updates）
+    keepsakes_added = []
+    if isinstance(ss.get('keepsake_adds'), list):
+        for raw_ks in ss['keepsake_adds'][:3]:
+            if not isinstance(raw_ks, dict):
+                continue
+            owner = str(raw_ks.get('owner') or '').strip()
+            kname = str(raw_ks.get('name') or '').strip()[:32]
+            if owner not in save_store.HEROINES or not kname:
+                continue
+            existing = next(
+                (k for k in ks_list if isinstance(k, dict) and k.get('owner') == owner and k.get('name') == kname),
+                None,
+            )
+            if existing is not None:
+                if raw_ks.get('condition') in save_store.KEEPSAKE_CONDITIONS:
+                    existing['condition'] = raw_ks['condition']
+                if raw_ks.get('method') in save_store.KEEPSAKE_METHODS:
+                    existing['method'] = raw_ks['method']
+                if isinstance(raw_ks.get('desc'), str) and raw_ks['desc'].strip():
+                    existing['desc'] = raw_ks['desc'].strip()[:80]
+                if clock_str:
+                    existing['clock'] = str(clock_str).strip()[:24]
+                keepsakes_added.append(copy.deepcopy(existing))
+            else:
+                new_id = _alloc_keepsake_id(intl)
+                merged = dict(raw_ks)
+                merged['id'] = new_id
+                if not merged.get('location') and location:
+                    merged['location'] = str(location).strip()[:24]
+                if not merged.get('clock') and clock_str:
+                    merged['clock'] = str(clock_str).strip()[:24]
+                norm_k = save_store.normalize_keepsake_dict(merged, fallback_id=new_id)
+                if norm_k:
+                    ks_list.insert(0, norm_k)
+                    if len(ks_list) > 24:
+                        del ks_list[24:]
+                    keepsakes_added.append(copy.deepcopy(norm_k))
+    if isinstance(ss.get('keepsake_updates'), list):
+        for upd in ss['keepsake_updates'][:4]:
+            if not isinstance(upd, dict):
+                continue
+            kid = str(upd.get('id') or '').strip()
+            target_k = next((k for k in ks_list if isinstance(k, dict) and k.get('id') == kid), None)
+            if target_k is None:
+                continue
+            if 'owner_aware' in upd and type(upd['owner_aware']) is bool:
+                target_k['owner_aware'] = upd['owner_aware']
+            if upd.get('condition') in save_store.KEEPSAKE_CONDITIONS:
+                target_k['condition'] = upd['condition']
+
     # 5. 更新亲密进行态与慢燃拍数
     if sleep_kind != 'overnight' and not location_changed:
         explicit_active = ss.get('intimate_active') if 'intimate_active' in ss and type(ss.get('intimate_active')) is bool else None
@@ -3854,6 +4224,62 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
         elif intl.get('scene_active'):
             # 维持亲密中进行（如 A 档喘息/调情缓拍）
             intl['session_beats'] = int(intl.get('session_beats', 0) or 0) + 1
+
+    # 5.5 宿主欲望（Desire）与亲密耐力（Vigor）双池推进、同频共振与自动里程碑魅力成长
+    cur_h_des = max(0, min(100, int(hp.get('desire', 0) or 0)))
+    cur_h_vig = max(0, min(100, int(hp.get('vigor', 100) or 0)))
+    vc = vigor_costs if isinstance(vigor_costs, dict) else {'A': 2, 'B': 4, 'C': 7, 'release': 12}
+    op_code = (operation or {}).get('code') if isinstance(operation, dict) else ''
+    synced_climax = False
+    if sleep_kind == 'overnight':
+        hp['vigor'] = 100
+        hp['desire'] = 25 if cur_h_des >= 70 else 0
+        hp['edging_streak'] = 0
+    else:
+        des_gain = max_desire_c_gain + (5 if sensory_hit else 0) + service_desire_bonus
+        if keepsakes_added and any(k.get('method') == 'stolen' for k in keepsakes_added):
+            des_gain += 10
+        if des_gain > 0:
+            cur_h_des = min(100, cur_h_des + des_gain)
+        elif location_changed and not intl.get('scene_active'):
+            cur_h_des = max(0, cur_h_des - 15)
+        elif not intl.get('scene_active') and op_code != 'keepsake_action' and category == 'A':
+            cur_h_des = max(0, cur_h_des - 6)
+
+        # 亲密进行态按档位温和消耗独立耐力（与日间体力彻底解耦）
+        if intl.get('scene_active') or was_scene_active or triggered_intimate:
+            tier_v_drain = int(vc.get(str(category or 'A'), 2) or 2)
+            cur_h_vig = max(0, cur_h_vig - tier_v_drain)
+        elif int(elapsed_hours or 0) > 0:
+            cur_h_vig = min(100, cur_h_vig + int(elapsed_hours) * 8)
+
+        if adrenaline_vigor:
+            cur_h_vig = min(100, cur_h_vig + 25)
+
+        if host_released:
+            if cur_h_des >= 85 and climax_hit:
+                synced_climax = True
+            rel_cost = int(charm_info.get('release_vigor_cost', vc.get('release', 12)))
+            cur_h_vig = max(0, cur_h_vig - rel_cost)
+            cur_h_des = 20 if intl.get('scene_active') else 10
+            hp['release_count'] = int(hp.get('release_count', 0) or 0) + 1
+            hp['edging_streak'] = 0
+        elif cur_h_des >= 85:
+            hp['edging_streak'] = min(20, int(hp.get('edging_streak', 0) or 0) + 1)
+        else:
+            hp['edging_streak'] = 0
+
+        hp['desire'] = max(0, min(100, cur_h_des))
+        hp['vigor'] = max(0, min(100, cur_h_vig))
+
+    hp['fetishes'] = derive_host_fetishes(bd, ks_list)
+
+    # 自动里程碑魅力精进（每轮至多 +1：首次部位开发至 Lv.2/3 或 同频共振绝顶）
+    charm_milestone_gain = 0
+    if (dev_milestones or synced_climax) and eff_charm < 100:
+        charm_milestone_gain = 1
+        host_panel = state.setdefault('panels', {}).setdefault('系统宿主', {})
+        host_panel['魅力'] = min(100, int(host_panel.get('魅力', eff_charm) or eff_charm) + 1)
 
     # 6. 隔墙/同席潜行声响暴露风险与同栋楼女主疑心联动
     stealth_alert = False
@@ -3882,7 +4308,15 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
         for d in (state.get('items', {}).get('deployed') or [])
         if isinstance(d, dict) and int(d.get('detected_risk') or 0) >= 60
     ]
-    return {'stealth_alert': stealth_alert, 'high_risk_devices': high_risk_devices}
+    return {
+        'stealth_alert': stealth_alert,
+        'high_risk_devices': high_risk_devices,
+        'dev_milestones': dev_milestones,
+        'synced_climax': synced_climax,
+        'charm_milestone_gain': charm_milestone_gain,
+        'keepsakes_added': keepsakes_added,
+        'body_acts_used': resolved_body_acts,
+    }
 
 
 def execute_injection(current_round, story_nodes, memory_deltas, panel_changes,

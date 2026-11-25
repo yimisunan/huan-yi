@@ -301,7 +301,7 @@ class AdultSystemsV3Tests(unittest.TestCase):
 
         # Discounted costs active at beat >= 1
         costs = sp.active_costs(self.root, files)
-        self.assertEqual(costs, {'A': 5, 'B': 7, 'C': 10})
+        self.assertEqual(costs, {'A': 1, 'B': 2, 'C': 3})
 
         def _cond(intensity):
             return {

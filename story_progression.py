@@ -2106,6 +2106,36 @@ def active_costs(root, files=None):
     return base
 
 
+def stamina_guard_info(root, files=None):
+    """Return intimate stamina floor guard state: during active sex with vigor >= 15, daily stamina never drops below floor (10)."""
+    cfg = config(root)
+    res = cfg.get('resource') or {}
+    floor = max(5, int(res.get('intimate_stamina_floor', 10) or 10))
+    min_vigor = max(0, int(res.get('vigor_min_floor_guard', 15) or 15))
+    if files is None:
+        return {'active': False, 'floor': floor, 'vigor': 100, 'min_vigor': min_vigor}
+    try:
+        st_obj, _, _ = save_store.load_bundle(Path(root), files)
+        intl = st_obj.get('intimate') or {}
+        hp = intl.get('host_phys') or {}
+        vigor = max(0, min(100, int(hp.get('vigor', 100) if hp.get('vigor') is not None else 100)))
+        active = bool(intl.get('scene_active') and vigor >= min_vigor)
+        return {'active': active, 'floor': floor, 'vigor': vigor, 'min_vigor': min_vigor}
+    except Exception:
+        return {'active': False, 'floor': floor, 'vigor': 100, 'min_vigor': min_vigor}
+
+
+def apply_stamina_floor(current_stamina, raw_cost, guard):
+    """Apply intimate stamina floor guard: when active and current <= floor, stamina cost is 0 (vigor absorbs effort)."""
+    cost = max(0, int(raw_cost or 0))
+    if not (isinstance(guard, dict) and guard.get('active')):
+        return cost
+    floor = max(5, int(guard.get('floor', 10) or 10))
+    if current_stamina <= floor:
+        return 0
+    return min(cost, max(0, current_stamina - floor))
+
+
 def quote(root, files, selected, text, command=None):
     config(root)
     if selected is None:
@@ -2131,12 +2161,15 @@ def quote(root, files, selected, text, command=None):
     elif item:kind='item'
     else:kind='action'
     tier_costs = active_costs(root, files)
-    amount=tier_costs.get(option, tier_costs['C']) if kind=='action' else 0
+    guard = stamina_guard_info(root, files)
+    raw_amount = tier_costs.get(option, tier_costs['C']) if kind=='action' else 0
+    amount = apply_stamina_floor(current, raw_amount, guard) if kind=='action' else 0
     if current < amount:
         raise rr.RoundError('体力不足以预扣本档费用，请选择可用档位或提前使用恢复道具')
     value={'status':'active','scheme':'fixed_tiers','kind':kind,'attribute':'体力','total':amount,
            'before':current,'after':current-amount,'policy_version':2,'option_id':option,
-           'intimate_discount': tier_costs != COSTS}
+           'intimate_discount': tier_costs != COSTS,
+           'stamina_guard': guard['active'], 'stamina_floor': guard['floor'], 'vigor_before': guard['vigor']}
     if kind=='item':value['item']=item_quote(root,files,item['item_id'])
     return value
 
@@ -2471,12 +2504,14 @@ def resolution(root,files,body):
         is_action=(kind=='action'),
     )
     tier_costs=active_costs(root,files)
-    final_cost=tier_costs[value['category']] if kind=='action' else 0
-    return {'runtime':runtime,'cost':cost,'refund':cost['total']-final_cost,'net':final_cost,
+    guard=stamina_guard_info(root,files)
+    final_cost=apply_stamina_floor(cost['before'],tier_costs[value['category']],guard) if kind=='action' else 0
+    return {'runtime':runtime,'cost':cost,'refund':max(0,cost['total']-final_cost),'net':final_cost,
             'events':grouped,'clock':clock,'elapsed':0 if start is None else end-start,'sleep':sleep,
             'intel_used':intel_used,'director_echo':director_echo,'active_cast':sorted(active_cast),
             'insomnia_targets':sorted(insomnia_targets),'scene_state':scene_state,
-            'intimate_mode':intimate_mode,'remote_cast':sorted(remote_cast)}
+            'intimate_mode':intimate_mode,'remote_cast':sorted(remote_cast),
+            'stamina_guard':guard}
 
 
 def panel_values(engine,text):
@@ -2552,6 +2587,8 @@ def apply_staged(store,engine,stage,body,files,parsed):
     )
     # 记录本幕实际发生时的房间级同席知情者（隔离同栋楼未入室角色，防止私密戏泄密）
     scene_known_by=['徐志北',*present_actors] if kind!='item' else ['徐志北']
+    prose_joined='\n'.join(str(m.get('text') or '') for m in (body.get('messages') or []) if isinstance(m,dict))
+    resolved_body_acts={}
     if kind=='action':
         # 0. 若本轮玩家通过 use_item 启用带 buff: 效果的道具，先预挂 (turns+1) 回合使本轮结算即刻享受缓冲，随后 update_persistent_buffs 统一 -1 落定为满额 turns
         op_now=body.get('operation')
@@ -2601,13 +2638,16 @@ def apply_staged(store,engine,stage,body,files,parsed):
         intel_dirty=False
         leverage_armed=intel_state['leverage_armed'] if intel_state['leverage_armed'] in intel_state['held'] else ''
         use_leverage=bool(leverage_armed) and (not parsed.get('intel_used') or parsed['intel_used']['id']!=leverage_armed)
+        resolved_body_acts=engine.infer_body_acts_from_prose(
+            prose_joined, events, explicit_acts=(scene_state or {}).get('body_acts') if isinstance(scene_state,dict) else None,
+        )
         # 1. 先结算常规事件（延迟任务结算，待 intel_used 数值生效后统一判任务完成）
         ev_meta=rr._engine_call(
             engine.apply_story_events,events,value['task'],runtime['memory_round'],
             business_leverage=use_leverage,current_day=parsed['clock']['day'],
             active_cast=present_actors,pre_event_content=pre_mem,
             insomnia_targets=parsed.get('insomnia_targets'),defer_task=True,
-            privacy=eff_privacy,
+            privacy=eff_privacy,body_acts=resolved_body_acts,
         )
         if isinstance(ev_meta,dict) and isinstance(ev_meta.get('normalized_events'),dict):
             events=ev_meta['normalized_events']
@@ -2868,7 +2908,8 @@ def apply_staged(store,engine,stage,body,files,parsed):
         save_store.save_bundle(stage,st_ov,ly_ov)
         runtime['item_recovered']=0
     final=engine._read_attr_value(memory_path.read_text(encoding='utf-8'),'系统宿主','体力')
-    low=final<5 or parsed['sleep']['kind']=='collapse'
+    guard_pre=parsed.get('stamina_guard') if isinstance(parsed.get('stamina_guard'),dict) else stamina_guard_info(store.root,files)
+    low=(final<5 and not (guard_pre.get('active') and final>=5)) or parsed['sleep']['kind']=='collapse'
     was_resting=runtime['phase']=='resting'
     memory_round=runtime['last_closed'] if was_resting and runtime['last_closed'] else runtime['memory_round']
     memory_round=max(1,memory_round)
@@ -2886,7 +2927,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
             runtime['last_closed']=runtime['memory_round'];runtime['memory_round']+=1;runtime['closed_by']=body['request_id'];closed=True
         runtime['phase']='ready' if parsed['sleep']['kind']=='overnight' and final>=5 else 'resting'
     else:runtime['phase']='ready'
-    # 最终统一同步 P2 JSON 真相与单向可读视图（含最新 runtime/weekday 与 intimate 空间/痕迹/暗流态）
+    # 最终统一同步 P2 JSON 真相与单向可读视图（含最新 runtime/weekday 与 intimate 空间/痕迹/暗流/欲望耐力/身体开发/私密收藏）
     st_final,ly_final,_=save_store.load_bundle(stage)
     st_final['runtime'].update({
         'clock':copy.deepcopy(runtime['clock']),
@@ -2900,6 +2941,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
     })
     intimate_meta={'stealth_alert':False,'high_risk_devices':[]}
     if kind!='item':
+        res_cfg=(config(store.root).get('resource') or {})
         intimate_meta=engine.advance_intimate_state(
             st_final,
             events,
@@ -2908,6 +2950,14 @@ def apply_staged(store,engine,stage,body,files,parsed):
             building_cast=active_cast,
             sleep_kind=parsed['sleep']['kind'],
             location_changed=moved_now,
+            category=value.get('category','A'),
+            prose_text=prose_joined,
+            clock_str=_clock_label({'clock':parsed['clock']}),
+            location=player_loc_now,
+            elapsed_hours=hours,
+            operation=op_now_all,
+            vigor_costs=res_cfg.get('vigor_costs'),
+            body_acts=resolved_body_acts,
         )
         if parsed['sleep']['kind']=='overnight' or moved_now:
             st_final.setdefault('mechanics',{})['charm_scene_used']=False
@@ -3195,9 +3245,14 @@ def redeem_shop_item(service,body):
             points=engine._read_attr_value(memory,'系统宿主','积分')
             if points is None:
                 raise rr.RoundError('正式存档缺少宿主积分字段')
-            if points<product['price']:
-                raise rr.RoundError(f"当前积分不足（需要 {product['price']}，现有 {points}）")
-            points_after=points-product['price']
+            host_charm=engine._read_attr_value(memory,'系统宿主','魅力')
+            charm_info=engine.charm_tier_info(70 if host_charm is None else host_charm)
+            charm_disc=float(charm_info.get('shop_discount',1.0))
+            base_price=int(product['price'])
+            eff_price=max(1,int(round(base_price*charm_disc))) if charm_disc<1.0 else base_price
+            if points<eff_price:
+                raise rr.RoundError(f"当前积分不足（需要 {eff_price}，现有 {points}）")
+            points_after=points-eff_price
             memory=engine._simulate_panel(memory,{'系统宿主':{'积分':points_after}})
             rr._atomic(memory_path,memory.encode('utf-8'))
             runtime=state(service.root,files) if enabled(service.root) else {'memory_round':1,'clock':None}
@@ -3206,6 +3261,7 @@ def redeem_shop_item(service,body):
             pack_qty=max(1,int(product.get('pack_qty') or 1))
             usage_mode=save_store.infer_usage_mode(product.get('system_effect',''),bool(product.get('giftable',True)),product.get('usage_mode',''))
             location='无' if ('临时性' in product['type'] and usage_mode=='consumable_host') else '随身'
+            disc_note=f"（魅力折扣 {int(round(charm_disc*100))}%）" if charm_disc<1.0 else ""
             entry={
                 'name':product['name'],
                 'type':product['type'],
@@ -3219,7 +3275,7 @@ def redeem_shop_item(service,body):
                 'duration':product.get('duration','无'),
                 'expire_rule':product.get('expire_rule','无'),
                 'usage_record':f'{clock_str} - 系统商城兑换入囊（×{pack_qty}）' if pack_qty>1 else f'{clock_str} - 系统商城兑换入囊',
-                'remark':f"系统商城兑换（{product['id']}）· 消耗{product['price']}积分 · {clock_str}",
+                'remark':f"系统商城兑换（{product['id']}）· 消耗{eff_price}积分{disc_note} · {clock_str}",
                 'system_effect':product.get('system_effect',''),
                 'giftable':bool(product.get('giftable',False)),
                 'action':'add',
@@ -3232,12 +3288,12 @@ def redeem_shop_item(service,body):
             shop_state=parse_shop_echo_block(memory)
             shop_state['redeemed'][product['id']]=bought+1
             seq_tag=guard['ledger']['sequence']+1
-            shop_state['recent'].insert(0,f"{clock_str} | {product['id']} | {product['name']}×{pack_qty} | -{product['price']}积分 | {catalog_item_id}")
+            shop_state['recent'].insert(0,f"{clock_str} | {product['id']} | {product['name']}×{pack_qty} | -{eff_price}积分 | {catalog_item_id}")
             shop_state['recent']=shop_state['recent'][:SHOP_RECENT_LIMIT]
             memory=write_shop_echo_block(memory,shop_state)
             memory=append_echo(
                 memory,'shop_redeemed',f"{product['id']}@{seq_tag}",
-                f"商城兑换「{product['name']}」×{pack_qty}（-{product['price']}积分，{catalog_item_id}）",
+                f"商城兑换「{product['name']}」×{pack_qty}（-{eff_price}积分{disc_note}，{catalog_item_id}）",
             )
             rr._atomic(memory_path,memory.encode('utf-8'))
             receipt=_publish_deterministic_stage(service,guard,stage,{
@@ -3246,7 +3302,9 @@ def redeem_shop_item(service,body):
                 'item_id':catalog_item_id,
                 'item_name':product['name'],
                 'quantity':pack_qty,
-                'price':product['price'],
+                'price':eff_price,
+                'base_price':base_price,
+                'charm_discount':charm_disc,
                 'points_before':points,
                 'points_after':points_after,
             })
@@ -3430,13 +3488,20 @@ def upgrade_passive_skill(service,body):
             if exp_before<cost_exp:
                 raise rr.RoundError(f"当前经验值不足（解锁 {next_info['tag']} {next_info['name']} 需 {cost_exp}，现有 {exp_before}）")
             exp_after=exp_before-cost_exp
+            charm_before=engine._read_attr_value(memory,'系统宿主','魅力')
+            host_patch={'经验值':exp_after}
+            charm_gain=0
+            if charm_before is not None and charm_before<100:
+                host_patch['魅力']=min(100,charm_before+1)
+                charm_gain=host_patch['魅力']-charm_before
             memory=engine._simulate_panel(memory,{
-                '系统宿主':{'经验值':exp_after},
+                '系统宿主':host_patch,
                 target:{'被动':next_info['tag']},
             })
+            charm_note=f"，魅力+{charm_gain}" if charm_gain else ""
             memory=append_echo(
                 memory,'passive_upgraded',f"{target}@{next_info['tag']}",
-                f"对{target}解锁「{next_info['name']}」（{next_info['tag']}，-{cost_exp}经验）",
+                f"对{target}解锁「{next_info['name']}」（{next_info['tag']}，-{cost_exp}经验{charm_note}）",
             )
             rr._atomic(memory_path,memory.encode('utf-8'))
             receipt=_publish_deterministic_stage(service,guard,stage,{
@@ -3448,6 +3513,7 @@ def upgrade_passive_skill(service,body):
                 'cost_exp':cost_exp,
                 'exp_before':exp_before,
                 'exp_after':exp_after,
+                'charm_gain':charm_gain,
             })
             return {'status':'committed','receipt':receipt,'replayed':False}
         finally:

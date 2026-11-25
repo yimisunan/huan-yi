@@ -14,7 +14,8 @@
     "use_item",
     "deploy_item",
     "retrieve_item",
-    "inspect_deployed"
+    "inspect_deployed",
+    "keepsake_action"
   ],
   "resource": {
     "status": "active",
@@ -27,11 +28,20 @@
       "C": 15
     },
     "intimate_continuation_costs": {
-      "A": 5,
-      "B": 7,
-      "C": 10
+      "A": 1,
+      "B": 2,
+      "C": 3
     },
     "intimate_min_beats_for_discount": 1,
+    "intimate_stamina_floor": 10,
+    "vigor_maximum": 100,
+    "vigor_min_floor_guard": 15,
+    "vigor_costs": {
+      "A": 2,
+      "B": 4,
+      "C": 7,
+      "release": 12
+    },
     "custom_reserve": 15,
     "maximum": 100,
     "minimum_action": 5,
