@@ -14,8 +14,8 @@
 
 深渊天平引擎 · 互动叙事项目（移动端本地运行，Pydroid3 + 本地 HTTP 服务器）。
 
-- 引擎：`injection_core.py`（注入执行与回滚校验）、`save_store.py`（P2 自包含存档存储与单向视图渲染）、`main_template.html`（前端渲染）、`语音运行.py` + `voice_config.json`（语音）
-- 存档真相层（`存档/` 自包含）：`存档/save_state.json`（全量机器状态与确定性机制计数）、`存档/四层记忆.json`（L1–L4 结构化记忆与序幕/知情元数据）、`存档/近期演播.json`（滚动最新 12 幕原文与演播进度）；`存档/全局记忆库.txt` 与 `存档/徐志北道具图鉴.txt` 为由 `save_store` 单向自动渲染的人类/手动只读视图（`存档/次要NPC名册.txt` 已移除，偶发配角由四层记忆与活体导演线头自然承载）。
+- 引擎：`injection_core.py`（注入执行与回滚校验）、`save_store.py`（P3 自包含存档存储、三轨结构化记忆与单向视图渲染）、`main_template.html`（前端渲染）、`语音运行.py` + `voice_config.json`（语音）
+- 存档真相层（`存档/` 自包含）：`存档/save_state.json`（全量机器状态与确定性机制计数）、`存档/memory_store.json`（v2 三轨结构化记忆：永久锚点 `anchors` / 近期情景幕 `episodes` + 缓冲 / 分视角编年史 `chronicle` 与房间级 `known_by`）、`存档/近期演播.json`（滚动最新 16 幕原文与演播进度）；`存档/全局记忆库.txt` 与 `存档/徐志北道具图鉴.txt` 为由 `save_store` 单向自动渲染的人类/手动只读视图（`存档/次要NPC名册.txt` 与旧 `存档/四层记忆.json` 已退役）。
 - 运行时状态：`data.json`（前端展示快照，可由 `存档/` 无损重建）；全量本地事务与归档维护在 `.round-runtime/interaction/`，缺失时自动从 `存档/近期演播.json` 恢复。
 
 **三类文件角色差**（避免误改）：
@@ -42,7 +42,7 @@
 | 世界观 / 信息差 / OPTIONS 命名 / 驻地看望窗（`lore.*`） | `txt文件/知识库/世界观类.json` | 世界书 / Zone 0 冻结 |
 | 角色设定 / 性格气质 / 情境应对 / 语言指纹 / 声线底色（`char.*`） | `txt文件/知识库/角色类.json` | 世界书 / Zone 0–1 按场注入 |
 | 系统标签 SHAME / DEPRAVITY / DS / AFFECTION / PREGNANCY / VIGILANCE / HOST / breakout / runtime / task（`sys.*`） | `txt文件/知识库/系统标签类.json` | 世界书 / Stage 2 结算注入 |
-| 动态记忆 / 人物所在 / L1-L4 层 | `存档/全局记忆库.txt`（由 `存档/save_state.json` + `存档/四层记忆.json` 单向渲染） | workspace 物理读（每回合首个） |
+| 动态记忆 / 人物所在 / 三轨记忆只读投影 | `存档/全局记忆库.txt`（由 `存档/save_state.json` + `存档/memory_store.json` 单向渲染） | workspace 物理读（手动）/ 编译器按知情分区直读 JSON（正式互动） |
 | 道具图鉴（活跃 / 已交付 / 历史） | `存档/徐志北道具图鉴.txt`（由 `存档/save_state.json` 单向渲染） | workspace 物理读（用道具 / 查仓库） |
 | 运行时快照（当前回合 / 场景标题 / STORY_NODES / presence） | `data.json` | 引擎覆写，AI 不手写 |
 | 全局技能（界面设计 / 计划等） | Operit skill 区（`/storage/emulated/0/Download/Operit/skills/`） | Operit 加载 |

@@ -4,6 +4,7 @@ import hmac
 import json
 import re
 import secrets
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -232,10 +233,55 @@ class StoryService:
         return value
 
     def _write(self, value):
+        sp.prune_tasks_state(value)
         rr._atomic(self._path('tasks.json'), rr._json(value))
 
     def _blob(self, request_id, suffix):
         return self._path(hashlib.sha256(request_id.encode()).hexdigest() + suffix)
+
+    def _gc_runtime_artifacts(self, state, keep_recent=3):
+        """Remove orphaned per-turn cache dirs under txt文件/.story-reading/ and old .round-runtime/story blobs."""
+        try:
+            jobs = (state or {}).get('jobs') if isinstance(state, dict) else {}
+            latest_id = (state or {}).get('latest') if isinstance(state, dict) else None
+            keep_ids = set()
+            terminal = []
+            for jid, job in (jobs or {}).items():
+                if not isinstance(job, dict):
+                    continue
+                st_str = str(job.get('status') or '')
+                if jid == latest_id or st_str in sp.ACTIVE_JOB_STATUSES or st_str == 'refund_pending':
+                    keep_ids.add(jid)
+                else:
+                    ts = float(job.get('committed_at') or job.get('returned_at') or job.get('created_at') or 0)
+                    terminal.append((ts, jid))
+            terminal.sort(key=lambda pair: (pair[0], pair[1]))
+            for _, jid in terminal[-max(1, int(keep_recent)):]:
+                keep_ids.add(jid)
+            keep_full = {hashlib.sha256(jid.encode()).hexdigest() for jid in keep_ids}
+            keep_short = {h[:32] for h in keep_full}
+
+            story_dir = self.store._path('.round-runtime/story')
+            blob_rx = re.compile(r'^([0-9a-f]{64})\.(?:context\.json|result\.txt|read-audit\.json|assembled\.json|delivery\.json|stage1\.json)$')
+            if story_dir.is_dir():
+                for child in story_dir.iterdir():
+                    m = blob_rx.fullmatch(child.name)
+                    if m and m.group(1) not in keep_full and child.is_file() and not child.is_symlink():
+                        try:
+                            child.unlink()
+                        except OSError:
+                            pass
+
+            cache_dir = self.store._path(sr.CACHE)
+            if cache_dir.is_dir():
+                for child in cache_dir.iterdir():
+                    if re.fullmatch(r'[0-9a-f]{32}', child.name) and child.name not in keep_short and child.is_dir() and not child.is_symlink():
+                        try:
+                            shutil.rmtree(child, ignore_errors=True)
+                        except OSError:
+                            pass
+        except Exception:
+            pass
 
     def _expire(self, state):
         changed = False
@@ -1801,8 +1847,7 @@ class StoryService:
 
     def material(self, key, body):
         self.start()
-        # continuity_hook: 桥接在重建会话时携带的续接钩子；本版只放行不参与资料生成，
-        # 缺了它会让 material 交付整批 400，进而每次发言都失败。
+        # continuity_hook: 桥接在重建会话时携带的跨窗续接钩子，已正式透传至 material_delivery_v2 承接尾句。
         opt_keys = {'delivery_version', 'protocol_mode', 'synced_zone0_sha256',
                     'synced_zone1_sha256', 'last_committed_sequence', 'is_fresh_session',
                     'continuity_hook'}
@@ -2083,6 +2128,7 @@ class StoryService:
                         current.setdefault('timing', {})['acceptance_ms'] = max(0, round((time.time() - current['returned_at']) * 1000))
                         current['committed_at'] = time.time()
                     self._write(state)
+                    self._gc_runtime_artifacts(state)
                     try:
                         seg = ir.segment(self.root, self.store._files())
                         if seg and seg.get('messages'):

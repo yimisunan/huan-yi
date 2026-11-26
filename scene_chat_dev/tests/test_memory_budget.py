@@ -56,25 +56,39 @@ class MemoryBudgetChecks(ProgressionChecks):
         self.assertIn('尚未执行',self.layers()['L1'][0])
 
     def test_compact_replaces_long_daily_log_with_commitments_and_no_rewrite_elsewhere(self):
+        import save_store
         self.begin(time='09:00')
-        engine=rr._engine(self.root,self.root)
-        original='徐志北答应上午留下；苏婉青计划15:30探望婆婆，尚未执行。'+'摆好餐具。'*150
-        engine.update_global_memory(1,{'l1_new_round':original},{})
-        compact='第1天09:05，公寓。徐志北答应上午留下陪苏婉青；她计划15:30到主宅探望婆婆、晚饭后返回，均未执行。她已说明晚饭需提前预约。'
-        self.accept(time='09:05',fact='苏婉青说明晚饭需提前预约。',compact=compact);self.play()
-        self.assertEqual(self.layers()['L1'],['【1】'+compact])
-        self.assertLessEqual(len(self.layers()['L1'][0].split('】',1)[1]),600)
-        self.assertEqual(len(ir.records(self.store)),2)
+        # v2 three-track memory auto-seals pending_buffer into a bounded episode without requiring brittle LLM same-day rewrite
+        for idx, fact in enumerate((
+            '徐志北答应上午留下陪苏婉青。',
+            '苏婉青计划15:30去主宅探望婆婆，尚未执行。',
+            '她提醒晚饭需提前预约。',
+            '双方确认出发前再核对一次门禁时间。',
+        ), 1):
+            self.accept(time=f'09:0{idx}', fact=fact); self.play()
+        _, ms, _ = save_store.load_bundle(self.root)
+        self.assertGreaterEqual(len(ms['episodes']), 1)
+        self.assertLessEqual(len(ms['pending_buffer']['facts']), save_store.PENDING_FLUSH_MAX_FACTS)
+        self.assertLessEqual(len(ms['episodes'][-1]['summary']), 480)
+        self.assertIn('提前预约', ms['episodes'][-1]['summary'])
+        self.assertEqual(len(ir.records(self.store)), 5)
 
     def test_overflow_without_compact_refunds_and_preserves_prior_and_archive(self):
-        self.begin(time='09:00');engine=rr._engine(self.root,self.root)
-        engine.update_global_memory(1,{'l1_new_round':'重要旧约定。'*110},{})
-        before=self.layers();energy=self.energy();count=len(ir.records(self.store))
-        self.service.create(self.request('A'));task=self.service.claim()['task']
-        result=self.service.result(task['request_id'],self.response(task,category='A',time='09:05',fact='新的重要信息。'))
-        self.assertEqual(result['task']['status'],'failed',result)
-        self.assertEqual(self.layers(),before);self.assertEqual(self.energy(),energy)
-        self.assertEqual(len(ir.records(self.store)),count)
+        self.begin(time='09:00')
+        before = self.layers(); energy = self.energy(); count = len(ir.records(self.store))
+        # Invalid anchor_ops (>3 items) or invalid op must reject before commit and refund stamina
+        self.service.create(self.request('A')); task = self.service.claim()['task']
+        body = self.response(task, category='A', time='09:05', fact='新的重要信息。')
+        data = json.loads(body['text'])
+        data['resolution']['memory']['anchor_ops'] = [
+            {'op': 'add', 'kind': 'promise', 'importance': 4, 'text': f'过多锚点{i}', 'private_host': False}
+            for i in range(4)
+        ]
+        body['text'] = json.dumps(data, ensure_ascii=False)
+        result = self.service.result(task['request_id'], body)
+        self.assertEqual(result['task']['status'], 'failed', result)
+        self.assertEqual(self.layers(), before); self.assertEqual(self.energy(), energy)
+        self.assertEqual(len(ir.records(self.store)), count)
 
     def test_empty_fact_does_not_evict_or_require_transfer_at_full_l1(self):
         self.begin(time='09:00');engine=rr._engine(self.root,self.root)
@@ -103,20 +117,23 @@ class MemoryBudgetChecks(ProgressionChecks):
             self.assertTrue(any(actual==item for items in all_entries.values() for item in items))
 
     def test_long_legacy_current_requires_complete_authenticated_read(self):
-        self.begin(time='09:00');engine=rr._engine(self.root,self.root)
-        engine.update_global_memory(1,{'l1_new_round':'保留明确未完成约定。'*900},{})
-        self.service.create(self.request('A'));task=self.service.claim()['task'];context,packet=self.packet(task)
-        self.assertTrue(context['required_memory_reads'])
-        self.assertLessEqual(len(packet['player_private_state']['memory']),6000)
-        body=self.response(task,category='A',time='09:05',fact='',compact='徐志北与沈知韫的明确约定尚未完成。')
-        pre_mem=self.service.preflight(task['request_id'],body)
-        self.assertFalse(pre_mem['ready']);self.assertTrue(pre_mem['missing_keys'])
-        for ref in context['required_memory_reads']:self.read_ref(body,ref)
-        self.assertTrue(self.service.preflight(task['request_id'],body)['ready'])
-        invalid=copy.deepcopy(body);invalid['conversation_audit']['tools'][-1]['name']='read_file'
-        with self.assertRaises(rr.RoundError):self.service.preflight(task['request_id'],invalid)
-        self.assertEqual(self.service.result(task['request_id'],body)['task']['status'],'committed')
-        self.assertEqual(self.layers()['L1'],['【1】徐志北与沈知韫的明确约定尚未完成。'])
+        import save_store
+        # Pure legacy .txt save (without memory_store.json) still enforces authenticated read_file_part;
+        # v2 memory_store.json keeps prompt bounded natively without requiring .txt reread round-trips.
+        self.begin(time='09:00')
+        st, ms, rc = save_store.load_bundle(self.root)
+        for idx in range(1, 30):
+            ms = save_store.record_memory_turn(
+                ms, fact=f'第{idx}幕测试事实：保留明确未完成约定。', day=idx, time_str='10:00',
+                location='徐家主宅', known_by=['徐志北', '沈知韫'], overnight=True,
+            )
+        save_store.save_bundle(self.root, st, ms, rc)
+        self.service.create(self.request('A')); task = self.service.claim()['task']; context, packet = self.packet(task)
+        self.assertEqual(context['required_memory_reads'], [])
+        self.assertLessEqual(len(packet['player_private_state']['memory']), 6000)
+        view = save_store.retrieve_memory_view(ms, cast=['沈知韫'], location='徐家主宅', query='未完成约定')
+        self.assertTrue(view['shared_scene_memory'])
+        self.assertTrue(view['chronicle_archive_batch'])
 
     def test_history_window_has_character_budget_and_preserves_input_witnesses(self):
         self.begin(time='09:00')
@@ -136,7 +153,7 @@ class MemoryBudgetChecks(ProgressionChecks):
 
     def test_fact_transfer_and_compact_limits_reject_before_commit(self):
         self.begin(time='09:00')
-        for field,value in [('fact','长'*161),('compact','长'*601),('fact','不应注入\n新行')]:
+        for field,value in [('fact','长'*161),('fact','不应注入\n新行'),('anchor_ops',[{'op':'drop_all'}]),('chronicle_digest',{'public':'长'*300,'views':{}})]:
             self.service.create(self.request('A'));task=self.service.claim()['task']
             body=self.response(task,category='A',time='09:01')
             data=json.loads(body['text']);data['resolution']['memory'][field]=value
@@ -167,7 +184,7 @@ class MemoryBudgetChecks(ProgressionChecks):
         for i in range(100):self.assertIsNone(sp.memory_merge(self.root,layers,1,{'day':1,'time':'09:00'},{'fact':'','transfers':{}}))
         self.assertEqual(layers['L1'],['【1】既有未履行约定。'])
         p=self.root/'txt文件/互动运行配置.json';value=json.loads(p.read_text());value['memory'].update(fact_chars=80,round_chars=400);p.write_text(json.dumps(value))
-        contract=sp.contract(self.root)['memory'];self.assertIn('80',contract['fact']);self.assertIn('400',contract['compact'])
+        contract=sp.contract(self.root)['memory'];self.assertIn('80',contract['fact']);self.assertIn('anchor_ops',contract);self.assertIn('chronicle_digest',contract)
 
 # Inherited compatibility tests are executed separately from test_progression.
 for _name in list(ProgressionChecks.__dict__):

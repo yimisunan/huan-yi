@@ -135,11 +135,21 @@ class ProgressionChecks(unittest.TestCase):
   self.accept(time='08:10',text=text,events=events);self.play();panel=engine._read_host_panel(str(self.root/rr.FILES[0]));self.assertEqual(panel['积分'],17);self.assertEqual(engine._parse_task_block((self.root/rr.FILES[0]).read_text())['current']['status'],'已完成')
   self.accept(time='08:15',text='他把事情再确认了一遍。');self.play();self.assertEqual(engine._read_host_panel(str(self.root/rr.FILES[0]))['积分'],17)
  def test_four_layer_transfer_preserves_source_and_action_timers(self):
+  import save_store
   self.begin();engine=rr._engine(self.root,self.root)
-  for number in range(1,4):
-   if number>1:engine.update_global_memory(number,{'l1_new_round':'原始事实'+str(number)},{})
-  files=self.store._files();data=json.loads(files['data.json']);runtime=sp.state(self.root,files);runtime.update(memory_round=4,last_closed=3);data['story_runtime']=runtime;(self.root/'data.json').write_text(json.dumps(data,ensure_ascii=False))
-  text='新的第四回合事实。';request=self.request('A');self.service.create(request);task=self.service.claim()['task'];body=self.response(task,category='A',time='22:10',text=text,transfers={'l1_to_l2_condensed':engine._parse_memory_layer_items((self.root/rr.FILES[0]).read_text())['L1'][0]});result=self.service.result(task['request_id'],body);self.assertEqual(result['task']['status'],'committed',result);self.play();layers=engine._parse_memory_layer_items((self.root/rr.FILES[0]).read_text());self.assertEqual(len(layers['L1']),3);self.assertEqual(len(layers['L2']),1);self.assertTrue(layers['L2'][0].startswith('【1】'))
+  st,ms,rc=save_store.load_bundle(self.root)
+  for idx in range(1,25):
+   ms=save_store.record_memory_turn(ms,fact=f'第{idx}幕关键因果事实。',day=idx,time_str='20:00',location='徐家主宅',known_by=['徐志北','沈知韫'],overnight=True)
+  save_store.save_bundle(self.root,st,ms,rc)
+  self.assertTrue(save_store.needs_chronicle_archive(ms))
+  text='新的第二十五幕事实，两人约定明日复查账目。';request=self.request('A');self.service.create(request);task=self.service.claim()['task']
+  body=self.response(task,category='A',time='22:10',text=text)
+  payload=json.loads(body['text'])
+  payload['resolution']['memory']={'fact':text,'anchor_ops':[{'op':'add','kind':'promise','importance':4,'text':'约定明日复查账目','private_host':False}],'chronicle_digest':{'public':'前八幕完成了徐家主宅多轮试探与账目摸底。','views':{'沈知韫':'私下保留了对账单原件。'}}}
+  body['text']=json.dumps(payload,ensure_ascii=False)
+  result=self.service.result(task['request_id'],body);self.assertEqual(result['task']['status'],'committed',result);self.play()
+  _,ms_after,_=save_store.load_bundle(self.root)
+  self.assertEqual(len(ms_after['chronicle']),1);self.assertEqual(len(ms_after['anchors']),1);self.assertLessEqual(len(ms_after['episodes']),save_store.MAX_HOT_EPISODES)
  def test_bad_event_target_and_invalid_sleep_return_prepaid_funds(self):
   self.begin();text='话题暂时告一段落。';request=self.request('A');self.service.create(request);task=self.service.claim()['task'];body=self.response(task,category='A',text=text,events=[{'group':'affection_events','target':'苏婉青','tags':['社交微幅回馈'],'evidence':text}]);result=self.service.result(task['request_id'],body);self.assertEqual(result['task']['status'],'failed');self.assertEqual(self.energy(),100)
  def test_committed_journal_recovers_task_receipt_and_balance_together(self):

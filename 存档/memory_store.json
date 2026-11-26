@@ -1,0 +1,44 @@
+{
+  "anchors": [],
+  "chronicle": [],
+  "episodes": [
+    {
+      "day": 1,
+      "entities": [
+        "徐志北",
+        "沈知韫"
+      ],
+      "id": "EP-001",
+      "is_prologue": true,
+      "known_by": [
+        "徐志北",
+        "沈知韫"
+      ],
+      "location": "公司",
+      "sub_location": "顶层董事长办公室",
+      "summary": "周三晚七点半，集团总部顶层早已清场，走廊灯暗了一半，只有董事长办公室的落地玻璃幕墙映着城央灯火。沈知韫仍穿着收腰白衬衫与黑色高腰包臀短裙，宽大办公桌下，那双被超薄黑丝包裹的纤细脚踝刚从黑色尖头细跟后空鞋里褪出半截，足背绷着舒缓一天的酸胀；案头摊着标有风控红签的并购文件夹。徐志北提着温热的汤盅轻推开门，反手带上门扉的咔哒声在静谧空间里格外清晰。",
+      "tags": [
+        "开局序幕"
+      ],
+      "time_range": "19:30"
+    }
+  ],
+  "next_anchor_seq": 1,
+  "next_chronicle_seq": 1,
+  "next_episode_seq": 2,
+  "pending_buffer": {
+    "day": 1,
+    "entities": [],
+    "facts": [],
+    "known_by": [],
+    "last_time": "",
+    "location": "",
+    "start_time": "",
+    "sub_location": "",
+    "tags": [],
+    "turns": 0
+  },
+  "prologue_active": true,
+  "resolved_anchors": [],
+  "version": 2
+}

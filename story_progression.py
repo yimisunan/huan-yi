@@ -2623,7 +2623,42 @@ def change_stamina(root, files, value):
     return result
 
 
+MAX_TERMINAL_JOBS = 20
+
+
+def prune_tasks_state(tasks, *, keep_terminal=MAX_TERMINAL_JOBS):
+    """Strip heavy Base64 snapshots from all non-held reservations and cap terminal jobs in tasks.json."""
+    if not isinstance(tasks, dict) or not isinstance(tasks.get('jobs'), dict):
+        return tasks
+    jobs = tasks['jobs']
+    latest_id = tasks.get('latest')
+    active_ids = set()
+    terminal_rows = []
+    for jid, job in list(jobs.items()):
+        if not isinstance(job, dict):
+            jobs.pop(jid, None)
+            continue
+        status = str(job.get('status') or '')
+        res = job.get('reservation')
+        is_held = isinstance(res, dict) and res.get('status') == 'held'
+        if not is_held and isinstance(res, dict):
+            res.pop('before_memory', None)
+            res.pop('before_save_state', None)
+        if status in ACTIVE_JOB_STATUSES or status == 'refund_pending' or is_held or jid == latest_id:
+            active_ids.add(jid)
+        else:
+            ts = float(job.get('committed_at') or job.get('returned_at') or job.get('created_at') or 0)
+            terminal_rows.append((ts, jid))
+    if len(terminal_rows) > keep_terminal:
+        terminal_rows.sort(key=lambda pair: (pair[0], pair[1]))
+        for _, stale_jid in terminal_rows[:-keep_terminal]:
+            if stale_jid not in active_ids:
+                jobs.pop(stale_jid, None)
+    return tasks
+
+
 def commit_tasks(store, files, tasks):
+    prune_tasks_state(tasks)
     after=dict(files)
     after[rr.META]=rr._json(store._ledger())
     after[TASKS]=rr._json(tasks)
@@ -2650,7 +2685,10 @@ def refund(service,tasks,job,status,error):
     committed=service.store._ledger()['receipts'].get(job['request_id'])
     if committed:
         job.update(status='committed',error='',receipt=committed['receipt'],lease=None)
-        if reservation:reservation['status']='settled'
+        if reservation:
+            reservation['status']='settled'
+            reservation.pop('before_memory', None)
+            reservation.pop('before_save_state', None)
         commit_tasks(service.store,service.store._files(),tasks)
         return
     if reservation and reservation['status']=='held':
@@ -2665,6 +2703,8 @@ def refund(service,tasks,job,status,error):
         if rr._revision(files)!=reservation['original_revision']:
             raise rr.RecoveryError('预扣原始指纹不一致，拒绝猜测退款')
         reservation['status']='refunded'
+        reservation.pop('before_memory', None)
+        reservation.pop('before_save_state', None)
         job['refund']={'amount':reservation['quote']['total'],'status':'refunded','reason':error}
         job.update(status=status,error=error,lease=None)
         commit_tasks(service.store,files,tasks)
@@ -2721,18 +2761,68 @@ def resolution(root,files,body):
     if kind=='begin' and sleep['kind']!='none':
         raise rr.RoundError('启动段不得凭空结算睡眠')
     limits=memory_policy(root)
-    rr._keys(value['memory'],{'fact','transfers','compact'},'memory',{'fact','transfers'})
-    memory_text(value['memory']['fact'],'memory.fact',limits['fact_chars'],empty=True)
-    if isinstance(value['memory'].get('compact'), str) and value['memory']['compact'].strip():
-        value['memory']['compact'] = re.sub(
-            r'^\s*【\d+(?:-\d+)?】\s*',
-            '',
-            re.sub(r'[\r\n]+', ' ', value['memory']['compact']),
-        ).strip()
-    memory_text(value['memory'].get('compact',''),'memory.compact',limits['round_chars'],empty=True)
-    rr._keys(value['memory']['transfers'],{'l1_to_l2_condensed','l2_to_l3_summary','l3_to_l4_summary'},'memory.transfers')
-    for key,text in value['memory']['transfers'].items():
-        memory_text(text,'memory.transfer',limits[{'l1_to_l2_condensed':'l2_chars','l2_to_l3_summary':'l3_chars','l3_to_l4_summary':'l4_chars'}[key]])
+    mem_raw_obj=value['memory']
+    rr._keys(mem_raw_obj,{'fact','anchor_ops','chronicle_digest','tags','transfers','compact'},'memory',{'fact'})
+    clean_fact=memory_text(mem_raw_obj['fact'],'memory.fact',limits['fact_chars'],empty=True)
+    raw_anchor_ops=mem_raw_obj.get('anchor_ops')
+    parsed_anchor_ops=[]
+    if raw_anchor_ops not in (None,''):
+        if not isinstance(raw_anchor_ops,list) or len(raw_anchor_ops)>3:
+            raise rr.RoundError('memory.anchor_ops须为最多3条的数组')
+        for idx_op, aop in enumerate(raw_anchor_ops):
+            if not isinstance(aop,dict):
+                raise rr.RoundError(f'memory.anchor_ops[{idx_op}]须为对象')
+            act=str(aop.get('op') or '').strip().lower()
+            if act not in ('add','update','resolve'):
+                raise rr.RoundError(f'memory.anchor_ops[{idx_op}].op须为add/update/resolve')
+            if act=='add':
+                atxt=memory_text(aop.get('text',''),f'memory.anchor_ops[{idx_op}].text',110,empty=False)
+                akind=str(aop.get('kind') or 'milestone').strip()
+                if akind not in save_store.ANCHOR_KINDS:
+                    akind='milestone'
+                aimp=aop.get('importance',3)
+                if type(aimp) is not int or not 1<=aimp<=5:
+                    aimp=3
+                parsed_anchor_ops.append({
+                    'op':'add','kind':akind,'text':atxt,'importance':aimp,
+                    **({'entities':[str(x).strip() for x in aop['entities'] if isinstance(x,str) and x.strip()]} if isinstance(aop.get('entities'),list) else {}),
+                    **({'known_by':[str(x).strip() for x in aop['known_by'] if isinstance(x,str) and x.strip()]} if isinstance(aop.get('known_by'),list) else {}),
+                    **({'private_host':True} if aop.get('private_host') is True else {}),
+                })
+            elif act=='update':
+                aid=str(aop.get('id') or '').strip()
+                if not re.fullmatch(r'A-\d+',aid):
+                    raise rr.RoundError(f'memory.anchor_ops[{idx_op}].id须为A-编号')
+                atxt=memory_text(aop.get('text',''),f'memory.anchor_ops[{idx_op}].text',110,empty=False)
+                upd={'op':'update','id':aid,'text':atxt}
+                if type(aop.get('importance')) is int and 1<=aop['importance']<=5:
+                    upd['importance']=aop['importance']
+                parsed_anchor_ops.append(upd)
+            else:
+                aid=str(aop.get('id') or '').strip()
+                if not re.fullmatch(r'A-\d+',aid):
+                    raise rr.RoundError(f'memory.anchor_ops[{idx_op}].id须为A-编号')
+                anote=memory_text(aop.get('note','') or '',f'memory.anchor_ops[{idx_op}].note',60,empty=True)
+                parsed_anchor_ops.append({'op':'resolve','id':aid,**({'note':anote} if anote else {})})
+    raw_cd=mem_raw_obj.get('chronicle_digest')
+    parsed_chronicle_digest=None
+    if raw_cd not in (None,''):
+        if not isinstance(raw_cd,dict):
+            raise rr.RoundError('memory.chronicle_digest须为对象或空字符串')
+        rr._keys(raw_cd,{'public','views'},'memory.chronicle_digest')
+        pub_txt=memory_text(raw_cd.get('public','') or '','memory.chronicle_digest.public',280,empty=True)
+        views_raw=raw_cd.get('views')
+        clean_views={}
+        if views_raw not in (None,''):
+            if not isinstance(views_raw,dict):
+                raise rr.RoundError('memory.chronicle_digest.views须为对象')
+            for vk,vv in views_raw.items():
+                if vk in save_store._VALID_MEMORY_ACTORS and isinstance(vv,str) and vv.strip():
+                    clean_views[vk]=memory_text(vv,f'memory.chronicle_digest.views.{vk}',140,empty=False)
+        if pub_txt or clean_views:
+            parsed_chronicle_digest={'public':pub_txt,'views':clean_views}
+    parsed_mem_tags=[str(t).strip()[:16] for t in (mem_raw_obj.get('tags') or []) if isinstance(t,str) and t.strip()][:6] if isinstance(mem_raw_obj.get('tags'),list) else []
+    parsed_memory_payload={'fact':clean_fact,'anchor_ops':parsed_anchor_ops,'chronicle_digest':parsed_chronicle_digest,'tags':parsed_mem_tags}
     engine=rr._engine(Path(root),Path(root))
     memory_raw=files[rr.FILES[0]].decode('utf-8')
     bundle_st, _, _ = save_store.load_bundle(Path(root), files)
@@ -2907,24 +2997,6 @@ def resolution(root,files,body):
                 raise rr.RoundError('新增道具缺已接受兑换或任务待发资格')
             if additions_pre>purchases_pre+int(could_pend_pre):
                 raise rr.RoundError('新增道具组数超过实际兑换或任务待发资格')
-    # 前置校验记忆合并与转移（空 fact 不产生新 L1 时自动忽略多余 transfers，防止盲崩；真正有转移错误时纳入重试）
-    if kind!='item':
-        was_resting_pre=runtime['phase']=='resting'
-        mem_round_pre=max(1,runtime['last_closed'] if was_resting_pre and runtime['last_closed'] else runtime['memory_round'])
-        old_layers_pre=engine._parse_memory_layer_items(memory_raw)
-        raw_ly_pre=files.get(save_store.MEMORY_LAYERS_PATH)
-        prologue_active_pre=bool(json.loads(raw_ly_pre.decode('utf-8')).get('prologue_active')) if raw_ly_pre else False
-        merged_pre=memory_merge(root,old_layers_pre,mem_round_pre,clock,value['memory'],system=False,prologue_active=prologue_active_pre)
-        eff_transfers=copy.deepcopy(value['memory']['transfers']) if merged_pre else {}
-        if merged_pre or eff_transfers:
-            pre_deltas={**({'l1_new_round':merged_pre} if merged_pre else {}),**eff_transfers}
-            with tempfile.NamedTemporaryFile('w',encoding='utf-8',suffix='.txt',delete=False) as tf:
-                tf.write(memory_raw);tf_path=tf.name
-            try:
-                rr._engine_call(engine.validate_memory_transition_preflight,mem_round_pre,pre_deltas,tf_path)
-            finally:
-                try: Path(tf_path).unlink()
-                except OSError: pass
     raw_ss_pre=files.get(save_store.SAVE_STATE_PATH)
     secrets_pre=()
     if raw_ss_pre:
@@ -2947,7 +3019,7 @@ def resolution(root,files,body):
             'intel_used':intel_used,'director_echo':director_echo,'active_cast':sorted(active_cast),
             'insomnia_targets':sorted(insomnia_targets),'scene_state':scene_state,
             'intimate_mode':intimate_mode,'remote_cast':sorted(remote_cast),
-            'stamina_guard':guard}
+            'stamina_guard':guard,'memory_payload':parsed_memory_payload}
 
 
 def panel_values(engine,text):
@@ -3150,7 +3222,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
             intel_dirty=True
             # 亮牌揭穿苏婉青眼线身份（INTEL-002）同步写入本档 secrets_unlocked
             if iid=='INTEL-002':
-                st_s,ly_s,_=save_store.load_bundle(stage)
+                st_s,ly_s,_=save_store.load_bundle(stage,sync_txt_drift=True)
                 if iid not in st_s['mechanics']['secrets_unlocked']:
                     st_s['mechanics']['secrets_unlocked'].append(iid)
                     save_store.save_bundle(stage,st_s,ly_s)
@@ -3255,7 +3327,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
                     if ev_t and ev_s:
                         vig_evidences[ev_t]=(vig_evidences.get(ev_t,'')+' '+ev_s).strip()
             scene_prose_all=' '.join(str(m.get('text') or '') for m in (body.get('messages') or []) if isinstance(m,dict))
-            st_vig_now,_,_=save_store.load_bundle(stage)
+            st_vig_now,_,_=save_store.load_bundle(stage,sync_txt_drift=True)
             intl_vig=st_vig_now.get('intimate') or {}
             host_biz_now=int(((st_vig_now.get('panels') or {}).get('系统宿主') or {}).get('商业嗅觉',0) or 0)
             rr._engine_call(
@@ -3293,7 +3365,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
             if dir_updated!=dir_mem:
                 rr._atomic(memory_path,dir_updated.encode('utf-8'))
     if crossed or parsed['sleep']['kind']=='overnight':
-        st_day,ly_day,_=save_store.load_bundle(stage)
+        st_day,ly_day,_=save_store.load_bundle(stage,sync_txt_drift=True)
         cur_day_num=int((parsed.get('clock') or {}).get('day') or 1)
         lat_map=st_day['mechanics'].setdefault('pregnancy_latent_until',{h:0 for h in save_store.HEROINES})
         day_dirty=False
@@ -3311,7 +3383,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
             save_store.save_bundle(stage,st_day,ly_day)
     if parsed['sleep']['kind']=='overnight':
         # 跨夜安稳睡眠：宿主恢复 100；体液锁定跨夜衰减6回合；高欲求/空耗女主触发夜间暗中自渎纾解；未失眠女主恢复体力(孕期上限88)、残余高潮清零、堕落<30且欲望<15时羞耻防线微幅回弹+1，并即时夹紧羞耻上限
-        st_ov,ly_ov,_=save_store.load_bundle(stage)
+        st_ov,ly_ov,_=save_store.load_bundle(stage,sync_txt_drift=True)
         ins_map=st_ov['mechanics'].get('insomnia_applied') or {}
         unlocked_caps=st_ov['mechanics'].setdefault('depravity_unlocked_caps',{h:30 for h in save_store.HEROINES})
         m_trace=st_ov['mechanics'].setdefault('masturbation_trace',{h:0 for h in save_store.HEROINES})
@@ -3391,14 +3463,6 @@ def apply_staged(store,engine,stage,body,files,parsed):
     guard_pre=parsed.get('stamina_guard') if isinstance(parsed.get('stamina_guard'),dict) else stamina_guard_info(store.root,files)
     low=(final<5 and not (guard_pre.get('active') and final>=5)) or parsed['sleep']['kind']=='collapse'
     was_resting=runtime['phase']=='resting'
-    memory_round=runtime['last_closed'] if was_resting and runtime['last_closed'] else runtime['memory_round']
-    memory_round=max(1,memory_round)
-    old_layers=engine._parse_memory_layer_items(memory_path.read_text(encoding='utf-8'))
-    merged=memory_merge(store.root,old_layers,memory_round,parsed['clock'],value['memory'],system=kind=='item',prologue_active=prologue_active_pre)
-    transfers={} if (kind=='item' or not merged) else copy.deepcopy(value['memory']['transfers'])
-    deltas={**({'l1_new_round':merged} if merged else {}),**transfers}
-    if deltas:
-        rr._engine_call(engine.update_global_memory,memory_round,deltas,{})
     closed=False
     if not was_resting and (crossed or low):
         runtime['last_closed']=runtime['memory_round'];runtime['memory_round']+=1;runtime['closed_by']=body['request_id'];closed=True
@@ -3407,8 +3471,8 @@ def apply_staged(store,engine,stage,body,files,parsed):
             runtime['last_closed']=runtime['memory_round'];runtime['memory_round']+=1;runtime['closed_by']=body['request_id'];closed=True
         runtime['phase']='ready' if parsed['sleep']['kind']=='overnight' and final>=5 else 'resting'
     else:runtime['phase']='ready'
-    # 最终统一同步 P2 JSON 真相与单向可读视图（含最新 runtime/weekday 与 intimate 空间/痕迹/暗流/欲望耐力/身体开发/私密收藏）
-    st_final,ly_final,_=save_store.load_bundle(stage)
+    # 最终统一同步 P3 纯 JSON 真相（save_state.json + memory_store.json）与单向可读视图
+    st_final,ms_final,_=save_store.load_bundle(stage,sync_txt_drift=True)
     st_final['runtime'].update({
         'clock':copy.deepcopy(runtime['clock']),
         'weekday':weekday,
@@ -3471,9 +3535,27 @@ def apply_staged(store,engine,stage,body,files,parsed):
             day_crossed=crossed,
             aff_deltas=aff_deltas,
         )
-    if merged:
-        ly_final['prologue_active']=False
-    save_store.save_bundle(stage,st_final,ly_final)
+        # 纯 JSON 三轨结构化记忆落盘（携带后端权威房间级 scene_known_by 与 K01 硬守卫）
+        mem_payload=parsed.get('memory_payload') or {'fact':str((value.get('memory') or {}).get('fact') or ''),'anchor_ops':[],'chronicle_digest':None,'tags':[]}
+        cur_sub_loc=str(((st_final.get('intimate') or {}).get('sub_location')) or '')
+        cur_secrets=tuple(((st_final.get('mechanics') or {}).get('secrets_unlocked')) or ())
+        ms_final=save_store.record_memory_turn(
+            ms_final,
+            fact=mem_payload.get('fact',''),
+            anchor_ops=mem_payload.get('anchor_ops'),
+            chronicle_digest=mem_payload.get('chronicle_digest'),
+            day=int((parsed.get('clock') or {}).get('day') or 1),
+            time_str=str((parsed.get('clock') or {}).get('time') or ''),
+            location=player_loc_now,
+            sub_location=cur_sub_loc,
+            known_by=scene_known_by,
+            entities=scene_known_by,
+            tags=mem_payload.get('tags'),
+            day_crossed=crossed,
+            overnight=(parsed['sleep']['kind']=='overnight'),
+            secrets_unlocked=cur_secrets,
+        )
+    save_store.save_bundle(stage,st_final,ms_final)
     after_memory=memory_path.read_text(encoding='utf-8');after_values=panel_values(engine,after_memory)
     changes=[{'target':name,'attribute':attr,'before':old,'after':after_values[key],
               'delta':(1 if after_values[key] else -1) if isinstance(old,bool) else after_values[key]-old}
@@ -3517,9 +3599,9 @@ def contract(root=None,kind='action',option_id=None,*,intimate_mode=False):
     return {'category':category['required_category'] or 'A|B|C','basis':category['instruction'],
             'clock':{'day':1,'time':'HH:MM','basis':'实际经过的行为与时间依据，首次从剧情初始化'},
             'events':[{'group':'登记事件组','target':'本场对象或系统宿主','tags':['登记原标签'],'evidence':'本段原文子串'}],
-            'memory':{'fact':f"无长期新增价值时空串；否则<={limits['fact_chars']}字符，仅记承诺/待办/关系或信息变化/不可逆事实，计划保留未执行状态",
-                      'compact':f"可省略或空串；同回合摘要预计超过{limits['round_chars']}字符或旧条已超限时必交<={limits['round_chars']}字符的完整合并摘要，合并旧事实与本次fact，保留重要承诺、因果、待办及知情范围",
-                      'transfers':{}},
+            'memory':{'fact':f"无长期新增价值时空串；否则<={limits['fact_chars']}字符单行，仅记新因果/承诺/变化",
+                      'anchor_ops':[],
+                      'chronicle_digest':''},
             'conditions':{'intensity':'A|B|C','effective_progress':True,'scene':'现场地点','npc':None,'action_changed':True,'stress_signals':0,'breakout_triggered':[]} if kind=='action' else None,
             'sleep':{'kind':'none|collapse|interrupted|overnight','start':None,'evidence':''},'task':None,'items':[]}
 
@@ -3701,14 +3783,21 @@ def _publish_deterministic_stage(service,guard,stage,extra_receipt):
     data=json.loads(after['data.json'] or b'{}')
     data['state_version']=sequence
     after['data.json']=rr._json(data)
-    # 原子同步 P2 save_state.json + 四层记忆.json + 渲染视图
-    st_obj,ly_obj,_=save_store.load_bundle(stage,after)
+    # 原子同步 P3 save_state.json + memory_store.json + 单向渲染视图
+    st_obj,ly_obj,_=save_store.load_bundle(stage,after,sync_txt_drift=True)
     st_obj['runtime']['last_sequence']=max(int(st_obj['runtime'].get('last_sequence') or 0),sequence)
     after.update(save_store.render_bundle_bytes(st_obj,ly_obj,data_dict=data))
     revision=rr._revision(after)
     receipt={'request_id':key,'revision':revision,'state_version':sequence,'status':'committed','replayed':False,**extra_receipt}
     ledger['sequence']=sequence
     ledger['receipts'][key]={'payload_hash':guard['payload_hash'],'receipt':receipt}
+    if len(ledger['receipts']) > rr.MAX_LEDGER_RECEIPTS:
+        ordered_ids = sorted(
+            ledger['receipts'].keys(),
+            key=lambda rid: (int(((ledger['receipts'][rid].get('receipt') or {}).get('state_version')) or 0), rid),
+        )
+        for stale_id in ordered_ids[:-rr.MAX_LEDGER_RECEIPTS]:
+            ledger['receipts'].pop(stale_id, None)
     after[rr.META]=rr._json(ledger)
     current_disk=service.store._files()
     if any(current_disk[name]!=files[name] for name in rr.FILES):

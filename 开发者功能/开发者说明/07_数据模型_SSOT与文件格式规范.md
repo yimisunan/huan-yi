@@ -187,18 +187,22 @@ flowchart LR
 }
 ```
 
-### 3.2 P2 自包含存档真相层（`存档/*.json`）、轻量化档槽与单向只读视图（`save_store.py`）
+### 3.2 P3 自包含存档真相层（`存档/*.json`）、轻量化档槽与单向只读视图（`save_store.py`）
 
 `存档/` 为完全自包含的累积事实层，单目录迁移即可在无 `.round-runtime/` 与 `data.json` 时零 500 恢复运行态：
 
-- **`存档/save_state.json`（唯一机器状态真相）**：包含 `version: 2`、`panels`（开局默认：沈知韫 `好感 82 / 羞耻 100`、徐念薇 `好感 30 / 羞耻 96`、苏婉青 `好感 40 / 羞耻 92`，无徐承邺面板）、`presence`、`micro_states`、`buffs`、`counters`、**`mechanics`**、**`intimate`（`sub_location`、`privacy`、`clothing_state`、`intimate_beat`、`present_actors`、`active_scene_location`，及 v4 持久化子结构 `host_phys`、`body_dev`、`keepsakes`、`session_charm_gained`）**、`vigilance`、`tasks`（含 `pending_items` 队列）、`items`（`next_seq` + **`active` / `deployed` / `delivered` / `history` 四分仓** + `giftable` / `category` / `usage_mode` / `spot` / `hidden` / `installed_clock` / **`detected_risk`**）、`shop`（`redeemed` / `recent` / `echoes` / **`dynamic_catalog`** / `next_dyn_seq`）、`intel`（含 `held` / `consumed` / `su_ab_contacts` / `leverage_armed` / **`leverage_charges` `0..3`**）、`director`（含 **`sensual_drought`** / **`heroine_cd`**）、**`npc_mind`（4 人 `沈知韫/苏婉青/徐念薇/徐承邺` 的持久化暗箱心智：`mood`/`mood_ttl`/`preoccupation`/`impressions[<=2]`/`aff_delta_last`，仅喂给 AI 不暴露至前端）**、`lifecycle`、`runtime` 及 **`rendered_sha256`**（外部编辑 `.txt` 漂移检测指纹，漂移同步时严格保留 `shop.dynamic_catalog` / `next_dyn_seq` / `items.deployed` / `intimate` / `npc_mind` 全量 JSON 真相）。
-- **`存档/四层记忆.json`**：持久化结构化 `layers.L1–L4` 条目、`prologue_active` 布尔标志（彻底取代会污染正文的 `PROLOGUE` 隐藏标记行）与房间级 `known_by` 知情元数据。
-- **`存档/近期演播.json`**：滚动保存最新 **12 幕** 已接受演播原文与 `playback` 播放游标；刻意置于 `round_runtime.FILES` 之外，避免单纯推进播放进度改变世界版本指纹。
-- **轻量化可回档存档槽（`.round-runtime/save-slots/<slot_id>/`）**：由 `存档清理器.py` 管理，单槽仅打包必要核心文件（`meta.json` 含 SHA-256 校验与摘要标签，含 `体力`、`亲密耐力`、`魅力`、`私密珍藏` 件数与 `vigilance` 位置/最高警惕、`存档/{save_state,四层记忆,近期演播}.json`、`data.json`、`.round-runtime/interaction/*.json`、`playback.json`），剔除日志、任务凭证与缓存；重置新档时实时调用 `_initial_templates()` 从 `save_store.default_state()` 生成最新结构（不再复用模块导入期静态快照），自动区分 `manual`（手工快照）/ `auto`（新档前自动留存）/ `pre_restore`（回档前安全网），自动槽按配额裁剪而手工槽默认保留，支持浏览器「档案室」与 CLI 一键回档。
-- **旧纯 `.txt` 兼容与漂移检测**：`save_store.load_bundle()` 在缺少 JSON 时自动无损迁移旧纯 `.txt` 存档；若检测到用户或旧工具直接修改了 `.txt`（哈希不等于 `rendered_sha256`），自动重新导入被改动的 `.txt` 区块并严格保留 JSON 专属 `mechanics`、`intimate`（含 `host_phys`/`body_dev`/`keepsakes`）与动态货架。
+- **`存档/save_state.json`（唯一机器状态真相）**：包含 `version: 2`、`panels`（开局默认：沈知韫 `好感 82 / 羞耻 100`、徐念薇 `好感 30 / 羞耻 96`、苏婉青 `好感 40 / 羞耻 92`，无徐承邺面板）、`presence`、`micro_states`、`buffs`、`counters`、**`mechanics`**、**`intimate`（`sub_location`、`privacy`、`clothing_state`、`intimate_beat`、`present_actors`、`active_scene_location`，及 v4 持久化子结构 `host_phys`、`body_dev`、`keepsakes`、`session_charm_gained`）**、`vigilance`、`tasks`（含 `pending_items` 队列）、`items`（`next_seq` + **`active` / `deployed` / `delivered`（封顶 40）/ `history`（封顶 50）四分仓** + `giftable` / `category` / `usage_mode` / `spot` / `hidden` / `installed_clock` / **`detected_risk`**）、`shop`（`redeemed` / `recent` / `echoes` / **`dynamic_catalog`** / `next_dyn_seq`）、`intel`（含 `held` / `consumed` / `su_ab_contacts` / `leverage_armed` / **`leverage_charges` `0..3`**）、`director`（含 **`sensual_drought`** / **`heroine_cd`**）、**`npc_mind`（4 人 `沈知韫/苏婉青/徐念薇/徐承邺` 的持久化暗箱心智：`mood`/`mood_ttl`/`preoccupation`/`impressions[<=2]`/`aff_delta_last`，仅喂给 AI 不暴露至前端）**、`lifecycle`、`runtime` 及 **`rendered_sha256`**（SHA-256 匹配时零解析直读 JSON，仅当遗留引擎沙盒改动 `.txt` 时经窄边界 `harvest_engine_txt_mutations()` 收割变动字段，严格不碰 `memory_store.json` 或 JSON 原生子系统）。
+- **`存档/memory_store.json`（v2 三轨结构化记忆真相，取代旧 `存档/四层记忆.json`）**：
+  - `version: 2`、`prologue_active`、`next_anchor_seq` / `next_episode_seq` / `next_chronicle_seq`；
+  - `anchors`（上限 60）与 `resolved_anchors`（上限 40）：永久事实/约定/转折/线索/秘密锚点，单条含 `id`/`kind`/`importance`/`day`/`entities`/`known_by`/`text`，经 K01 绝密硬守卫自动剥离越权知情者；
+  - `episodes`（热窗 24，硬上限 32）+ `pending_buffer`（满 4 条/360 字或地点/知情者/跨日/过夜自动封箱）：单幕含 `id`/`day`/`time_range`/`location`/`sub_location`/`entities`/`known_by`/`tags`/`summary`/`is_prologue`；
+  - `chronicle`（上限 16 章）：达到 24 幕时由 Stage 2 搭车将最旧 8 幕折算为 `{id, day_range, episode_range, entities, public, views}` 分视角编年史。
+- **`存档/近期演播.json`**：滚动保存最新 **16 幕**（`MAX_RECENT_SEGMENTS`）已接受演播原文与 `playback` 播放游标；刻意置于 `round_runtime.FILES` 之外，避免单纯推进播放进度改变世界版本指纹。
+- **轻量化可回档存档槽（`.round-runtime/save-slots/<slot_id>/`）**：由 `存档清理器.py` 管理，单槽仅打包必要核心文件（`meta.json` 含 SHA-256 校验与摘要标签，`存档/{save_state,memory_store,近期演播}.json`、`data.json`、`.round-runtime/interaction/*.json`、`playback.json`），剔除日志、任务凭证与缓存；重置新档时实时生成初始结构并自动清退遗留 `存档/四层记忆.json`。
+- **遗留旧档冷启动迁移与窄边界收割**：仅当目录缺失 JSON 时由 `migrate_from_legacy_texts()` 无损升级旧 `.txt`/v1 存档；常态运行零 `.txt` 正则解析。
 
-### 3.3 `存档/全局记忆库.txt`（单向自动渲染的 14 大固定区块）
-由 `save_store.render_memory_txt()` 单向渲染供人工与手动入口查阅（已移除冗余的 `▶ 上回合历史快照` 与序幕隐藏标记行），**区块锚点顺序严格固定**：
+### 3.3 `存档/全局记忆库.txt`（单向自动渲染的人类/手动只读视图）
+由 `save_store.render_memory_txt()` 从 `save_state.json + memory_store.json` 单向渲染供人工与手动入口查阅（已移除冗余的 `▶ 上回合历史快照` 与序幕隐藏标记行），**区块锚点顺序严格固定**：
 
 1. `【实时面板快照】` → `▶ 当前最新数值`（`[系统宿主]`、`[沈知韫]`、`[徐念薇]`、`[苏婉青]`；徐承邺无堕落面板，旧档读取自动兼容）
 2. `【人物所在】`（`<角色>：<地点> | 事由：<事由>`）
@@ -213,15 +217,15 @@ flowchart LR
 11. `【商业情报与杠杆状态】`（`持有情报：`、`已耗情报：`、`苏婉青AB接触：`、`商业杠杆预备：`；前台内存剥离原文）
 12. `【世界导演状态】`（单行紧凑 JSON，前台头部投影自动剥离）
 13. `【回合生命周期】`（单行紧凑 JSON：`version/round/micro/ab_streak/scopes/legacy_counters`）
-14. 四层记忆区（严格递增回合号）：
-    - `▲ 第一层：【即时运存区】`（≤3 条，纯正文无隐藏标记行）
-    - `▲ 第二层：【回想运存区】`（≤10 条）
-    - `▲ 第三层：【近期事实缓存区】`（≤10 条）
-    - `▲ 第四层：【深渊纪元浓缩区】`（无上限）
+14. 三轨记忆单向投影区（由 `save_store.layer_strings()` 从 `memory_store.json` 投影，仅作只读视图）：
+    - `▲ 第一层：【即时运存区】`（最新热幕 + `pending_buffer` 暂存）
+    - `▲ 第二层：【回想运存区】`（较早热幕 `episodes`）
+    - `▲ 第三层：【近期事实缓存区】`（永久活跃锚点 `anchors`）
+    - `▲ 第四层：【深渊纪元浓缩区】`（分视角编年史 `chronicle`）
 
 ### 3.4 `存档/徐志北道具图鉴.txt`（V3.0 单向自动渲染；含已部署装置区）
 - **道具图鉴 V3.0**：由 `save_store.render_items_txt()` 单向渲染，以 `▼ 活跃道具区 ▼`、`▼ 已部署装置区 ▼`、`▼ 已交付道具区 ▼`、`▼ 已过期/已消耗道具历史区 ▼`、`▼ 格式模板区 ▼` 五锚点切分（含 `【分类】`、`【使用模式】`、`【安装点位】`、`【隐蔽部署】`、`【部署时间】`、`【暴露风险】` 与 `【可赠予】`），兼容 `scene_world.py` 边界识别；已交付道具独立隔离，商城重购同名绝不覆盖历史交付记录。
-- **次要 NPC 名册已退役**：原 `存档/次要NPC名册.txt` 已移除，偶发配角由四层记忆与活体导演线头自然承载；`execute_injection(..., npc_entries=...)` 与 `update_npc_roster()` 保留为安全兼容空操作。
+- **次要 NPC 名册与旧四层 JSON 已退役**：原 `存档/次要NPC名册.txt` 与 `存档/四层记忆.json` 已移除，偶发配角由 `memory_store.json` 与活体导演线头自然承载；`execute_injection(..., npc_entries=...)` 与 `update_npc_roster()` 保留为安全兼容空操作。
 
 ### 3.5 `voice_config.json`、`语音仓库/voice_repo.json` 与 `legacy_visibility.json`
 - **`voice_config.json`**：顶层 `"__settings__": {"fish_tts_model": "s2.1-pro-free", "voice_tier": "free"}` + 各角色配置（默认 `language: "zh-CN"`、`quality_guard: true`、`normalize_loudness: true`、安全音量 `0.0 dB` / 苏婉青 `-1.0 dB`，`default` 槽位清空女声音色 ID 防错串；Fish 配置保留规范化参数 + `voice_ids` + `tts_model`，Edge 配置仅保留 `voice`/`rate`/`pitch`/`volume`；两侧均强制 `emotion: ""` 且兼容保留未知未来键）。玩家 Fish API Key 独立存于受保护本地缓存 `.cache/fish_api_key.json`（`0600`），绝不写入 `voice_config.json`。

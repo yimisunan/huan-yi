@@ -230,16 +230,27 @@ class LegacyWorld:
             try:
                 layers_meta = json.loads(texts[save_store.MEMORY_LAYERS_PATH])
                 prologue_from_json = bool(layers_meta.get('prologue_active'))
-                layer_map = layers_meta.get('layers') if isinstance(layers_meta.get('layers'), dict) else layers_meta
-                for lkey in ('L1', 'L2', 'L3', 'L4'):
-                    for j_entry in layer_map.get(lkey, []) if isinstance(layer_map.get(lkey), list) else []:
-                        if not isinstance(j_entry, dict):
+                if isinstance(layers_meta.get('episodes'), list):
+                    eps = layers_meta.get('episodes') or []
+                    for idx_ep, ep in enumerate(eps):
+                        if not isinstance(ep, dict):
                             continue
-                        kb = j_entry.get('known_by')
+                        kb = ep.get('known_by')
                         if isinstance(kb, list) and kb and set(kb) <= entities:
-                            sr_i = int(j_entry.get('start_round') or j_entry.get('round') or 1)
-                            er_i = int(j_entry.get('end_round') or sr_i)
-                            json_known_map[(lkey, sr_i, er_i)] = sorted(set(kb))
+                            day_i = max(1, int(ep.get('day') or 1))
+                            lkey = 'L1' if idx_ep >= max(0, len(eps) - 3) else 'L2'
+                            json_known_map[(lkey, day_i, day_i)] = sorted(set(kb))
+                else:
+                    layer_map = layers_meta.get('layers') if isinstance(layers_meta.get('layers'), dict) else layers_meta
+                    for lkey in ('L1', 'L2', 'L3', 'L4'):
+                        for j_entry in layer_map.get(lkey, []) if isinstance(layer_map.get(lkey), list) else []:
+                            if not isinstance(j_entry, dict):
+                                continue
+                            kb = j_entry.get('known_by')
+                            if isinstance(kb, list) and kb and set(kb) <= entities:
+                                sr_i = int(j_entry.get('start_round') or j_entry.get('round') or 1)
+                                er_i = int(j_entry.get('end_round') or sr_i)
+                                json_known_map[(lkey, sr_i, er_i)] = sorted(set(kb))
             except (ValueError, TypeError):
                 prologue_from_json = False
         for index, start in enumerate(positions):

@@ -22,12 +22,12 @@
     "event_cooldowns": {},
     "global_cooldown": 0,
     "heroine_cd": 0,
-    "last_time_slot": "afternoon",
+    "last_time_slot": "evening",
     "next_thread_seq": 1,
     "offstage_clocks": {},
     "pending_seeds": [],
     "recent_channels": [],
-    "scene_location": "徐家主宅",
+    "scene_location": "公司",
     "scene_turns": 0,
     "sensual_drought": 0,
     "turns_since_beat": 99
@@ -99,11 +99,9 @@
     "next_keepsake_seq": 1,
     "noise_risk": 0,
     "present_actors": [
-      "沈知韫",
-      "徐念薇",
-      "苏婉青"
+      "沈知韫"
     ],
-    "privacy": "open_public",
+    "privacy": "locked_private",
     "scene_active": false,
     "session_beats": 0,
     "session_charm_gained": false,
@@ -112,7 +110,7 @@
       "沈知韫": 0,
       "苏婉青": 0
     },
-    "sub_location": "主宅餐厅",
+    "sub_location": "顶层董事长办公室",
     "traces": {
       "徐念薇": [],
       "沈知韫": [],
@@ -274,50 +272,50 @@
   },
   "presence": {
     "徐志北": {
-      "location": "徐家主宅",
-      "reason": "常住"
+      "location": "公司",
+      "reason": "晚间送夜宵探班"
     },
     "徐念薇": {
-      "location": "徐家主宅",
-      "reason": "周末在家"
+      "location": "工作室",
+      "reason": "工作日傍晚在画室"
     },
     "沈知韫": {
-      "location": "徐家主宅",
-      "reason": "常住"
+      "location": "公司",
+      "reason": "周三晚间加班复核并购案"
     },
     "苏婉青": {
-      "location": "徐家主宅",
-      "reason": "周日家庭午餐窗"
+      "location": "市中心顶层公寓",
+      "reason": "常住"
     }
   },
   "rendered_sha256": {
-    "data_runtime": "64f3a3356dd5a3c5390409d8213334e2ea0e53754e36561c0cf319a4d0fbf237",
+    "data_runtime": "db8dbd465c8b5db75226526eda853e0d111e62bcf6ba45c164b57ab1f91fd538",
     "items_txt": "6b7263cae6f8e90eb04cf3a09ac41c96225362a44d9d0032cb74334eea6ec666",
-    "memory_txt": "95cdf2c762b12281ed7b3e5d8cffa464d65d750fbc618ab2fa79a617d0c025e2"
+    "memory_txt": "f657df41d32938c51998919821e927c9c96d6f28531ed810eb716330f1c11f51"
   },
   "runtime": {
     "action_index": 0,
     "clock": {
       "day": 1,
-      "time": "12:00"
+      "time": "19:30"
     },
     "closed_by": "",
     "item_recovered": 0,
     "last_closed": 0,
-    "last_segment_id": "prologue-6554030471bf005e044a3f911ccedd46",
+    "last_segment_id": "prologue-5208ae012e36caf28e051b3e2db93fca",
     "last_sequence": 1,
     "memory_round": 1,
     "phase": "ready",
     "prologue": {
-      "heroine": "全员家宴",
-      "privacy": "open_public",
-      "request_id": "reset-20261126_120710_dcc479aa8e9042aa95e49bff82274433",
-      "scenario_id": "zhiyun_sunday_noon",
-      "sub_location": "主宅餐厅",
-      "title": "周日午间 · 主宅餐厅 · 家庭",
-      "weekday": "周日"
+      "heroine": "沈知韫",
+      "privacy": "locked_private",
+      "request_id": "reset-20261126_162725_716d8bd5d6fc4fa6a8c2e7d989ad28d9",
+      "scenario_id": "zhiyun_late_office",
+      "sub_location": "顶层董事长办公室",
+      "title": "周三晚间 · 顶层办公室 · 母亲",
+      "weekday": "周三"
     },
-    "weekday": "周日"
+    "weekday": "周三"
   },
   "shop": {
     "dynamic_catalog": [],
@@ -328,15 +326,15 @@
   },
   "tasks": {
     "current": {
-      "attr": "积分",
+      "attr": "商业嗅觉",
       "complete_round": null,
       "id": "TASK-001",
       "issue_round": 1,
-      "item_desc": "银杏叶金属餐巾扣",
+      "item_desc": "磨砂金属名片夹",
       "status": "进行中",
       "target": "系统宿主",
       "tier": "small",
-      "title": "同席家宴",
+      "title": "顶层夜灯",
       "value": 6
     },
     "history": [],

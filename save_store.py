@@ -1,33 +1,50 @@
-"""Unified P2 save storage: JSON single-source-of-truth + deterministic one-way .txt views.
+"""Unified P3 save storage: pure JSON single-source-of-truth + deterministic one-way .txt views.
 
 Authoritative files inside 存档/:
   - 存档/save_state.json   : all structured machine state (panels, presence, micro, buffs,
-                             counters, mechanics, vigilance, tasks, items, shop, intel,
-                             director, lifecycle, runtime).
-  - 存档/四层记忆.json      : structured L1-L4 memory layers with prologue_active & known_by.
+                             counters, mechanics, intimate, vigilance, tasks, items, shop,
+                             intel, director, npc_mind, lifecycle, runtime).
+  - 存档/memory_store.json : v2 three-track structured memory store (permanent anchors,
+                             scene-scoped rolling episodes with authoritative known_by,
+                             bounded epoch chronicle, and pending turn buffer).
   - 存档/近期演播.json      : rolling latest N accepted interaction segments + playback state.
 
-One-way rendered read-only views (kept synchronized on every commit for human inspection,
-manual Operit chats, and legacy line-addressed archive reads):
+One-way rendered read-only views (kept synchronized on every commit for human inspection
+and manual Operit chats; never reverse-parsed during formal live_interaction):
   - 存档/全局记忆库.txt
   - 存档/徐志北道具图鉴.txt
 """
 import copy
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import re
 import uuid
 
 SAVE_STATE_PATH = '存档/save_state.json'
-MEMORY_LAYERS_PATH = '存档/四层记忆.json'
+MEMORY_STORE_PATH = '存档/memory_store.json'
+MEMORY_LAYERS_PATH = MEMORY_STORE_PATH
+LEGACY_MEMORY_LAYERS_PATH = '存档/四层记忆.json'
 RECENT_PLAYBACK_PATH = '存档/近期演播.json'
 RENDERED_MEMORY_PATH = '存档/全局记忆库.txt'
 RENDERED_ITEMS_PATH = '存档/徐志北道具图鉴.txt'
 
-MAX_RECENT_SEGMENTS = 12
+MAX_RECENT_SEGMENTS = 16
+MAX_DELIVERED_ITEMS = 40
+MAX_HISTORY_ITEMS = 50
+MAX_ACTIVE_ANCHORS = 60
+MAX_RESOLVED_ANCHORS = 40
+MAX_HOT_EPISODES = 24
+ARCHIVE_BATCH_EPISODES = 8
+HARD_MAX_EPISODES = 32
+MAX_CHRONICLE_CHAPTERS = 16
+PENDING_FLUSH_MAX_FACTS = 4
+PENDING_FLUSH_MAX_CHARS = 360
+ANCHOR_KINDS = ('promise', 'milestone', 'secret', 'clue', 'relationship')
 PROLOGUE_MARKER = '【系统隐藏标记：以上为新游戏序幕锚点，剧情从此刻正式开始计算】'
+_K01_SECRET_RE = re.compile(r'遗嘱|唯一合法继承人|唯一继承人|千亿家产(?:唯一|全归|归志北)|徐家继承权全归')
 
 HEROINES = ('沈知韫', '苏婉青', '徐念薇')
 PRESENCE_ORDER = ('沈知韫', '徐念薇', '苏婉青', '徐志北')
@@ -49,6 +66,13 @@ MEMORY_LAYER_HEADERS = (
 _EMPTY_MARKERS = frozenset({'', '（空）', '(空)', '无', '（无）', '(无)'})
 _LABEL_RE = re.compile(r'^【(\d+)(?:-(\d+))?】')
 _PROLOGUE_LINE_RE = re.compile(r'(?m)^\s*【系统隐藏标记：[^\n]*】\s*$')
+_ENTITY_ALIAS_MAP = {
+    '沈知韫': ('沈知韫', '知韫', '母亲', '妈妈', '妈', '夫人', '董事长', '沈总', '婆婆'),
+    '徐念薇': ('徐念薇', '念薇', '二姐', '姐姐', '姐', '画室', '画展', '美院'),
+    '苏婉青': ('苏婉青', '婉青', '嫂子', '大嫂', '少奶奶', '公寓'),
+    '徐承邺': ('徐承邺', '承邺', '大哥', '哥哥', '长兄', '外地', '查岗', '监视'),
+    '徐志北': ('徐志北', '志北', '小叔', '小少爷'),
+}
 
 
 def _sha256_bytes(data):
@@ -398,26 +422,800 @@ def default_state():
     }
 
 
-def default_layers(prologue_text='周二上午，徐家主宅。新的一天刚刚开始。', *, prologue_active=True, known_by=None):
+_VALID_MEMORY_ACTORS = frozenset({'徐志北', '沈知韫', '苏婉青', '徐念薇', '徐承邺'})
+_STOP_BIGRAMS = frozenset({'继续', '今天', '怎么', '一下', '这里', '当前', '剧情', '自己', '安排', '然后', '那个', '这个', '什么', '没有', '已经', '一个', '一些', '刚刚', '此刻'})
+
+
+def _clean_mem_line(text, limit=400):
+    s = re.sub(r'[\r\n\x00]+', ' ', str(text or '')).strip()
+    s = re.sub(r'\s{2,}', ' ', s)
+    return s[:limit]
+
+
+def _clean_known_by(raw, *, default_actors=None):
+    if isinstance(raw, (list, tuple, set)):
+        cleaned = list(dict.fromkeys(
+            str(x).strip() for x in raw if isinstance(x, str) and str(x).strip() in _VALID_MEMORY_ACTORS
+        ))
+        if cleaned:
+            if '徐志北' not in cleaned:
+                cleaned.insert(0, '徐志北')
+            return cleaned
+    if isinstance(default_actors, (list, tuple, set)):
+        cleaned = list(dict.fromkeys(
+            str(x).strip() for x in default_actors if isinstance(x, str) and str(x).strip() in _VALID_MEMORY_ACTORS
+        ))
+        if cleaned:
+            if '徐志北' not in cleaned:
+                cleaned.insert(0, '徐志北')
+            return cleaned
+    return ['徐志北']
+
+
+def _extract_entities_from_text(text, extra=()):
+    found = []
+    seen = set()
+    for item in (extra or ()):
+        name = str(item or '').strip()
+        if name in _VALID_MEMORY_ACTORS and name not in seen:
+            seen.add(name)
+            found.append(name)
+    blob = str(text or '')
+    for canonical, aliases in _ENTITY_ALIAS_MAP.items():
+        if canonical in seen:
+            continue
+        if any(alias in blob for alias in aliases):
+            seen.add(canonical)
+            found.append(canonical)
+    return found
+
+
+def _extract_tokens(text):
+    chunks = re.findall(r'[A-Za-z0-9_]{2,}|[\u4e00-\u9fff]{2,}', str(text or ''))
+    tokens = set()
+    for ch in chunks:
+        if ch.isascii():
+            tokens.add(ch.lower())
+        else:
+            for i in range(len(ch) - 1):
+                bg = ch[i:i + 2]
+                if bg not in _STOP_BIGRAMS:
+                    tokens.add(bg)
+    return tokens
+
+
+def _text_similar(a, b):
+    ta = _extract_tokens(a)
+    tb = _extract_tokens(b)
+    if not ta or not tb:
+        return False
+    inter = len(ta & tb)
+    return inter / max(1, min(len(ta), len(tb))) >= 0.65
+
+
+def _guard_k01_known_by(text, known_by, secrets_unlocked=()):
+    if 'K01' in set(secrets_unlocked or ()):
+        return list(known_by)
+    if _K01_SECRET_RE.search(str(text or '')):
+        return [w for w in known_by if w in ('沈知韫',)] or ['沈知韫']
+    return list(known_by)
+
+
+def _default_pending_buffer():
+    return {
+        'day': 1,
+        'location': '',
+        'sub_location': '',
+        'start_time': '',
+        'last_time': '',
+        'known_by': [],
+        'entities': [],
+        'tags': [],
+        'turns': 0,
+        'facts': [],
+    }
+
+
+def default_memory_store(prologue_text='周二上午，徐家主宅。新的一天刚刚开始。', *,
+                         prologue_active=True, known_by=None, location='徐家主宅',
+                         sub_location='', day=1, time_str='12:00'):
     clean = strip_prologue_marker(prologue_text)
     clean = _LABEL_RE.sub('', clean).strip()
-    entries = []
+    kb = _clean_known_by(known_by, default_actors=['徐志北'])
+    episodes = []
+    next_ep_seq = 1
     if clean:
-        entries.append({
-            'start_round': 1,
-            'end_round': 1,
-            'label': '【1】',
-            'text': clean,
-            'known_by': list(known_by) if isinstance(known_by, list) else None,
+        episodes.append({
+            'id': 'EP-001',
+            'day': max(1, _parse_int(day, 1)),
+            'time_range': str(time_str or '12:00').strip()[:16],
+            'location': str(location or '徐家主宅').strip()[:32],
+            'sub_location': str(sub_location or '').strip()[:32],
+            'entities': _extract_entities_from_text(clean, kb),
+            'known_by': kb,
+            'tags': ['开局序幕'] if prologue_active else [],
+            'summary': _clean_mem_line(clean, 480),
+            'is_prologue': bool(prologue_active),
         })
+        next_ep_seq = 2
     return {
-        'version': 1,
-        'prologue_active': bool(prologue_active),
-        'layers': {
-            'L1': entries,
-            'L2': [],
-            'L3': [],
-            'L4': [],
+        'version': 2,
+        'prologue_active': bool(prologue_active and bool(clean)),
+        'next_anchor_seq': 1,
+        'next_episode_seq': next_ep_seq,
+        'next_chronicle_seq': 1,
+        'anchors': [],
+        'resolved_anchors': [],
+        'episodes': episodes,
+        'chronicle': [],
+        'pending_buffer': _default_pending_buffer(),
+    }
+
+
+def default_layers(prologue_text='周二上午，徐家主宅。新的一天刚刚开始。', *,
+                   prologue_active=True, known_by=None, location='徐家主宅',
+                   sub_location='', day=1, time_str='12:00'):
+    """Compatibility wrapper returning the v2 three-track memory store."""
+    return default_memory_store(
+        prologue_text,
+        prologue_active=prologue_active,
+        known_by=known_by,
+        location=location,
+        sub_location=sub_location,
+        day=day,
+        time_str=time_str,
+    )
+
+
+def _upgrade_v1_layers_to_v2(raw):
+    """Upgrade legacy v1 {'version': 1, 'layers': {L1..L4}} dict into v2 memory_store."""
+    store = default_memory_store('', prologue_active=False)
+    layers = raw.get('layers') if isinstance(raw.get('layers'), dict) else {}
+    pro_active = bool(raw.get('prologue_active', False))
+    ep_seq = 1
+    ch_seq = 1
+    for item in (layers.get('L4') or []):
+        if not isinstance(item, dict):
+            continue
+        txt = _clean_mem_line(item.get('text') or '', 420)
+        if not txt:
+            continue
+        sr = max(1, _parse_int(item.get('start_round'), 1))
+        er = max(sr, _parse_int(item.get('end_round'), sr))
+        store['chronicle'].append({
+            'id': f'CH-{ch_seq:02d}',
+            'day_range': [sr, er],
+            'episode_range': [f'R{sr}', f'R{er}'],
+            'entities': _extract_entities_from_text(txt),
+            'public': txt[:260],
+            'views': {},
+        })
+        ch_seq += 1
+    for item in (layers.get('L3') or []):
+        if not isinstance(item, dict):
+            continue
+        txt = _clean_mem_line(item.get('text') or '', 360)
+        if not txt:
+            continue
+        sr = max(1, _parse_int(item.get('start_round'), 1))
+        er = max(sr, _parse_int(item.get('end_round'), sr))
+        store['chronicle'].append({
+            'id': f'CH-{ch_seq:02d}',
+            'day_range': [sr, er],
+            'episode_range': [f'R{sr}', f'R{er}'],
+            'entities': _extract_entities_from_text(txt),
+            'public': txt[:260],
+            'views': {},
+        })
+        ch_seq += 1
+    for lkey in ('L2', 'L1'):
+        for item in (layers.get(lkey) or []):
+            if not isinstance(item, dict):
+                continue
+            txt = _clean_mem_line(strip_prologue_marker(item.get('text') or ''), 480)
+            if not txt:
+                continue
+            sr = max(1, _parse_int(item.get('start_round'), 1))
+            kb = _clean_known_by(item.get('known_by'), default_actors=['徐志北'])
+            is_pro = bool(pro_active and lkey == 'L1' and sr == 1 and len(layers.get('L1') or []) == 1 and not layers.get('L2'))
+            store['episodes'].append({
+                'id': f'EP-{ep_seq:03d}',
+                'day': sr,
+                'time_range': '',
+                'location': '',
+                'sub_location': '',
+                'entities': _extract_entities_from_text(txt, kb),
+                'known_by': kb,
+                'tags': ['开局序幕'] if is_pro else [],
+                'summary': txt,
+                'is_prologue': is_pro,
+            })
+            ep_seq += 1
+    store['chronicle'] = store['chronicle'][-MAX_CHRONICLE_CHAPTERS:]
+    store['episodes'] = store['episodes'][-HARD_MAX_EPISODES:]
+    store['next_episode_seq'] = max(1, ep_seq)
+    store['next_chronicle_seq'] = max(1, ch_seq)
+    store['prologue_active'] = bool(pro_active and any(ep.get('is_prologue') for ep in store['episodes']))
+    return store
+
+
+def normalize_memory_store(raw):
+    if not isinstance(raw, dict):
+        return default_memory_store('', prologue_active=False)
+    if 'layers' in raw and raw.get('version', 1) != 2 and 'episodes' not in raw:
+        raw = _upgrade_v1_layers_to_v2(raw)
+
+    out = default_memory_store('', prologue_active=False)
+    out['prologue_active'] = bool(raw.get('prologue_active', False))
+
+    max_a = 0
+    seen_a = set()
+    for bucket, dst_key, cap in (('anchors', 'anchors', MAX_ACTIVE_ANCHORS), ('resolved_anchors', 'resolved_anchors', MAX_RESOLVED_ANCHORS)):
+        cleaned = []
+        for item in (raw.get(bucket) or []):
+            if not isinstance(item, dict):
+                continue
+            txt = _clean_mem_line(item.get('text') or '', 120)
+            if not txt:
+                continue
+            aid = str(item.get('id') or '').strip()
+            m = re.fullmatch(r'A-(\d+)', aid)
+            if not m or aid in seen_a:
+                max_a += 1
+                aid = f'A-{max_a:03d}'
+            else:
+                max_a = max(max_a, int(m.group(1)))
+            seen_a.add(aid)
+            kind = str(item.get('kind') or 'milestone').strip()
+            if kind not in ANCHOR_KINDS:
+                kind = 'milestone'
+            kb = _clean_known_by(item.get('known_by'), default_actors=['徐志北'])
+            rec = {
+                'id': aid,
+                'kind': kind,
+                'day': max(1, _parse_int(item.get('day'), 1)),
+                'entities': _extract_entities_from_text(txt, item.get('entities') or kb),
+                'known_by': kb,
+                'status': 'resolved' if dst_key == 'resolved_anchors' else 'active',
+                'importance': max(1, min(5, _parse_int(item.get('importance'), 3))),
+                'text': txt,
+            }
+            if item.get('note'):
+                rec['note'] = _clean_mem_line(item.get('note'), 60)
+            cleaned.append(rec)
+        out[dst_key] = cleaned[-cap:]
+    out['next_anchor_seq'] = max(_parse_int(raw.get('next_anchor_seq'), 1), max_a + 1)
+
+    max_ep = 0
+    seen_ep = set()
+    clean_eps = []
+    for item in (raw.get('episodes') or []):
+        if not isinstance(item, dict):
+            continue
+        summary = _clean_mem_line(strip_prologue_marker(item.get('summary') or ''), 480)
+        if not summary:
+            continue
+        eid = str(item.get('id') or '').strip()
+        m = re.fullmatch(r'EP-(\d+)', eid)
+        if not m or eid in seen_ep:
+            max_ep += 1
+            eid = f'EP-{max_ep:03d}'
+        else:
+            max_ep = max(max_ep, int(m.group(1)))
+        seen_ep.add(eid)
+        kb = _clean_known_by(item.get('known_by'), default_actors=['徐志北'])
+        raw_tags = item.get('tags') if isinstance(item.get('tags'), list) else []
+        clean_tags = list(dict.fromkeys(_clean_mem_line(t, 16) for t in raw_tags if _clean_mem_line(t, 16)))[:6]
+        clean_eps.append({
+            'id': eid,
+            'day': max(1, _parse_int(item.get('day'), 1)),
+            'time_range': _clean_mem_line(item.get('time_range') or '', 20),
+            'location': _clean_mem_line(item.get('location') or '', 32),
+            'sub_location': _clean_mem_line(item.get('sub_location') or '', 32),
+            'entities': _extract_entities_from_text(summary, item.get('entities') or kb),
+            'known_by': kb,
+            'tags': clean_tags,
+            'summary': summary,
+            'is_prologue': bool(item.get('is_prologue', False)),
+        })
+    out['episodes'] = clean_eps[-HARD_MAX_EPISODES:]
+    out['next_episode_seq'] = max(_parse_int(raw.get('next_episode_seq'), 1), max_ep + 1)
+
+    max_ch = 0
+    seen_ch = set()
+    clean_ch = []
+    for item in (raw.get('chronicle') or []):
+        if not isinstance(item, dict):
+            continue
+        pub = _clean_mem_line(item.get('public') or '', 300)
+        raw_views = item.get('views') if isinstance(item.get('views'), dict) else {}
+        views = {}
+        for wk, wv in raw_views.items():
+            wname = str(wk or '').strip()
+            wtxt = _clean_mem_line(wv, 160)
+            if wname in _VALID_MEMORY_ACTORS and wtxt:
+                views[wname] = wtxt
+        if not pub and not views:
+            continue
+        cid = str(item.get('id') or '').strip()
+        m = re.fullmatch(r'CH-(\d+)', cid)
+        if not m or cid in seen_ch:
+            max_ch += 1
+            cid = f'CH-{max_ch:02d}'
+        else:
+            max_ch = max(max_ch, int(m.group(1)))
+        seen_ch.add(cid)
+        dr = item.get('day_range')
+        if isinstance(dr, list) and len(dr) == 2:
+            d0 = max(1, _parse_int(dr[0], 1))
+            d1 = max(d0, _parse_int(dr[1], d0))
+        else:
+            d0, d1 = 1, 1
+        er = item.get('episode_range')
+        ep_rng = [str(er[0])[:16], str(er[1])[:16]] if isinstance(er, list) and len(er) == 2 else ['', '']
+        clean_ch.append({
+            'id': cid,
+            'day_range': [d0, d1],
+            'episode_range': ep_rng,
+            'entities': _extract_entities_from_text(pub + ' ' + ' '.join(views.values()), item.get('entities') or ()),
+            'public': pub,
+            'views': views,
+        })
+    out['chronicle'] = clean_ch[-MAX_CHRONICLE_CHAPTERS:]
+    out['next_chronicle_seq'] = max(_parse_int(raw.get('next_chronicle_seq'), 1), max_ch + 1)
+
+    pb = raw.get('pending_buffer') if isinstance(raw.get('pending_buffer'), dict) else {}
+    clean_facts = [_clean_mem_line(f, 180) for f in (pb.get('facts') or []) if _clean_mem_line(f, 180)]
+    if clean_facts:
+        pb_kb = _clean_known_by(pb.get('known_by'), default_actors=['徐志北'])
+        out['pending_buffer'] = {
+            'day': max(1, _parse_int(pb.get('day'), 1)),
+            'location': _clean_mem_line(pb.get('location') or '', 32),
+            'sub_location': _clean_mem_line(pb.get('sub_location') or '', 32),
+            'start_time': _clean_mem_line(pb.get('start_time') or '', 12),
+            'last_time': _clean_mem_line(pb.get('last_time') or '', 12),
+            'known_by': pb_kb,
+            'entities': _extract_entities_from_text(' '.join(clean_facts), pb.get('entities') or pb_kb),
+            'tags': list(dict.fromkeys(_clean_mem_line(t, 16) for t in (pb.get('tags') or []) if _clean_mem_line(t, 16)))[:6],
+            'turns': max(len(clean_facts), _parse_int(pb.get('turns'), len(clean_facts))),
+            'facts': clean_facts[-PENDING_FLUSH_MAX_FACTS:],
+        }
+    return out
+
+
+def needs_chronicle_archive(mem_store):
+    ms = normalize_memory_store(mem_store)
+    non_prologue = [ep for ep in ms['episodes'] if not ep.get('is_prologue')]
+    return len(non_prologue) >= MAX_HOT_EPISODES
+
+
+def chronicle_archive_batch(mem_store):
+    ms = normalize_memory_store(mem_store)
+    non_prologue = [ep for ep in ms['episodes'] if not ep.get('is_prologue')]
+    if len(non_prologue) < MAX_HOT_EPISODES:
+        return []
+    return copy.deepcopy(non_prologue[:ARCHIVE_BATCH_EPISODES])
+
+
+def _seal_pending_buffer(ms, secrets_unlocked=()):
+    pb = ms.get('pending_buffer') or _default_pending_buffer()
+    facts = [f for f in (pb.get('facts') or []) if f]
+    if not facts:
+        ms['pending_buffer'] = _default_pending_buffer()
+        return None
+    summary = '；'.join(facts)[:460]
+    t0 = pb.get('start_time') or ''
+    t1 = pb.get('last_time') or ''
+    trange = t0 if (not t1 or t0 == t1) else f'{t0}-{t1}'
+    kb = _guard_k01_known_by(summary, _clean_known_by(pb.get('known_by')), secrets_unlocked)
+    ep_id = f"EP-{ms['next_episode_seq']:03d}"
+    ms['next_episode_seq'] += 1
+    ep = {
+        'id': ep_id,
+        'day': max(1, _parse_int(pb.get('day'), 1)),
+        'time_range': trange,
+        'location': pb.get('location') or '',
+        'sub_location': pb.get('sub_location') or '',
+        'entities': _extract_entities_from_text(summary, list(pb.get('entities') or ()) + kb),
+        'known_by': kb,
+        'tags': list(pb.get('tags') or ())[:6],
+        'summary': summary,
+        'is_prologue': False,
+    }
+    ms['episodes'].append(ep)
+    ms['pending_buffer'] = _default_pending_buffer()
+    return ep
+
+
+def _append_chronicle_chapter(ms, batch, *, public_text='', views=None, secrets_unlocked=()):
+    if not batch:
+        return None
+    days = [max(1, _parse_int(ep.get('day'), 1)) for ep in batch]
+    d0, d1 = min(days), max(days)
+    ep_rng = [batch[0]['id'], batch[-1]['id']]
+    all_ents = []
+    for ep in batch:
+        for e in (ep.get('entities') or ()):
+            if e not in all_ents:
+                all_ents.append(e)
+    pub = _clean_mem_line(public_text, 280)
+    if 'K01' not in set(secrets_unlocked or ()) and _K01_SECRET_RE.search(pub):
+        pub = _K01_SECRET_RE.sub('家族事务', pub)
+    clean_views = {}
+    if isinstance(views, dict):
+        for wk, wv in views.items():
+            wname = str(wk or '').strip()
+            wtxt = _clean_mem_line(wv, 140)
+            if wname not in _VALID_MEMORY_ACTORS or not wtxt:
+                continue
+            if 'K01' not in set(secrets_unlocked or ()) and wname != '沈知韫' and _K01_SECRET_RE.search(wtxt):
+                continue
+            clean_views[wname] = wtxt
+    if not pub and not clean_views:
+        # Deterministic fallback digest grouped by public vs private actor witnesses
+        pub_bits = []
+        priv_bits = {}
+        for ep in batch:
+            kb = ep.get('known_by') or ['徐志北']
+            snippet = _clean_mem_line(ep.get('summary') or '', 42)
+            if not snippet:
+                continue
+            if len(kb) >= 3:
+                pub_bits.append(f"D{ep['day']}:{snippet}")
+            else:
+                others = [w for w in kb if w != '徐志北']
+                key = others[0] if len(others) == 1 else '徐志北'
+                priv_bits.setdefault(key, []).append(f"D{ep['day']}:{snippet}")
+        pub = ('；'.join(pub_bits))[:260] or f"第{d0}-{d1}天阶段经历归档（共{len(batch)}幕）。"
+        for k, arr in priv_bits.items():
+            clean_views[k] = ('；'.join(arr))[:140]
+
+    ch_id = f"CH-{ms['next_chronicle_seq']:02d}"
+    ms['next_chronicle_seq'] += 1
+    chapter = {
+        'id': ch_id,
+        'day_range': [d0, d1],
+        'episode_range': ep_rng,
+        'entities': all_ents,
+        'public': pub,
+        'views': clean_views,
+    }
+    ms['chronicle'].append(chapter)
+    consumed_ids = {ep['id'] for ep in batch}
+    ms['episodes'] = [ep for ep in ms['episodes'] if ep['id'] not in consumed_ids]
+
+    # Enforce MAX_CHRONICLE_CHAPTERS by deterministically folding the 2 oldest chapters if cap exceeded
+    while len(ms['chronicle']) > MAX_CHRONICLE_CHAPTERS:
+        c0 = ms['chronicle'].pop(0)
+        c1 = ms['chronicle'][0]
+        merged_pub = _clean_mem_line(f"{c0.get('public', '')[:125]}；{c1.get('public', '')[:125]}", 260)
+        merged_views = {}
+        for wk in set((c0.get('views') or {}).keys()) | set((c1.get('views') or {}).keys()):
+            v0 = (c0.get('views') or {}).get(wk, '')
+            v1 = (c1.get('views') or {}).get(wk, '')
+            merged_views[wk] = _clean_mem_line('；'.join(x for x in (v0[:65], v1[:65]) if x), 140)
+        c1['day_range'] = [min(c0['day_range'][0], c1['day_range'][0]), max(c0['day_range'][1], c1['day_range'][1])]
+        c1['episode_range'] = [c0['episode_range'][0], c1['episode_range'][1]]
+        c1['entities'] = list(dict.fromkeys((c0.get('entities') or []) + (c1.get('entities') or [])))
+        c1['public'] = merged_pub
+        c1['views'] = merged_views
+    return chapter
+
+
+def record_memory_turn(mem_store, *, fact='', anchor_ops=None, chronicle_digest=None,
+                       day=1, time_str='', location='', sub_location='',
+                       known_by=None, entities=None, tags=None,
+                       day_crossed=False, overnight=False, secrets_unlocked=()):
+    """Atomically record one committed turn into the v2 three-track memory store."""
+    ms = normalize_memory_store(mem_store)
+    cur_day = max(1, _parse_int(day, 1))
+    cur_time = _clean_mem_line(time_str or '', 12)
+    cur_loc = _clean_mem_line(location or '', 32)
+    cur_sub = _clean_mem_line(sub_location or '', 32)
+    cur_kb = _clean_known_by(known_by, default_actors=['徐志北'])
+    clean_fact = _clean_mem_line(strip_prologue_marker(fact or ''), 180)
+    ops = [op for op in (anchor_ops or ()) if isinstance(op, dict)]
+
+    # Clear literary prologue marker cleanly once the first real story memory arrives
+    if ms.get('prologue_active') and (clean_fact or ops):
+        ms['prologue_active'] = False
+        ms['episodes'] = [ep for ep in ms['episodes'] if not ep.get('is_prologue')]
+
+    # 1. Seal pending_buffer if scene/day/witness boundary changed or capacity reached
+    pb = ms['pending_buffer']
+    if pb.get('facts'):
+        pb_kb_set = set(pb.get('known_by') or ())
+        cur_kb_set = set(cur_kb)
+        projected_chars = sum(len(f) for f in pb['facts']) + len(clean_fact)
+        boundary_crossed = bool(
+            day_crossed
+            or overnight
+            or (pb.get('day') and pb['day'] != cur_day)
+            or (pb.get('location') and cur_loc and pb['location'] != cur_loc)
+            or (pb_kb_set and cur_kb_set and pb_kb_set != cur_kb_set)
+            or (clean_fact and (len(pb['facts']) >= PENDING_FLUSH_MAX_FACTS or projected_chars > PENDING_FLUSH_MAX_CHARS))
+        )
+        if boundary_crossed:
+            _seal_pending_buffer(ms, secrets_unlocked=secrets_unlocked)
+            pb = ms['pending_buffer']
+
+    # 2. Append new turn fact into pending_buffer (deduped)
+    if clean_fact:
+        fact_kb = _guard_k01_known_by(clean_fact, cur_kb, secrets_unlocked)
+        if pb.get('facts') and set(pb.get('known_by') or ()) != set(fact_kb):
+            _seal_pending_buffer(ms, secrets_unlocked=secrets_unlocked)
+            pb = ms['pending_buffer']
+        norm_new = re.sub(r'\s+', '', clean_fact)
+        if not any(norm_new in re.sub(r'\s+', '', old) for old in pb['facts']):
+            if not pb['facts']:
+                pb['day'] = cur_day
+                pb['location'] = cur_loc
+                pb['sub_location'] = cur_sub
+                pb['start_time'] = cur_time
+                pb['known_by'] = fact_kb
+            pb['last_time'] = cur_time or pb.get('last_time') or ''
+            pb['facts'].append(clean_fact)
+            pb['turns'] = int(pb.get('turns') or 0) + 1
+            pb['entities'] = _extract_entities_from_text(
+                clean_fact, list(pb.get('entities') or ()) + list(entities or ()) + fact_kb
+            )
+            pb['tags'] = list(dict.fromkeys(list(pb.get('tags') or ()) + [_clean_mem_line(t, 16) for t in (tags or ()) if _clean_mem_line(t, 16)]))[:6]
+        if overnight or day_crossed:
+            _seal_pending_buffer(ms, secrets_unlocked=secrets_unlocked)
+
+    # 3. Apply atomic anchor_ops (ADD / UPDATE / RESOLVE) — permanent facts never lost to summarization
+    for op in ops[:3]:
+        act = str(op.get('op') or '').strip().lower()
+        if act == 'add':
+            atxt = _clean_mem_line(op.get('text') or '', 110)
+            if not atxt:
+                continue
+            kind = str(op.get('kind') or 'milestone').strip()
+            if kind not in ANCHOR_KINDS:
+                kind = 'milestone'
+            imp = max(1, min(5, _parse_int(op.get('importance'), 3)))
+            if op.get('private_host') is True or (kind in ('secret', 'clue') and op.get('known_by') == ['徐志北']):
+                akb = ['徐志北']
+            elif isinstance(op.get('known_by'), list) and op['known_by']:
+                # Restrict to actual witnesses in scene_known_by (never invent offstage witnesses)
+                allowed_kb = set(cur_kb)
+                scoped = [w for w in op['known_by'] if w in allowed_kb]
+                akb = _clean_known_by(scoped or cur_kb)
+            else:
+                akb = list(cur_kb)
+            akb = _guard_k01_known_by(atxt, akb, secrets_unlocked)
+            ents = _extract_entities_from_text(atxt, list(op.get('entities') or ()) + akb)
+            # Semantic dedup: update similar existing active anchor instead of cloning
+            dup = next((a for a in ms['anchors'] if a['kind'] == kind and _text_similar(a['text'], atxt)), None)
+            if dup is not None:
+                dup['text'] = atxt
+                dup['day'] = cur_day
+                dup['importance'] = max(dup['importance'], imp)
+                dup['known_by'] = _guard_k01_known_by(atxt, _clean_known_by(list(dup['known_by']) + akb), secrets_unlocked)
+                dup['entities'] = list(dict.fromkeys(dup['entities'] + ents))
+            else:
+                aid = f"A-{ms['next_anchor_seq']:03d}"
+                ms['next_anchor_seq'] += 1
+                ms['anchors'].append({
+                    'id': aid,
+                    'kind': kind,
+                    'day': cur_day,
+                    'entities': ents,
+                    'known_by': akb,
+                    'status': 'active',
+                    'importance': imp,
+                    'text': atxt,
+                })
+        elif act == 'update':
+            aid = str(op.get('id') or '').strip()
+            target = next((a for a in ms['anchors'] if a['id'] == aid), None)
+            if target is not None:
+                atxt = _clean_mem_line(op.get('text') or '', 110)
+                if atxt:
+                    target['text'] = atxt
+                    target['day'] = cur_day
+                    if 'importance' in op:
+                        target['importance'] = max(1, min(5, _parse_int(op.get('importance'), target['importance'])))
+                    target['known_by'] = _guard_k01_known_by(target['text'], target['known_by'], secrets_unlocked)
+                    target['entities'] = _extract_entities_from_text(target['text'], target['entities'])
+        elif act == 'resolve':
+            aid = str(op.get('id') or '').strip()
+            idx = next((i for i, a in enumerate(ms['anchors']) if a['id'] == aid), None)
+            if idx is not None:
+                resolved = ms['anchors'].pop(idx)
+                resolved['status'] = 'resolved'
+                note = _clean_mem_line(op.get('note') or '', 60)
+                if note:
+                    resolved['note'] = note
+                ms['resolved_anchors'].append(resolved)
+                ms['resolved_anchors'] = ms['resolved_anchors'][-MAX_RESOLVED_ANCHORS:]
+
+    # Enforce MAX_ACTIVE_ANCHORS cap (archive lowest-importance oldest anchor if exceeded)
+    while len(ms['anchors']) > MAX_ACTIVE_ANCHORS:
+        victim_idx = min(range(len(ms['anchors'])), key=lambda i: (ms['anchors'][i]['importance'], ms['anchors'][i]['day'], i))
+        victim = ms['anchors'].pop(victim_idx)
+        victim['status'] = 'resolved'
+        ms['resolved_anchors'].append(victim)
+        ms['resolved_anchors'] = ms['resolved_anchors'][-MAX_RESOLVED_ANCHORS:]
+
+    # 4. Low-frequency chronicle archival (when Stage 2 provided chronicle_digest OR safety valve > HARD_MAX_EPISODES)
+    if isinstance(chronicle_digest, dict) and (chronicle_digest.get('public') or chronicle_digest.get('views')):
+        non_pro = [ep for ep in ms['episodes'] if not ep.get('is_prologue')]
+        if len(non_pro) >= ARCHIVE_BATCH_EPISODES:
+            batch = non_pro[:ARCHIVE_BATCH_EPISODES]
+            _append_chronicle_chapter(
+                ms, batch,
+                public_text=chronicle_digest.get('public') or '',
+                views=chronicle_digest.get('views'),
+                secrets_unlocked=secrets_unlocked,
+            )
+    non_pro_after = [ep for ep in ms['episodes'] if not ep.get('is_prologue')]
+    while len(non_pro_after) > HARD_MAX_EPISODES:
+        batch = non_pro_after[:ARCHIVE_BATCH_EPISODES]
+        _append_chronicle_chapter(ms, batch, secrets_unlocked=secrets_unlocked)
+        non_pro_after = [ep for ep in ms['episodes'] if not ep.get('is_prologue')]
+
+    return ms
+
+
+def retrieve_memory_view(mem_store, *, query='', cast=(), present_actors=None,
+                         location='', max_chars=2400, incremental=False):
+    """Multi-factor zero-dependency retriever with deterministic epistemic partitioning by known_by."""
+    ms = normalize_memory_store(mem_store)
+    cast_list = [c for c in (cast or ()) if c in _VALID_MEMORY_ACTORS]
+    room_actors = [a for a in (present_actors if present_actors is not None else cast_list) if a in _VALID_MEMORY_ACTORS and a != '徐志北']
+    room_set = set(room_actors)
+    query_ents = set(_extract_entities_from_text(query, list(room_actors) + list(cast_list)))
+    query_tokens = _extract_tokens(f"{query or ''} {location or ''}")
+    max_day = max(
+        [1]
+        + [ep['day'] for ep in ms['episodes']]
+        + [a['day'] for a in ms['anchors']]
+        + [int((ms['pending_buffer'] or {}).get('day') or 1)]
+    )
+
+    def _score(text, entities, tags, item_loc, item_day, importance=3, is_anchor=False, is_pending=False):
+        if is_pending:
+            return 100.0
+        ent_set = set(entities or ())
+        # 1. Entity relevance (0.40)
+        ent_hits = len((ent_set - {'徐志北'}) & (query_ents - {'徐志北'}))
+        room_hits = len((ent_set - {'徐志北'}) & room_set)
+        ent_score = min(1.0, (room_hits * 0.65 + ent_hits * 0.45)) if (room_set or query_ents) else 0.2
+        # 2. Lexical / tag / location match (0.30)
+        item_tokens = _extract_tokens(text + ' ' + ' '.join(tags or ()))
+        lex_hits = len(query_tokens & item_tokens)
+        lex_score = min(1.0, (lex_hits / max(1.0, min(6.0, float(len(query_tokens))))) if query_tokens else 0.0)
+        if location and item_loc and location == item_loc:
+            lex_score = min(1.0, lex_score + 0.35)
+        # 3. Importance (0.20)
+        imp_score = (max(1, min(5, int(importance))) / 5.0) * (1.15 if is_anchor else 0.85)
+        # 4. Recency decay (0.10)
+        age = max(0, max_day - max(1, int(item_day)))
+        rec_score = 1.0 / (1.0 + 0.18 * age)
+        return round(0.40 * ent_score + 0.30 * lex_score + 0.20 * imp_score + 0.10 * rec_score, 4)
+
+    def _partition_bucket(known_by):
+        kb_set = set(known_by or ('徐志北',))
+        if not room_set:
+            return ('host_private', '')
+        if room_set.issubset(kb_set):
+            return ('shared', '')
+        present_knowers = [a for a in room_actors if a in kb_set]
+        if present_knowers:
+            return ('actor_private', '、'.join(present_knowers))
+        return ('host_private', '')
+
+    candidates = []
+    # Pending buffer (always top priority current working memory)
+    pb = ms['pending_buffer']
+    if pb.get('facts'):
+        pb_txt = f"[第{pb['day']}天 {pb.get('start_time') or ''} {pb.get('location') or ''}] " + '；'.join(pb['facts'])
+        candidates.append({
+            'source': 'pending', 'id': 'NOW', 'score': 100.0, 'pinned': True,
+            'known_by': pb.get('known_by') or ['徐志北'], 'text': pb_txt.strip(),
+        })
+
+    # Active anchors (durable facts/promises/milestones)
+    for a in ms['anchors']:
+        sc = _score(a['text'], a['entities'], [a['kind']], '', a['day'], importance=a['importance'], is_anchor=True)
+        tag_lbl = {'promise': '约定', 'milestone': '节点', 'secret': '秘密', 'clue': '线索', 'relationship': '关系'}.get(a['kind'], '锚点')
+        candidates.append({
+            'source': 'anchor', 'id': a['id'], 'score': sc, 'pinned': (not incremental and a['importance'] >= 4 and bool(set(a['entities']) & room_set)),
+            'known_by': a['known_by'], 'text': f"[{a['id']}·{tag_lbl}·D{a['day']}] {a['text']}",
+        })
+
+    # Hot episodes
+    eps = ms['episodes']
+    recent_ep_ids = {ep['id'] for ep in eps[-3:]}
+    for ep in eps:
+        sc = _score(ep['summary'], ep['entities'], ep.get('tags'), ep.get('location'), ep['day'], importance=3, is_anchor=False)
+        loc_part = f" {ep['location']}" if ep.get('location') else ''
+        tm_part = f" {ep['time_range']}" if ep.get('time_range') else ''
+        candidates.append({
+            'source': 'episode', 'id': ep['id'], 'score': sc + (0.25 if ep['id'] in recent_ep_ids else 0.0),
+            'pinned': (not incremental and ep['id'] in recent_ep_ids),
+            'known_by': ep['known_by'],
+            'text': f"[{ep['id']}·D{ep['day']}{tm_part}{loc_part}] {ep['summary']}",
+        })
+
+    # Chronicle chapters (split by public vs private actor view so private views never leak!)
+    for ch in ms['chronicle']:
+        dr = ch.get('day_range') or [1, 1]
+        if ch.get('public'):
+            sc = _score(ch['public'], ch.get('entities'), [], '', dr[1], importance=3, is_anchor=False)
+            candidates.append({
+                'source': 'chronicle', 'id': ch['id'], 'score': sc * 0.9, 'pinned': (not incremental and ch == ms['chronicle'][-1]),
+                'known_by': list(_VALID_MEMORY_ACTORS),
+                'text': f"[{ch['id']}·D{dr[0]}-{dr[1]}编年] {ch['public']}",
+            })
+        for wname, wtxt in (ch.get('views') or {}).items():
+            sc = _score(wtxt, [wname, '徐志北'], [], '', dr[1], importance=3, is_anchor=False)
+            candidates.append({
+                'source': 'chronicle_view', 'id': f"{ch['id']}:{wname}", 'score': sc * 0.95, 'pinned': False,
+                'known_by': ['徐志北', wname] if wname != '徐志北' else ['徐志北'],
+                'text': f"[{ch['id']}·D{dr[0]}-{dr[1]}·{wname}线] {wtxt}",
+            })
+
+    candidates.sort(key=lambda c: (c['pinned'], c['score']), reverse=True)
+    budget = max(400, int(max_chars or 2400))
+    if incremental:
+        # On turns 2..N inside an active session, focus on pending + highest-relevance non-trivial recalls
+        candidates = [c for c in candidates if c['source'] == 'pending' or c['score'] >= 0.42]
+        budget = min(budget, 1400)
+
+    shared = []
+    actor_private = {}
+    host_private = []
+    used = 0
+    selected_ids = []
+    ep_selected = 0
+    ch_selected = 0
+    max_eps = 4 if incremental else 8
+    max_ch = 2 if incremental else 4
+    for item in candidates:
+        src = item['source']
+        if src == 'episode' and ep_selected >= max_eps:
+            continue
+        if src in ('chronicle', 'chronicle_view') and ch_selected >= max_ch:
+            continue
+        cost = len(item['text']) + 8
+        if used + cost > budget and selected_ids:
+            continue
+        bucket, owner_lbl = _partition_bucket(item['known_by'])
+        if bucket == 'shared':
+            shared.append(item['text'])
+        elif bucket == 'actor_private':
+            actor_private.setdefault(owner_lbl, []).append(item['text'])
+        else:
+            host_private.append(item['text'])
+        used += cost
+        selected_ids.append(item['id'])
+        if src == 'episode':
+            ep_selected += 1
+        elif src in ('chronicle', 'chronicle_view'):
+            ch_selected += 1
+
+    # Compact active anchor index for Stage 2 UPDATE/RESOLVE reference
+    anchors_for_stage2 = [
+        {'id': a['id'], 'kind': a['kind'], 'day': a['day'], 'importance': a['importance'], 'text': a['text']}
+        for a in sorted(ms['anchors'], key=lambda x: (bool(set(x['entities']) & room_set), x['importance'], x['day']), reverse=True)[:18]
+    ]
+    return {
+        'shared_scene_memory': shared,
+        'actor_private_memory': actor_private,
+        'host_private_memory': host_private,
+        'selected_ids': selected_ids,
+        'used_chars': used,
+        'pending_facts': list(pb.get('facts') or []),
+        'active_anchors_index': anchors_for_stage2,
+        'chronicle_archive_batch': chronicle_archive_batch(ms),
+        'stats': {
+            'anchors': len(ms['anchors']),
+            'resolved_anchors': len(ms['resolved_anchors']),
+            'episodes': len(ms['episodes']),
+            'chronicle': len(ms['chronicle']),
+            'pending_facts': len(pb.get('facts') or []),
         },
     }
 
@@ -475,16 +1273,52 @@ def entry_to_string(entry):
     return f'{label}{body}'
 
 
-def layer_strings(mem_layers):
-    layers = (mem_layers or {}).get('layers') or {}
-    return {
-        key: [entry_to_string(item) for item in (layers.get(key) or [])]
-        for key in ('L1', 'L2', 'L3', 'L4')
-    }
+def layer_strings(mem_store):
+    """Project v2 memory_store (or legacy v1 layers) into L1-L4 display strings for one-way .txt view."""
+    if isinstance(mem_store, dict) and 'layers' in mem_store and 'episodes' not in mem_store:
+        layers = mem_store.get('layers') or {}
+        return {
+            key: [entry_to_string(item) for item in (layers.get(key) or [])]
+            for key in ('L1', 'L2', 'L3', 'L4')
+        }
+    ms = normalize_memory_store(mem_store)
+    l1, l2, l3, l4 = [], [], [], []
+    eps = list(ms['episodes'])
+    pb = ms['pending_buffer']
+    # L1: latest up to 2 sealed episodes + current pending buffer (total <= 3, valid monotonic 【n】 headers)
+    hot_eps = eps[-2:] if pb.get('facts') else eps[-3:]
+    older_eps = eps[:-len(hot_eps)] if hot_eps else []
+    idx_counter = 1
+    for ch in ms['chronicle']:
+        dr = ch.get('day_range') or [1, 1]
+        views_txt = ' | '.join(f"{k}:{v}" for k, v in (ch.get('views') or {}).items())
+        body = f"[{ch['id']}] {ch.get('public', '')}" + (f"（暗线：{views_txt}）" if views_txt else '')
+        l4.append(f"【{dr[0]}-{dr[1]}】{body}")
+    for a in ms['anchors']:
+        tag_lbl = {'promise': '约定', 'milestone': '节点', 'secret': '秘密', 'clue': '线索', 'relationship': '关系'}.get(a['kind'], '锚点')
+        kb_lbl = '、'.join(a.get('known_by') or ['徐志北'])
+        l3.append(f"【{a['day']}】[{a['id']}·{tag_lbl}·知情:{kb_lbl}] {a['text']}")
+    for ep in older_eps:
+        l2.append(f"【{ep['day']}】{ep['summary']}")
+    for ep in hot_eps:
+        l1.append(f"【{ep['day']}】{ep['summary']}")
+        idx_counter += 1
+    if pb.get('facts'):
+        kb_lbl = '、'.join(pb.get('known_by') or ['徐志北'])
+        loc_lbl = f"{pb['location']} " if pb.get('location') else ''
+        tm_lbl = f"{pb.get('start_time') or ''} " if pb.get('start_time') else ''
+        l1.append(f"【{pb['day']}】[本幕暂存·{loc_lbl}{tm_lbl}知情:{kb_lbl}] " + '；'.join(pb['facts']))
+    return {'L1': l1, 'L2': l2, 'L3': l3, 'L4': l4}
 
 
 def set_layer_strings(mem_layers, str_layers, *, prologue_active=None):
-    out = copy.deepcopy(mem_layers) if isinstance(mem_layers, dict) else default_layers('', prologue_active=False)
+    """Legacy helper kept for injection_core direct manual CLI compatibility."""
+    if isinstance(mem_layers, dict) and 'episodes' in mem_layers:
+        out = normalize_memory_store(mem_layers)
+        if prologue_active is not None:
+            out['prologue_active'] = bool(prologue_active)
+        return out
+    out = copy.deepcopy(mem_layers) if isinstance(mem_layers, dict) else {'version': 1, 'prologue_active': False, 'layers': {'L1': [], 'L2': [], 'L3': [], 'L4': []}}
     old_layers = out.get('layers') or {}
     new_layers = {}
     for key in ('L1', 'L2', 'L3', 'L4'):
@@ -502,7 +1336,7 @@ def set_layer_strings(mem_layers, str_layers, *, prologue_active=None):
     out['layers'] = new_layers
     if prologue_active is not None:
         out['prologue_active'] = bool(prologue_active)
-    return out
+    return normalize_memory_store(out)
 
 
 def normalize_state(raw):
@@ -747,6 +1581,10 @@ def normalize_state(raw):
                 if m:
                     max_seq = max(max_seq, int(m.group(1)))
                 clean_arr.append(item)
+            if bucket == 'delivered':
+                clean_arr = clean_arr[-MAX_DELIVERED_ITEMS:]
+            elif bucket == 'history':
+                clean_arr = clean_arr[-MAX_HISTORY_ITEMS:]
             base['items'][bucket] = clean_arr
     base['items']['next_seq'] = max(_parse_int(raw_items.get('next_seq'), 1), max_seq + 1)
     # Shop / Intel / Director / Lifecycle / Runtime
@@ -1250,7 +2088,8 @@ def migrate_from_legacy_texts(memory_text='', items_text='', data_dict=None, bas
             and not any(parsed_str_layers[k] for k in ('L2', 'L3', 'L4'))
             and parsed_str_layers['L1'][0].startswith('【1】')
         )
-        layers = set_layer_strings(default_layers('', prologue_active=is_prologue_only), parsed_str_layers, prologue_active=is_prologue_only)
+        v1_shell = {'version': 1, 'prologue_active': is_prologue_only, 'layers': {'L1': [], 'L2': [], 'L3': [], 'L4': []}}
+        layers = set_layer_strings(v1_shell, parsed_str_layers, prologue_active=is_prologue_only)
 
         # Sync item timers from 【道具倒计时】 into parsed items
         timer_map = {}
@@ -1312,7 +2151,7 @@ def render_memory_txt(state, mem_layers):
         '===========================================',
         '               ⚠️ 板块三⚠️全局记忆库',
         '==========================================',
-        '（只读视图：由 save_store 从 save_state.json + 四层记忆.json 单向自动渲染，机器真相以 JSON 为准）',
+        '（只读视图：由 save_store 从 save_state.json + memory_store.json 单向自动渲染，正式互动以 JSON 为唯一真相）',
         '【实时面板快照】',
         '▶ 当前最新数值',
         f"[系统宿主] 积分 {host['积分']} | 经验值 {host['经验值']} | 体力 {host['体力']} | 魅力 {host['魅力']} | 商业嗅觉 {host['商业嗅觉']}",
@@ -1630,8 +2469,35 @@ def _runtime_sig(data_dict):
     return _sha256_bytes(_json_bytes(subset))
 
 
-def load_bundle(root, files=None):
-    """Load (state, layers, recent) from files dict or disk, auto-migrating legacy saves or external .txt edits."""
+def harvest_engine_txt_mutations(base_state, memory_text='', items_text=''):
+    """Narrow sandbox boundary helper: harvest ONLY machine fields mutated by legacy injection_core stage calls
+    into pure JSON save_state without ever touching memory_store.json or JSON-native subsystems."""
+    state = normalize_state(base_state)
+    migrated, _ = migrate_from_legacy_texts(
+        memory_text or '',
+        items_text or '',
+        None,
+        base_state=state,
+    )
+    out = copy.deepcopy(state)
+    if memory_text:
+        for key in ('panels', 'presence', 'micro_states', 'buffs', 'counters',
+                    'vigilance', 'tasks', 'intel', 'director', 'lifecycle'):
+            out[key] = copy.deepcopy(migrated[key])
+        if (migrated.get('mechanics') or {}).get('su_affection_85_unlocked'):
+            out.setdefault('mechanics', {})['su_affection_85_unlocked'] = True
+        # Preserve dynamic_catalog & next_dyn_seq (JSON-only) while harvesting redeemed/recent/echoes
+        out['shop']['redeemed'] = copy.deepcopy(migrated['shop']['redeemed'])
+        out['shop']['recent'] = copy.deepcopy(migrated['shop']['recent'])
+        out['shop']['echoes'] = copy.deepcopy(migrated['shop']['echoes'])
+    if items_text:
+        out['items'] = copy.deepcopy(migrated['items'])
+    return normalize_state(out)
+
+
+def load_bundle(root, files=None, *, sync_txt_drift=True):
+    """Load (state, memory_store, recent) from JSON truth; when sync_txt_drift is True, a fast SHA-256 check
+    triggers zero-parse bypass on normal live reads and narrow non-memory harvest ONLY if legacy injection_core mutated .txt."""
     root = Path(root)
 
     def _read_bytes(rel):
@@ -1641,7 +2507,9 @@ def load_bundle(root, files=None):
         return p.read_bytes() if p.is_file() else None
 
     raw_state = _read_bytes(SAVE_STATE_PATH)
-    raw_layers = _read_bytes(MEMORY_LAYERS_PATH)
+    raw_mem_store = _read_bytes(MEMORY_STORE_PATH)
+    if raw_mem_store is None:
+        raw_mem_store = _read_bytes(LEGACY_MEMORY_LAYERS_PATH)
     raw_recent = _read_bytes(RECENT_PLAYBACK_PATH)
     raw_mem = _read_bytes(RENDERED_MEMORY_PATH)
     raw_items = _read_bytes(RENDERED_ITEMS_PATH)
@@ -1666,90 +2534,39 @@ def load_bundle(root, files=None):
         except ValueError:
             pass
 
-    if raw_state and raw_layers:
+    if raw_state and raw_mem_store:
         try:
             state = normalize_state(json.loads(raw_state.decode('utf-8')))
-            layers_raw = json.loads(raw_layers.decode('utf-8'))
-            if isinstance(layers_raw, dict) and isinstance(layers_raw.get('layers'), dict):
-                layers = layers_raw
-            else:
-                layers = default_layers('', prologue_active=False)
+            mem_store = normalize_memory_store(json.loads(raw_mem_store.decode('utf-8')))
 
-            # Detect external direct edits to rendered .txt or data.json story_runtime (e.g. legacy tools / tests).
-            sha = state.get('rendered_sha256') or {}
-            mem_drifted = bool(raw_mem and sha.get('memory_txt') and _sha256_bytes(raw_mem) != sha['memory_txt'])
-            items_drifted = bool(raw_items and sha.get('items_txt') and _sha256_bytes(raw_items) != sha['items_txt'])
-            rt_sig = _runtime_sig(data_dict)
-            data_rt_drifted = bool(data_dict and sha.get('data_runtime') and rt_sig != sha['data_runtime'])
-
-            if mem_drifted or items_drifted:
-                migrated_state, migrated_layers = migrate_from_legacy_texts(
-                    raw_mem.decode('utf-8') if (mem_drifted and raw_mem) else '',
-                    raw_items.decode('utf-8') if (items_drifted and raw_items) else '',
-                    data_dict if data_rt_drifted else None,
-                    base_state=state,
-                )
-                if mem_drifted:
-                    # Preserve JSON-only mechanics/intimate/runtime/dynamic_catalog and layer metadata (prologue_active / known_by) across .txt syncs.
-                    migrated_state['mechanics'] = copy.deepcopy(state['mechanics'])
-                    migrated_state['intimate'] = copy.deepcopy(state['intimate'])
-                    migrated_state['shop']['dynamic_catalog'] = copy.deepcopy(state['shop'].get('dynamic_catalog') or [])
-                    migrated_state['shop']['next_dyn_seq'] = int(state['shop'].get('next_dyn_seq') or 1)
-                    if not data_rt_drifted:
-                        migrated_state['runtime'] = copy.deepcopy(state['runtime'])
-                    if not items_drifted:
-                        migrated_state['items'] = copy.deepcopy(state['items'])
-                    old_known = {}
-                    for lk, litems in (layers.get('layers') or {}).items():
-                        for entry in (litems or []):
-                            if isinstance(entry, dict) and entry.get('known_by') is not None:
-                                old_known[(lk, entry.get('label', ''), entry.get('text', ''))] = copy.deepcopy(entry['known_by'])
-                    for lk, litems in (migrated_layers.get('layers') or {}).items():
-                        for entry in (litems or []):
-                            if isinstance(entry, dict) and entry.get('known_by') is None:
-                                saved_kb = old_known.get((lk, entry.get('label', ''), entry.get('text', '')))
-                                if saved_kb is not None:
-                                    entry['known_by'] = saved_kb
-                    if layers.get('prologue_active') and not migrated_layers.get('prologue_active'):
-                        l1 = (migrated_layers.get('layers') or {}).get('L1') or []
-                        if len(l1) == 1 and l1[0].get('start_round') == 1 and l1[0].get('end_round') == 1:
-                            migrated_layers['prologue_active'] = True
-                    state = normalize_state(migrated_state)
-                    layers = migrated_layers
-                elif items_drifted:
-                    state['items'] = migrated_state['items']
-            if data_rt_drifted and isinstance(data_dict, dict):
-                sr = data_dict.get('story_runtime')
-                if isinstance(sr, dict):
-                    for k in ('clock', 'memory_round', 'last_closed', 'phase', 'item_recovered', 'action_index', 'closed_by'):
-                        if k in sr:
-                            state['runtime'][k] = copy.deepcopy(sr[k])
-                pro = data_dict.get('prologue')
-                if isinstance(pro, dict):
-                    state['runtime']['prologue'] = copy.deepcopy(pro)
-                    base_wd = pro.get('weekday')
-                    weekdays = ('周一', '周二', '周三', '周四', '周五', '周六', '周日')
-                    if isinstance(base_wd, str) and base_wd in weekdays:
-                        clk = state['runtime'].get('clock')
-                        day = clk.get('day', 1) if isinstance(clk, dict) and isinstance(clk.get('day'), int) else 1
-                        state['runtime']['weekday'] = weekdays[(weekdays.index(base_wd) + max(0, day - 1)) % 7]
-            return state, layers, recent
+            if sync_txt_drift:
+                sha = state.get('rendered_sha256') or {}
+                mem_drifted = bool(raw_mem and sha.get('memory_txt') and _sha256_bytes(raw_mem) != sha['memory_txt'])
+                items_drifted = bool(raw_items and sha.get('items_txt') and _sha256_bytes(raw_items) != sha['items_txt'])
+                if mem_drifted or items_drifted:
+                    state = harvest_engine_txt_mutations(
+                        state,
+                        raw_mem.decode('utf-8') if (mem_drifted and raw_mem) else '',
+                        raw_items.decode('utf-8') if (items_drifted and raw_items) else '',
+                    )
+            return state, mem_store, recent
         except ValueError:
             pass
 
-    # Fallback: migrate legacy .txt + data.json save cleanly
-    state, layers = migrate_from_legacy_texts(
+    # Cold bootstrap only when JSON files do not exist yet
+    state, legacy_layers = migrate_from_legacy_texts(
         raw_mem.decode('utf-8') if raw_mem else '',
         raw_items.decode('utf-8') if raw_items else '',
         data_dict,
     )
-    return state, layers, recent
+    return state, normalize_memory_store(legacy_layers), recent
 
 
-def render_bundle_bytes(state, layers, recent=None, *, data_dict=None):
-    """Build byte payloads for all 5 存档/ files so RoundStore can commit them atomically."""
+def render_bundle_bytes(state, mem_store, recent=None, *, data_dict=None):
+    """Build byte payloads for all 存档/ files so RoundStore can commit them atomically."""
     state = normalize_state(state)
-    mem_txt = render_memory_txt(state, layers).encode('utf-8')
+    mem_store = normalize_memory_store(mem_store)
+    mem_txt = render_memory_txt(state, mem_store).encode('utf-8')
     items_txt = render_items_txt(state).encode('utf-8')
     state['rendered_sha256'] = {
         'memory_txt': _sha256_bytes(mem_txt),
@@ -1760,7 +2577,7 @@ def render_bundle_bytes(state, layers, recent=None, *, data_dict=None):
         RENDERED_MEMORY_PATH: mem_txt,
         RENDERED_ITEMS_PATH: items_txt,
         SAVE_STATE_PATH: _json_bytes(state),
-        MEMORY_LAYERS_PATH: _json_bytes(layers),
+        MEMORY_STORE_PATH: _json_bytes(mem_store),
     }
     if recent is not None:
         clean_recent = {
@@ -1772,10 +2589,10 @@ def render_bundle_bytes(state, layers, recent=None, *, data_dict=None):
     return out
 
 
-def save_bundle(stage_root, state, layers, recent=None, *, data_dict=None):
-    """Write structured JSON state + layers + one-way rendered .txt views atomically into stage_root."""
+def save_bundle(stage_root, state, mem_store, recent=None, *, data_dict=None):
+    """Write structured JSON state + memory_store + one-way rendered .txt views atomically into stage_root."""
     stage_root = Path(stage_root)
-    payloads = render_bundle_bytes(state, layers, recent, data_dict=data_dict)
+    payloads = render_bundle_bytes(state, mem_store, recent, data_dict=data_dict)
     for rel, raw in payloads.items():
         _atomic_write(stage_root / rel, raw)
     return payloads

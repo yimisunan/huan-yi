@@ -3,52 +3,52 @@
     "actions": 0,
     "count": 1,
     "last_sequence": 1,
-    "segment_id": "prologue-6554030471bf005e044a3f911ccedd46"
+    "segment_id": "prologue-5208ae012e36caf28e051b3e2db93fca"
   },
   "options_text": "",
   "presence": {
     "徐志北": {
-      "location": "徐家主宅",
-      "reason": "常住"
+      "location": "公司",
+      "reason": "晚间送夜宵探班"
     },
     "徐念薇": {
-      "location": "徐家主宅",
-      "reason": "周末在家"
+      "location": "工作室",
+      "reason": "工作日傍晚在画室"
     },
     "沈知韫": {
-      "location": "徐家主宅",
-      "reason": "常住"
+      "location": "公司",
+      "reason": "周三晚间加班复核并购案"
     },
     "苏婉青": {
-      "location": "徐家主宅",
-      "reason": "周日家庭午餐窗"
+      "location": "市中心顶层公寓",
+      "reason": "常住"
     }
   },
   "prologue": {
-    "heroine": "全员家宴",
-    "privacy": "open_public",
-    "request_id": "reset-20261126_120710_dcc479aa8e9042aa95e49bff82274433",
-    "scenario_id": "zhiyun_sunday_noon",
-    "sub_location": "主宅餐厅",
-    "title": "周日午间 · 主宅餐厅 · 家庭",
-    "weekday": "周日"
+    "heroine": "沈知韫",
+    "privacy": "locked_private",
+    "request_id": "reset-20261126_162725_716d8bd5d6fc4fa6a8c2e7d989ad28d9",
+    "scenario_id": "zhiyun_late_office",
+    "sub_location": "顶层董事长办公室",
+    "title": "周三晚间 · 顶层办公室 · 母亲",
+    "weekday": "周三"
   },
-  "request_id": "prologue-6554030471bf005e044a3f911ccedd46",
+  "request_id": "prologue-5208ae012e36caf28e051b3e2db93fca",
   "round": 1,
-  "sceneTitle": "徐家主宅",
+  "sceneTitle": "公司",
   "state_version": 1,
   "storyNodes": [
     {
-      "text": "瓷壶倾出热茶的轻响散在周日午间餐厅里，茶雾混着三道截然不同的气息——沈知韫的冷调幽兰、徐念薇指间的淡皂香，以及苏婉青落座时拂过的柔顺甜香。桌布边沿下，穿淡紫缎面居家服的沈知韫脚尖轻搭拖鞋露出一截白皙足背；另一侧徐念薇修长冷白的手指扣着骨瓷杯耳，腕骨清瘦；依周日惯例赴宅的苏婉青俯身搁下伴手礼，浅黄短裙领口被 36D 撑得微紧。徐志北指腹被热茶杯壁烫了一下，目光在三人神色间掠过。",
+      "text": "周三晚七点半，集团总部顶层早已清场，走廊灯暗了一半，只有董事长办公室的落地玻璃幕墙映着城央灯火。沈知韫仍穿着收腰白衬衫与黑色高腰包臀短裙，宽大办公桌下，那双被超薄黑丝包裹的纤细脚踝刚从黑色尖头细跟后空鞋里褪出半截，足背绷着舒缓一天的酸胀；案头摊着标有风控红签的并购文件夹。徐志北提着温热的汤盅轻推开门，反手带上门扉的咔哒声在静谧空间里格外清晰。",
       "type": "narration"
     },
     {
-      "text": "她扫过一圈餐桌，目光在苏婉青手边的伴手礼和念薇握杯的手指间掠过，自己拉开主位座椅，脚下露趾拖鞋轻蹭过地毯边沿。",
+      "text": "她合上并购风控红签夹，把桌上冷掉的咖啡往旁边一推，桌下黑丝脚尖顺势重新勾回细跟后空鞋，抬眼时掌权者的冷锐柔和了半分。",
       "type": "narration"
     },
     {
       "speaker": "沈知韫",
-      "text": "[沉稳从容] 都到齐了，先落座吧。厨房那边还要一会儿，志北坐妈手边。",
+      "text": "[低声克制，带着难得的松弛] 这层早就没人了，怎么还专程跑一趟？<soft>先搁茶几上，坐下歇口气。</soft>",
       "type": "dialogue"
     }
   ],
@@ -56,7 +56,7 @@
     "action_index": 0,
     "clock": {
       "day": 1,
-      "time": "12:00"
+      "time": "19:30"
     },
     "closed_by": "",
     "item_recovered": 0,

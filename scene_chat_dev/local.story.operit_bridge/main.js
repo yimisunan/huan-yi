@@ -1155,10 +1155,24 @@ async function executeSessionV2(config, task, model, session) {
                 if (attempt > 1) {
                     await pushPreview('settling_retry', finalPreviewMsgs);
                 }
+                const fgSrc = String(fg.text || '');
+                let fgDecIdx = fgSrc.search(STREAM_DECISION_SPLIT_RE);
+                if (fgDecIdx < 0) fgDecIdx = fgSrc.search(STREAM_INLINE_DECISION_RE);
+                let fgDecisionTail = '';
+                if (fgDecIdx >= 0) {
+                    fgDecisionTail = fgSrc.slice(fgDecIdx).trim();
+                } else {
+                    const fgLines = fgSrc.split(/\r?\n/);
+                    const unmarkedIdx = detectUnmarkedDecisionTailJs(fgLines);
+                    if (unmarkedIdx >= 0) fgDecisionTail = fgLines.slice(unmarkedIdx).join('\n').trim();
+                }
+                const fgDecisionMissing = !fgDecisionTail;
                 const settleUser = JSON.stringify({
                     context: material.settlement_spec.user_context,
-                    foreground_script: fg.text,
                     foreground_messages: finalPreviewMsgs,
+                    ...(fgDecisionTail ? { foreground_decision_tail: fgDecisionTail } : {}),
+                    foreground_decision_missing: fgDecisionMissing,
+                    ...(!finalPreviewMsgs.length ? { foreground_script: fg.text } : {}),
                     ...(lastSettleError ? { previous_settlement_error: lastSettleError, retry_attempt: attempt } : {})
                 });
                 let settlementObj;

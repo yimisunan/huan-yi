@@ -543,7 +543,13 @@ def initialize_prologue(root, request_id, scenario_id=None):
     engine = rr._engine(root, root)
     st, layers, _ = save_store.load_bundle(root, files)
     st = save_store.normalize_state(st)
-    if any((layers.get('layers') or {}).get(k) for k in ('L1', 'L2', 'L3', 'L4')):
+    if (
+        layers.get('episodes')
+        or layers.get('anchors')
+        or layers.get('chronicle')
+        or (layers.get('pending_buffer') or {}).get('facts')
+        or any((layers.get('layers') or {}).get(k) for k in ('L1', 'L2', 'L3', 'L4'))
+    ):
         raise rr.ConflictError('已有记忆，不能另抽序幕覆盖')
     st['presence'] = {
         name: {'location': loc, 'reason': reason}
@@ -562,9 +568,25 @@ def initialize_prologue(root, request_id, scenario_id=None):
     intl['session_beats'] = 0
     intl['noise_risk'] = 0
 
+    presence = copy.deepcopy(st['presence'])
+    building_cast = [
+        name for name in ('沈知韫', '苏婉青', '徐念薇')
+        if presence.get(name, {}).get('location') == presence['徐志北']['location']
+    ]
+    room_cast = [a for a in present_actors if a in building_cast] or building_cast
+    listeners = ['徐志北', *room_cast]
+
     l1_clean = re.sub(r'^【\d+】\s*', '', chosen['l1_body'].strip())
     l1_clean = re.sub(r'\s{2,}', ' ', re.sub(r'\s*\n\s*', '', l1_clean)).strip()
-    layers = save_store.default_layers(l1_clean, prologue_active=True)
+    layers = save_store.default_memory_store(
+        l1_clean,
+        prologue_active=True,
+        known_by=listeners,
+        location=presence['徐志北']['location'],
+        sub_location=chosen.get('sub_location', ''),
+        day=int((chosen.get('clock') or {}).get('day') or 1),
+        time_str=str((chosen.get('clock') or {}).get('time') or '12:00'),
+    )
     starter = chosen.get('starter_task')
     if starter:
         preview_mem = save_store.render_memory_txt(st, layers)
@@ -587,7 +609,6 @@ def initialize_prologue(root, request_id, scenario_id=None):
             'history': [],
             'pending_items': [],
         }
-    presence = copy.deepcopy(st['presence'])
     ident = 'prologue-' + hashlib.sha256(request_id.encode()).hexdigest()[:32]
     runtime = {
         'version': 1, 'clock': chosen['clock'], 'memory_round': 1,
@@ -631,14 +652,6 @@ def initialize_prologue(root, request_id, scenario_id=None):
             for m in chosen['messages']
         ],
     )
-    building_cast = [
-        name for name in ('沈知韫', '苏婉青', '徐念薇')
-        if presence.get(name, {}).get('location') == presence['徐志北']['location']
-    ]
-    room_cast = [a for a in present_actors if a in building_cast] or building_cast
-    listeners = ['徐志北', *room_cast]
-    if (layers.get('layers') or {}).get('L1'):
-        layers['layers']['L1'][0]['known_by'] = list(listeners)
     rendered_files = save_store.render_bundle_bytes(st, layers, data_dict=data)
     for rel, raw_b in rendered_files.items():
         files[rel] = raw_b

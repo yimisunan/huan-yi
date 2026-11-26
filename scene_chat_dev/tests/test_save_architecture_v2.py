@@ -137,13 +137,13 @@ class SaveArchitectureV2Tests(unittest.TestCase):
         self.assertEqual(st['panels']['沈知韫']['内射'], 1)
         self.assertTrue(st['mechanics']['su_affection_85_unlocked'])
         self.assertTrue(ly['prologue_active'])
-        self.assertNotIn('系统隐藏标记', ly['layers']['L1'][0]['text'])
+        self.assertNotIn('系统隐藏标记', ly['episodes'][0]['summary'])
         self.assertEqual(len(st['items']['active']), 1)
         self.assertEqual(st['items']['active'][0]['id'], 'ITEM-002')
         self.assertEqual(len(st['items']['delivered']), 1)
         self.assertEqual(st['items']['delivered'][0]['id'], 'ITEM-001')
 
-        # Persist P2 JSON + one-way views
+        # Persist P3 JSON + one-way views
         st['mechanics']['secrets_unlocked'].append('INTEL-002')
         save_store.save_bundle(self.tmp, st, ly)
         rendered_mem = (self.tmp / save_store.RENDERED_MEMORY_PATH).read_text(encoding='utf-8')
@@ -216,41 +216,47 @@ class SaveArchitectureV2Tests(unittest.TestCase):
         self.assertGreater(seq_after, seq_before)
         self.assertFalse((self.tmp / '.round-runtime/interaction/000000000001.json').exists())
 
-    # 3. memory_context() 6000-char budget strict priority: L1 > L2 > L3 > L4 & newer L2 first
+    # 3. v2 three-track memory retrieval: bounded budget, recency & relevance priority, and epistemic partitioning
     def test_03_memory_context_budget_priority_and_recency(self):
-        st, ly, _ = save_store.load_bundle(self.tmp)
-        ly['prologue_active'] = False
-        ly['layers'] = {
-            'L1': [
-                {'label': '【14】', 'text': '最新即时运存14。' + '甲' * 120},
-                {'label': '【15】', 'text': '最新即时运存15。' + '乙' * 120},
-                {'label': '【16】', 'text': '最新即时运存16。' + '丙' * 120},
-            ],
-            'L2': [
-                {'label': f'【{n}】', 'text': f'回想层条目{n}。' + ('丁' * 720)}
-                for n in range(4, 14)  # 10 entries * ~730 chars = ~7300 chars (> 6000 budget)
-            ],
-            'L3': [
-                {'label': '【2-3】', 'text': '近期事实缓存L3。' + ('戊' * 500)},
-            ],
-            'L4': [
-                {'label': '【1】', 'text': '远古纪元浓缩L4。' + ('己' * 500)},
-            ],
-        }
-        save_store.save_bundle(self.tmp, st, ly)
-        mem_txt = (self.tmp / save_store.RENDERED_MEMORY_PATH).read_text(encoding='utf-8')
-        ctx = ir.memory_context(self.tmp, mem_txt, '继续聊起近况', {'memory_round': 17, 'phase': 'ready', 'last_closed': 16})
-        self.assertLessEqual(len(ctx['text']), 6000)
-        # All L1 entries must be kept
-        for tag in ('【14】', '【15】', '【16】'):
-            self.assertIn(tag, ctx['text'])
-        # Newer L2 entries (13, 12, 11) must be selected over oldest L2 (4) and L3/L4
-        self.assertIn('【13】', ctx['text'])
-        self.assertIn('【12】', ctx['text'])
-        self.assertNotIn('回想层条目4', ctx['text'])
-        self.assertNotIn('远古纪元浓缩L4', ctx['text'])
+        st, ms, _ = save_store.load_bundle(self.tmp)
+        ms = save_store.default_memory_store('', prologue_active=False)
+        for day_i in range(1, 17):
+            ms = save_store.record_memory_turn(
+                ms,
+                fact=f'第{day_i}天回想层条目{day_i}：主宅书房常规谈话。' + ('丁' * 80),
+                day=day_i,
+                time_str='20:00',
+                location='徐家主宅',
+                known_by=['徐志北', '沈知韫'],
+                overnight=True,
+            )
+        ms = save_store.record_memory_turn(
+            ms,
+            fact='徐志北与沈知韫约定周五晚核对蓝色档案袋。',
+            anchor_ops=[{'op': 'add', 'kind': 'promise', 'importance': 5, 'text': '周五晚与沈知韫核对蓝色档案袋', 'private_host': False}],
+            day=17,
+            time_str='21:00',
+            location='徐家主宅',
+            known_by=['徐志北', '沈知韫'],
+            overnight=True,
+        )
+        save_store.save_bundle(self.tmp, st, ms)
+        view = save_store.retrieve_memory_view(
+            ms, cast=['沈知韫'], location='徐家主宅', query='蓝色档案袋核对了吗',
+        )
+        shared_blob = '\n'.join(view['shared_scene_memory'])
+        self.assertLessEqual(len(shared_blob), 2400)
+        self.assertIn('蓝色档案袋', shared_blob)
+        self.assertIn('条目16', shared_blob)
+        self.assertNotIn('条目1：', shared_blob)
+        # Epistemic isolation: Su Wanqing was NOT present for Shen Zhiyun's study episodes
+        view_su = save_store.retrieve_memory_view(
+            ms, cast=['苏婉青'], location='市中心顶层公寓', query='蓝色档案袋',
+        )
+        self.assertNotIn('蓝色档案袋', '\n'.join(view_su['shared_scene_memory']))
+        self.assertIn('蓝色档案袋', '\n'.join(view_su['host_private_memory']))
 
-    # 4. dual_stream_v2 & single_prefix_v2 unconditional transfer source_bodies + empty fact safety
+    # 4. dual_stream_v2 & single_prefix_v2 unconditional chronicle_archive_request + held_intel + zero Stage 1 required_sources
     def test_04_transfer_source_bodies_unconditional_and_empty_fact_safe(self):
         with self.store._locked():
             opening.initialize_prologue(self.tmp, 'transfer-init', opening.SCENARIOS[0]['id'])
@@ -258,21 +264,25 @@ class SaveArchitectureV2Tests(unittest.TestCase):
         self.store = self.svc.store
         complete_current_playback(self.svc)
 
-        st, ly, _ = save_store.load_bundle(self.tmp)
-        ly['prologue_active'] = False
-        ly['layers'] = {
-            'L1': [{'label': f'【{n}】', 'text': f'实时层源文本{n}'} for n in (21, 22, 23)],
-            'L2': [{'label': f'【{n}】', 'text': f'回想层源文本{n}'} for n in range(11, 21)],
-            'L3': [{'label': f'【{n}】', 'text': f'缓存层源文本{n}'} for n in range(1, 11)],
-            'L4': [],
-        }
-        st['runtime']['memory_round'] = 24
-        st['runtime']['last_closed'] = 23
+        st, ms, _ = save_store.load_bundle(self.tmp)
+        ms = save_store.default_memory_store('', prologue_active=False)
+        for idx in range(1, 26):
+            ms = save_store.record_memory_turn(
+                ms,
+                fact=f'第{idx}幕关键事件：书房对账节点{idx}。',
+                day=idx,
+                time_str='20:00',
+                location='徐家主宅',
+                known_by=['徐志北', '沈知韫'],
+                overnight=True,
+            )
+        st['runtime']['memory_round'] = 26
+        st['runtime']['last_closed'] = 25
         st['intel']['held'] = ['INTEL-001']
-        save_store.save_bundle(self.tmp, st, ly)
+        save_store.save_bundle(self.tmp, st, ms)
         data_p = self.tmp / 'data.json'
         data_obj = json.loads(data_p.read_text(encoding='utf-8'))
-        data_obj['story_runtime'] = {**data_obj.get('story_runtime', {}), 'memory_round': 24, 'last_closed': 23}
+        data_obj['story_runtime'] = {**data_obj.get('story_runtime', {}), 'memory_round': 26, 'last_closed': 25}
         data_p.write_text(json.dumps(data_obj, ensure_ascii=False), encoding='utf-8')
 
         snap = self.svc.interaction_snapshot()
@@ -288,7 +298,7 @@ class SaveArchitectureV2Tests(unittest.TestCase):
         })
         task = self.svc.claim()['task']
 
-        # Verify single_prefix_v2 real material delivery unconditionally carries source_bodies + held_intel
+        # Verify single_prefix_v2 real material delivery carries chronicle_archive_request (oldest 8 episodes) + held_intel
         mat_single = self.svc.material('xfer-req-1', {
             'lease': task['lease'],
             'chat_id': 'chat-single',
@@ -298,12 +308,12 @@ class SaveArchitectureV2Tests(unittest.TestCase):
             'is_fresh_session': True,
         })
         delta_single = mat_single['input_text']
-        self.assertIn('实时层源文本21', delta_single)
-        self.assertIn('回想层源文本11', delta_single)
-        self.assertIn('缓存层源文本1', delta_single)
+        self.assertIn('chronicle_archive_request', delta_single)
+        self.assertIn('书房对账节点1', delta_single)
+        self.assertIn('书房对账节点8', delta_single)
         self.assertIn('INTEL-001', delta_single)
 
-        # Cancel xfer-req-1, create xfer-req-2, and verify dual_stream_v2 material delivery unconditionally carries source_bodies
+        # Cancel xfer-req-1, create xfer-req-2, and verify dual_stream_v2 puts chronicle_archive_request in Stage 2 ONLY & zero required_sources
         sp.cancel(self.svc, 'xfer-req-1')
         snap_d = self.svc.interaction_snapshot()
         self.svc.create({
@@ -323,10 +333,13 @@ class SaveArchitectureV2Tests(unittest.TestCase):
             'protocol_mode': 'dual_stream_v2',
             'is_fresh_session': True,
         })
+        self.assertNotIn('required_sources', mat_dual['input_text'])
+        self.assertNotIn('chronicle_archive_request', mat_dual['input_text'])
         spec_text = json.dumps(mat_dual['settlement_spec'], ensure_ascii=False)
-        self.assertIn('实时层源文本21', spec_text)
-        self.assertIn('回想层源文本11', spec_text)
-        self.assertIn('缓存层源文本1', spec_text)
+        self.assertIn('chronicle_archive_request', spec_text)
+        self.assertIn('书房对账节点1', spec_text)
+        self.assertIn('书房对账节点8', spec_text)
+        self.assertNotIn('required_sources', spec_text)
 
         # Cancel xfer-req-2 and verify empty fact + non-empty transfers does NOT crash
         sp.cancel(self.svc, 'xfer-req-2')
@@ -898,6 +911,168 @@ class SaveArchitectureV2Tests(unittest.TestCase):
         for sid, task_def in opening.OPENING_TASKS.items():
             if task_def.get('target') == '徐念薇' and task_def.get('attr') == '好感':
                 self.assertLessEqual(task_def['value'], 35, f'{sid} Xu Nianwei task value too high: {task_def}')
+
+    # 11. P3 three-track memory_store 500-turn stress, epistemic/K01 hard isolation, O(1) GC, and Gemini 4 cache lock
+    def test_11_v3_three_track_500_turn_stress_and_gemini4_cache_lock(self):
+        # A. 500-turn three-track simulation
+        ms = save_store.default_memory_store('', prologue_active=False)
+        # Turn 1a: permanent high-importance promise anchor (known ONLY by host + Shen Zhiyun)
+        ms = save_store.record_memory_turn(
+            ms,
+            fact='徐志北与沈知韫在书房约定：下周五一起核对旧账并保密。',
+            anchor_ops=[
+                {'op': 'add', 'kind': 'promise', 'importance': 5, 'text': '下周五与沈知韫核对深圳旧账并保密', 'private_host': False},
+            ],
+            day=1,
+            time_str='21:00',
+            location='徐家主宅',
+            sub_location='二楼书房',
+            known_by=['徐志北', '沈知韫'],
+            secrets_unlocked=(),
+        )
+        # Turn 1b: K01 secret guard check (even if 苏婉青/徐志北 are passed in known_by, K01 lock strips them)
+        ms = save_store.record_memory_turn(
+            ms,
+            fact='',
+            anchor_ops=[
+                {'op': 'add', 'kind': 'secret', 'importance': 5, 'text': '老宅真遗嘱与亲生血缘绝密线索', 'private_host': False},
+            ],
+            day=1,
+            time_str='21:05',
+            location='徐家主宅',
+            sub_location='二楼书房',
+            known_by=['徐志北', '沈知韫', '苏婉青'],
+            secrets_unlocked=(),
+        )
+        # K01 secret guard must strip unauthorized witnesses (苏婉青 / 徐志北) when K01 is locked
+        k01_anchor = next(a for a in ms['anchors'] if '遗嘱' in a['text'])
+        self.assertEqual(k01_anchor['known_by'], ['沈知韫'])
+
+        # Simulate 500 turns across rotating days/locations/casts, piggybacking chronicle_digest whenever >= 24 episodes
+        locs = [
+            ('徐家主宅', ['徐志北', '沈知韫']),
+            ('市中心顶层公寓', ['徐志北', '苏婉青']),
+            ('工作室', ['徐志北', '徐念薇']),
+        ]
+        for turn in range(2, 502):
+            day_i = 1 + (turn // 5)
+            loc_name, witnesses = locs[turn % 3]
+            digest = None
+            if save_store.needs_chronicle_archive(ms):
+                digest = {
+                    'public': f'第{day_i}日前多幕纪要：徐志北往返主宅、公寓与画室推进关系与账目调查。',
+                    'views': {'沈知韫': f'书房私密进展至第{turn}轮。', '苏婉青': f'公寓私下照料至第{turn}轮。'},
+                }
+            a_ops = []
+            if turn % 20 == 0:
+                a_ops.append({'op': 'add', 'kind': 'clue', 'importance': 3, 'text': f'第{turn}轮阶段线索记录', 'private_host': False})
+            ms = save_store.record_memory_turn(
+                ms,
+                fact=f'第{turn}轮因果变化：在{loc_name}推进具体对话与安排。',
+                anchor_ops=a_ops,
+                chronicle_digest=digest,
+                day=day_i,
+                time_str=f'{(8 + (turn % 14)):02d}:{(turn * 7) % 60:02d}',
+                location=loc_name,
+                known_by=witnesses,
+                overnight=(turn % 5 == 0),
+                secrets_unlocked=(),
+            )
+
+        # Verify bounded size & permanent anchor survival after 500 turns
+        self.assertLessEqual(len(ms['anchors']), save_store.MAX_ACTIVE_ANCHORS)
+        self.assertLessEqual(len(ms['resolved_anchors']), save_store.MAX_RESOLVED_ANCHORS)
+        self.assertLessEqual(len(ms['episodes']), save_store.HARD_MAX_EPISODES)
+        self.assertLessEqual(len(ms['chronicle']), save_store.MAX_CHRONICLE_CHAPTERS)
+        raw_bytes = save_store._json_bytes(ms)
+        self.assertLess(len(raw_bytes), 45000, f'memory_store.json bloated after 500 turns: {len(raw_bytes)}B')
+        self.assertTrue(any('核对深圳旧账并保密' in a['text'] for a in ms['anchors']), 'Turn-1 permanent anchor lost!')
+
+        # Verify epistemic partitioning & bounded injection at Turn 500
+        view_szy = save_store.retrieve_memory_view(
+            ms, cast=['沈知韫'], location='徐家主宅', query='深圳旧账核对',
+        )
+        view_swq = save_store.retrieve_memory_view(
+            ms, cast=['苏婉青'], location='市中心顶层公寓', query='深圳旧账核对',
+        )
+        self.assertIn('核对深圳旧账并保密', '\n'.join(view_szy['shared_scene_memory']))
+        self.assertNotIn('核对深圳旧账并保密', '\n'.join(view_swq['shared_scene_memory']))
+        self.assertIn('核对深圳旧账并保密', '\n'.join(view_swq['host_private_memory']))
+        total_view_chars = (
+            sum(len(x) for x in view_szy['shared_scene_memory'])
+            + sum(len(x) for x in view_szy['host_private_memory'])
+            + sum(sum(len(y) for y in v) for v in view_szy['actor_private_memory'].values())
+        )
+        self.assertLessEqual(total_view_chars, 3200)
+
+        # B. O(1) tasks.json pruning & runtime blob GC
+        fake_tasks = {
+            'version': 1,
+            'latest': 'req-499',
+            'bridge_seen': 0,
+            'jobs': {
+                f'req-{i}': {
+                    'request_id': f'req-{i}',
+                    'status': 'committed' if i < 499 else 'running',
+                    'created': float(i),
+                    'reservation': {
+                        'status': 'settled' if i < 499 else 'held',
+                        'before_memory': 'X' * 10000,
+                        'before_save_state': 'Y' * 10000,
+                        'quote': {'total': 5},
+                    },
+                }
+                for i in range(500)
+            },
+        }
+        sp.prune_tasks_state(fake_tasks)
+        self.assertLessEqual(len(fake_tasks['jobs']), sp.MAX_TERMINAL_JOBS + 1)
+        self.assertIn('req-499', fake_tasks['jobs'])
+        self.assertIn('before_memory', fake_tasks['jobs']['req-499']['reservation'])
+        for jid, job in fake_tasks['jobs'].items():
+            if jid != 'req-499':
+                self.assertNotIn('before_memory', job['reservation'])
+                self.assertNotIn('before_save_state', job['reservation'])
+        self.assertLess(len(json.dumps(fake_tasks, ensure_ascii=False)), 35000)
+
+        # Orphan cache GC keeps <= 3 recent requests
+        with self.store._locked():
+            opening.initialize_prologue(self.tmp, 'gc-init', opening.SCENARIOS[0]['id'])
+        svc = StoryService(self.tmp)
+        reading_root = self.tmp / 'txt文件/.story-reading'
+        story_root = self.tmp / '.round-runtime/story'
+        reading_root.mkdir(parents=True, exist_ok=True)
+        story_root.mkdir(parents=True, exist_ok=True)
+        for idx in range(10):
+            (reading_root / f'{idx:032x}').mkdir(exist_ok=True)
+            (reading_root / f'{idx:032x}' / 'probe.txt').write_text('x', encoding='utf-8')
+            (story_root / f'{idx:064x}.context.json').write_text('{}', encoding='utf-8')
+        svc._gc_runtime_artifacts({'jobs': {}}, keep_recent=3)
+        self.assertLessEqual(len([p for p in reading_root.iterdir() if p.is_dir()]), 3)
+        self.assertLessEqual(len(list(story_root.glob('*.context.json'))), 3)
+
+        # C. Gemini 4 implicit KV cache stability lock: mid-scene calm desire (0->50) & vigilance (0->15) keep Zone 0 + Zone 1 byte-identical
+        st0, ly0, _ = save_store.load_bundle(self.tmp)
+        mem0 = save_store.render_memory_txt(st0, ly0)
+        view0 = ir.view(svc.store)
+        z0_a = sc.build_zone0_global(self.tmp, mode='dual_stream_v2')
+        z1_a = sc.build_zone1_scene(self.tmp, view0, view0['cast'], (), memory_text=mem0, mode='dual_stream_v2')
+
+        st1 = copy.deepcopy(st0)
+        st1['panels']['沈知韫']['欲望'] = 50
+        st1['vigilance']['目标']['沈知韫']['警惕'] = 15
+        mem1 = save_store.render_memory_txt(st1, ly0)
+        view1 = dict(view0)
+        view1['panels'] = [
+            re.sub(r'欲望\s+\d+', '欲望 50', p) if p.startswith('[沈知韫]') else p
+            for p in view0['panels']
+        ]
+        z0_b = sc.build_zone0_global(self.tmp, mode='dual_stream_v2')
+        z1_b = sc.build_zone1_scene(self.tmp, view1, view1['cast'], (), memory_text=mem1, mode='dual_stream_v2')
+        self.assertEqual(z0_a, z0_b)
+        self.assertEqual(z1_a, z1_b, 'Zone 1 prefix drifted during calm mid-scene desire(0->50)/vigilance(0->15) change!')
+        self.assertLess(len(z0_a), 9200)
+        self.assertLess(len(z1_a), 6800)
 
 
 if __name__ == '__main__':

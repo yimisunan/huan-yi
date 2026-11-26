@@ -326,9 +326,9 @@ def _mentions_vigilance(extra_text=''):
 
 
 def _needs_vigilance_rules(state, memory_text='', extra_text=''):
-    """Stable persistent-state gating for Zone 1 (never flips on transient per-turn text)."""
+    """Stable persistent-state gating for Zone 1 (protects Gemini 4 implicit KV cache from minor 0->5 jitter)."""
     vig = _parse_vigilance_state(memory_text)
-    if vig['position'] != '外地' or vig['max_vigilance'] > 0 or vig['max_discovery'] > 0:
+    if vig['position'] != '外地' or vig['max_vigilance'] >= 20 or vig['max_discovery'] > 0:
         return True
     location = (state or {}).get('location', '')
     cast = (state or {}).get('cast', [])
@@ -340,7 +340,8 @@ def _needs_vigilance_rules(state, memory_text='', extra_text=''):
 
 
 def _needs_intimate_zone1(state, memory_text=''):
-    """Stable persistent-state gating for narrative.intimate in Zone 1 (protects KV cache)."""
+    """Session-stable persistent gating for narrative.intimate in Zone 1 (protects Gemini 4 implicit KV cache;
+    transient single-turn arousal spikes inject intimate_craft_guide in Zone 2 without busting Zone 1)."""
     if bool(((state or {}).get('intimate') or {}).get('scene_active')):
         return True
     cast = (state or {}).get('cast', [])
@@ -350,13 +351,13 @@ def _needs_intimate_zone1(state, memory_text=''):
     buff_map = _parse_buffs_inline(memory_text)
     for name in cast:
         stats = panel_map.get(name, {})
-        desire_m = re.match(r'-?\d+', str(stats.get('欲望', '0')))
+        des_m = re.match(r'-?\d+', str(stats.get('欲望', '0')))
         dep_m = re.match(r'-?\d+', str(stats.get('堕落', '0')))
         shame_m = re.match(r'-?\d+', str(stats.get('羞耻', '100')))
-        desire = int(desire_m.group(0)) if desire_m else 0
+        des = int(des_m.group(0)) if des_m else 0
         dep = int(dep_m.group(0)) if dep_m else 0
         shame = int(shame_m.group(0)) if shame_m else 100
-        if desire >= 30 or dep >= 15 or shame <= 82:
+        if des >= 60 or dep >= 15 or shame <= 80:
             return True
         if any('体液锁定' in (b.get('name', '') + b.get('effect', '')) for b in buff_map.get(name, [])):
             return True
@@ -1141,7 +1142,7 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
             'dialogue.text只写纯台词禁混入第三人称动作旁白或外层引号。'
             '无操作operation、无待处理handoff、无任务resolution.task、无睡眠起点resolution.sleep.start及无对象conditions.npc明确写空字符串""（decision.options内无转场时省略operation键，切勿写operation:""），不得省略顶层值。'
             '普通付费action必须交完整7字段conditions；固定A/B/C不得重新判档（日常态固定A/B禁C烈度_*；亲密进行态A禁C烈度_*、B允许C烈度_轻度/中度）；host_events对象固定为“系统宿主”；vigilance_events.target只能填被徐承邺监视的人（沈知韫/苏婉青/徐念薇/徐志北），严禁填徐承邺本人；「首次/同质化免疫_回合2/3/小憩限次/空耗惩罚/生理周期」由后端确定性派生拦截；不写文件、不执行命令。\n'
-            '若 memory.fact == "" 则 memory.transfers 必须交 {}；memory.compact 严禁带【数字】前缀或换行；需转移时严格依据 memory_transfer_sources.source_bodies 原文浓缩。\n'
+            'memory 填 {"fact":"<=160字新因果事实或空串","anchor_ops":[],"chronicle_digest":""}：长期重要承诺/关系转折用 anchor_ops(add/update/resolve) 原子维护；仅当 delta 携带 chronicle_archive_request 时交 chronicle_digest。\n'
             '进行中任务严禁驱动剧情；仅当delta携带milestone_echo时允许1句低侵入氛围轻顿且禁提系统词。'
             '若cost_preview.kind=="action"且tasks.current为空或status=="已完成"，结合task_whitelist_current按task_schema六键续接新任务（value严格大于当前值）；进行中或SYSTEM时resolution.task写""。'
             '仅当玩家在正文中明确亮牌动用 delta.held_intel 中某条情报时才填 resolution.intel_used；action回合可选填 resolution.director_echo 维护未完线头、暗钟与角色心绪印象(mind_updates)，严禁编造。'
@@ -1292,7 +1293,8 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
                      required_sources=(), output_contract=None, resolution_policy=None,
                      operation_context=None, pending_echoes=(), weekday='',
                      breakout_hint=None, intel_catalog=None, director_roll=None,
-                     protagonist_style='faithful'):
+                     protagonist_style='faithful', memory_view=None,
+                     continuity_hook='', recent_room_continuity=None):
     """Build compact per-turn user message (tiny delta on turns 2..N, bounded anchor on turn 1)."""
     style = normalize_protagonist_style(protagonist_style)
     is_single = (mode == 'single_prefix_v2')
@@ -1434,9 +1436,28 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
     if delivered_to_cast:
         delta['delivered_gifts_to_cast'] = delivered_to_cast
 
+    if isinstance(memory_view, dict):
+        scoped_block = {}
+        if memory_view.get('shared_scene_memory'):
+            scoped_block['shared_with_cast'] = memory_view['shared_scene_memory']
+        if memory_view.get('actor_private_memory'):
+            scoped_block['actor_private_with_host'] = memory_view['actor_private_memory']
+        if memory_view.get('host_private_memory'):
+            scoped_block['host_private_only'] = memory_view['host_private_memory']
+        if scoped_block:
+            scoped_block['rule'] = (
+                '严格按知情分区引用：shared_with_cast可自然提及；'
+                'actor_private_with_host仅该角色与徐志北私下共知（禁当众对其他人说破）；'
+                'host_private_only仅徐志北私下知晓（在场NPC严禁察觉）。'
+            )
+            delta['scoped_memory'] = scoped_block
+
     if include_full_anchor:
-        raw_mem = projection['text']
-        delta['player_private_memory'] = raw_mem if is_single else _strip_active_task_from_memory(raw_mem)
+        if continuity_hook:
+            delta['continuity_hook'] = continuity_hook
+        if not isinstance(memory_view, dict):
+            raw_mem = projection['text']
+            delta['player_private_memory'] = raw_mem if is_single else _strip_active_task_from_memory(raw_mem)
         delta['items'] = state.get('items', [])
         if deployed_here:
             delta['deployed_items_here'] = deployed_here
@@ -1446,35 +1467,35 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
             delta['tasks'] = state.get('tasks')
         delta['accepted_history'] = history
     else:
-        # Session already holds prior scene turns; transmit current L1 + newly matched old memories + newly committed turns + inventory/device delta.
-        current_ref = projection.get('current')
-        current_l1 = ''
-        if current_ref:
-            lines = (memory_text or '').splitlines()
-            current_l1 = '\n'.join(lines[current_ref['start_line'] - 1:current_ref['end_line']])
-        delta['current_l1_memory'] = current_l1
-        recalled_entries = []
-        recalled_budget = 900
-        for item in (projection.get('recalled_old_entries') or ())[:3]:
-            if not isinstance(item, dict):
-                continue
-            body = str(item.get('body') or item.get('text') or '').strip()
-            if not body:
-                continue
-            if len(body) > recalled_budget:
-                if recalled_budget < 80:
+        if not isinstance(memory_view, dict):
+            current_ref = projection.get('current')
+            current_l1 = ''
+            if current_ref:
+                lines = (memory_text or '').splitlines()
+                current_l1 = '\n'.join(lines[current_ref['start_line'] - 1:current_ref['end_line']])
+            delta['current_l1_memory'] = current_l1
+            recalled_entries = []
+            recalled_budget = 900
+            for item in (projection.get('recalled_old_entries') or ())[:3]:
+                if not isinstance(item, dict):
+                    continue
+                body = str(item.get('body') or item.get('text') or '').strip()
+                if not body:
+                    continue
+                if len(body) > recalled_budget:
+                    if recalled_budget < 80:
+                        break
+                    body = body[:recalled_budget].rstrip() + '…'
+                recalled_entries.append({
+                    'layer': item.get('layer', ''),
+                    'range': item.get('range') or item.get('header') or '',
+                    'body': body,
+                })
+                recalled_budget -= len(body)
+                if recalled_budget <= 0:
                     break
-                body = body[:recalled_budget].rstrip() + '…'
-            recalled_entries.append({
-                'layer': item.get('layer', ''),
-                'range': item.get('range') or item.get('header') or '',
-                'body': body,
-            })
-            recalled_budget -= len(body)
-            if recalled_budget <= 0:
-                break
-        if recalled_entries:
-            delta['recalled_memories'] = recalled_entries
+            if recalled_entries:
+                delta['recalled_memories'] = recalled_entries
         delta['items_count'] = len(state.get('items', []))
         if held_compact:
             delta['held_items'] = held_compact
@@ -1486,6 +1507,9 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
             delta['tasks'] = state.get('tasks')
         if new_history_only:
             delta['new_accepted_history'] = new_history_only
+
+    if isinstance(recent_room_continuity, dict) and recent_room_continuity.get('tail'):
+        delta['recent_room_continuity'] = recent_room_continuity
 
     if pending_echoes:
         delta['milestone_echo'] = {
@@ -1538,7 +1562,7 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
             'recent_omitted_history': list(omitted_archive)[-8:],
             'rule': '仅玩家主动追问极早旧事时按精确行号/路径调用read_file_part补查，否则无需读文件。',
         }
-    if required_sources:
+    if required_sources and mode != 'dual_stream_v2':
         delta['required_sources'] = required_sources
 
     if is_single:
@@ -1561,13 +1585,24 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
             'tier': 'small|medium|large',
             'item_desc': '非空小物描述',
         }
-        delta['memory_transfer_sources'] = {
-            'current_round': runtime['last_closed'] if runtime.get('phase') == 'resting' and runtime.get('last_closed') else runtime.get('memory_round', 1),
-            'current_entry': projection.get('current'),
-            'transfers': projection.get('transfers', {}),
-            'source_bodies': _extract_transfer_source_bodies(memory_text, projection.get('transfers', {})),
-            'limits': projection.get('limits'),
-        }
+        if isinstance(memory_view, dict):
+            delta['memory_store_context'] = {
+                'active_anchors': memory_view.get('active_anchors_index', []),
+                'pending_facts': memory_view.get('pending_facts', []),
+            }
+            if memory_view.get('chronicle_archive_batch'):
+                delta['chronicle_archive_request'] = {
+                    'episodes': memory_view['chronicle_archive_batch'],
+                    'rule': '请将以上最旧8幕浓缩写入 resolution.memory.chronicle_digest={"public":"<=260字公共纪要","views":{"角色名":"<=140字该角色私密线(可选)"}}，严禁混写私密事件至public。',
+                }
+        else:
+            delta['memory_transfer_sources'] = {
+                'current_round': runtime['last_closed'] if runtime.get('phase') == 'resting' and runtime.get('last_closed') else runtime.get('memory_round', 1),
+                'current_entry': projection.get('current'),
+                'transfers': projection.get('transfers', {}),
+                'source_bodies': _extract_transfer_source_bodies(memory_text, projection.get('transfers', {})),
+                'limits': projection.get('limits'),
+            }
 
     elif mode == 'dual_stream_v2':
         heroines_here = [c for c in cast if c in save_store.HEROINES]
@@ -1632,7 +1667,7 @@ def _extract_transfer_source_bodies(memory_text, transfers):
 def build_settlement_spec(root, state, projection, text, selected, resolved_op, intent_evidence,
                           preview_cost, runtime, memory_text, resolution_policy, output_contract,
                           operation_context, required_sources=(), intel_catalog=None, director_roll=None,
-                          settlement_custom_rules=None):
+                          settlement_custom_rules=None, memory_view=None):
     """Build static-system + compact-user specification for background SUMMARY Tools.Chat.call."""
     catalog = compile_event_catalog(root, live_mode=True)
     sys_rules = compile_knowledge_rules(root, state, memory_text, '', mode='settlement')
@@ -1662,10 +1697,12 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
         '4. conditions：普通付费action必须交完整7字段对象(intensity/effective_progress/scene/npc/action_changed/stress_signals/breakout_triggered)，'
         'intensity须与category一致，无NPC仅npc写""；effective_progress仅当本幕产生了新信息/线索、态度或防备真实改变、明确约定、场景转移或有效事件时判true，纯礼貌寒暄/重复关怀/原地客套必须判false；免费SYSTEM的conditions写""。\n'
         '5. clock：按剧情实际经过单调向前，首次从第1天初始化；sleep.kind为overnight须连续>=6小时跨夜至05:00~12:59且evidence为正文子串。\n'
-        '6. memory：fact仅记有长期因果价值的新事实（单行<=160字，严禁换行，无价值写""，不复述琐事/时间地点）；'
-        '若叠加当前L1会超round_chars或当前L1已超限，交完整合并摘要memory.compact（单行<=600字，严禁带【1】等回合号前缀、严禁换行，取代追加且保留约定/待办/知情边界）；'
-        '若 memory.fact == ""，则 memory.transfers 必须交 {}；'
-        'transfers仅在context.memory_transfer_sources.transfers非空且本幕有新事实写入时，严格依据 context.memory_transfer_sources.source_bodies 原文浓缩提供。\n'
+        '6. memory：输出 {"fact":"<=160字新因果或空串","anchor_ops":[],"chronicle_digest":""}。'
+        'fact仅记本幕有长期因果价值的新事实（禁换行，不复述pending_facts，无价值写""）；'
+        'anchor_ops（最多3条，对照active_anchors记永久承诺/转折/线索/藏物，无变化交[]）：'
+        '{"op":"add","kind":"promise|milestone|secret|clue|relationship","importance":1到5,"text":"<=100字","private_host":false} / '
+        '{"op":"update","id":"A-号","text":"<=100字"} / {"op":"resolve","id":"A-号","note":"<=40字"}；'
+        'chronicle_digest通常写""；仅当context含chronicle_archive_request时，将所列8幕浓缩为{"public":"<=260字公共纪要","views":{"角色名":"<=140字私密线"}}（禁将私密混入public或泄K01绝密）。\n'
         '7. operation：若context.operation_context.requested非空且现场未拒绝，原样返回该对象；若现场拒绝或未满足条件，operation写""并在handoff说明原因。\n'
         '8. checks：intent/knowledge/action/pace 四条具体单行事实依据，禁用“已读取/通过/同上”。\n'
         '9. quality_flags：字符串数组，无问题写[]；若发现正文违背玩家括号显形、擅加反派滤镜、越界代打、泄露未解锁秘密，或段末A/B/C三选项高度同质化/原地打转（记录"option_stagnation"），简要列出。\n'
@@ -1679,9 +1716,9 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
         '12. 活体世界回响（可选）：仅当 context.cost_preview.kind=="action" 时，可选填 resolution.director_echo 对象（无变化省略或写""，严禁编造）：'
         '{"new_thread":{"who":["角色名"],"topic":"<=28字具体未完线头/承诺/破绽/藏物","tension":"soft|hard"}或"","close_thread":"本幕已了结的active_threads编号或""","clock_nudges":{"CLK_XXX":1或-1}或{},"used_channel":"真实变故填channels_enum之一否则""","mind_updates":{"在场角色名":{"mood":"<=32字未散余绪","preoccupation":"<=36字新牵挂","impression":"<=36字对志北新主观印象或心结"}}}；'
         'mind_updates仅在正文确有情绪余波/新牵挂/记账印象时摘录（无变化省略），严禁泄露未解锁绝密。\n'
-        '13. 段末抉择兜底补全（仅缺省时触发）：若 foreground_script 末尾已含完整 ---DECISION--- 与 A/B/C 三项抉择，请省略 fallback_decision；'
-        '仅当 foreground_script 正文有效但漏写或截断了 ---DECISION--- / A/B/C 抉择时，补充 fallback_decision={"prompt":"点明当前局面的简短提示(<=300字)","options":[{"id":"A","text":"日常互动(<=500字)"},{"id":"B","text":"社交接触(<=500字)"},{"id":"C","text":"主动行为(<=500字)"}]}'
-        '（三项须互不相同且承接本幕末尾局面；含跨地点转场时可给该项附带 "operation":{"code":"move_player","destination":"合法开放地点"}，无转场勿填 operation）。\n'
+        '13. 段末抉择兜底（仅缺省触发）：foreground_decision_missing为false时省略fallback_decision；'
+        '为true时补fallback_decision={"prompt":"<=300字","options":[{"id":"A","text":"日常(<=500字)"},{"id":"B","text":"社交(<=500字)"},{"id":"C","text":"主动(<=500字)"}]}'
+        '（三项互异；转场项可附"operation":{"code":"move_player","destination":"合法地点"}）。\n'
         '14. 空间隐私与亲密态势增量 resolution.scene_state（可选，无变化直接省略或写""）：仅当本幕真实发生了房门反锁/隔墙偷欢/同席桌下暗触/子区切换/衣着凌乱褪衣换装/新增吻痕潮红痕迹/女主间疑心或共谋变化/身体部位开发互动/主角明确释放/偷藏或收下贴身衣物/剧情【商城定制】新推道具，或正式进入/收束亲密状态时填写：'
         '{"intimate_active":true或false,"privacy":"open_public|semi_open|thin_wall|under_cover|locked_private","sub_location":"<=48字子区名","present_actors":["当前房内实际同席角色"],"attire_updates":{"女主名":{"outfit":"穿搭名或default","state":"neat|disheveled|half_undressed|wet|torn"}},"trace_adds":{"女主名":[{"kind":"吻痕|指印|潮红|发丝凌乱","desc":"<=60字","turns":4,"visible":true}]},"inter_heroine_deltas":{"A->B":1或-1},"body_acts":{"女主名":["oral|hand|chest|foot|core"]},"host_release":true,"keepsake_adds":[{"owner":"女主名","name":"衣物名","kind":"panties|stockings|bra|nightwear|accessory","method":"stolen|taken_intimate|gifted","condition":"fresh_warm|stained_damp|faded","desc":"<=60字"}],"keepsake_updates":[{"id":"KS-编号","owner_aware":true,"condition":"stained_damp"}],"shop_adds":[{"name":"道具名","grade":"T1|T2|T3|T4","category":"sensual|covert|daily","usage_mode":"gift|consumable_target|reusable_tool|deployable_device","price":10到260,"pack_qty":1到3,"desc":"用途说明","system_effect":""或"buff:名:1-3:效"或"deploy_device:camera|audio|aroma","max_per_save":1到3}]}'
         '（所有子键均可选；贴身偷藏衣物只走keepsake_adds；shop_adds仅在context.shop_custom_requested==true时按正文新推道具摘录，严禁塞入resolution.items或虚构）。\n\n'
@@ -1699,12 +1736,6 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
         header='【玩家自定义后台结算规则（副模型结算补充偏好；严禁违背裸JSON输出格式、合法标签白名单与原文evidence逐字引用铁律）】',
         footer='【自定义后台结算规则结束】',
     )
-
-    current_l1 = ''
-    current_ref = projection.get('current')
-    if current_ref:
-        lines = (memory_text or '').splitlines()
-        current_l1 = '\n'.join(lines[current_ref['start_line'] - 1:current_ref['end_line']])
 
     settle_contract = {
         'operation': '',
@@ -1731,6 +1762,15 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
         for cname in ((state or {}).get('cast') or ())
         if cname in raw_mind_s2
     }
+    if isinstance(memory_view, dict):
+        mem_store_ctx = {
+            'active_anchors': memory_view.get('active_anchors_index', []),
+            'pending_facts': memory_view.get('pending_facts', []),
+        }
+        archive_batch = memory_view.get('chronicle_archive_batch') or []
+    else:
+        mem_store_ctx = {'active_anchors': [], 'pending_facts': []}
+        archive_batch = []
     user_context = {
         'location': (state or {}).get('location'),
         'cast': (state or {}).get('cast', []),
@@ -1750,15 +1790,11 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
         'items': (state or {}).get('items', []),
         'deployed_items': (state or {}).get('deployed_items', []),
         'tasks': (state or {}).get('tasks'),
-        'current_l1_entry': current_l1,
-        'memory_transfer_sources': {
-            'current_round': runtime['last_closed'] if runtime.get('phase') == 'resting' and runtime.get('last_closed') else runtime.get('memory_round', 1),
-            'current_entry': current_ref,
-            'transfers': projection.get('transfers', {}),
-            'source_bodies': _extract_transfer_source_bodies(memory_text, projection.get('transfers', {})),
-            'limits': projection.get('limits'),
-        },
-        'required_sources': list(required_sources),
+        'memory_store_context': mem_store_ctx,
+        **({'chronicle_archive_request': {
+            'episodes': archive_batch,
+            'rule': '请将以上最旧8幕浓缩写入 resolution.memory.chronicle_digest={"public":"<=260字公共纪要","views":{"角色名":"<=140字私密线(可选)"}}，严禁混写二人私密事件至public。',
+        }} if archive_batch else {}),
         'output_contract': settle_contract,
     }
     shop_custom_query = sp.detect_shop_custom_request(text) if (preview_cost or {}).get('kind') == 'action' else None

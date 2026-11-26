@@ -319,6 +319,39 @@ def recent_rows_page(store, files=None, *, before=None, limit=10):
     return rows, has_older
 
 
+def recent_rows_tail(store, files=None, *, limit=24):
+    """O(1) tail reader for packet assembly: reads only the latest `limit` segments while keeping omitted older paths."""
+    limit = max(1, int(limit or 24))
+    recent_map = {}
+    _, _, recent = save_store.load_bundle(store.root, files)
+    for item in recent.get('segments') or []:
+        if isinstance(item, dict) and isinstance(item.get('sequence'), int) and item['sequence'] >= 1:
+            recent_map[item['sequence']] = item
+    disk_map = {}
+    for p in records(store):
+        try:
+            disk_map[int(p.stem)] = p
+        except ValueError:
+            continue
+    all_seqs = sorted(set(recent_map.keys()) | set(disk_map.keys()))
+    older_seqs = all_seqs[:-limit] if len(all_seqs) > limit else []
+    tail_seqs = all_seqs[-limit:]
+    older_paths = [disk_map[seq] for seq in older_seqs if seq in disk_map]
+    rows = []
+    for seq in tail_seqs:
+        p = disk_map.get(seq)
+        if p is not None:
+            try:
+                row = rr.load_request(p.read_text(encoding='utf-8'))
+                rows.append((p, row))
+                continue
+            except Exception:
+                pass
+        if seq in recent_map:
+            rows.append((None, copy.deepcopy(recent_map[seq])))
+    return rows, older_paths
+
+
 def recent_rows(store, files=None):
     """Merge local .round-runtime/interaction archive with self-contained 存档/近期演播.json."""
     by_seq = {}
@@ -963,7 +996,7 @@ def settle(store, body, files, sequence, request_id):
         # Keep P2 save_state.json / 四层记忆.json runtime & hashes synced atomically.
         # For non-charged pure chat without state mutation, keep legacy .txt byte-identical.
         mutated_world = bool(charged or op or cost.get('status') == 'active')
-        st_bundle, layers_bundle, _ = save_store.load_bundle(stage, after)
+        st_bundle, layers_bundle, _ = save_store.load_bundle(stage, after, sync_txt_drift=bool(op and not charged))
         st_bundle['runtime']['last_sequence'] = sequence
         if modern:
             st_bundle['runtime']['last_segment_id'] = request_id
@@ -990,13 +1023,17 @@ def settle(store, body, files, sequence, request_id):
                 'data_runtime': save_store._runtime_sig(data),
             }
             after[save_store.SAVE_STATE_PATH] = save_store._json_bytes(st_bundle)
-            after[save_store.MEMORY_LAYERS_PATH] = save_store._json_bytes(layers_bundle)
+            after[save_store.MEMORY_STORE_PATH] = save_store._json_bytes(save_store.normalize_memory_store(layers_bundle))
         listeners = ['徐志北', *scene_cast(before_presence, before_mem, before_presence['徐志北']['location'])]
         reply_listeners = ['徐志北', *scene_cast(presence, after_mem, presence['徐志北']['location'])]
         if charged and cost['kind']=='item':
             listeners = reply_listeners = ['徐志北']
         elif scene_known_by is not None:
             reply_listeners = list(scene_known_by)
+        slim_audit = copy.deepcopy(body['audit'])
+        if isinstance(slim_audit, dict) and isinstance(slim_audit.get('reservation'), dict):
+            slim_audit['reservation'].pop('before_memory', None)
+            slim_audit['reservation'].pop('before_save_state', None)
         accepted = {'version': 1, 'id': request_id, 'sequence': sequence, 'count': count,
                     'input': body['input'], 'input_kind': 'action' if op else 'dialogue',
                     'messages': body['messages'], 'handoff': body['handoff'], 'operation': op,
@@ -1004,7 +1041,7 @@ def settle(store, body, files, sequence, request_id):
                     'input_known_by': listeners, 'messages_known_by': reply_listeners,
                     'location': before_presence['徐志北']['location'],
                     'after_location': presence['徐志北']['location'],
-                    'created_at': time.time(), 'cost': cost, 'audit': body['audit']}
+                    'created_at': time.time(), 'cost': cost, 'audit': slim_audit}
         pb_obj = None
         if modern:
             accepted.update(version=2, decision=body['decision'], selection=body['selection'], before_world=before_world)
@@ -1137,7 +1174,8 @@ def memory_context(root, memory, query, runtime, *, cast=None, location='', is_s
         item,current_ref=current
         if current_ref not in [entries[i][1] for i in selected]:demand(current_ref)
     transfer_sources={}
-    if current is None and len(layers['L1'])==3:
+    is_v2_mem_store = (Path(root) / save_store.MEMORY_STORE_PATH).is_file()
+    if (not is_v2_mem_store) and current is None and len(layers['L1'])==3:
         for key,layer,source in [('l1_to_l2_condensed','L1',layers['L1'][:1]),
                                   ('l2_to_l3_summary','L2',layers['L2'] if len(layers['L2'])==10 else []),
                                   ('l3_to_l4_summary','L3',layers['L3'] if len(layers['L2'])==10 and len(layers['L3'])==10 else [])]:
@@ -1361,9 +1399,9 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
     remote_vitals_targets = list(op_detail.get('remote_cast') or []) if (op_detail and op_detail.get('kind') == 'inspect_deployed') else []
     effective['remote_vitals_targets'] = remote_vitals_targets
     limits=sp.memory_policy(story.root)
-    all_rows = recent_rows(story.store, files)
+    all_rows, older_disk_paths = recent_rows_tail(story.store, files, limit=24)
     visible_rows = []
-    visible_archive_paths = []
+    visible_archive_paths = list(older_disk_paths)
     for pair in all_rows:
         path, turn = pair
         input_visible = all(n in turn.get('input_known_by', turn.get('known_by', [])) for n in history_audience)
@@ -1386,6 +1424,35 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
         candidates.append(((path, seq_num), safe))
     recent = bounded_history(candidates, limits)
     history = [safe for _, safe in recent]
+    # Build epistemic-safe continuity bridge when the immediately preceding turn happened in the same
+    # location with a subset of current room actors (e.g. a newcomer just walked in, filtering last turn out of history).
+    recent_room_continuity = None
+    if all_rows:
+        last_turn = all_rows[-1][1]
+        last_id = last_turn.get('id')
+        last_loc = last_turn.get('after_location') or last_turn.get('location') or ''
+        last_kb = [w for w in (last_turn.get('messages_known_by') or last_turn.get('known_by') or []) if w != '徐志北']
+        if last_id and not any(h.get('id') == last_id for h in history) and last_loc == effective['location']:
+            shared_here = [a for a in history_audience if a in last_kb]
+            unseen_here = [a for a in history_audience if a not in last_kb]
+            if shared_here and unseen_here:
+                tail_bits = []
+                for m in (last_turn.get('messages') or [])[-2:]:
+                    if isinstance(m, dict) and m.get('text'):
+                        t_clean = re.sub(r'\s+', ' ', str(m['text'])).strip()[:90]
+                        if m.get('kind') == 'dialogue' and m.get('speaker'):
+                            tail_bits.append(f"{m['speaker']}：「{t_clean}」")
+                        elif m.get('kind') == 'action' and m.get('speaker'):
+                            tail_bits.append(f"{m['speaker']}：{t_clean}")
+                        else:
+                            tail_bits.append(t_clean)
+                if tail_bits:
+                    recent_room_continuity = {
+                        'only_known_by': ['徐志北', *shared_here],
+                        'unseen_by': unseen_here,
+                        'tail': ' | '.join(tail_bits)[:220],
+                        'rule': f"上一幕紧接此前发生于同地，仅 {'、'.join(shared_here)} 与徐志北亲历；{'、'.join(unseen_here)} 刚入场毫不知情，严禁当众说破或让其凭空知晓。",
+                    }
     included = {meta[0] for meta, _ in recent if meta[0] is not None}
     omitted_archive = [str(p.relative_to(story.root)) for p in visible_archive_paths if p not in included]
     last_cand_path = candidates[-1][0][0] if candidates else None
@@ -1485,7 +1552,7 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
                 'rule': '一次性特定时刻微回响：仅允许在自然间隙或收束处用1句氛围/感官/内心轻顿带过，禁直呼任务/委托/商城/积分/系统词，禁扭转玩家意图，禁泄露给NPC。'}} if pending_echoes else {}),
             **({'surprise_directive': sp.format_surprise_directive(director_roll)} if sp.format_surprise_directive(director_roll) else {}),
             'accepted_history': history, 'input': text, 'selection': selected,
-             'accounting': ({'reservation': {k:v for k,v in reservation.items() if k!='before_memory'},
+             'accounting': ({'reservation': {k:v for k,v in reservation.items() if k not in ('before_memory','before_save_state')},
                   'runtime':sp.state(story.root,files),'instruction':'面板体力已预扣，原体力见quote.before；不据暂扣判断力竭。按resolution交实际事件与时间；程序决定最终不足5及强制休息。',
                   'event_registry':rr._engine(story.root,story.root)._load_event_registry(),
                   'memory_transfer_sources':{}} if charged else None),
@@ -1503,7 +1570,7 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
             'current_round':runtime['last_closed'] if runtime['phase']=='resting' and runtime['last_closed'] else runtime['memory_round'],
             'current_entry':projection['current'],'transfers':projection['transfers'],
             'required_reads':projection['required'],
-            'rule':'同回合只追加有长期价值的新fact，预计超600字符或旧条已超限时交完整compact；合并不是追加。旧事实在预算视图中只出现一次，未选入的必要原文按行号真实补读。L1/L2/L3容量3/10/10；转移单条上限见limits，不传播未知秘密。'}
+            'rule':'仅记录有长期因果价值的新fact，重要承诺/关系转折用anchor_ops原子维护；仅在待归档情景批到达时提交chronicle_digest。'}
         data['knowledge_rules'] = [{'source':'txt文件/知识库/'+name+'.json','body':e['content']}
             for name in ('世界观类','叙事判断','系统标签类')
             for e in json.loads((story.root/('txt文件/知识库/'+name+'.json')).read_text(encoding='utf-8'))['data']['entries']
@@ -1543,6 +1610,7 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
             'cost_preview': preview_cost,
             'delivered_echo_ids': delivered_echo_ids,
             'director_roll': director_roll,
+            **({'recent_room_continuity': recent_room_continuity} if recent_room_continuity else {}),
             'reading_policy': {'version': sr.VERSION},
             'turns': [{'kind': 'user', 'content': json.dumps(envelope, ensure_ascii=False)}]}
 
@@ -1763,10 +1831,23 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
         story.root, memory_text, text_input, runtime,
         cast=cast, location=effective_state['location'], is_single=(protocol_mode == 'single_prefix_v2'),
     )
+    room_actors_v2 = [a for a in (eff_intl_v2.get('present_actors') or []) if a in cast] or list(cast)
+    mem_view = save_store.retrieve_memory_view(
+        layers_bundle,
+        query=text_input,
+        cast=cast,
+        present_actors=room_actors_v2,
+        location=effective_state['location'],
+        max_chars=3600 if include_full_anchor else 1400,
+        incremental=not include_full_anchor,
+    )
+    raw_chook = opts.get('continuity_hook')
+    continuity_hook = re.sub(r'[\r\n]+', ' ', str(raw_chook)).strip()[:280] if isinstance(raw_chook, str) and raw_chook.strip() else ''
     is_action_turn = (not charged or (packet_data.get('cost_preview') or {}).get('kind') == 'action')
     pending_echoes = sp.parse_shop_echo_block(memory_text)['echoes'] if is_action_turn else []
     breakout_hint = sc.compile_breakout_hint(memory_text) if is_action_turn else None
     intel_catalog = sp.load_intel_catalog(story.root, optional=True)
+    stage1_supplements = () if protocol_mode == 'dual_stream_v2' else supplements
     user_delta = sc.build_user_delta(
         story.root, effective_state, projection, history, new_history_only,
         text_input, packet_data.get('selection'), context.get('command'),
@@ -1777,7 +1858,7 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
         omitted_archive=context.get('omitted_archive', []),
         archive_index=context.get('archive_index', ''),
         memory_index=context.get('memory_index', ''),
-        required_sources=supplements,
+        required_sources=stage1_supplements,
         output_contract=envelope['output_contract'],
         resolution_policy=envelope.get('resolution_policy'),
         operation_context=envelope.get('operation_context'),
@@ -1787,6 +1868,9 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
         intel_catalog=intel_catalog,
         director_roll=context.get('director_roll'),
         protagonist_style=protagonist_style,
+        memory_view=mem_view,
+        continuity_hook=continuity_hook,
+        recent_room_continuity=context.get('recent_room_continuity'),
     )
     total_bytes = len(zone0_global.encode('utf-8')) + len(zone1_scene.encode('utf-8')) + len(user_delta.encode('utf-8'))
     if total_bytes > 2 * 1024 * 1024:
@@ -1799,9 +1883,10 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
             context.get('command'), (packet_data.get('operation') or {}).get('input_evidence'),
             packet_data.get('cost_preview'), runtime, memory_text,
             envelope.get('resolution_policy'), envelope['output_contract'],
-            envelope.get('operation_context'), required_sources=supplements,
+            envelope.get('operation_context'), required_sources=(),
             intel_catalog=intel_catalog, director_roll=context.get('director_roll'),
             settlement_custom_rules=story_prefs,
+            memory_view=mem_view,
         )
 
     record = {

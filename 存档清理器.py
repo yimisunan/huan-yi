@@ -26,6 +26,7 @@ BACKUPS = '.round-runtime/reset-backups'
 SAVE_SLOTS = '.round-runtime/save-slots'
 MAX_RESET_BACKUPS = 10
 LEGACY_RETIRED_ROSTER = '存档/次要NPC名册.txt'
+LEGACY_MEMORY_LAYERS = save_store.LEGACY_MEMORY_LAYERS_PATH
 
 SLIM_SLOT_FILES = (
     save_store.SAVE_STATE_PATH,
@@ -122,8 +123,9 @@ def inventory(root, relative):
 def plan_reset(root):
     root = project_root(root)
     paths = list(TEMPLATES) + ['data.json', '.round-runtime/state.json', '.round-runtime/journal.json', EPOCH]
-    if safe(root, LEGACY_RETIRED_ROSTER).exists():
-        paths.append(LEGACY_RETIRED_ROSTER)
+    for retired in (LEGACY_RETIRED_ROSTER, LEGACY_MEMORY_LAYERS):
+        if safe(root, retired).exists():
+            paths.append(retired)
     save_dir = safe(root, '存档')
     if save_dir.is_dir():
         for child in sorted(save_dir.iterdir()):
@@ -601,7 +603,7 @@ def read_record(root):
     for index, item in enumerate(entries):
         rel = item['path']
         allowed = rel in (
-            *TEMPLATES, LEGACY_RETIRED_ROSTER, 'data.json',
+            *TEMPLATES, LEGACY_RETIRED_ROSTER, LEGACY_MEMORY_LAYERS, 'data.json',
             '.round-runtime/state.json', '.round-runtime/journal.json', EPOCH,
             '.round-runtime/story/tasks.json', '.round-runtime/story/shop_inquiries.json',
             'txt文件/.story-reading', '.round-runtime/interaction', '.scene-chat',

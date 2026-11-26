@@ -20,10 +20,11 @@ import save_store
 
 FILES = (
     '存档/全局记忆库.txt', '存档/徐志北道具图鉴.txt',
-    '存档/save_state.json', '存档/四层记忆.json',
+    '存档/save_state.json', save_store.MEMORY_STORE_PATH,
     'data.json',
 )
 META = '.round-runtime/state.json'
+MAX_LEDGER_RECEIPTS = 120
 RECENT_PLAYBACK = save_store.RECENT_PLAYBACK_PATH
 PROLOGUE = '【系统隐藏标记：以上为新游戏序幕锚点，剧情从此刻正式开始计算】'
 OPTIONAL = {
@@ -171,11 +172,22 @@ def _engine_call(function, *args, **kwargs):
 
 
 def _memory_state(engine, files):
-    if files.get(FILES[0]) is None and files.get(save_store.MEMORY_LAYERS_PATH) is None:
+    if files.get(FILES[0]) is None and files.get(save_store.MEMORY_STORE_PATH) is None:
         raise RoundError('缺少全局记忆库；请先用项目开局工具初始化')
-    state_obj, layers_obj, _ = save_store.load_bundle(Path(engine.BASE_DIR), files)
+    state_obj, mem_store, _ = save_store.load_bundle(Path(engine.BASE_DIR), files)
     content = (files[FILES[0]].decode('utf-8') if files.get(FILES[0]) is not None
-               else save_store.render_memory_txt(state_obj, layers_obj))
+               else save_store.render_memory_txt(state_obj, mem_store))
+    if files.get(save_store.MEMORY_STORE_PATH) is not None and isinstance(mem_store, dict) and mem_store.get('version') == 2:
+        display_layers = save_store.layer_strings(mem_store)
+        if mem_store.get('prologue_active'):
+            return content, display_layers, 0
+        rt_closed = int((state_obj.get('runtime') or {}).get('last_closed') or 0)
+        ep_days = [int(ep.get('day') or 1) for ep in (mem_store.get('episodes') or []) if not ep.get('is_prologue')]
+        pb_facts = ((mem_store.get('pending_buffer') or {}).get('facts') or [])
+        pb_day = int((mem_store.get('pending_buffer') or {}).get('day') or 0) if pb_facts else 0
+        ch_days = [int((ch.get('day_range') or [0, 0])[1] or 0) for ch in (mem_store.get('chronicle') or [])]
+        last = max([rt_closed, pb_day, *ep_days, *ch_days, 0])
+        return content, display_layers, last
     layers = _engine_call(engine._parse_memory_layer_items, content)
     last = 0
     for label in ('L4', 'L3', 'L2', 'L1'):
@@ -186,7 +198,7 @@ def _memory_state(engine, files):
             last = end
     has_only_l1_one = (len(layers['L1']) == 1 and not any(layers[x] for x in ('L2', 'L3', 'L4'))
                        and layers['L1'][0].startswith('【1】'))
-    prologue = has_only_l1_one and (bool(layers_obj.get('prologue_active')) or PROLOGUE in layers['L1'][0])
+    prologue = has_only_l1_one and (bool(mem_store.get('prologue_active')) or PROLOGUE in layers['L1'][0])
     return content, layers, 0 if prologue else last
 
 
@@ -1264,7 +1276,7 @@ class RoundStore:
                     raise ValueError('journal file set')
                 values = {}
                 for name in before:
-                    if name not in set(FILES) | {META} and not re.fullmatch(r'(?:日志/Round_\d+_[0-9a-f]{16}\.txt|\.round-runtime/interaction/(?:\d{12}|playback)\.json|\.round-runtime/story/tasks\.json|存档/近期演播\.json)', name):
+                    if name not in set(FILES) | {META} and not re.fullmatch(r'(?:日志/Round_\d+_[0-9a-f]{16}\.txt|\.round-runtime/interaction/(?:\d{12}|playback)\.json|\.round-runtime/story/tasks\.json|存档/(?:近期演播|memory_store|四层记忆)\.json)', name):
                         raise ValueError('journal path')
                     for version in (before, after):
                         if version[name] is not None:
@@ -1341,8 +1353,8 @@ class RoundStore:
             data['state_version'] = sequence
             data['request_id'] = request_id
             after['data.json'] = _json(data)
-            # Sync P2 JSON single-source-of-truth with settled stage files & re-render views.
-            st_obj, ly_obj, _ = save_store.load_bundle(stage, after)
+            # Sync JSON truth with settled legacy stage files & re-render views.
+            st_obj, ly_obj, _ = save_store.load_bundle(stage, after, sync_txt_drift=True)
             st_obj['micro_states'] = copy.deepcopy(micro)
             st_obj['counters'] = copy.deepcopy(counters)
             st_obj['lifecycle'] = copy.deepcopy(lifecycle)
@@ -1458,11 +1470,21 @@ class RoundStore:
                 return receipt
             ledger['sequence'] = sequence
             ledger['receipts'][request_id] = {'payload_hash': payload_hash, 'receipt': receipt}
+            if len(ledger['receipts']) > MAX_LEDGER_RECEIPTS:
+                ordered_ids = sorted(
+                    ledger['receipts'].keys(),
+                    key=lambda rid: (int(((ledger['receipts'][rid].get('receipt') or {}).get('state_version')) or 0), rid),
+                )
+                for stale_id in ordered_ids[:-MAX_LEDGER_RECEIPTS]:
+                    ledger['receipts'].pop(stale_id, None)
             after[META] = _json(ledger)
             if continuous and request['schema_version'] == 3:
                 task.update(status='committed', error='', receipt=receipt, lease=None)
                 task['reservation']['status'] = 'settled'
+                task['reservation'].pop('before_memory', None)
+                task['reservation'].pop('before_save_state', None)
                 task['settlement'] = json.loads(after['data.json'])['last_settlement']
+                sp.prune_tasks_state(tasks)
                 after[sp.TASKS] = _json(tasks)
             before = {name: self._path(name).read_bytes() if self._path(name).is_file() else None for name in after}
             # Detect non-cooperating edits that happened while the round was staged.

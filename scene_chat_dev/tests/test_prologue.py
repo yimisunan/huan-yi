@@ -82,8 +82,8 @@ class PrologueChecks(unittest.TestCase):
   self.initialize('zhiyun_friday_study')
   st,ly,rc=save_store.load_bundle(self.root)
   self.assertEqual(st['intimate']['present_actors'],['沈知韫'])
-  self.assertEqual(ly['layers']['L1'][0]['known_by'],['徐志北','沈知韫'])
-  self.assertNotIn('徐念薇',ly['layers']['L1'][0]['known_by'])
+  self.assertEqual(ly['episodes'][0]['known_by'],['徐志北','沈知韫'])
+  self.assertNotIn('徐念薇',ly['episodes'][0]['known_by'])
   seg=ir.segment(self.root,self.store._files())
   self.assertEqual(seg['known_by'],['徐志北','沈知韫'])
   import shutil
