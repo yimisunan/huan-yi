@@ -5942,3 +5942,69 @@ html[data-theme="ivory"] .stat-info-dot {
   color: #96661c;
 }
 
+/* ── 徐承邺监视态势：人物敏感度微标、五阶状态与疑点动因 ── */
+.vigilance-row-left {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+.vigilance-role-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+.vigilance-stage-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+}
+.vigilance-stage-pill.is-tier-1 {
+  color: var(--gold-bright);
+  border-color: rgba(214, 178, 120, 0.42);
+  background: rgba(214, 178, 120, 0.14);
+}
+.vigilance-stage-pill.is-tier-2 {
+  color: #f3c18c;
+  border-color: rgba(236, 168, 102, 0.45);
+  background: rgba(196, 120, 52, 0.18);
+}
+.vigilance-stage-pill.is-tier-3,
+.vigilance-stage-pill.is-tier-4 {
+  color: #f6b0b4;
+  border-color: rgba(224, 114, 120, 0.5);
+  background: rgba(159, 68, 72, 0.22);
+}
+.vigilance-reason {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--muted);
+  padding-left: 2px;
+  word-break: break-word;
+}
+html[data-theme="ivory"] .vigilance-stage-pill.is-tier-1 {
+  color: #8b5e1a;
+}
+html[data-theme="ivory"] .vigilance-stage-pill.is-tier-2 {
+  color: #9e5214;
+  background: rgba(196, 120, 52, 0.12);
+}
+html[data-theme="ivory"] .vigilance-stage-pill.is-tier-3,
+html[data-theme="ivory"] .vigilance-stage-pill.is-tier-4 {
+  color: #9e2f38;
+  background: rgba(178, 56, 66, 0.12);
+}
+
+

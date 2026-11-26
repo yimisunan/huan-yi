@@ -4435,10 +4435,10 @@
       },
       '警惕': {
         title: '徐承邺监视态势',
-        subtitle: '父权审视下的行踪警戒与暴露风险',
-        effect: '决定徐承邺的回返概率与发现压力：全员最高警惕 ≥ 50 时有 10% 概率突然折返主宅或公寓，≥ 70 飙升至 35%；发现阶段达到 3（目击锁定）后将彻底锁死警戒底线 ≥ 50。',
-        gain: '留下异常行迹（+10）、眼线汇报（+5）、亲眼目击（+15 并锁定发现 ≥ 3）或实锤证据都会推高警惕与发现阶段。',
-        loss: '未目击锁定前，每完整游戏小时自然回落 2 点；妥善解释、转移注意、查岗化解（-5～-15）可主动压低。一旦目击锁定，一切衰减与降警惕手段均失效。'
+        subtitle: '分渠道感知 · 分人物敏感度 · 五阶递进压迫',
+        effect: '五阶推进：0–19 无察；20–39 起疑（远程消息/电话试探）；40–64 查岗（妻子苏婉青 40 起就有 15% 概率折返公寓，母妹 50 起 10% 回主宅）；65–84 紧盯（高频返城 30%–40%）；85+ 摊牌搜证（65% 在场）。母亲沈知韫在警惕 <45 时存在伦理盲区，徐承邺只会疑心争家业而不疑母子私情；发现 ≥3 目击锁定后警戒底线锁死 ≥50。',
+        gain: '遵循「无现实渠道不涨警惕」铁律：徐承邺在外地且密室独处无来电/旁人时绝不凭空涨警惕；仅在当场察觉、来电/消息露馅或第三方外传时触发。按关系加权：妻子苏婉青 ×1.4（极敏，揭穿眼线且高好感低羞耻反水后降为 ×1.0）、母亲沈知韫 ×1.0、妹妹徐念薇 ×0.65（易掩护，但目击按满额）；身上留有未清理痕迹额外 +3，同场女主涨警惕时徐志北连带分担 30%。',
+        loss: '未目击锁定前每完整游戏小时自然回落：苏婉青 -1.5/h（最慢）、沈知韫/徐志北 -2/h、徐念薇 -3/h（最快）；合理解释、转移注意、查岗化解（-5～-15）可主动压低，归零后清除疑点记录。一旦目击锁定，一切衰减与解释均失效。'
       }
     }
   };
@@ -4846,6 +4846,9 @@
       ...PEOPLE,
       ...Object.keys(panels).filter(k => k !== '系统宿主' && !PEOPLE.includes(k))
     ];
+    if (w.vigilance && !rosterNames.includes('徐承邺')) {
+      rosterNames.push('徐承邺');
+    }
     if (!rosterNames.includes(selectedChar)) {
       selectedChar = (w.cast && w.cast[0]) || rosterNames[0] || '沈知韫';
     }
@@ -4876,9 +4879,14 @@
       thumbWrap.append(node('i', 'presence-dot' + (isHere ? ' is-here' : '')));
 
       const info = node('span', 'roster-pill-info');
+      let pillSub = pInfo['好感'] ? ('好感 ' + pInfo['好感'].raw) : (w.presence?.[name]?.location || meta.role);
+      if (name === '徐承邺' && w.vigilance) {
+        const maxV = Math.max(0, ...(w.vigilance.targets || []).map(x => Number(x.vigilance) || 0));
+        pillSub = (w.vigilance.position || '外地') + (maxV >= 20 ? (' · 警惕 ' + maxV) : '');
+      }
       info.append(
         node('strong', '', name),
-        node('span', '', pInfo['好感'] ? ('好感 ' + pInfo['好感'].raw) : (w.presence?.[name]?.location || meta.role))
+        node('span', '', pillSub)
       );
       btn.append(thumbWrap, info);
       btn.onclick = () => {
@@ -4993,7 +5001,7 @@
       renderWorld(true);
     };
 
-    const barItems = charPanel.ordered.filter(it => barMeta[it.key] && it.num !== null);
+    const barItems = name === '徐承邺' ? [] : charPanel.ordered.filter(it => barMeta[it.key] && it.num !== null);
     if (barItems.length) {
       body.append(node('div', 'stat-inspect-hint', '轻点任意属性或状态标签，查看沉浸作用与增减途径'));
       const grid = node('div', 'char-bars-grid');
@@ -5221,32 +5229,52 @@
         });
         if (gPanel) vCard.append(gPanel);
       }
-      const discLabels = { 0: '未察觉', 1: '怀疑', 2: '线索', 3: '目击锁定', 4: '实锤' };
+      const discLabels = { 0: '无察', 1: '怀疑', 2: '线索', 3: '目击锁定', 4: '实锤' };
+      const fallbackRole = {
+        '苏婉青': '妻子 · 极敏',
+        '沈知韫': '母亲 · 伦理盲区',
+        '徐念薇': '妹妹 · 易掩护',
+        '徐志北': '养弟 · 连带汇聚'
+      };
       const vList = node('div', 'vigilance-list');
       for (const t of (w.vigilance.targets || [])) {
         const vRow = node('div', 'vigilance-row');
         const vTop = node('div', 'vigilance-row-top');
+        const stageNum = Number.isFinite(Number(t.stage))
+          ? Number(t.stage)
+          : (t.discovery >= 3 || t.vigilance >= 85 ? 4 : t.vigilance >= 65 ? 3 : t.vigilance >= 40 ? 2 : t.vigilance >= 20 ? 1 : 0);
+        const stageLbl = t.stage_label || (t.discovery >= 3 ? (discLabels[t.discovery] || '目击锁定') : ['无察', '起疑', '查岗', '紧盯', '摊牌'][stageNum] || '无察');
+        const roleLbl = t.role_label || fallbackRole[t.name] || '';
+        const leftWrap = node('span', 'vigilance-row-left');
+        leftWrap.append(node('span', '', t.name));
+        if (roleLbl) leftWrap.append(node('span', 'vigilance-role-pill', roleLbl));
+        leftWrap.append(node('span', 'vigilance-stage-pill is-tier-' + stageNum, stageLbl));
         vTop.append(
-          node('span', '', t.name + ' · ' + (discLabels[t.discovery] || ('发现 ' + t.discovery))),
+          leftWrap,
           node('b', '', '警惕 ' + t.vigilance + ' / 100')
         );
         const track = node('div', 'stat-track');
         const fill = node('span', 'stat-bar');
         fill.style.width = Math.max(0, Math.min(100, t.vigilance)) + '%';
-        fill.style.background = t.vigilance >= 70
+        fill.style.background = stageNum >= 3
           ? 'linear-gradient(90deg, #9f4448, #e07272)'
-          : t.vigilance >= 30
-            ? 'linear-gradient(90deg, #b99968, #f0d7a8)'
-            : 'linear-gradient(90deg, #4b8f6f, #7ecba4)';
+          : stageNum === 2
+            ? 'linear-gradient(90deg, #b87333, #f2b47c)'
+            : stageNum === 1
+              ? 'linear-gradient(90deg, #b99968, #f0d7a8)'
+              : 'linear-gradient(90deg, #4b8f6f, #7ecba4)';
         track.append(fill);
         vRow.append(vTop, track);
+        if (t.reason) {
+          vRow.append(node('div', 'vigilance-reason', '疑点：' + t.reason));
+        }
         vList.append(vRow);
       }
-      vCard.append(vList, node('span', 'muted', '轻点标题查看警惕增减与回返机制；每完整游戏小时自然回落 2（目击锁定目标不衰减）。'));
+      vCard.append(vList, node('span', 'muted', '轻点标题查看分渠道、分人物敏感度与五阶回返机制；外地密室无外传渠道绝不凭空涨警惕。'));
       body.append(vCard);
     }
 
-    if (!charPanel.ordered.length) {
+    if (!charPanel.ordered.length && !(name === '徐承邺' && w.vigilance)) {
       body.append(node('p', 'muted', '当前存档尚未记录该人物的数值面板。'));
     }
 

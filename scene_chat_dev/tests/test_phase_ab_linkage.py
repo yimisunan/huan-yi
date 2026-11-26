@@ -341,7 +341,7 @@ class PhaseABLinkageTests(unittest.TestCase):
         w = ir.view(self.svc.store)
         self.assertIn('徐承邺', w['cast'])
 
-        # Submit action with [D:徐承邺], offstage VIGILANCE_04 targeting 苏婉青, and DEPRAVITY_02 targeting 徐承邺
+        # Submit action with [D:徐承邺], offstage VIGILANCE_04 targeting 苏婉青, and DEPRAVITY_02 targeting on-stage heroine 沈知韫
         receipt = run_action_turn(
             self.svc, text='在书房应付大哥试探', option_id='B', category='B',
             messages=[
@@ -351,13 +351,14 @@ class PhaseABLinkageTests(unittest.TestCase):
             clock={'day': 1, 'time': '23:15'},
             events=[
                 {'group': 'vigilance_events', 'target': '苏婉青', 'tags': ['眼线汇报'], 'evidence': '刚巧婉青下午也打过电话提了一嘴。'},
-                {'group': 'depravity_events', 'target': '徐承邺', 'tags': ['死亡查岗_沉沦期'], 'evidence': '这么晚了，志北还在母亲书房里谈什么？'},
+                {'group': 'depravity_events', 'target': '沈知韫', 'tags': ['死亡查岗_沉沦期'], 'evidence': '这么晚了，志北还在母亲书房里谈什么？'},
             ],
             req_id='xu-home-1',
         )
         self.assertEqual(receipt['status'], 'committed')
         after_mem = mem_path.read_text(encoding='utf-8')
-        self.assertGreater(rr._engine(self.tmp, self.tmp)._read_attr_value(after_mem, '徐承邺', '堕落'), 0)
+        self.assertGreater(rr._engine(self.tmp, self.tmp)._read_attr_value(after_mem, '沈知韫', '堕落'), 0)
+        self.assertNotIn('[徐承邺] 堕落', after_mem)
 
     def test_T09_breakout_hint_gating_and_micro_state_auto_derivation(self):
         mem_path = self.tmp / rr.FILES[0]

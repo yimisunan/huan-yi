@@ -2589,8 +2589,8 @@ def resolution(root,files,body):
                 raise rr.RoundError(
                     f'监视事件目标无效：{target}（vigilance_events.target 只能填被徐承邺监视的对象：{valid_vig}，严禁填监视者徐承邺本人；若正文仅口头提及徐承邺且无实质警惕增减，请直接删除该条事件）'
                 )
-        elif group=='depravity_events' and target=='徐承邺' and dep02_tag in tags:
-            pass
+        elif group=='depravity_events' and target=='徐承邺':
+            raise rr.RoundError('徐承邺为男性对手，无堕落面板；死亡查岗_沉沦期的 target 须填在场女主姓名（沈知韫/苏婉青/徐念薇），若本幕无女主沉沦请删除该条事件')
         elif target!='系统宿主' and target not in active_cast:
             if target in remote_cast and group in remote_allowed_tags and set(tags) <= remote_allowed_tags[group]:
                 pass
@@ -3044,7 +3044,33 @@ def apply_staged(store,engine,stage,body,files,parsed):
             player_moved=bool(body.get('operation') and body['operation'].get('code')=='move_player'),
         )
         if kind=='action' or hours:
-            rr._engine_call(engine.process_vigilance_system,events['vigilance_events'],events['shame_events'],str(memory_path),elapsed_hours=hours,roll_home=kind=='action',active_cast=active_cast,ds_events=events.get('ds_events'))
+            vig_evidences={}
+            for ev_item in (value.get('events') or []):
+                if isinstance(ev_item,dict) and ev_item.get('group')=='vigilance_events':
+                    ev_t=str(ev_item.get('target') or '')
+                    ev_s=str(ev_item.get('evidence') or '').strip()
+                    if ev_t and ev_s:
+                        vig_evidences[ev_t]=(vig_evidences.get(ev_t,'')+' '+ev_s).strip()
+            scene_prose_all=' '.join(str(m.get('text') or '') for m in (body.get('messages') or []) if isinstance(m,dict))
+            st_vig_now,_,_=save_store.load_bundle(stage)
+            intl_vig=st_vig_now.get('intimate') or {}
+            rr._engine_call(
+                engine.process_vigilance_system,
+                events['vigilance_events'],
+                events['shame_events'],
+                str(memory_path),
+                elapsed_hours=hours,
+                roll_home=kind=='action',
+                active_cast=active_cast,
+                ds_events=events.get('ds_events'),
+                event_evidences=vig_evidences,
+                scene_prose=scene_prose_all,
+                scene_privacy=str(intl_vig.get('privacy') or ''),
+                traces=intl_vig.get('traces') or {},
+                intel_state=st_vig_now.get('intel') or {},
+                su_stats=(st_vig_now.get('panels') or {}).get('苏婉青') or {},
+                enforce_channel_gate=True,
+            )
         if kind=='action':
             dir_mem=memory_path.read_text(encoding='utf-8')
             dir_updated=advance_director_state(

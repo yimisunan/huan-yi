@@ -294,18 +294,20 @@ def _parse_vigilance_state(memory_text):
     high_risk = []
     targets = {}
     for m in re.finditer(
-        r'^徐承邺_([^\n：:]+)[：:]\s*警惕\s*(\d+)\s*\|\s*发现\s*(\d+)(?:\s*\|\s*发现几率\s*(\d+))?',
+        r'^徐承邺_([^\n：:]+)[：:]\s*警惕\s*(\d+)\s*\|\s*发现\s*(\d+)(?:\s*\|\s*发现几率\s*(\d+))?(?:\s*\|\s*动因[：:]\s*([^\n|]+))?',
         memory_text or '', re.M,
     ):
         who = m.group(1).strip()
         v, d = int(m.group(2)), int(m.group(3))
         p = int(m.group(4)) if m.group(4) is not None else 0
+        reason = (m.group(5) or '').strip()[:48]
         max_vig = max(max_vig, v)
         max_disc = max(max_disc, d)
         max_prob = max(max_prob, p)
-        targets[who] = {'vigilance': v, 'discovery': d, 'prob': p}
+        targets[who] = {'vigilance': v, 'discovery': d, 'prob': p, 'reason': reason}
         if v >= 20 or d > 0:
-            details.append(f'{who}(警惕{v}/发现{d})')
+            r_part = f'/{reason}' if reason else ''
+            details.append(f'{who}(警惕{v}/发现{d}{r_part})')
         if p >= 70:
             high_risk.append(f'{who}(发现几率高危)')
     return {
@@ -873,13 +875,18 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
             notes.append(rline)
 
     vig = _parse_vigilance_state(memory_text)
-    if vig['position'] != '外地' or vig['max_vigilance'] >= 30 or vig['max_discovery'] > 0 or vig['max_prob'] >= 70:
+    if vig['position'] != '外地' or vig['max_vigilance'] >= 20 or vig['max_discovery'] > 0 or vig['max_prob'] >= 70:
         detail = '、'.join(vig['hot']) if vig['hot'] else '低警惕'
         risk_clause = ''
         if vig['max_prob'] >= 70:
             risk_targets = '、'.join(vig['high_risk']) if vig['high_risk'] else '在场目标'
             risk_clause = f'；【高危暴露压迫】{risk_targets}发现几率达高危线，本轮须按将被发现/逼近查岗推进，不得写侥幸蒙混'
-        notes.append(f'监视态势：徐承邺位置={vig["position"]}，关注={detail}{risk_clause}（未实际目击/来电前不凭数值凭空造实锤）。')
+        szy_v = (vig['targets'].get('沈知韫') or {}).get('vigilance', 0)
+        szy_d = (vig['targets'].get('沈知韫') or {}).get('discovery', 0)
+        blind_clause = ''
+        if 0 < szy_v < 45 and szy_d < 3:
+            blind_clause = '；徐承邺对母亲存在伦理盲区（警惕<45只疑志北讨好母亲争家业，不疑母子私情）'
+        notes.append(f'监视态势：徐承邺位置={vig["position"]}，关注={detail}{risk_clause}{blind_clause}（未实际目击/来电/第三方外传前不凭数值凭空造实锤）。')
     else:
         notes.append('监视态势：徐承邺在外地，警惕平静。')
 
@@ -1474,15 +1481,15 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
         'evidence必须是foreground_messages中某条text的逐字原样子串（若正文含｛表层｜潜台词｝，可引用原串或表层子串，严禁改字或引用decision选项）；'
         'host_events的target固定为"系统宿主"；'
         '⚠️【监视目标防错铁律】vigilance_events的target必须是【被徐承邺监视的对象】（仅限"沈知韫"/"苏婉青"/"徐念薇"/"徐志北"四选一），严禁填监视者"徐承邺"本人！若正文仅口头提及徐承邺的交代或行程而无实质警惕增减，请直接省略该条事件；'
-        'depravity_events仅死亡查岗_沉沦期可填徐承邺（shame_events/ds_events/affection_events严禁填徐承邺）；当operation_context.detail.kind=="inspect_deployed"时，允许对detail.remote_cast中的远程目标据正文结算自慰_暗中纾解/私密自渎/意外撞破_私密自渎，其余事件组target必须严格属于本场实际在场角色姓名。目标体力<=15且无玩家括号强行授权时严禁施加C烈度_深度/重度。免费SYSTEM不得附带事件/任务/物品。'
+        'shame_events/depravity_events/ds_events/affection_events 严禁填徐承邺（死亡查岗_沉沦期target填在场女主）；当operation_context.detail.kind=="inspect_deployed"时，允许对detail.remote_cast中的远程目标据正文结算自慰_暗中纾解/私密自渎/意外撞破_私密自渎，其余事件组target必须严格属于本场实际在场角色姓名。目标体力<=15且无玩家括号强行授权时严禁施加C烈度_深度/重度。免费SYSTEM不得附带事件/任务/物品。'
         '「首次」「深度操控_首次」「内射_首次核爆」「同质化免疫_回合2/3」「小憩单日限次」「失眠防叠加」「状态_空耗惩罚」「生理_危险期」均由后端据持久化记录自动派生与拦截，模型只需如实标注本幕发生的基础事件。'
         '多档标签判准速查（严禁自造白名单外标签）：'
         'C烈度_轻度(越界言语挑逗/近距离施压/非敏感部位试探)、C烈度_中度(亲吻/隔衣贴合/轻度敏感部位触碰)、C烈度_深度(褪衣暴露/直接敏感带抚弄/口交侍奉，仅限C档)、C烈度_重度(实质性交/强行突破/高危越界结合，仅限C档)；'
         '高潮_轻度累积(初段爱抚/边缘挑弄)、高潮_中度累积(持续密集快感/深入刺激)、高潮_重度累积(临近绝顶/强烈痉挛)、触发高潮_绝顶清算(明确达到高潮绝顶)；'
         '刺激_视觉(近距凝视/暴露羞耻)、刺激_嗅觉(贴颈呼吸/体香气息)、刺激_听觉(耳语喘息/羞耻指令)、刺激_物理(实质肢体爱抚/器官接触)；'
         '消耗_轻微焦虑(短暂心虚/轻微防备)、消耗_日常劳作(常规奔波家务办公消耗)、消耗_剧烈抗拒(剧烈挣扎/高强度体力与心理拉扯)；'
-        'VIGILANCE：目击确认(徐承邺亲眼撞见亲密越界)、证据实锤(掌握明确物证/影像/录音实锤)、异常行迹(衣冠凌乱/气息残留/深夜共处等反常迹象)、眼线汇报(苏婉青或旁人向徐承邺汇报异常)、'
-        '降警惕_轻度(日常自然得体缓解疑心)、降警惕_中度(主动圆场打消明显疑虑)、降警惕_深度(彻底消痕或建立稳固信任屏障)、合理解释(对反常行迹给出无懈可击的理由)、转移注意(成功引开查岗焦点)、无异常回合(风平浪静且无新异常)。\n'
+        'VIGILANCE（外地密室无来电/旁人外传严禁打目击确认或异常行迹）：目击确认(徐在场撞见)、证据实锤(物证影像)、异常行迹(本人察觉/来电查岗露馅/旁人看见外传)、眼线汇报(苏或旁人向徐汇报)、'
+        '降警惕_轻度(缓疑)、降警惕_中度(圆场)、降警惕_深度(消痕)、合理解释(解释)、转移注意(引开)、无异常回合(平静)。\n'
         '4. conditions：普通付费action必须交完整7字段对象(intensity/effective_progress/scene/npc/action_changed/stress_signals/breakout_triggered)，'
         'intensity须与category一致，无NPC仅npc写""；effective_progress仅当本幕产生了新信息/线索、态度或防备真实改变、明确约定、场景转移或有效事件时判true，纯礼貌寒暄/重复关怀/原地客套必须判false；免费SYSTEM的conditions写""。\n'
         '5. clock：按剧情实际经过单调向前，首次从第1天初始化；sleep.kind为overnight须连续>=6小时跨夜至05:00~12:59且evidence为正文子串。\n'

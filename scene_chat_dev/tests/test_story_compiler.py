@@ -675,7 +675,114 @@ class StoryCompilerTests(unittest.TestCase):
             planned_paths = {row['path'].replace('\\', '/') for row in plan}
             self.assertNotIn(ir.STORY_PREFS_PATH, planned_paths, '存档清理器 must preserve .round-runtime/story/prefs.json')
 
+    def test_xu_chengye_no_depravity_and_tiered_vigilance_channel_gate(self):
+        import tempfile
+        import save_store
+        import injection_core as ic
+        import round_runtime as rr
+        import interaction_runtime as ir
+
+        # 1. Default state & legacy save migration must never emit [徐承邺] 堕落
+        base_txt = save_store.render_memory_txt(save_store.default_state(), save_store.default_layers())
+        self.assertNotIn('[徐承邺] 堕落', base_txt)
+        legacy_txt = base_txt.replace('【人物所在】', '[徐承邺] 堕落 10\n\n【人物所在】')
+        st_mig, ly_mig = save_store.migrate_from_legacy_texts(legacy_txt, '')
+        self.assertNotIn('徐承邺', st_mig['panels'])
+        self.assertNotIn('[徐承邺] 堕落', save_store.render_memory_txt(st_mig, ly_mig))
+
+        # 2. _validate_event_fields rejects 徐承邺 in depravity_events
+        with self.assertRaises(rr.RoundError):
+            rr._validate_event_fields(ROOT, ic, {
+                'shame_events': {}, 'depravity_events': {'徐承邺': ['死亡查岗_沉沦期']},
+                'ds_events': {}, 'affection_events': {}, 'host_events': [], 'vigilance_events': {},
+            })
+
+        # 3. Perception gate, multipliers, traces, defection, spillover, per-char decay, 5-tier thresholds & blindspot
+        with tempfile.TemporaryDirectory() as td:
+            mp = Path(td) / 'mem.txt'
+            st0 = save_store.default_state()
+            mp.write_text(save_store.render_memory_txt(st0, save_store.default_layers()), encoding='utf-8')
+
+            # 3a. Abroad + private room -> blocked (+0)
+            ic.process_vigilance_system(
+                {'苏婉青': ['异常行迹'], '沈知韫': ['目击确认']}, {}, str(mp),
+                elapsed_hours=0, roll_home=False, active_cast=['苏婉青', '沈知韫'],
+                event_evidences={'苏婉青': '卧室灯光昏暗，两人贴近低声交谈。', '沈知韫': '她轻声叹了口气。'},
+                scene_privacy='private_room', enforce_channel_gate=True,
+            )
+            vig = ic._parse_vigilance_block(mp.read_text(encoding='utf-8'))
+            self.assertEqual(vig['目标']['苏婉青']['警惕'], 0)
+            self.assertEqual(vig['目标']['沈知韫']['警惕'], 0)
+
+            # 3b. Real external channel -> 苏 14 / 沈 10 / 念薇 6 + 30% spillover to 徐志北 (9)
+            ic.process_vigilance_system(
+                {'苏婉青': ['异常行迹'], '沈知韫': ['异常行迹'], '徐念薇': ['异常行迹']}, {}, str(mp),
+                elapsed_hours=0, roll_home=False, active_cast=['苏婉青', '沈知韫', '徐念薇'],
+                event_evidences={
+                    '苏婉青': '查岗电话里她停顿了两秒才开口敷衍过去。',
+                    '沈知韫': '管家端茶推门时瞥见两人神色微变。',
+                    '徐念薇': '物业保安顺口提了一句二少爷深夜离开画室。',
+                },
+                enforce_channel_gate=True,
+            )
+            vig = ic._parse_vigilance_block(mp.read_text(encoding='utf-8'))
+            self.assertEqual(vig['目标']['苏婉青']['警惕'], 14)
+            self.assertEqual(vig['目标']['沈知韫']['警惕'], 10)
+            self.assertEqual(vig['目标']['徐念薇']['警惕'], 6)
+            self.assertEqual(vig['目标']['徐志北']['警惕'], 9)
+            self.assertIn('电话', vig['目标']['苏婉青']['动因'])
+            self.assertIn('连带', vig['目标']['徐志北']['动因'])
+
+            # 3c. Public vigilance hides 发现几率 / prob and exposes role_label + stage + reason
+            pub = ir.parse_public_vigilance(mp.read_text(encoding='utf-8'), save_state=st0)
+            pub_json = json.dumps(pub, ensure_ascii=False)
+            self.assertNotIn('prob', pub_json)
+            self.assertNotIn('发现几率', pub_json)
+            su_pub = next(x for x in pub['targets'] if x['name'] == '苏婉青')
+            self.assertEqual(su_pub['role_label'], '妻子 · 极敏')
+            self.assertIn('电话', su_pub['reason'])
+
+            # 3d. Per-character hourly decay (2h: 苏 -3 -> 11, 沈 -4 -> 6, 念薇 -6 -> 0 cleared, 志北 -4 -> 5)
+            ic.process_vigilance_system({}, {}, str(mp), elapsed_hours=2, roll_home=False)
+            vig = ic._parse_vigilance_block(mp.read_text(encoding='utf-8'))
+            self.assertEqual(vig['目标']['苏婉青']['警惕'], 11)
+            self.assertEqual(vig['目标']['沈知韫']['警惕'], 6)
+            self.assertEqual(vig['目标']['徐念薇']['警惕'], 0)
+            self.assertEqual(vig['目标']['徐念薇']['发现'], 0)
+            self.assertEqual(vig['目标']['徐念薇']['动因'], '')
+            self.assertEqual(vig['目标']['徐志北']['警惕'], 5)
+
+            # 3e. Su Wanqing defected (x1.0) + traces bonus (+3) => 11 + 10 + 3 = 24
+            ic.process_vigilance_system(
+                {'苏婉青': ['异常行迹']}, {}, str(mp),
+                elapsed_hours=0, roll_home=False, active_cast=['苏婉青'],
+                event_evidences={'苏婉青': '公寓门禁记录显示访客深夜离开。'},
+                traces={'苏婉青': [{'kind': 'mark', 'desc': '颈侧红痕', 'turns': 3}]},
+                intel_state={'consumed': ['INTEL-002']},
+                su_stats={'好感': 75, '羞耻': 45},
+                enforce_channel_gate=True,
+            )
+            vig = ic._parse_vigilance_block(mp.read_text(encoding='utf-8'))
+            self.assertEqual(vig['目标']['苏婉青']['警惕'], 24)
+
+            # 3f. 5-tier return thresholds
+            self.assertEqual(ic._vigilance_return_prob('苏婉青', 40), 0.15)
+            self.assertEqual(ic._vigilance_return_prob('沈知韫', 40), 0.0)
+            self.assertEqual(ic._vigilance_return_prob('沈知韫', 50), 0.10)
+            self.assertEqual(ic._vigilance_return_prob('苏婉青', 65), 0.40)
+            self.assertEqual(ic._vigilance_return_prob('沈知韫', 65), 0.30)
+            self.assertEqual(ic._vigilance_return_prob('徐念薇', 85), 0.65)
+
+            # 3g. Compiler blindspot note for 沈知韫 when 0 < vig < 45 & 动因 roundtrip via save_store
+            st_brief = {'location': '徐家主宅', 'cast': ['沈知韫'], 'panels': [], 'presence': {}}
+            brief = sc.compile_state_qualitative_brief(st_brief, mp.read_text(encoding='utf-8'))
+            self.assertIn('伦理盲区', brief)
+            self.assertIn('争家业', brief)
+            st_rt, _ = save_store.migrate_from_legacy_texts(mp.read_text(encoding='utf-8'), '')
+            self.assertIn('门禁', st_rt['vigilance']['目标']['苏婉青']['动因'])
+
 
 if __name__ == '__main__':
     unittest.main()
+
 

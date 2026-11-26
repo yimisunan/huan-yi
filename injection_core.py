@@ -530,7 +530,7 @@ def process_depravity_system(depravity_events, memory_file, *, unlocked_caps=Non
     computed_changes = {}
     
     for char_name, tags in depravity_events.items() if depravity_events else []:
-        if not tags or not isinstance(tags, list):
+        if not tags or not isinstance(tags, list) or char_name == "徐承邺":
             continue
             
         match = re.search(rf"\[{re.escape(char_name)}\].*?堕落\s*(\d+)", content)
@@ -1371,10 +1371,110 @@ def update_counters(counter_updates):
     print(f" [√] 回合计数器已更新：{list(counter_updates.keys())}")
 
 
-# ============ 徐承邺监视矩阵（警惕值机制） ============
+# ============ 徐承邺监视矩阵（分渠道·分人物·五阶警惕值机制） ============
 VIGILANCE_TARGETS = ("沈知韫", "苏婉青", "徐念薇", "徐志北")
 VIGILANCE_LOCKED_FLOOR = 50  # 目击锁定后警惕下限
 VIGILANCE_EXPOSURE_TAGS = ("内射", "外射", "高潮", "C烈度", "私密自渎", "自慰_暗中纾解")  # 暴露加分触发
+VIGILANCE_SPILLOVER_RATIO = 0.30  # 女主异常行迹/眼线/目击引发同场徐志北连带警惕比例
+VIGILANCE_TRACE_BONUS = 3  # 合法外传异常行迹时，若目标身上仍留未清理痕迹的额外兑现增幅
+
+VIGILANCE_PROFILE = {
+    "苏婉青": {
+        "role_label": "妻子 · 极敏",
+        "defected_role_label": "妻子 · 反水掩护",
+        "gain_mult": 1.4,       # 异常行迹 +14 / 眼线 +7
+        "defected_mult": 1.0,   # 揭穿眼线(INTEL-002)且好感>=70/羞耻<=50后反水降敏
+        "witness_gain": 20,     # 亲眼目击 +20
+        "decay_per_hour": 1.5,  # 最慢衰减（1h:-1, 2h:-3, 3h:-4, 4h:-6）
+        "home_thresholds": ((85, 0.65), (65, 0.40), (40, 0.15)),
+    },
+    "沈知韫": {
+        "role_label": "母亲 · 伦理盲区",
+        "gain_mult": 1.0,       # 异常行迹 +10 / 眼线 +5
+        "witness_gain": 15,
+        "decay_per_hour": 2.0,
+        "home_thresholds": ((85, 0.65), (65, 0.30), (50, 0.10)),
+        "ethical_blindspot_below": 45,  # <45 时先入为主疑「争家业/偏心」，不疑母子私情
+    },
+    "徐念薇": {
+        "role_label": "妹妹 · 易掩护",
+        "gain_mult": 0.65,      # 异常行迹 +6 / 眼线 +3
+        "witness_gain": 15,     # 目击/实锤绕过日常折扣按满额结算
+        "decay_per_hour": 3.0,  # 最快衰减
+        "home_thresholds": ((85, 0.65), (65, 0.30), (50, 0.10)),
+    },
+    "徐志北": {
+        "role_label": "养弟 · 连带汇聚",
+        "gain_mult": 1.0,
+        "witness_gain": 15,
+        "decay_per_hour": 2.0,
+        "home_thresholds": ((85, 0.65), (65, 0.30), (50, 0.10)),
+    },
+}
+
+_VIGILANCE_CHANNEL_RE = re.compile(
+    r"电话|来电|视频|语音|微信|消息|短信|查岗|回拨|接听|未接|铃声|屏幕亮|"
+    r"管家|保姆|阿姨|佣人|物业|保安|门禁|司机|助理|秘书|眼线|打听|汇报|传话|通风报信|"
+    r"照片|拍照|监控|摄像头|录音|账单|刷卡|快递|记录|撞见|看见|推门|敲门|门外|走廊|大厅|旁人|路人|同事|会议室|徐承邺"
+)
+
+
+def vigilance_stage_info(vigilance, discovery=0):
+    """Return (stage_0_to_4, stage_label) for the 5-tier vigilance model."""
+    v = int(vigilance or 0)
+    d = int(discovery or 0)
+    if d >= 3:
+        return 4, "目击锁定" if d == 3 else "证据实锤"
+    if v >= 85:
+        return 4, "摊牌"
+    if v >= 65:
+        return 3, "紧盯"
+    if v >= 40:
+        return 2, "查岗"
+    if v >= 20:
+        return 1, "起疑"
+    return 0, "无察"
+
+
+def _vigilance_return_prob(target, vigilance):
+    prof = VIGILANCE_PROFILE.get(target) or VIGILANCE_PROFILE["徐志北"]
+    v = int(vigilance or 0)
+    for th, p in prof.get("home_thresholds", ((85, 0.65), (65, 0.30), (50, 0.10))):
+        if v >= th:
+            return float(p)
+    return 0.0
+
+
+def _compact_vigilance_reason(text, fallback=""):
+    raw = str(text or "").replace("|", " ").replace("\n", " ").replace("\r", " ")
+    raw = re.sub(r"\{([^|｜{}]+)[|｜][^{}]+\}", r"\1", raw)
+    raw = re.sub(r"\[[^\]]{1,24}\]", "", raw)
+    raw = re.sub(r"\s+", " ", raw).strip(" ，。；：、\"'“”‘’")
+    if not raw:
+        return str(fallback or "")[:40]
+    return (raw[:34] + "…") if len(raw) > 36 else raw
+
+
+def _has_external_vigilance_channel(evidence="", scene_prose="", scene_privacy=""):
+    """Check whether an out-of-town vigilance increase has an observable real-world transmission channel."""
+    ev = str(evidence or "")
+    if _VIGILANCE_CHANNEL_RE.search(ev):
+        return True
+    if scene_privacy == "open_public" and _VIGILANCE_CHANNEL_RE.search(str(scene_prose or "")):
+        return True
+    return False
+
+
+def _is_su_defected(intel_state=None, su_stats=None):
+    """Return True if INTEL-002 (苏婉青眼线身份) has been exposed/consumed AND Su Wanqing has high affection & low shame."""
+    consumed = set((intel_state or {}).get("consumed") or [])
+    if "INTEL-002" not in consumed:
+        return False
+    if not isinstance(su_stats, dict):
+        return False
+    aff = int(su_stats.get("好感", 0) or 0)
+    shame = int(su_stats.get("羞耻", 100) or 100)
+    return aff >= 70 and shame <= 50
 
 # ============ 任务系统（AI生成属性型任务 · 后端判定 · 串行单任务） ============
 TASK_WHITELIST = {
@@ -1389,7 +1489,7 @@ TASK_BLOCK_ANCHOR = "【任务状态】"
 
 
 def _parse_vigilance_block(content):
-    """解析【监视状态】块 → {'位置':..., '目标':{名:{警惕,发现,发现几率}}}"""
+    """解析【监视状态】块 → {'位置':..., '目标':{名:{警惕,发现,发现几率,动因}}}"""
     anchor = "【监视状态】"
     if anchor not in content:
         return None
@@ -1402,13 +1502,14 @@ def _parse_vigilance_block(content):
     targets = {}
     for name in VIGILANCE_TARGETS:
         tm = re.search(
-            rf"徐承邺_{re.escape(name)}：警惕\s*(\d+)\s*\|\s*发现\s*(\d+)\s*\|\s*发现几率\s*(\d+)",
+            rf"徐承邺_{re.escape(name)}：警惕\s*(\d+)\s*\|\s*发现\s*(\d+)\s*\|\s*发现几率\s*(\d+)(?:\s*\|\s*动因[：:]\s*([^\n|]+))?",
             block)
         if tm:
             targets[name] = {
                 "警惕": int(tm.group(1)),
                 "发现": int(tm.group(2)),
                 "发现几率": int(tm.group(3)),
+                "动因": (tm.group(4) or "").strip()[:48],
             }
     return {"位置": pos, "目标": targets}
 
@@ -1425,25 +1526,75 @@ def _is_exposed(target, shame_events, ds_events=None):
     return any(any(k in t for k in VIGILANCE_EXPOSURE_TAGS) for t in tags if isinstance(t, str))
 
 
-def _apply_vigilance_tags(vig, events):
-    """按语义标签结算警惕/发现程度；目击(发现>=3)后警惕下限锁定、降警惕标签无效"""
-    for target, tags in events.items():
+def _apply_vigilance_tags(
+    vig,
+    events,
+    *,
+    active_cast=None,
+    event_evidences=None,
+    scene_prose="",
+    scene_privacy="",
+    traces=None,
+    intel_state=None,
+    su_stats=None,
+    enforce_channel_gate=False,
+):
+    """按语义标签、人物敏感度与感知渠道门禁结算警惕/发现程度；目击(发现>=3)后警惕下限锁定、降警惕标签无效。"""
+    xcy_abroad = vig.get("位置", "外地") in ("", "外地") and ("徐承邺" not in (active_cast or ()))
+    su_defected = _is_su_defected(intel_state=intel_state, su_stats=su_stats)
+    ev_map = event_evidences if isinstance(event_evidences, dict) else {}
+    traces_map = traces if isinstance(traces, dict) else {}
+    direct_gains = {}
+    heroine_spill_sources = []
+
+    for target, tags in (events or {}).items():
         if target not in vig["目标"] or not isinstance(tags, list):
             continue
         t = vig["目标"][target]
         locked = t["发现"] >= 3
+        prof = VIGILANCE_PROFILE.get(target) or VIGILANCE_PROFILE["徐志北"]
+        mult = prof["defected_mult"] if (target == "苏婉青" and su_defected) else prof["gain_mult"]
+        ev_text = str(ev_map.get(target) or "")
+        before_v = t["警惕"]
+        turn_pos_gain = 0
+        pos_reason_fallback = ""
+
         for tag in tags:
             if tag == _event_tag('VIGILANCE_01'):
-                t["警惕"] += _event_param('VIGILANCE_01', 't_01')
+                if enforce_channel_gate and xcy_abroad:
+                    print(f" 🔒 [监视矩阵·感知门禁] 徐承邺在外地，拦截 {target} 的「目击确认」标签。")
+                    continue
+                add = int(prof.get("witness_gain", _event_param('VIGILANCE_01', 't_01')))
+                t["警惕"] += add
                 t["发现"] = max(t["发现"], _event_param('VIGILANCE_01', 't_02'))
+                turn_pos_gain += add
+                pos_reason_fallback = "亲眼目击异常"
             elif tag == _event_tag('VIGILANCE_02'):
                 t["发现"] = max(t["发现"], _event_param('VIGILANCE_02', 't_01'))
+                pos_reason_fallback = pos_reason_fallback or "掌握实锤物证"
             elif tag == _event_tag('VIGILANCE_03'):
-                t["警惕"] += _event_param('VIGILANCE_03', 't_01')
+                if enforce_channel_gate and xcy_abroad and not _has_external_vigilance_channel(ev_text, scene_prose, scene_privacy):
+                    print(f" 🔒 [监视矩阵·感知门禁] 徐承邺在外地且无外部传导渠道，拦截 {target} 密室「异常行迹」（不涨警惕）。")
+                    continue
+                base = _event_param('VIGILANCE_03', 't_01')
+                add = max(1, int(round(base * mult)))
+                if isinstance(traces_map.get(target), list) and len(traces_map[target]) > 0:
+                    add += VIGILANCE_TRACE_BONUS
+                    print(f" 🔎 [监视矩阵] {target} 身上/现场仍有未清理痕迹，异常行迹额外兑现 +{VIGILANCE_TRACE_BONUS} 警惕。")
+                t["警惕"] += add
                 t["发现"] = max(t["发现"], min(t["发现"] + _event_param('VIGILANCE_03', 't_02'), _event_param('VIGILANCE_03', 't_03')))
+                turn_pos_gain += add
+                pos_reason_fallback = pos_reason_fallback or "察觉异常行迹"
             elif tag == _event_tag('VIGILANCE_04'):
-                t["警惕"] += _event_param('VIGILANCE_04', 't_01')
+                if su_defected and target != "苏婉青" and "苏婉青" in ev_text and not re.search(r"管家|保姆|物业|司机|助理|保安", ev_text):
+                    print(f" 🕶️ [监视矩阵] 苏婉青已反水掩护，拦截其作为眼线对 {target} 的汇报。")
+                    continue
+                base = _event_param('VIGILANCE_04', 't_01')
+                add = max(1, int(round(base * mult)))
+                t["警惕"] += add
                 t["发现"] = max(t["发现"], min(t["发现"] + _event_param('VIGILANCE_04', 't_02'), _event_param('VIGILANCE_04', 't_03')))
+                turn_pos_gain += add
+                pos_reason_fallback = pos_reason_fallback or "收到眼线汇报"
             elif tag == _event_tag('VIGILANCE_05'):
                 if not locked:
                     t["警惕"] -= _event_param('VIGILANCE_05', 't_01')
@@ -1458,9 +1609,32 @@ def _apply_vigilance_tags(vig, events):
                     t["警惕"] -= _event_param('VIGILANCE_08', 't_01')
             elif tag == _event_tag('VIGILANCE_10'):
                 pass  # 时间衰减由后端每回合统一执行
+
         if t["发现"] >= 3 and t["警惕"] < VIGILANCE_LOCKED_FLOOR:
             t["警惕"] = VIGILANCE_LOCKED_FLOOR
-        t["警惕"] = max(0, t["警惕"])
+        t["警惕"] = min(100, max(0, t["警惕"]))
+        if turn_pos_gain > 0 or pos_reason_fallback:
+            t["动因"] = _compact_vigilance_reason(ev_text, fallback=pos_reason_fallback)
+        actual_gain = max(0, t["警惕"] - before_v)
+        if actual_gain > 0:
+            direct_gains[target] = actual_gain
+            if target in ("沈知韫", "苏婉青", "徐念薇") and (active_cast is None or target in active_cast):
+                heroine_spill_sources.append((target, actual_gain))
+
+    # 30% 跨目标连带汇聚：同场女主因异常/眼线/目击涨警惕时，徐志北同步分担 30% 联动警惕
+    if heroine_spill_sources and "徐志北" in vig["目标"]:
+        spill_total = min(10, sum(max(1, int(round(g * VIGILANCE_SPILLOVER_RATIO))) for _, g in heroine_spill_sources))
+        direct_host = direct_gains.get("徐志北", 0)
+        extra_host = max(0, spill_total - direct_host)
+        if extra_host > 0:
+            ht = vig["目标"]["徐志北"]
+            ht["警惕"] = min(100, max(0, ht["警惕"] + extra_host))
+            if ht["发现"] == 0 and ht["警惕"] >= 20:
+                ht["发现"] = 1
+            src_names = "、".join(n for n, _ in heroine_spill_sources)
+            if not ht.get("动因"):
+                ht["动因"] = f"受{src_names}异常动向连带波及"
+            print(f" 🔗 [监视矩阵] 养弟连带汇聚：{src_names} 引发警惕外溢，徐志北警惕 +{extra_host}（当前 {ht['警惕']}）。")
 
 
 def _write_vigilance_block(vig, memory_file=None):
@@ -1475,7 +1649,9 @@ def _write_vigilance_block(vig, memory_file=None):
     lines = [anchor, f"徐承邺位置：{vig['位置']}"]
     for name in VIGILANCE_TARGETS:
         t = vig["目标"][name]
-        lines.append(f"徐承邺_{name}：警惕 {t['警惕']} | 发现 {t['发现']} | 发现几率 {t['发现几率']}")
+        reason = str(t.get("动因") or "").replace("|", " ").replace("\n", " ").strip()[:48]
+        suffix = f" | 动因：{reason}" if reason and (t["警惕"] > 0 or t["发现"] > 0) else ""
+        lines.append(f"徐承邺_{name}：警惕 {t['警惕']} | 发现 {t['发现']} | 发现几率 {t['发现几率']}{suffix}")
     block = "\n".join(lines) + "\n"
     content = content[:m.start(1)] + block + content[m.end(1):]
     with open(target_file, "w", encoding="utf-8") as f:
@@ -1483,12 +1659,28 @@ def _write_vigilance_block(vig, memory_file=None):
     print(" [√] 监视状态块已更新")
 
 
-def process_vigilance_system(vigilance_events, shame_events, memory_file, *, elapsed_hours=None, roll_home=True, active_cast=None, ds_events=None):
+def process_vigilance_system(
+    vigilance_events,
+    shame_events,
+    memory_file,
+    *,
+    elapsed_hours=None,
+    roll_home=True,
+    active_cast=None,
+    ds_events=None,
+    event_evidences=None,
+    scene_prose="",
+    scene_privacy="",
+    traces=None,
+    intel_state=None,
+    su_stats=None,
+    enforce_channel_gate=False,
+):
     """
     徐承邺监视矩阵全自动结算：
-    警惕增减 / 发现程度（目击不可逆）/ 回宅掷骰（警惕50档低概率·70档明显提升）/
-    发现几率（在场×暴露+警惕加权）。
-    每回合常驻执行（即使 AI 未打标签也走时间衰减与回宅判定）。
+    感知渠道门禁 / 分人物敏感度与伦理盲区 / 30% 养弟连带 / 分人物时间衰减 /
+    五阶分人物回返掷骰（苏婉青40起15%·沈/徐50起10%·65起30~40%·85起65%）/ 发现几率。
+    每回合常驻执行（即使 AI 未打标签也走时间衰减与回返判定）。
     """
     if not os.path.exists(memory_file):
         return {}
@@ -1498,7 +1690,18 @@ def process_vigilance_system(vigilance_events, shame_events, memory_file, *, ela
     if not vig:
         return {}
 
-    _apply_vigilance_tags(vig, vigilance_events or {})
+    _apply_vigilance_tags(
+        vig,
+        vigilance_events or {},
+        active_cast=active_cast,
+        event_evidences=event_evidences,
+        scene_prose=scene_prose,
+        scene_privacy=scene_privacy,
+        traces=traces,
+        intel_state=intel_state,
+        su_stats=su_stats,
+        enforce_channel_gate=enforce_channel_gate,
+    )
 
     # 死亡查岗衔接：查岗未抓实锤 → 该次越界目标警惕 -10（虚惊回落）
     for target, tags in (shame_events or {}).items():
@@ -1506,30 +1709,35 @@ def process_vigilance_system(vigilance_events, shame_events, memory_file, *, ela
             if vig["目标"][target]["发现"] < _event_param('SHAME_08', 'vig_target_02'):
                 vig["目标"][target]["警惕"] = max(_event_param('SHAME_08', 'vig_target_03'), vig["目标"][target]["警惕"] - _event_param('SHAME_08', 'vig_target_04'))
 
-    # 时间衰减：每回合 -2，目击锁定目标不衰减
-    for t in vig["目标"].values():
-        if t["发现"] < 3:
-            t["警惕"] = max(0, t["警惕"] - 2 * (1 if elapsed_hours is None else elapsed_hours))
+    # 分人物时间衰减：苏婉青 -1.5/h、沈知韫/徐志北 -2/h、徐念薇 -3/h；目击锁定目标不衰减
+    hours = 1 if elapsed_hours is None else max(0, int(elapsed_hours))
+    for name, t in vig["目标"].items():
+        if t["发现"] < 3 and hours > 0 and t["警惕"] > 0:
+            rate = float((VIGILANCE_PROFILE.get(name) or {}).get("decay_per_hour", 2.0))
+            decay = max(1, int(rate * hours))
+            t["警惕"] = max(0, t["警惕"] - decay)
+        if t["警惕"] == 0 and t["发现"] < 3:
+            t["发现"] = 0
+            t["动因"] = ""
 
     # 在场集合：读取各角色真实所在
     presence = parse_presence_from_memory(content)
     at_home = {name for name, info in presence.items() if "徐家主宅" in info.get("location", "")}
     at_apt = {name for name, info in presence.items() if "市中心顶层公寓" in info.get("location", "")}
 
-    # 回宅/赴公寓掷骰：取所有目标最高警惕；若徐承邺本段正同场对峙则保持当前在场位置，禁止中途随机瞬移回外地
-    max_vig = max((t["警惕"] for t in vig["目标"].values()), default=0)
-    if max_vig >= 70:
-        prob = 0.35
-    elif max_vig >= 50:
-        prob = 0.10
-    else:
-        prob = 0.0
+    # 五阶分人物回返掷骰：若徐承邺本段正同场对峙则保持当前在场位置，禁止中途随机瞬移回外地
+    target_probs = {name: _vigilance_return_prob(name, t["警惕"]) for name, t in vig["目标"].items()}
+    prob = max(target_probs.values(), default=0.0)
     on_stage_confronting = bool(active_cast and '徐承邺' in active_cast and vig.get("位置") not in ("", "外地"))
     if roll_home and not on_stage_confronting:
-        if random.random() < prob:
+        if prob > 0.0 and random.random() < prob:
+            su_prob = target_probs.get("苏婉青", 0.0)
             su_vig = vig["目标"].get("苏婉青", {}).get("警惕", 0)
-            home_max = max((vig["目标"][n]["警惕"] for n in at_home if n in vig["目标"]), default=0)
-            if "苏婉青" in at_apt and su_vig >= 50 and su_vig >= home_max:
+            home_prio = max(
+                ((target_probs.get(n, 0.0), vig["目标"][n]["警惕"]) for n in at_home if n in vig["目标"]),
+                default=(0.0, 0),
+            )
+            if "苏婉青" in at_apt and su_prob > 0.0 and (su_prob, su_vig) >= home_prio:
                 vig["位置"] = "市中心顶层公寓"
             else:
                 vig["位置"] = "徐家主宅"

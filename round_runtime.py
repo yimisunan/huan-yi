@@ -207,8 +207,6 @@ def _validate_event_fields(root, engine, body):
         events = body[field]
         if field == 'vigilance_events':
             targets = set(engine.VIGILANCE_TARGETS)
-        elif field == 'depravity_events':
-            targets = (set(engine.DEFAULT_PRESENCE) - {'徐志北'}) | {'徐承邺'}
         else:
             targets = set(engine.DEFAULT_PRESENCE) - {'徐志北'}
         if field == 'host_events':

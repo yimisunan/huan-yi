@@ -336,16 +336,53 @@ def recent_rows(store, files=None):
     return [by_seq[seq] for seq in sorted(by_seq)]
 
 
-def parse_public_vigilance(memory_text):
-    """Parse 【监视状态】 for frontend display: exposes position, vigilance, discovery; STRICTLY hides 发现几率."""
+def parse_public_vigilance(memory_text, save_state=None):
+    """Parse 【监视状态】 for frontend display: exposes position, vigilance, discovery, reason, stage & sensitivity; STRICTLY hides 发现几率."""
     pos_m = re.search(r'^徐承邺位置：([^\n]+)', memory_text or '', re.M)
     position = pos_m.group(1).strip() if pos_m else '外地'
+    su_defected = False
+    if isinstance(save_state, dict):
+        consumed = set((save_state.get('intel') or {}).get('consumed') or [])
+        su_p = (save_state.get('panels') or {}).get('苏婉青') or {}
+        if 'INTEL-002' in consumed and int(su_p.get('好感', 0) or 0) >= 70 and int(su_p.get('羞耻', 100) or 100) <= 50:
+            su_defected = True
+    role_meta = {
+        '苏婉青': ('妻子 · 反水掩护' if su_defected else '妻子 · 极敏', 1.5),
+        '沈知韫': ('母亲 · 伦理盲区', 2.0),
+        '徐念薇': ('妹妹 · 易掩护', 3.0),
+        '徐志北': ('养弟 · 连带汇聚', 2.0),
+    }
     targets = []
-    for m in re.finditer(r'^徐承邺_([^\n：:]+)[：:]\s*警惕\s*(\d+)\s*\|\s*发现\s*(\d+)', memory_text or '', re.M):
+    for m in re.finditer(
+        r'^徐承邺_([^\n：:]+)[：:]\s*警惕\s*(\d+)\s*\|\s*发现\s*(\d+)(?:\s*\|\s*发现几率\s*\d+)?(?:\s*\|\s*动因[：:]\s*([^\n|]+))?',
+        memory_text or '', re.M,
+    ):
+        who = m.group(1).strip()
+        v = int(m.group(2))
+        d = int(m.group(3))
+        reason = (m.group(4) or '').strip()[:48]
+        if d >= 3:
+            stage, stage_label = 4, ('目击锁定' if d == 3 else '证据实锤')
+        elif v >= 85:
+            stage, stage_label = 4, '摊牌'
+        elif v >= 65:
+            stage, stage_label = 3, '紧盯'
+        elif v >= 40:
+            stage, stage_label = 2, '查岗'
+        elif v >= 20:
+            stage, stage_label = 1, '起疑'
+        else:
+            stage, stage_label = 0, '无察'
+        r_label, decay_h = role_meta.get(who, ('受监视目标', 2.0))
         targets.append({
-            'name': m.group(1).strip(),
-            'vigilance': int(m.group(2)),
-            'discovery': int(m.group(3)),
+            'name': who,
+            'vigilance': v,
+            'discovery': d,
+            'reason': '' if (v == 0 and d == 0) else reason,
+            'stage': stage,
+            'stage_label': stage_label,
+            'role_label': r_label,
+            'decay_per_hour': decay_h,
         })
     return {'position': position, 'targets': targets}
 
@@ -604,7 +641,7 @@ def view(store, files=None):
             'micro_states': parse_micro_states(memory),
             'physiology': physiology,
             'visual_assets': scan_visual_assets(store.root),
-            'vigilance': parse_public_vigilance(memory),
+            'vigilance': parse_public_vigilance(memory, save_state=bundle_state),
             'passive_tiers': [dict(x) for x in sp.passive_levels(store.root)],
             'secrets_unlocked': list(mech.get('secrets_unlocked', [])),
             'intel': {

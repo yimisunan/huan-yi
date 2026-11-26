@@ -31,7 +31,7 @@ PROLOGUE_MARKER = '【系统隐藏标记：以上为新游戏序幕锚点，剧�
 
 HEROINES = ('沈知韫', '苏婉青', '徐念薇')
 PRESENCE_ORDER = ('沈知韫', '徐念薇', '苏婉青', '徐志北')
-PANEL_ORDER = ('系统宿主', '沈知韫', '徐念薇', '苏婉青', '徐承邺')
+PANEL_ORDER = ('系统宿主', '沈知韫', '徐念薇', '苏婉青')
 VIGILANCE_TARGETS = ('沈知韫', '苏婉青', '徐念薇', '徐志北')
 MICRO_STATES = ('momentary_ease', 'residual_tension', 'confusion_debt')
 DEFAULT_PRESENCE = {
@@ -276,7 +276,6 @@ def default_state():
             '沈知韫': {'好感': 95, '堕落': 0, '欲望': 0, '羞耻': 100, '体力': 100, '高潮': 0, '内射': 0, '怀孕': False, '被动': 0},
             '徐念薇': {'好感': 30, '堕落': 0, '欲望': 0, '羞耻': 99, '体力': 100, '高潮': 0, '内射': 0, '怀孕': False, '被动': 0},
             '苏婉青': {'好感': 40, '堕落': 0, '欲望': 0, '羞耻': 99, '体力': 100, '高潮': 0, '内射': 0, '怀孕': False, '被动': 0},
-            '徐承邺': {'堕落': 0},
         },
         'presence': {
             name: {'location': loc, 'reason': reason}
@@ -302,7 +301,7 @@ def default_state():
         'vigilance': {
             '位置': '外地',
             '目标': {
-                name: {'警惕': 0, '发现': 0, '发现几率': 0}
+                name: {'警惕': 0, '发现': 0, '发现几率': 0, '动因': ''}
                 for name in VIGILANCE_TARGETS
             },
         },
@@ -672,10 +671,16 @@ def normalize_state(raw):
     for name in VIGILANCE_TARGETS:
         t = raw_vt.get(name)
         if isinstance(t, dict):
+            v_val = max(0, min(100, _parse_int(t.get('警惕'), 0)))
+            d_val = max(0, _parse_int(t.get('发现'), 0))
+            raw_reason = str(t.get('动因') or t.get('reason') or '').replace('|', ' ').replace('\n', ' ').replace('\r', ' ').strip()[:48]
+            if v_val == 0 and d_val == 0:
+                raw_reason = ''
             base['vigilance']['目标'][name] = {
-                '警惕': max(0, _parse_int(t.get('警惕'), 0)),
-                '发现': max(0, _parse_int(t.get('发现'), 0)),
+                '警惕': v_val,
+                '发现': d_val,
                 '发现几率': max(0, min(100, _parse_int(t.get('发现几率'), 0))),
+                '动因': raw_reason,
             }
     # Tasks
     raw_tasks = raw.get('tasks') if isinstance(raw.get('tasks'), dict) else {}
@@ -947,9 +952,6 @@ def migrate_from_legacy_texts(memory_text='', items_text='', data_dict=None, bas
                 lm = re.search(r'被动\s*Lv\.?(\d+)', line)
                 if lm:
                     state['panels'][name]['被动'] = int(lm.group(1))
-        m_xcy = re.search(r'^\[徐承邺\][^\n]*堕落\s*(-?\d+)', cur_part, re.M)
-        if m_xcy:
-            state['panels']['徐承邺']['堕落'] = int(m_xcy.group(1))
         if state['panels']['苏婉青']['好感'] > 85:
             state['mechanics']['su_affection_85_unlocked'] = True
 
@@ -1024,12 +1026,19 @@ def migrate_from_legacy_texts(memory_text='', items_text='', data_dict=None, bas
             if pos_m:
                 state['vigilance']['位置'] = pos_m.group(1).strip()
             for who in VIGILANCE_TARGETS:
-                tm = re.search(rf'徐承邺_{re.escape(who)}：警惕\s*(\d+)\s*\|\s*发现\s*(\d+)\s*\|\s*发现几率\s*(\d+)', vblock)
+                tm = re.search(
+                    rf'徐承邺_{re.escape(who)}：警惕\s*(\d+)\s*\|\s*发现\s*(\d+)\s*\|\s*发现几率\s*(\d+)(?:\s*\|\s*动因[：:]\s*([^\n|]+))?',
+                    vblock,
+                )
                 if tm:
+                    reason_str = (tm.group(4) or '').strip()[:48]
+                    v_num = max(0, min(100, int(tm.group(1))))
+                    d_num = max(0, int(tm.group(2)))
                     state['vigilance']['目标'][who] = {
-                        '警惕': int(tm.group(1)),
-                        '发现': int(tm.group(2)),
+                        '警惕': v_num,
+                        '发现': d_num,
                         '发现几率': int(tm.group(3)),
+                        '动因': '' if (v_num == 0 and d_num == 0) else reason_str,
                     }
 
         # 7. Tasks
@@ -1238,7 +1247,6 @@ def render_memory_txt(state, mem_layers):
             f"[{name}] 好感 {p['好感']} | 堕落 {p['堕落']} | 欲望 {p['欲望']} | 羞耻 {p['羞耻']} "
             f"| 体力 {p['体力']} | 高潮 {p['高潮']}% | 内射 {p['内射']}次 | 怀孕 {p['怀孕']} | 被动 Lv.{p['被动']}"
         )
-    lines.append(f"[徐承邺] 堕落 {panels['徐承邺']['堕落']}")
     lines.append('')
 
     lines.append('【人物所在】')
@@ -1278,7 +1286,9 @@ def render_memory_txt(state, mem_layers):
     lines.append(f"徐承邺位置：{vig['位置']}")
     for name in VIGILANCE_TARGETS:
         t = vig['目标'][name]
-        lines.append(f"徐承邺_{name}：警惕 {t['警惕']} | 发现 {t['发现']} | 发现几率 {t['发现几率']}")
+        reason = str(t.get('动因') or '').replace('|', ' ').replace('\n', ' ').strip()[:48]
+        suffix = f" | 动因：{reason}" if reason and (t.get('警惕', 0) > 0 or t.get('发现', 0) > 0) else ''
+        lines.append(f"徐承邺_{name}：警惕 {t['警惕']} | 发现 {t['发现']} | 发现几率 {t['发现几率']}{suffix}")
     lines.append('')
 
     tasks = state['tasks']
