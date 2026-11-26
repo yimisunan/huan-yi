@@ -99,6 +99,42 @@ def default_director():
     }
 
 
+NPC_MIND_TARGETS = ('沈知韫', '苏婉青', '徐念薇', '徐承邺')
+
+
+def default_npc_mind():
+    return {
+        '沈知韫': {
+            'mood': '',
+            'mood_ttl': 0,
+            'preoccupation': '留意深圳分部近期对账风波，顺便掂量志北近来有没有进公司看看的心思',
+            'impressions': [],
+            'aff_delta_last': 0,
+        },
+        '苏婉青': {
+            'mood': '',
+            'mood_ttl': 0,
+            'preoccupation': '留意主宅近况好应付丈夫晚间来电，同时在婆婆面前拿捏周全分寸',
+            'impressions': [],
+            'aff_delta_last': 0,
+        },
+        '徐念薇': {
+            'mood': '',
+            'mood_ttl': 0,
+            'preoccupation': '青年画展二稿配色一直卡着，不想被家里催着掺和徐家事务',
+            'impressions': [],
+            'aff_delta_last': 0,
+        },
+        '徐承邺': {
+            'mood': '',
+            'mood_ttl': 0,
+            'preoccupation': '外地并购谈判拉锯中，急着在母亲面前做出亮眼实绩',
+            'impressions': [],
+            'aff_delta_last': 0,
+        },
+    }
+
+
 PRIVACY_LEVELS = ('open_public', 'semi_open', 'thin_wall', 'under_cover', 'locked_private')
 PRIVACY_LABELS = {
     'open_public': '公共开放',
@@ -332,6 +368,7 @@ def default_state():
             'leverage_charges': 0,
         },
         'director': default_director(),
+        'npc_mind': default_npc_mind(),
         'lifecycle': {
             'version': 1,
             'round': 0,
@@ -745,6 +782,40 @@ def normalize_state(raw):
         base['intel']['leverage_charges'] = max(0, min(3, _parse_int(ri.get('leverage_charges'), 0)))
     if isinstance(raw.get('director'), dict):
         base['director'].update(copy.deepcopy(raw['director']))
+    raw_mind = raw.get('npc_mind') if isinstance(raw.get('npc_mind'), dict) else {}
+    for name in NPC_MIND_TARGETS:
+        rm = raw_mind.get(name)
+        if not isinstance(rm, dict):
+            continue
+        mood_txt = re.sub(r'[\r\n|]+', ' ', str(rm.get('mood') or '')).strip()[:40]
+        mood_ttl = max(0, min(4, _parse_int(rm.get('mood_ttl'), 0)))
+        if not mood_txt or mood_ttl <= 0:
+            mood_txt = ''
+            mood_ttl = 0
+        preocc = re.sub(r'[\r\n|]+', ' ', str(rm.get('preoccupation') or '')).strip()[:48]
+        if not preocc and 'preoccupation' not in rm:
+            preocc = base['npc_mind'][name]['preoccupation']
+        clean_imps = []
+        raw_imps = rm.get('impressions')
+        if isinstance(raw_imps, list):
+            for item in raw_imps:
+                if isinstance(item, dict):
+                    itxt = re.sub(r'[\r\n|]+', ' ', str(item.get('text') or '')).strip()[:48]
+                    ittl = max(0, min(8, _parse_int(item.get('ttl'), 4)))
+                    if itxt and ittl > 0:
+                        clean_imps.append({'text': itxt, 'ttl': ittl})
+                elif isinstance(item, str) and item.strip():
+                    itxt = re.sub(r'[\r\n|]+', ' ', item).strip()[:48]
+                    if itxt:
+                        clean_imps.append({'text': itxt, 'ttl': 4})
+        aff_delta = max(-20, min(20, _parse_int(rm.get('aff_delta_last'), 0)))
+        base['npc_mind'][name] = {
+            'mood': mood_txt,
+            'mood_ttl': mood_ttl,
+            'preoccupation': preocc,
+            'impressions': clean_imps[-2:],
+            'aff_delta_last': aff_delta,
+        }
     if isinstance(raw.get('lifecycle'), dict):
         base['lifecycle'].update(copy.deepcopy(raw['lifecycle']))
     if isinstance(raw.get('runtime'), dict):

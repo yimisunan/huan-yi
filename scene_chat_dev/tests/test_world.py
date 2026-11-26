@@ -2,6 +2,7 @@
 from pathlib import Path
 import hashlib
 import json
+import re
 import shutil
 import sqlite3
 import subprocess
@@ -120,7 +121,7 @@ class WorldTests(unittest.TestCase):
         with self.assertRaises(rr.ConflictError): self.world.import_latest()
         self.assertEqual(self.world.snapshot()['world_id'], first['world_id'])
         p.write_bytes(self.before['data.json'])
-        p = self.root/rr.FILES[0];p.write_text(p.read_text().replace('[徐念薇] 好感 30 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 100', '[徐念薇] 好感 30 | 堕落 0 | 欲望 0 | 羞耻 99 | 体力 99', 1))
+        p = self.root/rr.FILES[0];p.write_text(re.sub(r'(\[徐念薇\][^\n]*?\|\s*体力 )100\b', r'\g<1>99', p.read_text(), count=1))
         second = self.world.import_latest()
         self.assertNotEqual(first['world_id'], second['world_id'])
         self.assertEqual(second['world_revision'], 2)

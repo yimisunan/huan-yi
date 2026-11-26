@@ -1718,6 +1718,7 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
         'intimate': eff_intl_v2,
         'remote_vitals_targets': list(scenario.get('remote_vitals_targets') or []),
         'mechanics': copy.deepcopy(bundle_state.get('mechanics') or {}),
+        'npc_mind': copy.deepcopy(bundle_state.get('npc_mind') or save_store.default_npc_mind()),
     }
     cast = effective_state['cast']
     references = context.get('references', [])

@@ -616,8 +616,86 @@ def _parse_buffs_inline(memory_text):
     return result
 
 
+def _heroine_affection_desc(name, aff):
+    if name == '沈知韫':
+        if aff >= 95:
+            return '对你几乎毫无保留地纵容与牵挂，心里把你摆在极重的位置'
+        if aff >= 88:
+            return '对你已生极深依赖与偏爱，话里行间藏着舍不得拒绝的软意，常先顺着你退半步'
+        if aff >= 80:
+            return '对你天然偏护信任、日常容错率极高（偶有冒失多半先替你找台阶或柔声包容），私下愿卸下几分董事长架子'
+        if aff >= 70:
+            return '对你亲近信任、日常容错率高，偶有小别扭多半轻声包容'
+        if aff >= 55:
+            return '对你温和关照、愿多聊几句近况，但长辈底线分明'
+        if aff >= 40:
+            return '对你礼貌照拂却留着明显分寸，谈话多停在面上'
+        return '对你客套疏离、心存戒备，言行保持长辈威严与距离'
+    if name == '徐念薇':
+        if aff >= 90:
+            return '卸下大部分尖刺与防备，对你极度坦诚且带着不肯明说的执拗偏爱'
+        if aff >= 78:
+            return '对你产生明显依赖与偏心，清冷外壳下藏着怕被敷衍的敏感与占有欲'
+        if aff >= 65:
+            return '私下已把你当自己人看待，虽仍嘴硬冷面，真有事会主动替你说话或分享画室近况'
+        if aff >= 50:
+            return '嘴上仍爱挑刺短答，但戒心已松，嫌弃之余会顺手留门或照料细节'
+        if aff >= 35:
+            return '对你维持礼貌距离、懒得客套，未熟稔前拒绝敷衍应酬'
+        return '对你表面冷淡客套、耐性很低，话不投机便会冷言呛回或直接晾着你'
+    if name == '苏婉青':
+        if aff >= 86:
+            return '心防与顾忌已彻底向你倾斜，甘愿站在你这边甚至暗中替你周全'
+        if aff >= 78:
+            return '对你心生强烈眷恋与信任，只在名分与婚姻处境上仍留着最后一层迟疑'
+        if aff >= 65:
+            return '对你颇为亲近依赖，常在不经意间卸下大房少奶奶的拘谨向你倾诉'
+        if aff >= 50:
+            return '对你已熟稔不少、偶露轻快俏皮，独处时会悄悄希望你多坐一会儿'
+        if aff >= 35:
+            return '对你礼貌周全中带着审慎试探与距离感，待人柔和却分寸极清'
+        return '对你客气周全却藏着明显拘谨与防备，言谈事事留后路'
+    return '态度平和自然'
+
+
+def _heroine_shame_desc(shame):
+    if shame >= 90:
+        return '礼法与体面防线完好，任何越矩试探都会立刻触及她的自持与警觉'
+    if shame >= 75:
+        return '体面防线仍在，但近距试探时偶会出现一瞬迟疑或耳根发烫'
+    if shame >= 55:
+        return '端庄外壳已现松动，嘴硬掩饰与心虚破绽并存'
+    if shame >= 35:
+        return '羞赧防线大幅瓦解，理智克制与本能顺从剧烈拉扯'
+    return '原有羞耻防线大半溃散，面对压迫极易顺从或失守'
+
+
+def _heroine_depravity_desc(dep):
+    if dep >= 60:
+        return '深陷沉沦与私密依附，主动迎合与独占欲渐浓'
+    if dep >= 30:
+        return '陷入较深沉沦泥潭，理智克制已很难压住对你的身体记忆'
+    if dep >= 10:
+        return '已有轻微沉沦惯性，身体偶会先于理智放软'
+    return ''
+
+
+def _heroine_passive_desc(lv_num, *, remote=False):
+    if lv_num <= 0:
+        return ''
+    if lv_num == 1:
+        return '' if remote else '洞察之瞳生效(你极易捕捉她眼神躲闪、呼吸停顿与言不由衷的微妙破绽)'
+    if lv_num == 2:
+        eye = '；你亦能捕捉她细微的心虚破绽' if not remote else ''
+        return f'认知欺诈滤镜生效(她潜意识会优先替你的反常靠近找合理解释{eye})'
+    if lv_num == 3:
+        eye = '且你能敏锐洞察她的防线裂口' if not remote else ''
+        return f'疲劳诱导生效(焦灼、劳作或抗拒会令她心神更快倦怠松懈，潜意识仍易替你合理化{eye})'
+    return '防线支配生效(你几乎一眼看穿她的虚实，高压之下她防线极易动摇溃散)'
+
+
 def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, include_points=False, intel_catalog=None):
-    """Translate raw panel stats into rich qualitative narrative constraints without exposing formulas."""
+    """Translate raw panel stats into human psychological director guidance without RPG number leakage."""
     panels = (state or {}).get('panels', [])
     panel_map = _parse_panel_map(panels)
     buff_map = _parse_buffs_inline(memory_text)
@@ -626,16 +704,17 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
     intel_state = sp.parse_intel_block(memory_text)
     intl = (state or {}).get('intimate') if isinstance((state or {}).get('intimate'), dict) else {}
     mech = (state or {}).get('mechanics') if isinstance((state or {}).get('mechanics'), dict) else {}
+    mind_map = (state or {}).get('npc_mind') if isinstance((state or {}).get('npc_mind'), dict) else {}
 
     notes = []
     host = panel_map.get('系统宿主', {})
     if host:
         st = int(re.match(r'-?\d+', host.get('体力', '100')).group(0)) if re.match(r'-?\d+', host.get('体力', '100')) else 100
-        st_desc = '偏低（注意体力消耗）' if st < 20 else ('中等' if st < 50 else '充沛')
+        st_desc = '精力偏低(注意耗神)' if st < 20 else ('精力尚可' if st < 55 else '精力充沛')
         biz = int(re.match(r'-?\d+', host.get('商业嗅觉', '0')).group(0)) if re.match(r'-?\d+', host.get('商业嗅觉', '0')) else 0
         charm = int(re.match(r'-?\d+', host.get('魅力', '70')).group(0)) if re.match(r'-?\d+', host.get('魅力', '70')) else 70
         ctier = ic.charm_tier_info(charm)
-        charm_desc = f'（{ctier["name"]}：{ctier["brief"]}）' if charm >= 75 and ctier.get('brief') else ''
+        charm_part = f'，个人气场：{ctier["name"]}（{ctier["brief"]}）' if charm >= 75 and ctier.get('brief') else ''
         hp = intl.get('host_phys') if isinstance(intl.get('host_phys'), dict) else {}
         h_des = int(hp.get('desire', 0) or 0)
         h_vig = int(hp.get('vigor', 100) if hp.get('vigor') is not None else 100)
@@ -654,7 +733,7 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
             if h_vig < 15:
                 phys_parts.append('亲密耐力见底(体能透支动作略沉，宜稍作缓冲或温存收束)')
             elif h_vig < 45:
-                phys_parts.append(f'亲密耐力偏低({h_vig})')
+                phys_parts.append('亲密耐力偏低(体能消耗明显)')
             else:
                 phys_parts.append('亲密耐力充沛(护航中，日间体力锁底不中断)')
         if h_fets:
@@ -662,7 +741,7 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
         phys_clause = ('；' + '；'.join(phys_parts)) if phys_parts else ''
         extra = f'，积分{host.get("积分", "0")}，经验值{host.get("经验值", "0")}' if include_points else ''
         biz_note = f'{_biz_sense_desc(biz)}·深局棋手' if biz >= 80 else _biz_sense_desc(biz)
-        notes.append(f'宿主状态：体力{st}({st_desc})，魅力{charm}{charm_desc}，商业嗅觉{biz}[{biz_note}]{extra}{phys_clause}。')
+        notes.append(f'宿主状态：{st_desc}{charm_part}，商战眼界[{biz_note}]{extra}{phys_clause}。')
 
     if intel_state['held'] or int(intel_state.get('leverage_charges', 0) or 0) > 0:
         name_map = {it['id']: it['name'] for it in (intel_catalog or {}).get('items', [])}
@@ -704,10 +783,25 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
         passive = stats.get('被动', 'Lv.0')
         lv_m = re.search(r'Lv\.(\d+)', passive)
         lv_num = int(lv_m.group(1)) if lv_m else 0
-        lv_info = sp.passive_level_info(lv_num)
-        flags = [f'对宿主被动{lv_info["tag"]}({lv_info["name"]}：{lv_info["effect"]})']
-        if lv_num >= 1 and not remote:
-            flags.append('洞察之瞳激活(主角能捕捉她眼神躲闪、呼吸停顿与言不由衷的微妙破绽)')
+
+        core_parts = [_heroine_affection_desc(name, aff), _heroine_shame_desc(shame)]
+        dep_desc = _heroine_depravity_desc(dep)
+        if dep_desc:
+            core_parts.append(dep_desc)
+        aff_trend = int(((mind_map.get(name) or {}).get('aff_delta_last') or 0))
+        if aff_trend >= 3:
+            core_parts.append('近来对你态度比先前明显松动热络了些')
+        elif aff_trend >= 1:
+            core_parts.append('近来对你态度比先前略微缓和了半分')
+        elif aff_trend <= -3:
+            core_parts.append('刚因越界或摩擦心生芥蒂，态度明显收冷')
+        elif aff_trend <= -1:
+            core_parts.append('刚才略有不快，语气比平日收紧了些')
+
+        flags = []
+        pas_desc = _heroine_passive_desc(lv_num, remote=remote)
+        if pas_desc:
+            flags.append(pas_desc)
 
         char_buffs = buff_map.get(name, [])
         if char_buffs:
@@ -715,13 +809,13 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
             flags.append('生效持久化状态：' + b_desc)
 
         if desire >= 85:
-            flags.append('欲望处于高位滞留(≥85，呼吸与克制极难维持)')
+            flags.append('欲望处于高位滞留(呼吸与克制极难维持)')
         elif desire >= 80:
-            flags.append('欲望触及80瓶颈(需更高心理压迫或诱因方能突破)')
+            flags.append('欲望触及高位瓶颈(需更高心理压迫或诱因方能突破)')
         elif desire >= 70:
-            flags.append('欲望明显躁动(≥70，情绪易失衡空耗)')
+            flags.append('欲望明显躁动(情绪易失衡空耗)')
         elif desire >= 40:
-            flags.append('情欲已起微澜(40~69，肢体与声息敏锐度抬升)')
+            flags.append('情欲已起微澜(肢体与声息敏锐度抬升)')
         if orgasm >= 70:
             flags.append(f'临近生理峰值(高潮累积{orgasm}%)')
         elif orgasm >= 35:
@@ -731,13 +825,13 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
             flags.append(f'本场已达高潮{s_org}次(余韵敏锐且耐受下降)')
 
         if npc_st <= 15:
-            flags.append('体力跌至15及以下(生理断电期：未获玩家括号强行授权前严禁继续深/重度推进，须转入照料、低声安抚或余韵收束)')
+            flags.append('身心透支进入生理断电期(未获玩家括号强行授权前严禁继续深/重度推进，须转入照料、低声安抚或余韵收束)')
         elif npc_st < 40:
-            flags.append('体力偏低(神态略显疲倦，支撑克制更耗心力)')
+            flags.append('神态略显疲倦，支撑克制更耗心力')
 
         cap_val = int(dep_caps.get(name, 30) or 30)
-        if dep >= cap_val - 3 and cap_val < 100:
-            flags.append(f'受限于{cap_val}阶梯堕落锁(须清醒主动顺从或重大心理破口方能破锁)')
+        if dep >= cap_val - 3 and cap_val < 100 and dep > 0:
+            flags.append('心理沉沦触及阶段瓶颈(须清醒主动顺从或重大心理破口方能更进一步)')
         c_streak_raw = (mech.get('c_streak') or {}).get(name) if isinstance(mech.get('c_streak'), dict) else None
         c_streak = int((c_streak_raw or {}).get('count', 0) or 0) if isinstance(c_streak_raw, dict) else int(c_streak_raw or 0)
         if c_streak >= 1 and not remote:
@@ -772,10 +866,10 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
             if sc >= 20:
                 lv = ic.body_dev_level(sc)
                 star = '★' if z == sig_z else ''
-                dev_items.append(f"{save_store.BODY_ZONE_LABELS.get(z, z)}{star}Lv.{lv}({ic.BODY_DEV_LEVEL_LABELS.get(lv, '')})")
+                dev_items.append(f"{save_store.BODY_ZONE_LABELS.get(z, z)}{star}({ic.BODY_DEV_LEVEL_LABELS.get(lv, '')})")
         if dev_items:
             sig_lbl = save_store.BODY_ZONE_LABELS.get(sig_z, '')
-            flags.append(f'身体开发(招牌敏感带={sig_lbl})：' + '、'.join(dev_items))
+            flags.append(f'身体熟悉度(招牌敏感带={sig_lbl})：' + '、'.join(dev_items))
         elif intl.get('scene_active') and sig_z:
             sig_lbl = save_store.BODY_ZONE_LABELS.get(sig_z, '')
             flags.append(f'招牌敏感带={sig_lbl}(针对触碰更易破防升温)')
@@ -783,47 +877,48 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
         if not remote:
             ms = micro_map.get(name) or {}
             if ms.get('momentary_ease'):
-                flags.append('短期微状态：刚经历短暂缓和，神色戒备略松但底线仍在')
+                flags.append('刚经历短暂缓和，神色戒备略松但底线仍在')
             if ms.get('confusion_debt'):
-                flags.append('短期微状态：心底留有未说破的局促与自我辩解余波')
+                flags.append('心底留有未说破的局促与自我辩解余波')
             if ms.get('residual_tension'):
-                flags.append('短期微状态：刚经历高压接触，呼吸与肢体仍留余韵张力')
+                flags.append('刚经历高压接触，呼吸与肢体仍留余韵张力')
 
         if name == '苏婉青':
-            if su_unlocked or aff > 85:
-                flags.append('好感天花板85已解锁(上限95)')
-            else:
-                flags.append('好感天花板85未解锁')
+            if not (su_unlocked or aff > 85) and aff >= 75:
+                flags.append('心底仍对大房名分与徐承邺留着最后一层顾忌，尚未彻底交底')
             su_exposed = 'INTEL-002' in (mech.get('secrets_unlocked') or ())
             if su_exposed:
                 flags.append('眼线身份已被宿主当面揭穿(心虚受制，不再主动替徐承邺盯梢，开启私下周旋/妥协线)')
             elif not remote and location == '徐家主宅' and (aff < 70 or shame > 80):
-                flags.append('主宅探访见闻事后会向丈夫徐承邺汇报(眼线条件激活)')
+                flags.append('心底仍把丈夫立场摆在前头，回宅见闻事后多半会顺口告知徐承邺')
         phys = ((state or {}).get('physiology') or {}).get(name) or {}
         cp_cnt = int(phys.get('creampie_count', _int_stat(stats.get('内射', '0'), 0)) or 0)
         if cp_cnt == 1:
             flags.append('生涯首次内射印记已刻下(对亲密失控怀有深刻余悸与身体记忆)')
         elif cp_cnt >= 2:
-            flags.append(f'累计内射{cp_cnt}次(身体对宿主气息与失控侵入形成惯性)')
+            flags.append(f'已有多次亲密失守经历(身体对宿主气息形成隐秘惯性)')
         if stats.get('怀孕') == 'True' or phys.get('pregnancy_stage') == 'confirmed':
-            flags.append('已确诊怀孕(羞耻上限锁≤35，孕期易倦体态敏感与身份反差并存)')
+            flags.append('已确诊怀孕(孕期易倦、体态敏感与伦理身份反差并存)')
         elif phys.get('pregnancy_stage') == 'latent':
             flags.append('早孕潜伏微兆(尚未知情确诊，偶现嗜睡/晨起微恶心/小腹微胀)')
-        else:
+        elif intl.get('scene_active') or desire >= 45 or shame <= 75 or dep >= 15:
             c_phase = phys.get('cycle_phase')
             if not c_phase:
                 cur_day = int(((((state or {}).get('progression') or {}).get('runtime') or {}).get('clock') or {}).get('day') or 1)
                 c_phase = ic.determine_cycle_phase(name, cur_day)
             if c_phase == '危险期':
-                flags.append('生理周期：危险期')
+                flags.append('生理周期正值敏感危险期')
             elif c_phase == '安全期' and (desire >= 55 or shame < 80):
-                flags.append('生理周期：安全期')
+                flags.append('生理周期处于安全期')
         if int(phys.get('masturbation_trace', 0) or 0) > 0:
             flags.append('自渎余韵(近期曾暗中自慰泄欲，面对宿主易心虚闪躲或腿根发软)')
         if int(phys.get('unrelieved_streak', 0) or 0) >= 1:
-            flags.append(f'欲求未平(连续{phys["unrelieved_streak"]}轮高欲未纾解)')
-        prefix = f'【远程监控对象态势】{name}' if remote else f'{name}当轮态势'
-        return f'{prefix}：好感{aff}/羞耻{shame}/堕落{dep}（{"；".join(flags)}；严禁在台词中直呼数值）。'
+            flags.append('高欲久未纾解，气息与心神暗藏燥意')
+        prefix = f'【远程监控对象态势】{name}' if remote else f'{name}当下心理与边界'
+        core_txt = '；'.join(core_parts)
+        if flags:
+            return f'{prefix}：{core_txt}（{"；".join(flags)}）。'
+        return f'{prefix}：{core_txt}。'
 
     vig_pub = (state or {}).get('vigilance') if isinstance((state or {}).get('vigilance'), dict) else {}
     vig_targets_pub = vig_pub.get('targets') if isinstance(vig_pub.get('targets'), dict) else {}
@@ -1235,6 +1330,38 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
         'player_input': text,
         'operation_context': operation_context,
     }
+    raw_mind = (state or {}).get('npc_mind') if isinstance((state or {}).get('npc_mind'), dict) else {}
+    cast_mind_view = {}
+    for cname in cast:
+        cm = raw_mind.get(cname)
+        if not isinstance(cm, dict):
+            continue
+        entry = {}
+        if cm.get('mood') and int(cm.get('mood_ttl') or 0) > 0:
+            entry['余绪'] = cm['mood']
+        if cm.get('preoccupation'):
+            entry['手头牵挂'] = cm['preoccupation']
+        imps = [it['text'] for it in (cm.get('impressions') or []) if isinstance(it, dict) and it.get('text')]
+        if imps:
+            entry['对志北的暗自印象'] = imps[-2:]
+        if entry:
+            cast_mind_view[cname] = entry
+    if cast_mind_view:
+        delta['cast_mind'] = {
+            'people': cast_mind_view,
+            'rule': '在场人物此刻的未散余绪、手头牵挂与暗自记账：作为内在驱动自然流露、借题发挥或隔幕提起，严禁生硬复读原文，更禁开上帝视角读主角括号内心。',
+        }
+    if scene_turns <= 1 and cast and not intimate_active_now:
+        dstate_entry = sp.parse_director_block(memory_text) if memory_text else {}
+        entry_res = sp.build_scene_entry_snapshot(
+            root, location, cast, weekday=cur_weekday, clock=clock,
+            director_state=dstate_entry, npc_mind=raw_mind,
+        )
+        if entry_res:
+            delta['scene_entry_residue'] = {
+                'moments': entry_res,
+                'rule': '进场即中途：切入本幕前一刻屋里人物正忙到半途的生活余温，可择一二自然织入开场，不必人人报流水账。',
+            }
     if intimate_active_now:
         delta['intimate_mode'] = True
         delta['active_costs'] = intl_now.get('active_costs') or sp.COSTS
@@ -1437,9 +1564,17 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
 
     elif mode == 'dual_stream_v2':
         heroines_here = [c for c in cast if c in save_store.HEROINES]
+        lateral_hint = (
+            '同场多位人物之间须自然留出至少1拍彼此直接接话、眼神暗递、替对方圆场或轻声拆台，切忌排队只朝徐志北发言。'
+            if len(cast) >= 2 else ''
+        )
         multi_hint = (
             '当前同地有两位以上女主在场，可按当前关系与防线自然提供暗触试探、避开视线、醋意周旋或高堕落共谋的选项（严守宿主主权，绝不强推）。'
             if len(heroines_here) >= 2 else ''
+        )
+        acting_anchor = (
+            '演法锚点：先让在场人物活出各自手头事、未散余绪与彼此间的真实空气，允许斜向回应、合理误判与分寸摩擦，再自然承接主角行动。'
+            if cast else ''
         )
         if intimate_active_now:
             tier_c = intl_now.get('active_costs') or sp.COSTS
@@ -1453,14 +1588,14 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
             decision_clause = f'文末完整单行---DECISION---后接PROMPT:与A:/B:/C:三项互异抉择。{multi_hint}'
         if style == 'faithful':
             delta['output_format'] = (
-                '逐行以[N]/[A:名]/[D:在场角色名]起头：自然承接玩家意图，动作与对白自由穿插（快节奏可连发[D]，不必每句台词硬配动作）；'
-                '允许≤3句贴合原意图的简短[D:徐志北]（单句≤40字、零标签）；[D:名]只写纯台词（禁混入动作旁白或外层引号），三女主可按需用导演[...]与词级标签；'
-                + decision_clause
+                '逐行以[N]/[A:名]/[D:在场角色名]起头：动作与对白自由穿插（快节奏可连发[D]，不必每句硬配动作）；'
+                '允许≤3句贴合原意图的简短[D:徐志北]（单句≤40字、零标签）；[D:名]只写纯台词（禁动作旁白或外层引号），三女主按需用导演[...]与词级标签。'
+                + lateral_hint + acting_anchor + decision_clause
             )
         else:
             delta['output_format'] = (
-                '逐行以[N]/[A:名]/[D:在场角色名]起头（严禁[D:徐志北]，以[A:徐志北]/[N]自然呈现主角动作与提问；[D:名]只写纯台词禁混入动作旁白或外层引号，快节奏可连发[D]）；'
-                + decision_clause
+                '逐行以[N]/[A:名]/[D:在场角色名]起头（严禁[D:徐志北]，以[A:徐志北]/[N]呈现主角动作与提问；[D:名]只写纯台词禁动作旁白或外层引号，快节奏可连发[D]）。'
+                + lateral_hint + acting_anchor + decision_clause
             )
 
     return json.dumps(delta, ensure_ascii=False, separators=(',', ':'), allow_nan=False)
@@ -1534,9 +1669,9 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
         '系统商城兑换与委托奖励领取已由前端确定性通道处理，无兑换或任务待发资格时严禁填 action=="add"，无正文逐字依据时 resolution.items 写 []；'
         '确有正文依据时每项为 {"entry":{"name":"道具名","action":"add|consume|archive",...},"evidence":"正文原样子串"}。\n'
         '11. 商业情报亮牌：情报整理入库与商业杠杆预备已由前端确定性通道处理；仅当玩家在正文中明确亮牌动用 context.held_intel 中某条一次性情报时，才可选填 resolution.intel_used={"id":"INTEL-00X","target":"合法对象","evidence":"正文原样子串"}，否则省略或写 ""。\n'
-        '12. 活体世界回响（可选）：仅当 context.cost_preview.kind=="action" 时，可选填 resolution.director_echo 对象（无新线头或无变化直接省略或写""，严禁编造）：'
-        '{"new_thread":{"who":["角色名"],"topic":"<=28字具体未完线头/承诺/破绽/藏物","tension":"soft|hard"}或"","close_thread":"本幕已实质了结的director_context.active_threads编号或""","clock_nudges":{"CLK_XXX":1或-1}或{},"used_channel":"若本幕真实出现外部变故，填director_context.channels_enum之一，否则"""}；'
-        '只摘取正文已发生且具后续拉扯价值的具体钩子（纯寒暄不建线头），严禁泄露未解锁绝密。\n'
+        '12. 活体世界回响（可选）：仅当 context.cost_preview.kind=="action" 时，可选填 resolution.director_echo 对象（无变化省略或写""，严禁编造）：'
+        '{"new_thread":{"who":["角色名"],"topic":"<=28字具体未完线头/承诺/破绽/藏物","tension":"soft|hard"}或"","close_thread":"本幕已了结的active_threads编号或""","clock_nudges":{"CLK_XXX":1或-1}或{},"used_channel":"真实变故填channels_enum之一否则""","mind_updates":{"在场角色名":{"mood":"<=32字未散余绪","preoccupation":"<=36字新牵挂","impression":"<=36字对志北新主观印象或心结"}}}；'
+        'mind_updates仅在正文确有情绪余波/新牵挂/记账印象时摘录（无变化省略），严禁泄露未解锁绝密。\n'
         '13. 段末抉择兜底补全（仅缺省时触发）：若 foreground_script 末尾已含完整 ---DECISION--- 与 A/B/C 三项抉择，请省略 fallback_decision；'
         '仅当 foreground_script 正文有效但漏写或截断了 ---DECISION--- / A/B/C 抉择时，补充 fallback_decision={"prompt":"点明当前局面的简短提示(<=300字)","options":[{"id":"A","text":"日常互动(<=500字)"},{"id":"B","text":"社交接触(<=500字)"},{"id":"C","text":"主动行为(<=500字)"}]}'
         '（三项须互不相同且承接本幕末尾局面；含跨地点转场时可给该项附带 "operation":{"code":"move_player","destination":"合法开放地点"}，无转场勿填 operation）。\n'
@@ -1579,11 +1714,22 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
         {'id': it['id'], 'name': it['name'], 'targets': sorted(it['effects'].keys())}
         for it in icat.get('items', []) if it['id'] in istate['held']
     ]
+    raw_mind_s2 = (state or {}).get('npc_mind') if isinstance((state or {}).get('npc_mind'), dict) else {}
+    cast_mind_s2 = {
+        cname: {
+            'mood': (raw_mind_s2.get(cname) or {}).get('mood', ''),
+            'preoccupation': (raw_mind_s2.get(cname) or {}).get('preoccupation', ''),
+            'impressions': [it.get('text', '') for it in ((raw_mind_s2.get(cname) or {}).get('impressions') or []) if isinstance(it, dict) and it.get('text')],
+        }
+        for cname in ((state or {}).get('cast') or ())
+        if cname in raw_mind_s2
+    }
     user_context = {
         'location': (state or {}).get('location'),
         'cast': (state or {}).get('cast', []),
         'presence': (state or {}).get('presence', {}),
         'intimate': (state or {}).get('intimate'),
+        'cast_mind': cast_mind_s2,
         'panels': panels,
         'task_whitelist_current': _extract_task_whitelist_values(panels),
         'held_intel': held_intel,

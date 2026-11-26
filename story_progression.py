@@ -1179,7 +1179,170 @@ def _sanitize_director_echo(raw, catalog, dstate, is_action):
     if isinstance(uc, str) and uc.strip() in channels_map:
         out['used_channel'] = uc.strip()
 
+    mu = raw.get('mind_updates')
+    if isinstance(mu, dict):
+        clean_mu = {}
+        invalid_tokens = {'无', '暂无', '（空）', '空', 'none', 'null', '无变化'}
+        for who, patch in mu.items():
+            wname = str(who).strip()
+            if wname not in save_store.NPC_MIND_TARGETS or not isinstance(patch, dict):
+                continue
+            entry = {}
+            for field, limit in (('mood', 40), ('preoccupation', 48), ('impression', 48)):
+                val = patch.get(field)
+                if isinstance(val, str):
+                    txt = _clean_single_line(val)[:limit]
+                    if len(txt) >= 3 and txt.lower() not in invalid_tokens:
+                        entry[field] = txt
+            if entry:
+                clean_mu[wname] = entry
+        if clean_mu:
+            out['mind_updates'] = clean_mu
+
     return out or None
+
+
+def advance_npc_mind(st_final, mind_updates=None, *, active_cast=(), overnight=False, day_crossed=False, aff_deltas=None):
+    """Decay transient moods/impressions and apply optional Stage 2 mind_updates with zero extra LLM calls."""
+    if not isinstance(st_final, dict):
+        return
+    mind_map = st_final.setdefault('npc_mind', save_store.default_npc_mind())
+    cast_set = set(active_cast or ())
+    updates = mind_updates if isinstance(mind_updates, dict) else {}
+    aff_map = aff_deltas if isinstance(aff_deltas, dict) else {}
+
+    for name in save_store.NPC_MIND_TARGETS:
+        slot = mind_map.get(name)
+        if not isinstance(slot, dict):
+            slot = copy.deepcopy(save_store.default_npc_mind()[name])
+            mind_map[name] = slot
+        # 1. Mood inertia decay (overnight or day boundary cools lingering temper)
+        if overnight or day_crossed:
+            slot['mood'] = ''
+            slot['mood_ttl'] = 0
+        else:
+            cur_ttl = max(0, int(slot.get('mood_ttl') or 0))
+            if cur_ttl > 0:
+                cur_ttl -= 1
+                slot['mood_ttl'] = cur_ttl
+                if cur_ttl <= 0:
+                    slot['mood'] = ''
+        # 2. Subjective impressions decay (only for active cast or on day cross)
+        old_imps = slot.get('impressions') if isinstance(slot.get('impressions'), list) else []
+        next_imps = []
+        for item in old_imps:
+            if not isinstance(item, dict) or not item.get('text'):
+                continue
+            ittl = max(0, int(item.get('ttl') or 0))
+            if day_crossed or name in cast_set:
+                ittl -= 1
+            if ittl > 0:
+                next_imps.append({'text': str(item['text'])[:48], 'ttl': ittl})
+        slot['impressions'] = next_imps[-2:]
+        # 3. Apply Stage 2 mind_updates (zero-cost piggyback on director_echo)
+        patch = updates.get(name)
+        if isinstance(patch, dict):
+            if patch.get('mood'):
+                slot['mood'] = _clean_single_line(patch['mood'])[:40]
+                slot['mood_ttl'] = 2
+            if patch.get('preoccupation'):
+                slot['preoccupation'] = _clean_single_line(patch['preoccupation'])[:48]
+            if patch.get('impression'):
+                new_imp = _clean_single_line(patch['impression'])[:48]
+                replaced = False
+                for existing in slot['impressions']:
+                    if _thread_topic_similar(existing['text'], new_imp):
+                        existing['text'] = new_imp
+                        existing['ttl'] = 6
+                        replaced = True
+                        break
+                if not replaced:
+                    slot['impressions'].append({'text': new_imp, 'ttl': 6})
+                slot['impressions'] = slot['impressions'][-2:]
+        # 4. Track subtle recent affection trend for de-numericized qualitative brief
+        if name in save_store.HEROINES:
+            dval = int(aff_map.get(name, 0) or 0)
+            if dval != 0:
+                slot['aff_delta_last'] = max(-20, min(20, dval))
+            elif overnight or day_crossed:
+                slot['aff_delta_last'] = 0
+            else:
+                prev_d = int(slot.get('aff_delta_last') or 0)
+                slot['aff_delta_last'] = int(prev_d / 2) if abs(prev_d) > 1 else 0
+
+
+_SCENE_RESIDUE_TABLE = {
+    ('沈知韫', '徐家主宅', 'morning'): '刚核完几封早间工作邮件，手机扣在餐桌边，杯里黑咖啡凉了一截',
+    ('沈知韫', '徐家主宅', 'afternoon'): '刚吩咐完厨房调整午后茶点，平板屏还停在集团月度简报页',
+    ('沈知韫', '徐家主宅', 'evening'): '刚卸下外出耳饰、换回居家开衫，手里还捏着一份没看完的对账折页',
+    ('沈知韫', '徐家主宅', 'night'): '书房台灯只开了一盏，脚尖半挂着拖鞋，正揉着发酸的眉心收尾批注',
+    ('沈知韫', '公司', 'morning'): '刚散完早会回办公室，桌角叠着两份待签字的文件，语音条还没点完',
+    ('沈知韫', '公司', 'afternoon'): '正站在落地窗边接完一通供应商电话，保温杯里的花茶已经放温',
+    ('沈知韫', '公司', 'evening'): '办公楼外已渐暗，正把最后一份风控复核单收进文件夹准备收工',
+    ('沈知韫', '公司', 'night'): '整层楼只剩董事长室亮着灯，高跟鞋脱在桌下，正低头划掉报表里的疑点',
+    ('苏婉青', '徐家主宅', 'morning'): '刚把带来的老字号点心盒放上餐边柜，顺手理平针织裙下摆',
+    ('苏婉青', '徐家主宅', 'afternoon'): '刚帮婆婆添过半盏温水，手机屏幕在手包边悄悄亮了一下又被按暗',
+    ('苏婉青', '徐家主宅', 'evening'): '刚整理好准备带回公寓的随身小包，正盘算着晚点怎么回承邺的消息',
+    ('苏婉青', '市中心顶层公寓', 'morning'): '刚给阳台绿植喷完水，茶几上摆着切了一半的橙子和没来得及收的快递盒',
+    ('苏婉青', '市中心顶层公寓', 'afternoon'): '窝在落地窗边翻家居杂志，屋里静得能听见挂钟轻响，电视开着静音',
+    ('苏婉青', '市中心顶层公寓', 'evening'): '刚热好一人份晚汤却没动几口，正把冷掉的手机搁回沙发扶手边',
+    ('苏婉青', '市中心顶层公寓', 'night'): '洗完澡只留了客厅一盏暖色落地灯，赤脚踩在地毯上正准备拉拢窗帘',
+    ('徐念薇', '徐家主宅', 'morning'): '半靠在窗边回导师语音，指缝还沾着一点没搓净的颜料边',
+    ('徐念薇', '徐家主宅', 'afternoon'): '戴着单边蓝牙耳机翻画册参考，脚尖轻轻点着椅子横档',
+    ('徐念薇', '徐家主宅', 'evening'): '刚从外头回宅把帆布画袋往玄关一放，手腕上还绕着一根沾灰的发圈',
+    ('徐念薇', '徐家主宅', 'night'): '捧着杯温水在客厅角落刷展览投稿进度，发梢还带着刚洗过的微潮',
+    ('徐念薇', '大学', 'morning'): '刚下完素描评图课，怀里抱着速写本正准备避开熟人找安静角落',
+    ('徐念薇', '大学', 'afternoon'): '正坐在系楼长廊边修改草图构图，铅笔屑落在帆布裙摆上还没拍掉',
+    ('徐念薇', '工作室', 'morning'): '正把几幅半成品油画靠墙重新排光，空气里浮着淡淡松节油味',
+    ('徐念薇', '工作室', 'afternoon'): '踩着矮凳给新画框绷麻布，嘴里咬着发圈，地上散着两张废稿',
+    ('徐念薇', '工作室', 'evening'): '拿画刀刮掉调色盘边干硬的颜料，窗外晚霞刚从画布边沿退下去',
+    ('徐念薇', '工作室', 'night'): '画室只留了一盏冷白工作灯，围裙下摆蹭了道灰蓝，正盯着二稿出神',
+    ('徐承邺', '徐家主宅', 'morning'): '西装袖扣刚扣好一半，正站在客厅边听助理语音边扫过餐桌',
+    ('徐承邺', '徐家主宅', 'afternoon'): '靠在真皮沙发里划着项目报表，手边放着新捎回来的高价茶叶礼盒',
+    ('徐承邺', '徐家主宅', 'evening'): '刚应酬完进门松了半截领带，身上带着一点酒气与烟草余味',
+    ('徐承邺', '市中心顶层公寓', 'evening'): '正把公文包随手放上玄关柜，顺口问起这两天主宅那边的动静',
+    ('徐承邺', '市中心顶层公寓', 'night'): '松开衬衫最上面两颗扣子靠在书房椅背上，还在翻手机里的并购群消息',
+}
+
+
+def build_scene_entry_snapshot(root, location, cast, weekday='', clock=None, director_state=None, npc_mind=None):
+    """Deterministic zero-cost 'in medias res' activity residue when entering a scene (scene_turns <= 1)."""
+    if not cast:
+        return {}
+    slot = _clock_time_slot(clock)
+    dstate = director_state if isinstance(director_state, dict) else {}
+    clocks = dstate.get('offstage_clocks') if isinstance(dstate.get('offstage_clocks'), dict) else {}
+    catalog = load_world_beats(root, optional=True)
+    clocks_cfg = catalog.get('offstage_clocks') or {}
+    # Find hot offstage clocks (progress >= 2) owned by in-scene characters
+    hot_clock_by_owner = {}
+    for cid, meta in clocks_cfg.items():
+        owner = meta.get('owner')
+        cst = clocks.get(cid) or {}
+        if owner in cast and int(cst.get('p') or 0) >= 2:
+            phases = meta.get('phases') or []
+            if phases:
+                ph = phases[int(cst.get('ph') or 0) % len(phases)]
+                lbl = str(ph.get('label') or '').strip()
+                if lbl:
+                    hot_clock_by_owner[owner] = lbl
+    out = {}
+    for name in cast:
+        if name not in save_store.NPC_MIND_TARGETS:
+            continue
+        base = _SCENE_RESIDUE_TABLE.get((name, location, slot))
+        if not base:
+            # Fallback by character + slot or generic natural activity
+            for alt_loc in ('徐家主宅', '市中心顶层公寓', '工作室', '公司'):
+                if (name, alt_loc, slot) in _SCENE_RESIDUE_TABLE:
+                    base = _SCENE_RESIDUE_TABLE[(name, alt_loc, slot)]
+                    break
+        if not base:
+            continue
+        if name in hot_clock_by_owner:
+            base = f'{base}（心头正压着「{hot_clock_by_owner[name]}」的余波）'
+        out[name] = base
+    return out
 
 
 def build_director_settlement_context(root, memory_text, director_roll=None):
@@ -3267,10 +3430,26 @@ def apply_staged(store,engine,stage,body,files,parsed):
                 'grade':it.get('grade','T1'),'grade_label':it.get('grade_label','T1 寻常'),
             } for it in sa_res['added']]
             shop_rejected=list(sa_res['rejected'])
+    before_values=panel_values(engine,before)
+    if kind!='item':
+        aff_deltas={
+            h: int((st_final.get('panels',{}).get(h) or {}).get('好感',0)) - int(before_values.get((h,'好感'), (st_final.get('panels',{}).get(h) or {}).get('好感',0)))
+            for h in save_store.HEROINES
+            if h in (st_final.get('panels') or {})
+        }
+        de_obj=parsed.get('director_echo') if isinstance(parsed.get('director_echo'),dict) else {}
+        advance_npc_mind(
+            st_final,
+            mind_updates=de_obj.get('mind_updates') if kind=='action' else None,
+            active_cast=active_cast,
+            overnight=(parsed['sleep']['kind']=='overnight'),
+            day_crossed=crossed,
+            aff_deltas=aff_deltas,
+        )
     if merged:
         ly_final['prologue_active']=False
     save_store.save_bundle(stage,st_final,ly_final)
-    after_memory=memory_path.read_text(encoding='utf-8');before_values=panel_values(engine,before);after_values=panel_values(engine,after_memory)
+    after_memory=memory_path.read_text(encoding='utf-8');after_values=panel_values(engine,after_memory)
     changes=[{'target':name,'attribute':attr,'before':old,'after':after_values[key],
               'delta':(1 if after_values[key] else -1) if isinstance(old,bool) else after_values[key]-old}
              for key,old in before_values.items() for name,attr in (key,) if key in after_values and after_values[key]!=old]

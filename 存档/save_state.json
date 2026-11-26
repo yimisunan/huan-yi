@@ -200,6 +200,36 @@
       "residual_tension": false
     }
   },
+  "npc_mind": {
+    "徐念薇": {
+      "aff_delta_last": 0,
+      "impressions": [],
+      "mood": "",
+      "mood_ttl": 0,
+      "preoccupation": "青年画展二稿配色一直卡着，不想被家里催着掺和徐家事务"
+    },
+    "徐承邺": {
+      "aff_delta_last": 0,
+      "impressions": [],
+      "mood": "",
+      "mood_ttl": 0,
+      "preoccupation": "外地并购谈判拉锯中，急着在母亲面前做出亮眼实绩"
+    },
+    "沈知韫": {
+      "aff_delta_last": 0,
+      "impressions": [],
+      "mood": "",
+      "mood_ttl": 0,
+      "preoccupation": "留意深圳分部近期对账风波，顺便掂量志北近来有没有进公司看看的心思"
+    },
+    "苏婉青": {
+      "aff_delta_last": 0,
+      "impressions": [],
+      "mood": "",
+      "mood_ttl": 0,
+      "preoccupation": "留意主宅近况好应付丈夫晚间来电，同时在婆婆面前拿捏周全分寸"
+    }
+  },
   "panels": {
     "徐念薇": {
       "体力": 100,

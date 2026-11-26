@@ -967,6 +967,120 @@ class StoryCompilerTests(unittest.TestCase):
         self.assertIn('host_charm_tier: w.host_charm_tier', js_txt)
         self.assertIn('intimate: w.intimate', js_txt)
 
+    def test_living_character_agency_plan_b_five_pillars(self):
+        """Five-pillar living character agency (anti-puppetry) invariants."""
+        import copy
+        import save_store
+        import story_progression as sp
+
+        # 1. Pillar 1: De-numericized qualitative brief + role-specific tiers + micro-trend
+        st = save_store.default_state()
+        st['npc_mind']['沈知韫']['aff_delta_last'] = 4
+        st['npc_mind']['徐念薇']['aff_delta_last'] = -3
+        mem_txt = save_store.render_memory_txt(st, save_store.default_layers())
+        state3 = {
+            'location': '徐家主宅',
+            'cast': ['沈知韫', '苏婉青', '徐念薇'],
+            'panels': [ln for ln in mem_txt.splitlines() if ln.startswith('[') and ']' in ln],
+            'presence': st['presence'],
+            'intimate': st['intimate'],
+            'mechanics': st['mechanics'],
+            'npc_mind': st['npc_mind'],
+        }
+        brief = sc.compile_state_qualitative_brief(state3, mem_txt)
+        self.assertIn('天然偏护信任', brief)
+        self.assertIn('明显松动热络', brief)
+        self.assertIn('态度明显收冷', brief)
+        self.assertNotIn('好感82/羞耻100/堕落0', brief)
+        self.assertNotIn('凡人体质', brief)
+        self.assertNotIn('好感天花板85未解锁', brief)
+
+        # 2. Pillar 2: npc_mind normalization, sanitizer whitelist, TTL decay & overnight cooling
+        upgraded = save_store.normalize_state({})
+        self.assertEqual(set(upgraded['npc_mind'].keys()), set(save_store.NPC_MIND_TARGETS))
+        cat = sp.load_world_beats(ROOT, optional=True)
+        dstate = sp.parse_director_block(mem_txt)
+        san = sp._sanitize_director_echo(
+            {
+                'mind_updates': {
+                    '徐念薇': {'mood': '被敷衍戳得有点堵', 'preoccupation': '改画展二稿', 'impression': '觉得志北今天话里有话'},
+                    '路人甲': {'mood': '非法角色应被过滤'},
+                    '沈知韫': {'mood': '无'},
+                }
+            },
+            cat, dstate, is_action=True,
+        )
+        self.assertIn('mind_updates', san)
+        self.assertIn('徐念薇', san['mind_updates'])
+        self.assertNotIn('路人甲', san['mind_updates'])
+        self.assertNotIn('沈知韫', san['mind_updates'])
+
+        st_m = copy.deepcopy(st)
+        sp.advance_npc_mind(st_m, san['mind_updates'], active_cast=['徐念薇'], aff_deltas={'徐念薇': 2})
+        self.assertEqual(st_m['npc_mind']['徐念薇']['mood'], '被敷衍戳得有点堵')
+        self.assertEqual(st_m['npc_mind']['徐念薇']['mood_ttl'], 2)
+        self.assertEqual(st_m['npc_mind']['徐念薇']['aff_delta_last'], 2)
+        self.assertEqual(len(st_m['npc_mind']['徐念薇']['impressions']), 1)
+        # Next turn decays mood_ttl 2 -> 1 (still present)
+        sp.advance_npc_mind(st_m, None, active_cast=['徐念薇'])
+        self.assertEqual(st_m['npc_mind']['徐念薇']['mood_ttl'], 1)
+        self.assertTrue(st_m['npc_mind']['徐念薇']['mood'])
+        # Overnight clears mood immediately while keeping subjective impression & preoccupation
+        sp.advance_npc_mind(st_m, None, active_cast=['徐念薇'], overnight=True)
+        self.assertEqual(st_m['npc_mind']['徐念薇']['mood'], '')
+        self.assertEqual(st_m['npc_mind']['徐念薇']['mood_ttl'], 0)
+        self.assertEqual(st_m['npc_mind']['徐念薇']['preoccupation'], '改画展二稿')
+        self.assertEqual(len(st_m['npc_mind']['徐念薇']['impressions']), 1)
+
+        # 3 & 4. Pillar 3 & 4: Zone 0 anti-puppetry, Zone 2 cast_mind (cast-only), scene_entry_residue (turn 1 only), lateral hint
+        z0 = sc.build_zone0_global(ROOT, mode='dual_stream_v2', protagonist_style='faithful')
+        self.assertLess(len(z0), 9200)
+        for token in ('活人演法与建设性摩擦', '斜向回应', '心智理论与合理误判', '多人同场横向空气'):
+            self.assertIn(token, z0)
+
+        z1 = sc.build_zone1_scene(ROOT, state3, state3['cast'], [], mem_txt, mode='dual_stream_v2')
+        self.assertLess(len(z1), 6800)
+        self.assertIn('活人骨相·主动/盲区/横向反应', z1)
+
+        proj = {'text': '【L1】周日午宴', 'current': None, 'index': [], 'transfers': {}, 'limits': {'round_chars': 600}}
+        d1 = json.loads(sc.build_user_delta(
+            ROOT, state3, proj, history=[], new_history_only=[],
+            text='坐下倒水', selected=None, resolved_op=None, intent_evidence=None,
+            preview_cost={'before': 100, 'reserved': 5},
+            runtime={'clock': {'day': 1, 'time': '12:15'}, 'memory_round': 1, 'phase': 'ready'},
+            memory_text=mem_txt, include_full_anchor=True, mode='dual_stream_v2',
+            director_roll={'scene_turns_in_place': 1},
+        ))
+        self.assertIn('cast_mind', d1)
+        self.assertNotIn('徐承邺', d1['cast_mind']['people'])
+        self.assertIn('scene_entry_residue', d1)
+        self.assertIn('沈知韫', d1['scene_entry_residue']['moments'])
+        self.assertIn('彼此直接接话', d1['output_format'])
+        self.assertIn('演法锚点', d1['output_format'])
+
+        # Turn 2 in same place omits scene_entry_residue
+        d2 = json.loads(sc.build_user_delta(
+            ROOT, state3, proj, history=[], new_history_only=[],
+            text='继续聊', selected=None, resolved_op=None, intent_evidence=None,
+            preview_cost={'before': 95, 'reserved': 5},
+            runtime={'clock': {'day': 1, 'time': '12:30'}, 'memory_round': 1, 'phase': 'ready'},
+            memory_text=mem_txt, include_full_anchor=False, mode='dual_stream_v2',
+            director_roll={'scene_turns_in_place': 2},
+        ))
+        self.assertNotIn('scene_entry_residue', d2)
+
+        # 5. Pillar 5 + Stage 2 budget & mind_updates piggyback
+        settle = sc.build_settlement_spec(
+            ROOT, state3, proj, text='聊聊', selected={'segment_id': 's1', 'option_id': 'A'},
+            resolved_op=None, intent_evidence=None, preview_cost={'kind': 'action', 'before': 100, 'reserved': 5},
+            runtime={'clock': {'day': 1, 'time': '12:15'}, 'memory_round': 1, 'phase': 'ready'},
+            memory_text=mem_txt, resolution_policy={'category_policy': 'fixed_option', 'required_category': 'A'},
+            output_contract={'operation': '', 'handoff': '', 'checks': {}, 'resolution': {}}, operation_context={},
+        )
+        self.assertLess(len(settle['system_prompt']), 12500)
+        self.assertIn('mind_updates', settle['system_prompt'])
+        self.assertIn('cast_mind', settle['user_context'])
+
 
 if __name__ == '__main__':
     unittest.main()
