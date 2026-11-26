@@ -895,12 +895,44 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
 MAX_PLAYER_DIALOGUE_PER_TURN = 3
 
 
+CUSTOM_RULES_POSITIONS = ('append', 'prepend')
+
+
 def normalize_protagonist_style(value):
     return 'silent' if str(value or '').strip().lower() == 'silent' else 'faithful'
 
 
-def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'):
-    """Build globally frozen Zone 0 system prompt (goes into Operit card characterSetting)."""
+def normalize_custom_rules_position(value):
+    return 'prepend' if str(value or '').strip().lower() == 'prepend' else 'append'
+
+
+def normalize_custom_rules_text(value):
+    if not isinstance(value, str):
+        return ''
+    return value.replace('\r\n', '\n').replace('\r', '\n')
+
+
+def _apply_custom_rules_section(base_text, cfg, *, enabled_key, position_key, text_key, header, footer):
+    if not isinstance(cfg, dict):
+        return base_text
+    if enabled_key in cfg or text_key in cfg or position_key in cfg:
+        enabled = bool(cfg.get(enabled_key, False))
+        position = normalize_custom_rules_position(cfg.get(position_key, 'append'))
+        body = normalize_custom_rules_text(cfg.get(text_key, '')).strip()
+    else:
+        enabled = bool(cfg.get('enabled', False))
+        position = normalize_custom_rules_position(cfg.get('position', 'append'))
+        body = normalize_custom_rules_text(cfg.get('text', '')).strip()
+    if not enabled or not body:
+        return base_text
+    block = f'{header}\n{body}\n{footer}'
+    if position == 'prepend':
+        return _clean_text(f'{block}\n\n{base_text}')
+    return _clean_text(f'{base_text}\n\n{block}')
+
+
+def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful', custom_rules=None):
+    """Build globally frozen Zone 0 system prompt (injected via Operit native system prompt hook)."""
     style = normalize_protagonist_style(protagonist_style)
     codex = compile_codex_runtime(root)
     world_rules = compile_knowledge_rules(
@@ -989,7 +1021,16 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
     parts = [protocol, codex, global_kb]
     if host_section:
         parts.append(host_section)
-    return _clean_text('\n\n'.join(parts))
+    base_zone0 = _clean_text('\n\n'.join(parts))
+    return _apply_custom_rules_section(
+        base_zone0,
+        custom_rules,
+        enabled_key='custom_rules_enabled',
+        position_key='custom_rules_position',
+        text_key='custom_rules_text',
+        header='【玩家自定义系统级规则（主模型前景演播最高偏好覆写；严禁违背底层输出格式标签、在场发言白名单与未解锁知情红线）】',
+        footer='【自定义系统级规则结束】',
+    )
 
 
 def build_zone1_scene(root, state, cast, references=(), memory_text='', extra_text='',
@@ -1414,7 +1455,8 @@ def _extract_transfer_source_bodies(memory_text, transfers):
 
 def build_settlement_spec(root, state, projection, text, selected, resolved_op, intent_evidence,
                           preview_cost, runtime, memory_text, resolution_policy, output_contract,
-                          operation_context, required_sources=(), intel_catalog=None, director_roll=None):
+                          operation_context, required_sources=(), intel_catalog=None, director_roll=None,
+                          settlement_custom_rules=None):
     """Build static-system + compact-user specification for background SUMMARY Tools.Chat.call."""
     catalog = compile_event_catalog(root, live_mode=True)
     sys_rules = compile_knowledge_rules(root, state, memory_text, '', mode='settlement')
@@ -1471,6 +1513,15 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
         + json.dumps(catalog, ensure_ascii=False, separators=(',', ':'))
         + '\n\n【事件触发判定精简规则】\n'
         + '\n\n'.join(item['body'] for item in sys_rules)
+    )
+    system_prompt = _apply_custom_rules_section(
+        system_prompt,
+        settlement_custom_rules,
+        enabled_key='settlement_custom_rules_enabled',
+        position_key='settlement_custom_rules_position',
+        text_key='settlement_custom_rules_text',
+        header='【玩家自定义后台结算规则（副模型结算补充偏好；严禁违背裸JSON输出格式、合法标签白名单与原文evidence逐字引用铁律）】',
+        footer='【自定义后台结算规则结束】',
     )
 
     current_l1 = ''

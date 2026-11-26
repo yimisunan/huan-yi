@@ -1,6 +1,7 @@
 "use strict";
 
 const CHANNEL = 'story.bridge.control';
+const THEATER_ROUTE = 'toolpkg:local.story.operit_bridge:ui:theater';
 
 const SLOT_LABELS = {
     CHAT: 'CHAT（主聊天）',
@@ -13,7 +14,6 @@ const SLOT_LABELS = {
 };
 
 const BASE_SLOTS = ['SUMMARY', 'TRANSLATION', 'TITLE_GENERATION', 'MEMORY', 'GREP', 'ROLE_RESPONSE_PLANNER', 'CHAT'];
-const PRIMARY_BASE_SLOTS = ['CHAT', 'SUMMARY', 'TRANSLATION', 'TITLE_GENERATION', 'MEMORY', 'GREP', 'ROLE_RESPONSE_PLANNER'];
 const TURN_PRESETS = [6, 10, 15, 20];
 
 function slotTitle(slot) {
@@ -83,7 +83,7 @@ function StoryBridgeSettingsScreen(ctx) {
     function applySnapshot(snap, extraPatch) {
         const bindings = Array.isArray(snap && snap.functionBindings) ? snap.functionBindings : [];
         const settleSlot = (snap && snap.settlementFunctionType) || 'SUMMARY';
-        const primarySlot = (snap && snap.functionType) || 'CHAT';
+        const primarySlot = 'CHAT';
         const settleBinding = findBinding(bindings, settleSlot);
         const primaryBinding = findBinding(bindings, primarySlot);
         const cur = live.current;
@@ -244,8 +244,7 @@ function StoryBridgeSettingsScreen(ctx) {
         const statusLabel = hasErr ? '需处理' : isBusy ? '生成中' : isRunning ? '运行中' : '已暂停';
         const statusTone = hasErr ? 'warn' : isRunning ? 'ok' : 'idle';
 
-        const primaryMode = snap.primaryModelMode === 'fixed' ? 'fixed' : 'slot';
-        const primarySlot = snap.functionType || 'CHAT';
+        const primarySlot = 'CHAT';
         const dualStage = snap.dualStage !== false;
         const settleSlot = snap.settlementFunctionType || 'SUMMARY';
         const settleThinkingMode = ['auto', 'off', 'on'].includes(snap.settlementThinkingMode)
@@ -257,8 +256,8 @@ function StoryBridgeSettingsScreen(ctx) {
         const maxTurns = Number(snap.maxTurnsPerSession || (snap.liveSession && snap.liveSession.max_turns) || 10);
 
         const primaryDesc = snap.model
-            ? formatModelLabel(snap.model) + (primaryMode === 'fixed' ? '（故事专属固定）' : '（跟随 ' + primarySlot + ' 槽）')
-            : '未解析到主模型';
+            ? formatModelLabel(snap.model) + '（CHAT 槽 · 原生自托管）'
+            : '未解析到主模型（请绑定 CHAT 槽）';
         const settleDesc = !dualStage
             ? '单阶段精简模式（仅主模型）'
             : (snap.settlementModel ? formatModelLabel(snap.settlementModel) : '未绑定')
@@ -273,7 +272,7 @@ function StoryBridgeSettingsScreen(ctx) {
         const statusChildren = [
             UI.Text({ text: '主模型：' + primaryDesc, fontSize: 13, color: colors.onSurface }),
             UI.Text({ text: '副模型：' + settleDesc, fontSize: 13, color: colors.onSurface }),
-            muted('会话与环境：' + sessionDesc),
+            muted('会话与环境：' + sessionDesc + ' · 零角色卡依赖'),
         ];
         if (state.error || snap.lastError) {
             statusChildren.push(UI.Surface({
@@ -303,11 +302,22 @@ function StoryBridgeSettingsScreen(ctx) {
                 ? UI.OutlinedButton({ key: 'btn-stop', height: 36, enabled, onClick: () => runAction({ action: 'stop' }, '已暂停故事桥接') },
                     UI.Text({ text: '暂停桥接', fontSize: 13 }))
                 : UI.Button({ key: 'btn-start', height: 36, text: '启动桥接', enabled, onClick: () => runAction({ action: 'start' }, '故事桥接已启动') }),
+            UI.Button({
+                key: 'btn-open-theater',
+                height: 36,
+                text: '打开内嵌剧场',
+                enabled,
+                onClick: () => {
+                    if (typeof ctx.navigate === 'function') {
+                        void ctx.navigate((snap && snap.theaterRoute) || THEATER_ROUTE);
+                    }
+                },
+            }),
             UI.OutlinedButton({ key: 'btn-reset-session', height: 36, enabled, onClick: () => runAction({ action: 'reset_session' }, '已安排下次行动新建干净会话') },
                 UI.Text({ text: '新建干净会话', fontSize: 13 })),
             UI.TextButton({ key: 'btn-refresh', height: 36, text: '刷新模型列表', enabled, onClick: () => runAction({ action: 'ui_snapshot', forceRefresh: true }, '已刷新模型与状态', true) }),
         ]));
-        cards.push(section('status-card', '故事桥接 · v' + (snap.version || '2.1.8'), 'Tune', [badge(statusLabel, statusTone)], statusChildren));
+        cards.push(section('status-card', '故事桥接 · v' + (snap.version || '2.2.0'), 'Tune', [badge(statusLabel, statusTone)], statusChildren));
 
         // Build option lists from live catalog
         const modelOptions = models.map(m => ({
@@ -317,88 +327,25 @@ function StoryBridgeSettingsScreen(ctx) {
             label: formatModelLabel(m),
         }));
         const allSlotNames = Array.from(new Set([...BASE_SLOTS, ...bindings.map(b => b.function_type)]));
-        const primarySlotNames = Array.from(new Set([...PRIMARY_BASE_SLOTS, ...bindings.map(b => b.function_type)]));
 
-        // Card 1: Primary Model (Foreground Storytelling)
+        // Card 1: Primary Model (Foreground Storytelling via Operit native CHAT slot)
+        const curPrimaryBind = findBinding(bindings, primarySlot);
+        const selectedPrimaryBindKey = state.primaryBindDraft || (curPrimaryBind ? modelPairKey(curPrimaryBind.provider_id, curPrimaryBind.model_id) : '');
+        const selectedPrimaryBindOpt = modelOptions.find(o => o.value === selectedPrimaryBindKey);
+        const primaryBindChanged = !!(selectedPrimaryBindOpt && (!curPrimaryBind || modelPairKey(curPrimaryBind.provider_id, curPrimaryBind.model_id) !== selectedPrimaryBindKey));
         const primaryChildren = [
-            muted('控制前景剧情演播所使用的强文笔/强逻辑模型；修改后下一次行动立即生效并同步网页端。'),
-            chipRow('primary-mode', primaryMode, [
-                { value: 'slot', label: '跟随 Operit 功能槽' },
-                { value: 'fixed', label: '故事专属固定模型' },
-            ], mode => {
-                if (mode === 'slot') {
-                    void runAction({ action: 'primary_model', primaryModelMode: 'slot', functionType: primarySlot }, '主模型已切回跟随 ' + primarySlot + ' 槽');
-                } else {
-                    const hasSavedInCatalog = !!(snap.primaryProviderId && snap.primaryModelId && modelOptions.some(o => o.providerId === snap.primaryProviderId && o.modelId === snap.primaryModelId));
-                    const fallbackChoice = hasSavedInCatalog
-                        ? { providerId: snap.primaryProviderId, modelId: snap.primaryModelId }
-                        : (snap.model ? { providerId: snap.model.provider_id, modelId: snap.model.model_id } : modelOptions[0]);
-                    if (!fallbackChoice) {
-                        update({ error: '未检测到可用模型，请先在 Operit 添加模型后点刷新。' });
-                        return;
-                    }
-                    void runAction({
-                        action: 'primary_model',
-                        primaryModelMode: 'fixed',
-                        primaryProviderId: fallbackChoice.providerId,
-                        primaryModelId: fallbackChoice.modelId,
-                    }, '主模型已设为故事专属：' + fallbackChoice.modelId);
-                }
-            }),
-        ];
-
-        if (primaryMode === 'fixed') {
-            const currentFixedKey = modelPairKey(snap.primaryProviderId || (snap.model && snap.model.provider_id), snap.primaryModelId || (snap.model && snap.model.model_id));
-            const currentFixedOpt = modelOptions.find(o => o.value === currentFixedKey);
-            primaryChildren.push(muted('专属固定模型仅作用于故事专用角色卡，不会改动 Operit 主聊天的默认模型。'));
-            primaryChildren.push(dropdown(
-                'primary-fixed-model',
-                '选择故事专属主模型',
-                currentFixedOpt ? currentFixedOpt.label : (snap.primaryModelId || '请选择模型'),
-                modelOptions,
-                opt => {
-                    void runAction({
-                        action: 'primary_model',
-                        primaryModelMode: 'fixed',
-                        primaryProviderId: opt.providerId,
-                        primaryModelId: opt.modelId,
-                    }, '故事主模型已切换为 ' + opt.modelId);
-                }
-            ));
-        } else {
-            const primarySlotOptions = primarySlotNames.map(slot => ({
-                value: slot,
-                label: slotOptionLabel(slot, bindings),
-            }));
-            primaryChildren.push(dropdown(
-                'primary-slot-select',
-                '主模型跟随的 Operit 功能槽',
-                slotOptionLabel(primarySlot, bindings),
-                primarySlotOptions,
-                opt => {
-                    void runAction({
-                        action: 'primary_model',
-                        primaryModelMode: 'slot',
-                        functionType: opt.value,
-                    }, '主模型功能槽已切换为 ' + opt.value, true);
-                }
-            ));
-
-            const curPrimaryBind = findBinding(bindings, primarySlot);
-            const selectedPrimaryBindKey = state.primaryBindDraft || (curPrimaryBind ? modelPairKey(curPrimaryBind.provider_id, curPrimaryBind.model_id) : '');
-            const selectedPrimaryBindOpt = modelOptions.find(o => o.value === selectedPrimaryBindKey);
-            const primaryBindChanged = !!(selectedPrimaryBindOpt && (!curPrimaryBind || modelPairKey(curPrimaryBind.provider_id, curPrimaryBind.model_id) !== selectedPrimaryBindKey));
-            primaryChildren.push(UI.Surface({
+            muted('原生自托管模式已彻底剥离角色卡依赖，前景演播默认跟随 Operit 的「CHAT」功能槽（也可在故事会话输入框菜单临时切换单聊模型）。主/副模型自定义系统提示词可在内嵌剧场「设置 → 阅读与体验」中随时编辑。'),
+            UI.Surface({
                 fillMaxWidth: true,
                 color: colors.surfaceContainerHighest.copy({ alpha: 0.45 }),
                 shape: { cornerRadius: 12 },
             }, UI.Column({ fillMaxWidth: true, padding: 10, spacing: 6 }, [
-                UI.Text({ text: '直接修改「' + primarySlot + '」槽绑定的模型', fontSize: 13, fontWeight: '600', color: colors.onSurface }),
-                muted('保存后会直接更新 Operit 全局的 ' + primarySlot + ' 功能模型；若只想给故事单独换模型，请改选上方「故事专属固定模型」。'),
+                UI.Text({ text: '直接切换「CHAT」主模型槽', fontSize: 13, fontWeight: '600', color: colors.onSurface }),
+                muted('保存后会直接更新 Operit 全局 CHAT 功能槽绑定的模型，下一次行动立即生效并同步网页端。'),
                 dropdown(
                     'primary-slot-bind-model',
-                    '为 ' + primarySlot + ' 槽选择新模型',
-                    selectedPrimaryBindOpt ? selectedPrimaryBindOpt.label : '请选择目标模型',
+                    '为 CHAT 槽选择主模型',
+                    selectedPrimaryBindOpt ? selectedPrimaryBindOpt.label : (snap.model ? formatModelLabel(snap.model) : '请选择目标模型'),
                     modelOptions,
                     opt => update({ primaryBindDraft: opt.value })
                 ),
@@ -406,7 +353,7 @@ function StoryBridgeSettingsScreen(ctx) {
                     UI.Button({
                         key: 'btn-bind-primary-slot',
                         height: 34,
-                        text: '绑定到 ' + primarySlot + ' 槽',
+                        text: '绑定到 CHAT 槽',
                         enabled: enabled && !!selectedPrimaryBindOpt,
                         onClick: () => {
                             const parsed = parsePairKey(selectedPrimaryBindKey);
@@ -416,13 +363,13 @@ function StoryBridgeSettingsScreen(ctx) {
                                 slot: primarySlot,
                                 providerId: parsed.providerId,
                                 modelId: parsed.modelId,
-                            }, '已将 ' + primarySlot + ' 槽绑定为 ' + parsed.modelId, true);
+                            }, '已将 CHAT 槽主模型绑定为 ' + parsed.modelId, true);
                         },
                     }),
                 ]),
-                ...(primaryBindChanged ? [muted('待保存：点击上方按钮即可写入 Operit 的 ' + primarySlot + ' 功能槽。')] : []),
-            ])));
-        }
+                ...(primaryBindChanged ? [muted('待保存：点击上方按钮即可写入 Operit 的 CHAT 功能槽。')] : []),
+            ])),
+        ];
         cards.push(section('primary-model-card', '主模型 · 前景剧情演播', 'AutoAwesome', [], primaryChildren));
 
         // Card 2: Secondary / Settlement Model (Background Settlement)

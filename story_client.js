@@ -105,7 +105,9 @@
   let fishKeyStatusPromise = null, fishKeyConfigured = null, fishMissingToastShown = false;
   let restoreTimer = null, restoreQueued = false, prefetchTimer = null, catchingUp = false;
   let curtainTrackedReqId = '', curtainHideTimer = null, backendPrefBusy = false;
-  let bridgePrimaryTargetSig = '', bridgeSettleSlotSig = '', bridgeBindModelSig = '', bridgeBindSyncedKey = '';
+  let customRuleTab = 'primary', customRuleFoldOpen = false;
+  let customRuleDrafts = { primary: null, settlement: null };
+  let bridgePrimaryTargetSig = '', bridgePrimarySyncedKey = '', bridgeSettleSlotSig = '', bridgeBindModelSig = '', bridgeBindSyncedKey = '';
   let shopCatalog = null, shopBusy = false, shopLoading = false, shopError = '';
 
   function isIntimateActive(w = snapshot?.world) {
@@ -2324,38 +2326,29 @@
     };
 
     const hasCatalogApi = typeof bridge?.primary_model_mode === 'string';
-    const primaryMode = bridge?.primary_model_mode === 'fixed' ? 'fixed' : 'slot';
-    const primarySlot = bridge?.primary_function_type || 'CHAT';
-    const primaryModeSel = $('storyPrimaryMode');
     const primaryTargetSel = $('storyPrimaryTarget');
-    if ($('storyPrimaryBadge')) $('storyPrimaryBadge').textContent = primaryMode === 'fixed' ? '专属固定' : primarySlot + ' 槽';
-    if (primaryModeSel) {
-      primaryModeSel.disabled = !!sessionBusy || !hasCatalogApi;
-      primaryModeSel.value = primaryMode;
-    }
+    const primaryBindBtn = $('storyBindPrimaryBtn');
+    if ($('storyPrimaryBadge')) $('storyPrimaryBadge').textContent = 'CHAT 槽';
     if (primaryTargetSel) {
-      if ($('storyPrimaryTargetLabel')) {
-        $('storyPrimaryTargetLabel').textContent = primaryMode === 'fixed' ? '故事专属主模型' : '主模型跟随的 Operit 功能槽';
-      }
-      const primaryOpts = primaryMode === 'fixed'
+      const primaryOpts = availModels.length
         ? availModels.map(m => ({ value: pairKey(m.provider_id, m.model_id), label: m.model_id + ' · ' + m.provider_name }))
-        : Array.from(new Set([...BRIDGE_PRIMARY_SLOTS, ...funcBindings.map(b => b.function_type)]))
-            .map(slot => ({ value: slot, label: slotOptionText(slot) }));
-      const selectedPrimaryVal = primaryMode === 'fixed'
-        ? pairKey(snapshot?.bridge_model?.provider_id, snapshot?.bridge_model?.model_id)
-        : primarySlot;
-      if (!primaryOpts.length) {
-        primaryOpts.push({ value: '', label: hasCatalogApi ? '未检测到 Operit 已配置模型' : '升级 v2.1.0 桥接插件后可选' });
-      }
-      bridgePrimaryTargetSig = syncSelectOptions(primaryTargetSel, primaryOpts, bridgePrimaryTargetSig, selectedPrimaryVal);
-      primaryTargetSel.disabled = !!sessionBusy || !hasCatalogApi || !primaryOpts[0].value;
+        : [{ value: '', label: hasCatalogApi ? '未检测到 Operit 已配置模型' : '升级 v2.2.0 桥接插件后可改绑' }];
+      const curChatBind = bindingBySlot.get('CHAT');
+      const curChatPair = curChatBind
+        ? pairKey(curChatBind.provider_id, curChatBind.model_id)
+        : pairKey(snapshot?.bridge_model?.provider_id, snapshot?.bridge_model?.model_id);
+      const shouldResetPrimary = bridgePrimarySyncedKey !== curChatPair;
+      bridgePrimaryTargetSig = syncSelectOptions(primaryTargetSel, primaryOpts, bridgePrimaryTargetSig, shouldResetPrimary ? curChatPair : '');
+      if (shouldResetPrimary) bridgePrimarySyncedKey = curChatPair;
+      primaryTargetSel.disabled = !!sessionBusy || !hasCatalogApi || !availModels.length;
+      if (primaryBindBtn) primaryBindBtn.disabled = !!sessionBusy || !hasCatalogApi || !availModels.length || !primaryTargetSel.value;
     }
     if ($('storyPrimaryStatus')) {
       const bm = snapshot?.bridge_model;
       $('storyPrimaryStatus').textContent = !bridge?.present ? '桥接未连接，请在 Operit 开启故事桥接。'
-        : !hasCatalogApi ? '导入 v2.1.0 故事桥接插件后，可在此与 Operit 插件设置页双端切换主/副模型。'
-        : bm ? '当前主模型：' + bm.model_id + ' · ' + bm.provider_name + (primaryMode === 'fixed' ? '（仅故事生效，不改 Operit 主聊天）' : '（跟随 ' + primarySlot + ' 功能槽）')
-        : '主模型未解析，请检查 Operit 模型配置。';
+        : !hasCatalogApi ? '导入 v2.2.0 故事桥接插件后，可在此与 Operit 插件设置页双端切换主/副模型。'
+        : bm ? '当前主模型：' + bm.model_id + ' · ' + bm.provider_name + '（CHAT 槽 · 原生自托管）'
+        : '主模型未解析，请先在 Operit 绑定 CHAT 功能槽模型。';
     }
 
     const dualSel = $('storyDualStage');
@@ -5828,6 +5821,175 @@
       );
       pane.append(uiGroup);
 
+      // Custom System-Level Rules (Primary Zone 0 + Secondary Stage 2, unlimited length)
+      const bp = snapshot?.preferences || {};
+      const ruleConfigs = {
+        primary: {
+          tabLabel: '主模型 · 前景演播',
+          enKey: 'custom_rules_enabled',
+          posKey: 'custom_rules_position',
+          txtKey: 'custom_rules_text',
+          enabled: !!bp.custom_rules_enabled,
+          position: bp.custom_rules_position === 'prepend' ? 'prepend' : 'append',
+          savedText: typeof bp.custom_rules_text === 'string' ? bp.custom_rules_text : '',
+          posTitle: 'Zone 0 注入位置',
+          posSub: '置底紧贴场景人设前权重高且保缓存；置顶置于协议最前方',
+          placeholder: '填写主模型（前景演播 Zone 0）的自定义系统级规则，不限字数。\n例如：\n- 对话节奏偏电影质感，减少解释性内心独白\n- 描写更侧重环境声响、光影与肢体微反应',
+          hint: '仅编译注入主模型前景演播（Zone 0），不污染后台数值结算；内容不变时 100% 命中 KV 前缀缓存，重置存档与同步 GitHub 均自动保留。',
+        },
+        settlement: {
+          tabLabel: '副模型 · 后台结算',
+          enKey: 'settlement_custom_rules_enabled',
+          posKey: 'settlement_custom_rules_position',
+          txtKey: 'settlement_custom_rules_text',
+          enabled: !!bp.settlement_custom_rules_enabled,
+          position: bp.settlement_custom_rules_position === 'prepend' ? 'prepend' : 'append',
+          savedText: typeof bp.settlement_custom_rules_text === 'string' ? bp.settlement_custom_rules_text : '',
+          posTitle: 'Stage 2 注入位置',
+          posSub: '置底紧接事件判准后；置顶置于结算指令最前方',
+          placeholder: '填写副模型（后台结构化结算 Stage 2 system_prompt）的自定义系统级规则，不限字数。\n例如：\n- 当正文出现明显口是心非时，在 quality_flags 额外留意记录\n- 严禁改变裸 JSON 结构与合法标签白名单',
+          hint: '仅编译注入副模型后台结算（Stage 2 静态 system_prompt），与主模型互不干扰；跨回合静态保前缀缓存，重置存档与同步 GitHub 均自动保留。',
+        },
+      };
+      const pLen = ruleConfigs.primary.savedText.trim().length;
+      const sLen = ruleConfigs.settlement.savedText.trim().length;
+      const summaryParts = [];
+      if (ruleConfigs.primary.enabled) summaryParts.push('主模型已开' + (pLen ? `(${pLen}字)` : '(空)'));
+      if (ruleConfigs.settlement.enabled) summaryParts.push('副模型已开' + (sLen ? `(${sLen}字)` : '(空)'));
+      const ruleFold = node('details', 'hub-fold pref-fold custom-rule-fold');
+      ruleFold.open = !!customRuleFoldOpen;
+      ruleFold.ontoggle = () => { customRuleFoldOpen = !!ruleFold.open; };
+      const rSum = node('summary', 'hub-fold-summary');
+      const rTitle = node('div', 'hub-fold-title');
+      rTitle.append(
+        node('strong', '', '自定义系统级 Rule（主 / 副模型）'),
+        node('span', 'muted', summaryParts.length ? summaryParts.join(' · ') : '未启用（不限字数，本地持久保存）')
+      );
+      rSum.append(rTitle, node('span', 'fold-caret', '▾'));
+      ruleFold.append(rSum);
+
+      const rBody = node('div', 'hub-fold-body');
+      const tabBar = node('div', 'custom-rule-tabs');
+      tabBar.setAttribute('role', 'tablist');
+      for (const tabKey of ['primary', 'settlement']) {
+        const cfg = ruleConfigs[tabKey];
+        const tb = node('button', 'custom-rule-tab', cfg.tabLabel + (cfg.enabled ? ' · 开' : ''));
+        tb.type = 'button';
+        tb.setAttribute('role', 'tab');
+        tb.setAttribute('aria-selected', String(customRuleTab === tabKey));
+        tb.onclick = () => {
+          if (customRuleTab === tabKey) return;
+          haptic(6);
+          customRuleTab = tabKey;
+          customRuleFoldOpen = true;
+          renderWorld(true);
+        };
+        tabBar.append(tb);
+      }
+      rBody.append(tabBar);
+
+      const activeKey = customRuleTab === 'settlement' ? 'settlement' : 'primary';
+      const activeCfg = ruleConfigs[activeKey];
+      const existingDraft = customRuleDrafts[activeKey];
+      const curDraftText = (existingDraft && existingDraft.dirty) ? existingDraft.text : activeCfg.savedText;
+
+      const saveRulePatch = async (patch, successMsg, resetDraft = false) => {
+        if (backendPrefBusy) return;
+        backendPrefBusy = true;
+        try {
+          const res = await api('preferences', patch);
+          if (snapshot && res?.preferences) snapshot.preferences = res.preferences;
+          if (resetDraft) customRuleDrafts[activeKey] = null;
+          toast(successMsg);
+          customRuleFoldOpen = true;
+          renderWorld(true);
+        } catch (err) {
+          toast('保存规则失败：' + (err?.message || err));
+        } finally {
+          backendPrefBusy = false;
+        }
+      };
+
+      rBody.append(
+        mkSwitchRow(
+          activeKey === 'primary' ? '启用主模型自定义 Rule' : '启用副模型自定义 Rule',
+          activeKey === 'primary' ? '开启后注入前景演播 Zone 0（下幕生效）' : '开启后注入后台结算 Stage 2 system_prompt（下幕生效）',
+          [[true, '开启'], [false, '关闭']],
+          activeCfg.enabled,
+          v => {
+            const payload = { [activeCfg.enKey]: !!v };
+            if (existingDraft && existingDraft.dirty) payload[activeCfg.txtKey] = existingDraft.text;
+            void saveRulePatch(
+              payload,
+              (activeKey === 'primary' ? '主模型' : '副模型') + '自定义 Rule 已' + (v ? '开启（下幕生效）' : '关闭（下幕生效）'),
+              !!(existingDraft && existingDraft.dirty)
+            );
+          }
+        ),
+        mkSwitchRow(
+          activeCfg.posTitle,
+          activeCfg.posSub,
+          [['append', '置底（推荐）'], ['prepend', '置顶']],
+          activeCfg.position,
+          v => {
+            void saveRulePatch(
+              { [activeCfg.posKey]: v },
+              (activeKey === 'primary' ? '主模型' : '副模型') + '注入位置已设为' + (v === 'prepend' ? '置顶' : '置底') + '（下幕生效）'
+            );
+          }
+        )
+      );
+
+      const editorWrap = node('div', 'custom-rule-editor');
+      const ta = node('textarea', 'custom-rule-textarea');
+      ta.rows = 7;
+      ta.value = curDraftText;
+      ta.placeholder = activeCfg.placeholder;
+      ta.setAttribute('aria-label', activeCfg.tabLabel + ' 自定义系统级规则');
+
+      const metaRow = node('div', 'custom-rule-meta');
+      const countSpan = node('span', '', `当前 ${curDraftText.length} 字 · 不限字数`);
+      const dirtySpan = node('span', 'custom-rule-dirty', curDraftText !== activeCfg.savedText ? '有未保存修改' : '');
+      metaRow.append(countSpan, dirtySpan);
+
+      ta.oninput = () => {
+        const val = ta.value;
+        const isDirty = val !== activeCfg.savedText;
+        customRuleDrafts[activeKey] = isDirty ? { text: val, dirty: true } : null;
+        countSpan.textContent = `当前 ${val.length} 字 · 不限字数`;
+        dirtySpan.textContent = isDirty ? '有未保存修改' : '';
+      };
+
+      const actRow = node('div', 'custom-rule-actions');
+      const clearBtn = node('button', 'btn-outline compact-btn', '清空');
+      clearBtn.type = 'button';
+      clearBtn.onclick = () => {
+        haptic(8);
+        ta.value = '';
+        void saveRulePatch(
+          { [activeCfg.txtKey]: '' },
+          (activeKey === 'primary' ? '主模型' : '副模型') + '自定义 Rule 已清空',
+          true
+        );
+      };
+      const saveBtn = node('button', 'btn-gold compact-btn', '保存规则');
+      saveBtn.type = 'button';
+      saveBtn.onclick = () => {
+        haptic(10);
+        const val = ta.value;
+        const label = activeKey === 'primary' ? '主模型' : '副模型';
+        const suffix = activeCfg.enabled || !val.trim()
+          ? '（下幕生效，前缀缓存自动刷新）'
+          : '（请开启上方开关使其生效）';
+        void saveRulePatch({ [activeCfg.txtKey]: val }, `${label}自定义 Rule 已保存${suffix}`, true);
+      };
+      actRow.append(clearBtn, saveBtn);
+
+      editorWrap.append(ta, metaRow, actRow, node('p', 'custom-rule-hint', activeCfg.hint));
+      rBody.append(editorWrap);
+      ruleFold.append(rBody);
+      pane.append(ruleFold);
+
       const visualFold = node('details', 'hub-fold pref-fold');
       const vSum = node('summary', 'hub-fold-summary');
       const vTitle = node('div', 'hub-fold-title');
@@ -8223,50 +8385,22 @@
       void sendBridgeControl({ action: 'max_turns', max_turns: n }, '已请求将防漂移切窗设为每 ' + n + ' 轮');
     };
   }
-  if ($('storyPrimaryMode')) {
-    $('storyPrimaryMode').onchange = event => {
-      const mode = event.target.value === 'fixed' ? 'fixed' : 'slot';
-      const bridge = snapshot?.bridge;
-      if (mode === 'slot') {
-        const slot = bridge?.primary_function_type || 'CHAT';
-        void sendBridgeControl({ action: 'primary_model', primary_model_mode: 'slot', primary_function_type: slot }, '主模型已切回跟随 ' + slot + ' 槽');
-      } else {
-        const avail = Array.isArray(bridge?.available_models) ? bridge.available_models : [];
-        const bm = snapshot?.bridge_model;
-        const pick = (bm && bm.provider_id && bm.model_id)
-          ? { provider_id: bm.provider_id, model_id: bm.model_id }
-          : avail[0];
-        if (!pick) { error = '未检测到 Operit 已配置模型，请先在 Operit 添加模型。'; controls(); return; }
-        void sendBridgeControl({
-          action: 'primary_model',
-          primary_model_mode: 'fixed',
-          primary_provider_id: pick.provider_id,
-          primary_model_id: pick.model_id,
-        }, '主模型已设为故事专属：' + pick.model_id);
-      }
+  if ($('storyBindPrimaryBtn')) {
+    $('storyBindPrimaryBtn').onclick = () => {
+      const parsed = parseModelPair($('storyPrimaryTarget')?.value);
+      if (!parsed) { error = '请先选择要绑定到 CHAT 槽的主模型。'; controls(); return; }
+      bridgePrimarySyncedKey = '';
+      void sendBridgeControl({
+        action: 'bind_function_slot',
+        slot: 'CHAT',
+        provider_id: parsed.provider_id,
+        model_id: parsed.model_id,
+      }, '已将 CHAT 槽主模型绑定为 ' + parsed.model_id);
     };
   }
   if ($('storyPrimaryTarget')) {
-    $('storyPrimaryTarget').onchange = event => {
-      const mode = $('storyPrimaryMode')?.value === 'fixed' ? 'fixed' : 'slot';
-      const val = event.target.value;
-      if (!val) return;
-      if (mode === 'fixed') {
-        const parsed = parseModelPair(val);
-        if (!parsed) return;
-        void sendBridgeControl({
-          action: 'primary_model',
-          primary_model_mode: 'fixed',
-          primary_provider_id: parsed.provider_id,
-          primary_model_id: parsed.model_id,
-        }, '故事主模型已切换为 ' + parsed.model_id);
-      } else {
-        void sendBridgeControl({
-          action: 'primary_model',
-          primary_model_mode: 'slot',
-          primary_function_type: val,
-        }, '主模型功能槽已切换为 ' + val);
-      }
+    $('storyPrimaryTarget').onchange = () => {
+      if ($('storyBindPrimaryBtn')) $('storyBindPrimaryBtn').disabled = !$('storyPrimaryTarget').value;
     };
   }
   if ($('storyDualStage')) {

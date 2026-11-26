@@ -5596,3 +5596,82 @@ html[data-theme="ivory"] .trace-chip.is-host-phys {
   padding: 0;
 }
 
+/* Custom System Rules Editor (Primary Zone 0 & Settlement Stage 2) */
+.custom-rule-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.custom-rule-tab {
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+.custom-rule-tab[aria-selected="true"] {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+  color: var(--gold-bright);
+}
+.custom-rule-editor {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.custom-rule-textarea {
+  width: 100%;
+  min-height: 148px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: 13px/1.55 var(--font-sans);
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+}
+.custom-rule-textarea:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px var(--gold-soft);
+}
+.custom-rule-textarea::placeholder {
+  color: var(--muted);
+  opacity: 0.78;
+}
+.custom-rule-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.custom-rule-dirty {
+  color: var(--gold-bright);
+  font-weight: 600;
+}
+.custom-rule-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.custom-rule-hint {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+html[data-theme="ivory"] .custom-rule-tab[aria-selected="true"],
+html[data-theme="ivory"] .custom-rule-dirty {
+  color: #8b5e1a;
+}

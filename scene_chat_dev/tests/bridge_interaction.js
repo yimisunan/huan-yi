@@ -10,9 +10,9 @@ box.model=model;
 assert.equal(vm.runInContext('workerPath(task,"result")',box),'/api/story/worker/live-test/result');
 const turns=vm.runInContext('generationTurns(task,"")',box);
 assert(turns[1].content.includes('messages'));assert(!turns[1].content.includes('150～220'));
-const role=vm.runInContext('roleChanges(model,"live")',box);
-assert(role.characterSetting.includes('live_interaction'));
-assert(role.otherContentChat.includes('知情'));
+const role=vm.runInContext('roleProfile("live")',box);
+assert(role.systemPrefix.includes('live_interaction'));
+assert(role.systemPrefix.includes('知情'));
 box.pending={entry_mode:'live_interaction',body:{text:'{"memory_deltas":{"l1_new_round":"unused"}}'}};
 box.config={outbox:box.pending};
 (async()=>{await vm.runInContext('repairMemory(config)',box);assert(!box.config.outbox.repairAttempted);console.log('BRIDGE_INTERACTION_OK routes, reminder, role, no automatic memory repair');})().catch(e=>{console.error(e);process.exitCode=1;});
@@ -43,13 +43,13 @@ assert.equal(final(wire,1,false).text,wire);
 const envelope=JSON.parse(turns[0].content),reminder=JSON.parse(turns[1].content);
 assert.equal(envelope.output_contract.operation,'');assert.equal(reminder.output_contract.operation,'');
 assert.equal(reminder.output_contract.handoff,'');assert(reminder.instruction.includes('重试也重新读取'));
-assert(role.otherContentChat.includes('空字符串'));
+assert(role.systemPrefix.includes('空字符串'));
 console.log('LIVE_WIRE_OK two real failures rejected; empty operation normalized; action/null/duplicates/legacy preserved; complete reread required');
 
 assert.deepEqual(Object.keys(reminder.output_contract).sort(), ['checks','decision','handoff','messages','operation','resolution']);
 assert.equal(reminder.output_contract.decision.options.map(o=>o.id).join(''),'ABC');
-assert(reminder.output_contract.checks.pace);assert(role.characterSetting.includes('推演'));
-assert(!role.characterSetting.includes('不生成整回合、L1、A/B/C'));
+assert(reminder.output_contract.checks.pace);assert(role.systemPrefix.includes('推演'));
+assert(!role.systemPrefix.includes('不生成整回合、L1、A/B/C'));
 assert(reminder.output_contract.resolution);console.log('LIVE_RESOLUTION_OK actual envelope contract forwarded, ABC/pacing/accounting present, strict empty wire preserved');
 
 // Nullable resolution wire values: normalize only legal JSON at exact paths.
@@ -79,7 +79,7 @@ assert.equal(latest[1].output_contract.resolution.conditions.npc,'');
 assert(latest[1].instruction.includes('系统宿主'));assert(latest[1].instruction.includes('packet.read_ranges'));
 console.log('LIVE_NULLABLE_WIRE_OK task/start/npc/conditions, exact paths, duplicates, malformed rejected, objects and legacy preserved');
 
-assert.deepEqual(Array.from(role.toolAccessConfig.allowedBuiltinTools).sort(),["read_file","read_file_full","read_file_part","file_info","grep_code"].sort());
+assert.deepEqual(Array.from(role.allowedTools).sort(),["read_file","read_file_full","read_file_part","file_info","grep_code"].sort());
 console.log("LIVE_READ_TOOLS_OK exact readonly tools, no directory browse");
 
 const paidEnvelope={entry_mode:'live_interaction',instruction:'read',output_contract:nullable,resolution_policy:{kind:'action',conditions_required:true},operation_context:{requested:{code:'move_player',destination:'徐家主宅'}}};

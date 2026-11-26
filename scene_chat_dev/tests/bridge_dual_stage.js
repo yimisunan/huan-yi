@@ -22,7 +22,8 @@ function createHarness(opts = {}) {
         liveSession: opts.liveSession || null,
     };
     const state = {
-        cardUpdates: [],
+        prefixSyncs: [],
+        extStore: new Map(),
         streamPushes: [],
         sendCalls: [],
         chatCalls: [],
@@ -47,16 +48,8 @@ function createHarness(opts = {}) {
         PluginConfig: { use: async () => config, flush: async () => {} },
         ToolPkg: {
             ipc: { on() {} },
-            callDependency: async (dep, method, args) => {
-                if (method === 'character.list') return [];
-                if (method === 'character.create') return { ...args.values, id: 'card-v2' };
-                if (method === 'character.get') return { id: 'card-v2', marks: 'local.story.operit_bridge:readonly', name: '同席互动·项目只读', characterSetting: '', otherContentChat: '', chatModelBindingMode: 'FIXED_MODEL', chatProviderId: 'prov', chatModelId: 'gemini-4', toolAccessConfig: { enabled: true, allowedBuiltinTools: ['read_file', 'read_file_full', 'read_file_part', 'file_info', 'grep_code'], allowedPackages: [], allowedSkills: [], allowedMcpServers: [] } };
-                if (method === 'character.update') {
-                    state.cardUpdates.push(args.changes);
-                    return { id: args.id, ...args.changes };
-                }
-                if (method === 'chat.configuration.binding.read') return { selection: 'card:card-v2' };
-                throw new Error('unexpected dep call: ' + method);
+            callDependency: async (dep, method) => {
+                throw new Error('v2.2.0 must not call external dependency: ' + dep + ':' + method);
             },
         },
         Tools: {
@@ -83,6 +76,14 @@ function createHarness(opts = {}) {
                 agentStatus: async () => ({ isIdle: true }),
                 switchTo: async () => {},
                 cancel: async () => {},
+                writeExtension: async (target, value) => {
+                    state.extStore.set(target.chatId, JSON.parse(JSON.stringify(value)));
+                    if (value && value.zone0Sha) state.prefixSyncs.push(value);
+                    return { extension: value };
+                },
+                readExtension: async (target) => ({
+                    extension: state.extStore.get(target.chatId) || null,
+                }),
                 getMessages: async (chatId) => ({
                     chatId,
                     messages: [{ sender: 'user', timestamp: 100, content: state.lastSubmittedText }],
@@ -179,7 +180,7 @@ function createHarness(opts = {}) {
 async function run() {
     const model = { key: '["CHAT","prov","gemini-4"]', function_type: 'CHAT', provider_id: 'prov', model_id: 'gemini-4', provider_name: 'Prov', pricing_configured: true };
 
-    // 1. Dual-stage turn 1 + settlement retry + turn 2 prefix cache hit (zero card rewrite!)
+    // 1. Dual-stage turn 1 + settlement retry + turn 2 prefix cache hit (zero redundant prefix sync!)
     const h1 = createHarness({ retryableFirst: true });
     h1.model = model;
     h1.task = {
@@ -190,13 +191,14 @@ async function run() {
     };
     const sess1 = await vm.runInContext('liveSession(config, model, task)', h1);
     assert.equal(sess1.isFresh, true);
+    assert.equal(sess1.participantId, 'model:chat');
     h1.session = sess1;
     const out1 = await vm.runInContext('executeSession(config, task, model, session)', h1);
     assert.equal(out1.__alreadyDelivered, true);
-    assert.equal(h1.state.cardUpdates.length, 1, 'Turn 1 must sync Zone 0 + Zone 1 into card once');
-    assert.equal(h1.state.cardUpdates[0].characterSetting, 'ZONE0_GLOBAL_dual_stream_v2');
-    assert.equal(h1.state.cardUpdates[0].otherContentChat, 'ZONE1_SCENE_manor');
+    assert.equal(h1.state.prefixSyncs.length, 1, 'Turn 1 must sync Zone 0 + Zone 1 into native chat extension once');
+    assert.equal(h1.state.prefixSyncs[0].systemPrefix, 'ZONE0_GLOBAL_dual_stream_v2\n\nZONE1_SCENE_manor');
     assert.equal(h1.state.sendCalls.length, 1, 'Foreground must run exactly once even when settlement retries');
+    assert.equal(h1.state.sendCalls[0].turn.participantId, 'model:chat');
     assert.equal(h1.state.chatCalls.length, 2, 'Settlement SUMMARY must retry once after retryable_settlement');
     assert.equal(h1.state.chatCalls[0].functionType, 'SUMMARY');
     assert.equal(h1.state.chatCalls[0].enableThinking, false, 'Auto mode attempt 1 must be non-thinking for speed');
@@ -208,7 +210,7 @@ async function run() {
     assert.equal(h1.config.liveSession.lastCommittedSeq, 1);
     assert.equal(h1.config.liveSession.dirty, false);
 
-    // Turn 2 in same location/cast: same chatId, ZERO character.update calls!
+    // Turn 2 in same location/cast: same chatId, ZERO redundant writeExtension prefix syncs!
     h1.task = { ...h1.task, request_id: 'r2', lease: 'L2' };
     h1.state.retryableFirst = false;
     const sess2 = await vm.runInContext('liveSession(config, model, task)', h1);
@@ -216,9 +218,9 @@ async function run() {
     assert.equal(sess2.isFresh, false);
     h1.session = sess2;
     await vm.runInContext('executeSession(config, task, model, session)', h1);
-    assert.equal(h1.state.cardUpdates.length, 1, 'Turn 2 same scene must NOT rewrite card prefixes');
+    assert.equal(h1.state.prefixSyncs.length, 1, 'Turn 2 same scene must NOT rewrite chat extension prefixes');
     assert.equal(h1.config.liveSession.turnCount, 2);
-    console.log('PASS dual-stage turn1+retry+turn2: 1 card sync across 2 turns, adaptive thinking escalation on retry, streaming pushes ordered');
+    console.log('PASS dual-stage turn1+retry+turn2: 1 native extension sync across 2 turns, adaptive thinking escalation on retry, streaming pushes ordered');
 
     // 2. Clean session rollover on scope change, maxTurns, and dirty flag.
     h1.task = { ...h1.task, request_id: 'r3', interaction_scope: '公司|沈知韫|' };

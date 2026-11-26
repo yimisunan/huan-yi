@@ -136,7 +136,7 @@
 | 31 | `POST` | `/api/story/worker/<key>/heartbeat` | Bridge | `{lease}` | 续期 `lease_until = now + 120` |
 | 32 | `POST` | `/api/story/worker/<key>/preflight` | Bridge | `{lease, text, conversation_audit}` | v1 / 旧回合提交前读审计预检 |
 | 33 | `POST` | `/api/story/worker/<key>/result` | Bridge | `{lease, text?, error?, conversation_audit?, timing?, allow_settlement_retry?}` | 提交最终结果或报错；通过审计/双阶段重试/装配后经 `RoundStore` 原子落盘 |
-| 34 | `POST` | `/api/story/preferences` | Client | `{protagonist_style?, director_pacing?}` | 保存并广播玩家演播偏好（主角戏份风格与女主意外节奏 `slow/standard/frequent`）至 `.round-runtime/story/prefs.json` |
+| 34 | `POST` | `/api/story/preferences` | Client | `{protagonist_style?, director_pacing?, custom_rules_enabled?, custom_rules_position?, custom_rules_text?, settlement_custom_rules_enabled?, settlement_custom_rules_position?, settlement_custom_rules_text?}` | 保存并广播玩家演播偏好（主角戏份风格、女主意外节奏 `slow/standard/frequent`，以及主模型 `Zone 0` / 副模型 `Stage 2` 独立的无字数上限自定义系统级 Rule）至 `.round-runtime/story/prefs.json`（重置存档与同步 GitHub 均自动保留） |
 
 ### 3.3 隔离实验场景与只读旧档导入路由（`scene_chat.py`，15 个路由）
 
