@@ -97,6 +97,7 @@
   let ambientPlayers = null, ambientFadeRaf = 0, ambientDuckTimer = null, ambientDucked = false;
   let armedChoice = null, inkCommit = null;
   let activeHubTab = 'host', selectedChar = '', selectedMapPlace = '', historyFilter = 'all';
+  let inspectedHostStat = '', inspectedCharStat = '';
   let activeBagSubTab = '', activeShopCat = 'all', activeSystemSubTab = 'display', activeActionTab = 'move';
   let settlementFolded = true, settlementDismissedId = '', deckCollapsed = false, customComposerExpanded = false, lastUiMode = '';
   let activeStream = null, speakingMessageId = '', lastVectorLocation = '';
@@ -4215,6 +4216,288 @@
     return svg;
   }
 
+  const HOST_VITAL_GUIDE_KEYS = new Set(['体力', '亲密耐力', '宿主欲望', '道具恢复额度']);
+  const CHAR_BAR_GUIDE_KEYS = new Set(['好感', '羞耻', '体力', '欲望', '堕落']);
+
+  const STAT_GUIDE = {
+    host: {
+      '体力': {
+        title: '当前体力',
+        subtitle: '日常周旋与亲密拉扯的体能底盘',
+        effect: '支撑每次行动消耗：日常轻 / 中 / 重度分别消耗 5 / 10 / 15；进入亲密纠缠第 2 拍起折减为 1 / 2 / 3，且只要亲密耐力 ≥ 15，体力最多锁底 10 不会中途断电。',
+        gain: '安稳整夜入睡后满额恢复至 100；使用恢复类道具回补（受每日额度约束）；触发首次深层突破等强肾上腺素节点时可即时回涌 +30。',
+        loss: '每次有效行动均按烈度扣减；若体力与耐力双双耗竭会触发力竭状态，并折损 1 点魅力。',
+        live: ctx => {
+          const parts = ['当前 ' + ctx.stamina + ' / 100'];
+          if (ctx.sg?.active) parts.push('亲密护航生效中（锁底 ' + ctx.sg.floor + ' 不断电）');
+          else if (ctx.stamina < 20) parts.push('体能偏低，建议补给或安稳休息');
+          return parts.join(' · ');
+        }
+      },
+      '亲密耐力': {
+        title: '亲密耐力（精力）',
+        subtitle: '深水纠缠中的持久续航与护航盾',
+        effect: '决定亲密阶段的持久承压：耐力 ≥ 15 时可替当前体力托底（锁底 10 不断电）；魅力越高，每次释放消耗的耐力越少（75 魅力降为 11，85 降为 9，95 降为 8）。',
+        gain: '安稳整夜入睡后满额回满 100；使用体力 / 精力补给道具可同步回补 +15～+25；强肾上腺素突破可提振 +25。',
+        loss: '亲密持续推进与临界释放会持续消耗耐力；跌至 15 以下将失去体能护航，彻底力竭会折损 1 点魅力。',
+        live: ctx => {
+          const cost = ctx.charm >= 95 ? 8 : ctx.charm >= 85 ? 9 : ctx.charm >= 75 ? 11 : 14;
+          const guard = ctx.vigor >= 15 ? '护航就绪（≥15）' : '已跌破护航线（<15）';
+          return '当前 ' + ctx.vigor + ' / 100 · ' + guard + ' · 当前释放耗耐约 ' + cost;
+        }
+      },
+      '宿主欲望': {
+        title: '宿主欲望（欲火）',
+        subtitle: '蓄积的躁动张力与控欲临界火候',
+        effect: '蓄满至 ≥ 85 会进入「控欲边缘」态，肢体拉扯更具压迫感，并使对方的高潮推进倍率额外提高 10%（引擎始终尊重你的主动权，绝不代你失控）。',
+        gain: '感官挑逗、近身肢体纠缠、亲密互动升温，以及独处时把玩私密珍藏（+18）都会推高欲火。',
+        loss: '主动释放后大幅回落；更换地点（-15）、平静日常（-6）与长时间非亲密跨时（每小时 -5）会自然降温；整夜入睡后高欲留底 25，否则归零。',
+        live: ctx => {
+          const tag = ctx.desire >= 85 ? '已入控欲边缘（对方高潮 +10%）' : ctx.desire >= 60 ? '欲火灼烫，距控欲边缘还差 ' + (85 - ctx.desire) : '气息平稳';
+          return '当前 ' + ctx.desire + ' / 100 · ' + tag;
+        }
+      },
+      '道具恢复额度': {
+        title: '道具恢复额度',
+        subtitle: '单日借由补给品回血的安全上限',
+        effect: '限制同一游戏日内通过随身补给品直接恢复体力的总量（每日上限 20 点），防止全靠药物透支身体。',
+        gain: '每个新游戏日跨夜安稳入睡后自动重置回满至 20 / 20。',
+        loss: '使用体力恢复类道具时按实际回复量扣减；额度耗尽后当日无法再借补给品强拉体力。',
+        live: ctx => '今日剩余 ' + ctx.budget + ' / 20'
+      },
+      '积分': {
+        title: '系统积分',
+        subtitle: '深渊天平结算出的硬通货',
+        effect: '用于在「系统商城」零体力兑换感官助兴器物、隐蔽布防装置、恢复补给及剧情定制稀缺品；魅力 ≥ 75 享 9 折，≥ 85 享 85 折。',
+        gain: '每段有效互动按「情欲侵蚀 / 日常守护 / 商业权力」三轨择优结算（只发放单轮积分最高一轨），完成委托任务亦可一键领赏 +15～+80。',
+        loss: '在系统商城兑换道具时按折后标价扣除。',
+        live: ctx => {
+          const disc = ctx.charm >= 85 ? '当前享 85 折' : ctx.charm >= 75 ? '当前享 9 折' : '魅力达 75 起解锁商城折扣';
+          return '当前余额 ' + ctx.points + ' · ' + disc;
+        },
+        action: () => ({ label: '前往系统商城 →', run: () => openHub('shop') })
+      },
+      '经验值': {
+        title: '掌控经验值',
+        subtitle: '沉淀于心智博弈中的支配阅历',
+        effect: '用于在「人物名册」为每位女主零体力解锁定向被动（Lv.1 需 20、Lv.2 需 50、Lv.3 需 200、Lv.4 需 800），每次成功升阶还会永久提升主角 +1 魅力。',
+        gain: '与积分同源，随每轮互动三轨择优同步积累（商业博弈与深层心理掌控收益最高），完成委托任务也可获赠 +8～+50。',
+        loss: '在人物名册解锁女主定向被动阶梯时按门槛消耗。',
+        live: ctx => {
+          const ready = ctx.readyPassives || [];
+          if (ready.length) return '当前 ' + ctx.exp + ' · 可立即为 ' + ready.join('、') + ' 升阶被动';
+          return '当前 ' + ctx.exp + ' · 攒足门槛即可零体力解锁被动';
+        },
+        action: () => ({ label: '前往名册解锁被动 →', run: () => openHub('roster') })
+      },
+      '魅力': {
+        title: '主角魅力',
+        subtitle: '无声改写气场、容错与吸引力的个人磁力（底线 60）',
+        effect: '五阶递进：75（锋芒初显：正好感 +1、轻中越界减伤 25%、临界破防、商城 9 折）；85（磁吸掌控：轻中减伤 40%、额外降羞 -1、高潮 +8%、商城 85 折）；95（深渊魅影：正好感 +2、轻中 50% / 深重 20% 减伤、额外降羞 -2、高潮 +15%）。',
+        gain: '情欲温水攻心（同场限 1 次）、升级任意女主被动（+1）、女主身体任意部位首次突破 Lv.2 或 Lv.3（+1）、与女主达成同频绝顶（单场限 1 次）。',
+        loss: '单轮最多折损 -2 且不低于 60：遭徐承邺目击撞破（-2）、引发强烈羞耻反噬（-1）、自身彻底力竭（-1），或对高羞耻低堕落女主冒进亮出私密珍藏对峙（-1）。',
+        live: ctx => {
+          const ct = ctx.cTier;
+          if (ct) {
+            return '当前 ' + ct.charm + '（' + (ct.name || '清俊克制') + '）' + (ct.next_at ? (' · 距下一阶还差 ' + Math.max(0, ct.next_at - ct.charm) + ' 点') : ' · 已登顶阶');
+          }
+          return '当前 ' + ctx.charm + ' / 100';
+        }
+      },
+      '商业嗅觉': {
+        title: '商业嗅觉',
+        subtitle: '看穿资本暗流与筹码结构的敏锐眼光（上限 100）',
+        effect: '四阶递进：10（入门解锁初阶情报与 T2 货架）；30（跻身牌桌，解锁高阶情报与 T3 货架）；60（解锁「商业杠杆」，武装一次性情报令下次越界好感惩罚直接减半）；100（全盘商业视野）。',
+        gain: '在涉及商业情报、资本布局、股权筹码与职场博弈的行动中按深度结算 +4 / +8 / +20。',
+        loss: '一旦沉淀不会随时间自然衰减；武装「商业杠杆」仅消耗对应一次性情报，不扣嗅觉数值。',
+        live: ctx => {
+          const lv = ctx.biz >= 100 ? '全盘视野' : ctx.biz >= 60 ? '可武装商业杠杆' : ctx.biz >= 30 ? '已跻身牌桌，距杠杆还差 ' + (60 - ctx.biz) : ctx.biz >= 10 ? '初探暗流，距 30 阶还差 ' + (30 - ctx.biz) : '尚未入门（距 10 阶还差 ' + (10 - ctx.biz) + '）';
+          return '当前 ' + ctx.biz + ' / 100 · ' + lv;
+        }
+      }
+    },
+    char: {
+      '好感': {
+        title: '好感度',
+        subtitle: '信任、偏爱与越界试探时的心理缓冲垫',
+        effect: '决定她对你的亲近意愿与容错空间：好感 > 60 且羞耻已松动时，轻中度越界甚至会转为自我合理化而不再掉分；但若高羞耻且低堕落（防线完好、被动不足 Lv.2），亲情好感不会豁免越界惩罚。',
+        gain: '日常安抚（<50）、自然社交回馈（<60）、深度交心共振（全段 +1～+2）、危机并肩破局（+3）、贴心赠礼与深层心理掌控均可稳步提升。',
+        loss: '防线尚高时强行越界、遭抗拒硬闯或粗暴冒犯会明显掉分（主角高魅力、感官 Buff、被动 Lv.2、把柄与商业杠杆均可独立减伤）。',
+        live: ctx => {
+          const notes = ['当前 ' + ctx.aff + ' / 100'];
+          if (ctx.name === '苏婉青') {
+            notes.push(ctx.aff >= 85 ? '已触及或突破 85 门槛（需真相揭露 / 温柔侵蚀放宽至 95）' : '默认封顶 85（可通过真相揭露或温柔侵蚀破限至 95）');
+          } else if (ctx.shame >= 85 && ctx.dep < 15 && ctx.passiveLv < 2) {
+            notes.push('当前防线完好：高好感暂不豁免越界掉分，宜先破冰降羞或升至被动 Lv.2');
+          } else if (ctx.aff > 60) {
+            notes.push('已入高好感缓冲段，配合降羞可大幅压低越界摩擦');
+          }
+          return notes.join(' · ');
+        }
+      },
+      '羞耻': {
+        title: '羞耻防线',
+        subtitle: '矜持、伦理束缚与心理底线（越低越失守）',
+        effect: '羞耻越高，对亲密越界的抵触越重；走低后逐步松开距离与言辞底线，且低于 40（配合好感 >75）会持续自然渗漏欲望。上限受当前堕落动态压制（100 − 堕落×0.6），确诊怀孕后永久锁顶 ≤ 35。',
+        gain: '骤然清醒回神时的耻感反弹（+15），以及早中期低堕落（<15）安稳跨夜的小幅回稳（+1），均不会突破当前羞耻上限。',
+        loss: '暧昧破冰（羞耻 >75 时 -3）、近身越界与亲密加深（-2～-6，偷情遮蔽态、堕落 >60 或被动 Lv.4 均会放大）、撞破私密自渎（-6）、命中招牌部位及临界释放都会持续削弱；连续机械重复同烈度会触发同质化免疫。',
+        live: ctx => {
+          const cap = ctx.shameCap;
+          return '当前 ' + ctx.shame + ' · 当前天花板 ' + cap + (ctx.isPreg ? '（孕期永久锁顶 ≤35）' : ('（受堕落 ' + ctx.dep + ' 压制）'));
+        }
+      },
+      '欲望': {
+        title: '情欲燥热',
+        subtitle: '感官沉溺与理智融化的即时火候',
+        effect: '直接放大高潮累积倍率并动摇羞耻防线；常规刺激最多推至 80，须凭主角魅力压迫（魅力 ≥ 75）或心理羞辱才能一举冲破 100 临界。',
+        gain: '视 / 嗅 / 听多通道感官撩拨（单轮协同至多 +5）、直接肢体刺激（+10）、隔墙遮蔽偷情紧张感（+2）、感官类 Buff 协同、命中招牌部位（+3），以及低羞耻（<40）+ 高好感（>75）自动渗漏（+3）。',
+        loss: '切换场景自然回落（-15）、绝顶清算回落至 35、暗中自渎回落至 40；若挂有「持续_体液锁定」则按浓烈 / 温热 / 余温三阶强制保底（85 / 72 / 58）。',
+        live: ctx => {
+          const tags = ['当前 ' + ctx.des + ' / 100'];
+          if (ctx.hasFluidLock) tags.push('体液锁定保底生效中');
+          else if (ctx.des >= 80) tags.push('已抵 80 临界，需魅力压迫（≥75）或心理羞辱破百');
+          if (ctx.shame < 40 && ctx.aff > 75) tags.push('已触发低羞高好感自动渗漏（+3/段）');
+          return tags.join(' · ');
+        }
+      },
+      '堕落': {
+        title: '堕落刻痕',
+        subtitle: '越界沉沦的不可逆印记与阶梯破锁',
+        effect: '每 10 点堕落永久压低 6 点羞耻上限；超过 60 后一切降羞效果额外放大 1.5 倍，并同步加快高潮推进、解锁更私密的称谓与深水区主动迎合。',
+        gain: '背德共谋（+2）、防线失守（+3）、绝顶蚀刻（+4）、私密自渎（+3）、深层屈从与首次突破（+5～+15）持续累积。设有 30 / 60 / 90 三道阶梯锁，触顶后须以关键主动破锁事件解开下一阶。',
+        loss: '刻入认知与身体的习惯化印记，通常只增不退，不会因日常安抚或睡眠回退。',
+        live: ctx => {
+          const stage = ctx.dep >= 90 ? '深渊沉溺（90+）' : ctx.dep >= 60 ? '沉沦加速（降羞 ×1.5）' : ctx.dep >= 30 ? '防线松动（30–59）' : '初生裂隙（0–29）';
+          return '当前 ' + ctx.dep + ' / 100 · ' + stage + ' · 压低羞耻上限 ' + Math.floor(ctx.dep * 0.6);
+        }
+      },
+      '体力': {
+        title: '对方体力',
+        subtitle: '精力余量与生理断电红线',
+        effect: '衡量对方当前的承压与抗拒气力；跌至 ≤ 15 时会触发「生理断电」软倒余韵，无力再维持强硬防备。',
+        gain: '白日小憩恢复 +10（每人每日限 1 次），安稳整夜入睡恢复 +40（若夜间暗中自渎则为 +32）。',
+        loss: '焦虑紧绷（-2）、日常劳作（-5）、剧烈抗拒（-15）、在场高欲空耗（-5）、暗中自渎（-8）与绝顶痉挛（-15）均会消耗；被动达 Lv.3 后焦虑 / 劳作 / 抗拒消耗翻倍。',
+        live: ctx => {
+          const tags = ['当前 ' + ctx.stamina + ' / 100'];
+          if (ctx.stamina <= 15) tags.push('已触发低体力软倒红线（≤15）');
+          if (ctx.passiveLv >= 3) tags.push('被动 Lv.3 生效：劳作与抗拒消耗翻倍');
+          return tags.join(' · ');
+        }
+      },
+      '高潮': {
+        title: '高潮累积',
+        subtitle: '濒临失控的感官峰谷进度',
+        effect: '蓄满 100 即触发绝顶清算：瞬间清空高潮、扣除对方 15 点体力、欲望回落至 35（受锁底保护），大幅击穿羞耻防线；若与主角同拍释放则达成同频绝顶，奖主角 +1 魅力。',
+        gain: '亲密刺激按轻 / 中 / 重度基础推进 +15 / +30 / +50，并受欲望、堕落、身体部位开发阶梯、主角控欲边缘与高阶魅力多重放大。',
+        loss: '停止推进并切换场景时回落 -30；安稳睡眠或跨夜后残余高潮归零。'
+      },
+      '内射': {
+        title: '深层内释次数',
+        subtitle: '不可逆越界的累计刻印与受孕检定入口',
+        effect: '每次触发都会递增计数、挂上 24 回合「持续_体液锁定」（三阶锁住高欲望底线），并自动触发一次受孕暗骰；首次触发更会引发剧烈破防与丰厚积分 / 经验 / 体力回涌。',
+        gain: '在亲密顶点选择深层内释时自动累加。',
+        loss: '历史累计记录，不会减少。'
+      },
+      '怀孕': {
+        title: '孕育状态',
+        subtitle: '彻底改写关系走向的身份转折',
+        effect: '确诊后立即扣减 30 点羞耻并将羞耻上限永久锁死在 ≤ 35，深刻影响后续亲密互动、隐瞒博弈与家族暗线。',
+        gain: '仅在未孕状态下发生深层内释时进行隐秘检定（常规 10%，高堕落 >80 或绝顶同拍达 40%；安全期 ×0.25、危险期 ×2）；命中后先经 2 天早孕潜伏期，跨日自动显影确诊。',
+        loss: '一旦显影确诊为持久剧情状态，不会自行消退。'
+      },
+      '孕育状态': {
+        title: '早孕潜伏期',
+        subtitle: '尚未察觉却已在体内悄然生根的微兆',
+        effect: '处于 2 天着床潜伏期内，表面尚无明显察觉；跨日到期后自动转正为确诊怀孕，并瞬间压低羞耻至 ≤ 35。',
+        gain: '深层内释命中受孕暗骰后自动进入潜伏着床。',
+        loss: '随游戏日历倒计时归零自动显影转正。'
+      },
+      '被动': {
+        title: '定向支配被动',
+        subtitle: '以主角经验值刻下的专属心理支配阶梯',
+        effect: 'Lv.1 削弱日常抗拒与防备；Lv.2 认知欺诈滤镜（越界掉好感再减半并解除高羞耻亲情豁免）；Lv.3 疲劳诱导（焦虑 / 劳作 / 抗拒体力消耗翻倍）；Lv.4 防线支配（一切降羞效果额外 ×1.25）。',
+        gain: '消耗主角「经验值」在下方被动卡片零体力逐阶解锁（20 / 50 / 200 / 800），每次升阶同时永久奖主角 +1 魅力。',
+        loss: '永久生效，不会降级。'
+      },
+      '生理周期': {
+        title: '生理周期',
+        subtitle: '十日一轮的自然节律相位',
+        effect: '直接修正深层内释时的受孕检定倍率：安全期降为 0.25×（保底 2%），常规期为 1×，危险期翻倍至 2×（配合高堕落或绝顶极易受孕）。',
+        gain: '随游戏日历按每位女主各自固定相位自然推进（每 10 天一轮）。',
+        loss: '自然周期循环，不受单次互动直接改写。'
+      },
+      '欲求积压': {
+        title: '欲求积压',
+        subtitle: '在场高欲却迟迟未得纾解的焦灼段数',
+        effect: '在场且高欲（>70）连续未得释放时积压；满 2 段会触发空耗疲惫扣除体力，并显著提高整夜独处时对方暗中自渎纾解的倾向。',
+        gain: '女主在场且处于高欲状态，却未迎来绝顶或纾解时每段 +1。',
+        loss: '绝顶清算、暗中自渎或触发一次空耗结算后清零；离场期间冻结不递增。'
+      },
+      '警惕': {
+        title: '徐承邺监视态势',
+        subtitle: '父权审视下的行踪警戒与暴露风险',
+        effect: '决定徐承邺的回返概率与发现压力：全员最高警惕 ≥ 50 时有 10% 概率突然折返主宅或公寓，≥ 70 飙升至 35%；发现阶段达到 3（目击锁定）后将彻底锁死警戒底线 ≥ 50。',
+        gain: '留下异常行迹（+10）、眼线汇报（+5）、亲眼目击（+15 并锁定发现 ≥ 3）或实锤证据都会推高警惕与发现阶段。',
+        loss: '未目击锁定前，每完整游戏小时自然回落 2 点；妥善解释、转移注意、查岗化解（-5～-15）可主动压低。一旦目击锁定，一切衰减与降警惕手段均失效。'
+      }
+    }
+  };
+
+  function buildStatGuidePanel(scope, statKey, ctx, onClose) {
+    const entry = STAT_GUIDE[scope]?.[statKey];
+    if (!entry) return null;
+    const panel = node('section', 'stat-guide-panel');
+    panel.setAttribute('role', 'region');
+    panel.setAttribute('aria-label', entry.title + '说明');
+
+    const head = node('div', 'stat-guide-head');
+    const titleWrap = node('div', 'stat-guide-title');
+    titleWrap.append(
+      node('strong', '', entry.title),
+      node('span', 'stat-guide-sub', entry.subtitle)
+    );
+    const closeBtn = node('button', 'stat-guide-close', '收起 ×');
+    closeBtn.type = 'button';
+    closeBtn.onclick = () => { haptic(6); onClose(); };
+    head.append(titleWrap, closeBtn);
+    panel.append(head);
+
+    if (typeof entry.live === 'function') {
+      const liveText = entry.live(ctx || {});
+      if (liveText) {
+        const liveBar = node('div', 'stat-guide-live');
+        liveBar.append(node('span', 'stat-guide-live-dot', '✦'), node('span', '', liveText));
+        panel.append(liveBar);
+      }
+    }
+
+    const rows = node('div', 'stat-guide-rows');
+    const mkRow = (tag, cls, text) => {
+      const row = node('div', 'stat-guide-row');
+      row.append(node('span', 'stat-guide-tag ' + cls, tag), node('p', 'stat-guide-text', text));
+      return row;
+    };
+    rows.append(
+      mkRow('作用', 'is-effect', entry.effect),
+      mkRow('增长', 'is-gain', entry.gain),
+      mkRow('减少', 'is-loss', entry.loss)
+    );
+    panel.append(rows);
+
+    if (typeof entry.action === 'function') {
+      const act = entry.action(ctx || {});
+      if (act && act.label && typeof act.run === 'function') {
+        const foot = node('div', 'stat-guide-foot');
+        const btn = node('button', 'btn-outline stat-guide-action', act.label);
+        btn.type = 'button';
+        btn.onclick = () => { haptic(8); act.run(); };
+        foot.append(btn);
+        panel.append(foot);
+      }
+    }
+    return panel;
+  }
+
   function renderHostTab(w, panels) {
     const pane = node('div', 'hub-pane');
     const host = panels['系统宿主'] || { stats: {}, ordered: [] };
@@ -4249,14 +4532,59 @@
     pane.append(hero);
 
     // 2. Dual SVG Vitals Gauge Card
+    const sg = staminaGuard(w);
+    const hp = w?.intimate?.host_phys || {};
+    const vigorVal = Number.isFinite(Number(hp.vigor)) ? Number(hp.vigor) : sg.vigor;
+    const desireVal = Number.isFinite(Number(hp.desire)) ? Number(hp.desire) : 0;
+    const desireTag = desireVal >= 85 ? ' · 临界蓄满' : (desireVal >= 60 ? ' · 欲火灼烫' : '');
+    const vigorTag = sg.active ? (' · 护航锁底' + sg.floor) : (vigorVal <= 15 ? ' · 耐力见底' : '');
+    const charmVal = host.stats['魅力']?.num ?? w.host_charm_tier?.charm ?? 70;
+    const bizVal = host.stats['商业嗅觉']?.num ?? 0;
+    const ptsVal = host.stats['积分']?.num ?? 0;
+    const expVal = host.stats['经验值']?.num ?? 0;
+    const readyPassives = [];
+    if (Array.isArray(w.passive_tiers) && w.passive_tiers.length) {
+      for (const hName of PEOPLE) {
+        const rawP = panels[hName]?.stats?.['被动']?.raw || 'Lv.0';
+        const lvM = /Lv\.(\d+)/.exec(rawP);
+        const curLv = lvM ? Number(lvM[1]) : 0;
+        const nextT = w.passive_tiers[curLv + 1];
+        if (nextT && expVal >= nextT.cost) readyPassives.push(hName);
+      }
+    }
+    const hostGuideCtx = {
+      stamina: staminaVal,
+      vigor: vigorVal,
+      desire: desireVal,
+      budget: budgetVal,
+      charm: charmVal,
+      biz: bizVal,
+      points: ptsVal,
+      exp: expVal,
+      sg,
+      cTier: w.host_charm_tier,
+      readyPassives
+    };
+    const toggleHostInspect = key => {
+      haptic(8);
+      inspectedHostStat = inspectedHostStat === key ? '' : key;
+      renderWorld(true);
+    };
+
     const vitals = node('section', 'vitals-card');
     vitals.append(buildStaminaDualRing(staminaVal, budgetVal));
     const vDetails = node('div', 'vitals-details');
 
-    const mkVitalRow = (label, valueText, pct, color) => {
-      const row = node('div', 'vital-row');
+    const mkVitalRow = (statKey, label, valueText, pct, color) => {
+      const isInsp = inspectedHostStat === statKey;
+      const row = node('button', 'vital-row is-inspectable' + (isInsp ? ' is-inspected' : ''));
+      row.type = 'button';
+      row.setAttribute('aria-expanded', String(isInsp));
+      row.onclick = () => toggleHostInspect(statKey);
       const top = node('div', 'vital-row-top');
-      top.append(node('span', '', label), node('b', '', valueText));
+      const lblWrap = node('span', 'vital-row-label');
+      lblWrap.append(node('span', '', label), node('span', 'stat-info-dot', 'ⓘ'));
+      top.append(lblWrap, node('b', '', valueText));
       const track = node('div', 'stat-track');
       const bar = node('span', 'stat-bar');
       bar.style.width = Math.max(0, Math.min(100, pct)) + '%';
@@ -4266,24 +4594,25 @@
       return row;
     };
 
-    const sg = staminaGuard(w);
-    const hp = w?.intimate?.host_phys || {};
-    const vigorVal = Number.isFinite(Number(hp.vigor)) ? Number(hp.vigor) : sg.vigor;
-    const desireVal = Number.isFinite(Number(hp.desire)) ? Number(hp.desire) : 0;
-    const desireTag = desireVal >= 85 ? ' · 临界蓄满' : (desireVal >= 60 ? ' · 欲火灼烫' : '');
-    const vigorTag = sg.active ? (' · 护航锁底' + sg.floor) : (vigorVal <= 15 ? ' · 耐力见底' : '');
-
     vDetails.append(
-      mkVitalRow('当前体力', staminaVal + ' / 100', staminaVal, staminaVal < 20 ? 'var(--crimson)' : 'linear-gradient(90deg, var(--jade), var(--gold-bright))'),
-      mkVitalRow('亲密耐力（精力）', vigorVal + ' / 100' + vigorTag, vigorVal, vigorVal <= 15 ? 'var(--crimson)' : 'linear-gradient(90deg, #6e59a8, #b694f6)'),
-      mkVitalRow('宿主欲望', desireVal + ' / 100' + desireTag, desireVal, desireVal >= 85 ? 'linear-gradient(90deg, #b83b5e, #ff7096)' : 'linear-gradient(90deg, #8e4658, #d87a8f)'),
-      mkVitalRow('道具恢复额度', budgetVal + ' / 20', (budgetVal / 20) * 100, 'linear-gradient(90deg, var(--gold-deep), var(--gold-bright))')
+      mkVitalRow('体力', '当前体力', staminaVal + ' / 100', staminaVal, staminaVal < 20 ? 'var(--crimson)' : 'linear-gradient(90deg, var(--jade), var(--gold-bright))'),
+      mkVitalRow('亲密耐力', '亲密耐力（精力）', vigorVal + ' / 100' + vigorTag, vigorVal, vigorVal <= 15 ? 'var(--crimson)' : 'linear-gradient(90deg, #6e59a8, #b694f6)'),
+      mkVitalRow('宿主欲望', '宿主欲望', desireVal + ' / 100' + desireTag, desireVal, desireVal >= 85 ? 'linear-gradient(90deg, #b83b5e, #ff7096)' : 'linear-gradient(90deg, #8e4658, #d87a8f)'),
+      mkVitalRow('道具恢复额度', '道具恢复额度', budgetVal + ' / 20', (budgetVal / 20) * 100, 'linear-gradient(90deg, var(--gold-deep), var(--gold-bright))')
     );
-    const note = node('p', 'muted', '日常 A 5 / B 10 / C 15；亲密第2拍起体力折减为 1/2/3 且耐力 ≥ 15 时体力锁底 10 不断电；安稳整夜后体力与耐力同步满恢复。');
+    const note = node('p', 'muted', '轻点任一体能条或下方属性卡，查看沉浸作用与增减途径。');
     note.style.margin = '2px 0 0';
     vDetails.append(note);
     vitals.append(vDetails);
     pane.append(vitals);
+
+    if (HOST_VITAL_GUIDE_KEYS.has(inspectedHostStat)) {
+      const gPanel = buildStatGuidePanel('host', inspectedHostStat, hostGuideCtx, () => {
+        inspectedHostStat = '';
+        renderWorld(true);
+      });
+      if (gPanel) pane.append(gPanel);
+    }
 
     // 3. Structured Attribute Tiles
     const grid = node('section', 'attr-grid');
@@ -4298,23 +4627,30 @@
       const cfg = tileConfigs[item.key] || { icon: 'sparkle', color: 'var(--gold)', max: null };
       const isPoints = item.key === '积分';
       const isExp = item.key === '经验值';
-      const isClickable = isPoints || isExp;
-      const tile = node(isClickable ? 'button' : 'div', 'attr-tile' + (isClickable ? ' is-clickable' : ''));
-      if (isPoints) {
+      const hasGuide = Boolean(STAT_GUIDE.host[item.key]);
+      const isInsp = inspectedHostStat === item.key;
+      const isClickable = isPoints || isExp || hasGuide;
+      const tile = node(isClickable ? 'button' : 'div', 'attr-tile' + (isClickable ? ' is-clickable is-inspectable' : '') + (isInsp ? ' is-inspected' : ''));
+      if (isClickable) {
         tile.type = 'button';
-        tile.onclick = () => openHub('shop');
-      } else if (isExp) {
-        tile.type = 'button';
-        tile.onclick = () => openHub('roster');
+        tile.setAttribute('aria-expanded', String(isInsp));
+        tile.onclick = () => {
+          if (hasGuide) toggleHostInspect(item.key);
+          else if (isPoints) openHub('shop');
+          else if (isExp) openHub('roster');
+        };
       }
       const head = node('div', 'attr-tile-head');
-      head.append(node('span', '', item.key), icon(cfg.icon, 'chip-svg'));
+      const headTitle = node('span', 'attr-tile-name');
+      headTitle.append(node('span', '', item.key));
+      if (hasGuide) headTitle.append(node('span', 'stat-info-dot', 'ⓘ'));
+      head.append(headTitle, icon(cfg.icon, 'chip-svg'));
       const val = node('div', 'attr-tile-val', item.raw);
       tile.append(head, val);
       if (isPoints) {
-        tile.append(node('div', 'attr-tile-link', '前往商城兑换 →'));
+        tile.append(node('div', 'attr-tile-link', isInsp ? '下方可直达系统商城' : '释义 · 兑换商城'));
       } else if (isExp) {
-        tile.append(node('div', 'attr-tile-link', '前往名册解锁被动 →'));
+        tile.append(node('div', 'attr-tile-link', isInsp ? '下方可直达人物名册' : '释义 · 解锁被动'));
       } else if (cfg.max && item.num !== null) {
         const track = node('div', 'stat-track');
         const bar = node('span', 'stat-bar');
@@ -4325,7 +4661,16 @@
       }
       grid.append(tile);
     }
-    if (hostAttrs.length) pane.append(grid);
+    if (hostAttrs.length) {
+      pane.append(grid);
+      if (inspectedHostStat && !HOST_VITAL_GUIDE_KEYS.has(inspectedHostStat) && STAT_GUIDE.host[inspectedHostStat]) {
+        const gPanel = buildStatGuidePanel('host', inspectedHostStat, hostGuideCtx, () => {
+          inspectedHostStat = '';
+          renderWorld(true);
+        });
+        if (gPanel) pane.append(gPanel);
+      }
+    }
 
     // 3a. Charm 5-Tier Perks & Host Fetish Card (Collapsible)
     const cTier = w.host_charm_tier;
@@ -4623,13 +4968,49 @@
       '欲望': 'linear-gradient(90deg, #9f4448, #df7278)',
       '堕落': 'linear-gradient(90deg, #7d4a69, #c484a7)'
     };
+    const charBuffs = w.buffs?.[name] || [];
+    const rawPassiveForGuide = charPanel.stats['被动']?.raw || 'Lv.0';
+    const passiveLvM = /Lv\.(\d+)/.exec(rawPassiveForGuide);
+    const passiveLvNum = passiveLvM ? Number(passiveLvM[1]) : 0;
+    const depNum = charPanel.stats['堕落']?.num ?? 0;
+    const isPregBool = charPanel.stats['怀孕']?.bool === true;
+    const baseShameCap = Math.max(0, 100 - Math.floor(depNum * 0.6));
+    const charGuideCtx = {
+      name,
+      aff: charPanel.stats['好感']?.num ?? 0,
+      shame: charPanel.stats['羞耻']?.num ?? 0,
+      stamina: charPanel.stats['体力']?.num ?? 0,
+      des: charPanel.stats['欲望']?.num ?? 0,
+      dep: depNum,
+      passiveLv: passiveLvNum,
+      isPreg: isPregBool,
+      shameCap: isPregBool ? Math.min(35, baseShameCap) : baseShameCap,
+      hasFluidLock: charBuffs.some(b => String(b?.name || '').includes('体液锁定'))
+    };
+    const toggleCharInspect = key => {
+      haptic(8);
+      inspectedCharStat = inspectedCharStat === key ? '' : key;
+      renderWorld(true);
+    };
+
     const barItems = charPanel.ordered.filter(it => barMeta[it.key] && it.num !== null);
     if (barItems.length) {
+      body.append(node('div', 'stat-inspect-hint', '轻点任意属性或状态标签，查看沉浸作用与增减途径'));
       const grid = node('div', 'char-bars-grid');
       for (const it of barItems) {
-        const bCard = node('div', 'char-bar-card');
+        const hasGuide = Boolean(STAT_GUIDE.char[it.key]);
+        const isInsp = inspectedCharStat === it.key;
+        const bCard = node(hasGuide ? 'button' : 'div', 'char-bar-card' + (hasGuide ? ' is-inspectable' : '') + (isInsp ? ' is-inspected' : ''));
+        if (hasGuide) {
+          bCard.type = 'button';
+          bCard.setAttribute('aria-expanded', String(isInsp));
+          bCard.onclick = () => toggleCharInspect(it.key);
+        }
         const top = node('div', 'char-bar-top');
-        top.append(node('span', '', it.key), node('b', '', it.raw));
+        const lblWrap = node('span', 'char-bar-label');
+        lblWrap.append(node('span', '', it.key));
+        if (hasGuide) lblWrap.append(node('span', 'stat-info-dot', 'ⓘ'));
+        top.append(lblWrap, node('b', '', it.raw));
         const track = node('div', 'stat-track');
         const fill = node('span', 'stat-bar');
         fill.style.width = Math.max(0, Math.min(100, it.num)) + '%';
@@ -4639,42 +5020,62 @@
         grid.append(bCard);
       }
       body.append(grid);
+      if (CHAR_BAR_GUIDE_KEYS.has(inspectedCharStat) && barItems.some(it => it.key === inspectedCharStat)) {
+        const gPanel = buildStatGuidePanel('char', inspectedCharStat, charGuideCtx, () => {
+          inspectedCharStat = '';
+          renderWorld(true);
+        });
+        if (gPanel) body.append(gPanel);
+      }
     }
 
     // Remaining Secondary Status Chips (高潮 / 内射 / 怀孕 / 被动 / etc.)
     const chipItems = charPanel.ordered.filter(it => !barMeta[it.key]);
     const phys = w.physiology?.[name];
+    const renderedChipKeys = new Set();
+    const mkStatusChip = (chipKey, label, valueText) => {
+      const hasGuide = Boolean(STAT_GUIDE.char[chipKey]);
+      const isInsp = inspectedCharStat === chipKey;
+      renderedChipKeys.add(chipKey);
+      const chip = node(hasGuide ? 'button' : 'span', 'status-chip' + (hasGuide ? ' is-inspectable' : '') + (isInsp ? ' is-inspected' : ''));
+      if (hasGuide) {
+        chip.type = 'button';
+        chip.setAttribute('aria-expanded', String(isInsp));
+        chip.onclick = () => toggleCharInspect(chipKey);
+      }
+      chip.append(node('span', '', label), node('b', '', valueText));
+      if (hasGuide) chip.append(node('span', 'stat-info-dot', 'ⓘ'));
+      return chip;
+    };
     if (chipItems.length || phys) {
       const chips = node('div', 'status-chip-row');
       for (const it of chipItems) {
-        const chip = node('span', 'status-chip');
         const display = it.bool === true ? '是' : it.bool === false ? '否' : it.raw;
-        chip.append(node('span', '', it.key), node('b', '', display));
-        chips.append(chip);
+        chips.append(mkStatusChip(it.key, it.key, display));
       }
       if (phys) {
         if (phys.cycle_phase) {
-          const chip = node('span', 'status-chip');
-          chip.append(node('span', '', '生理周期'), node('b', '', phys.cycle_phase));
-          chips.append(chip);
+          chips.append(mkStatusChip('生理周期', '生理周期', phys.cycle_phase));
         }
         if (phys.pregnancy_stage === 'latent') {
-          const chip = node('span', 'status-chip');
           const daysTxt = Number.isFinite(Number(phys.latent_days_left)) ? ('（剩' + phys.latent_days_left + '天显影）') : '';
-          chip.append(node('span', '', '孕育状态'), node('b', '', '潜伏着床' + daysTxt));
-          chips.append(chip);
+          chips.append(mkStatusChip('孕育状态', '孕育状态', '潜伏着床' + daysTxt));
         }
         if (Number(phys.unrelieved_streak) > 0) {
-          const chip = node('span', 'status-chip');
-          chip.append(node('span', '', '欲求积压'), node('b', '', phys.unrelieved_streak + ' 段'));
-          chips.append(chip);
+          chips.append(mkStatusChip('欲求积压', '欲求积压', phys.unrelieved_streak + ' 段'));
         }
       }
       body.append(chips);
+      if (renderedChipKeys.has(inspectedCharStat) && STAT_GUIDE.char[inspectedCharStat]) {
+        const gPanel = buildStatGuidePanel('char', inspectedCharStat, charGuideCtx, () => {
+          inspectedCharStat = '';
+          renderWorld(true);
+        });
+        if (gPanel) body.append(gPanel);
+      }
     }
 
     // Persistent BUFF Badges (e.g., 持续_体液锁定)
-    const charBuffs = w.buffs?.[name] || [];
     if (charBuffs.length) {
       const bRow = node('div', 'buff-row');
       for (const b of charBuffs) {
@@ -4736,7 +5137,10 @@
         item.append(top, track, node('div', 'body-dev-lv', lvLabels[lv] || ''));
         bdGrid.append(item);
       }
-      bdBody.append(bdGrid);
+      bdBody.append(
+        bdGrid,
+        node('p', 'stat-inline-note', '五区开发只增不退（Lv.0–3：0 / 20 / 50 / 80），随阶梯叠加 +5% / +12% / +22% 高潮推进；命中 ★ 招牌部位享 1.35× 成长与额外降羞，任意部位首破 Lv.2 / Lv.3 同步奖主角 +1 魅力。')
+      );
       bdCard.append(bdBody);
       body.append(bdCard);
     }
@@ -4800,11 +5204,23 @@
       const vCard = node('section', 'vigilance-card');
       const vHead = node('div', 'vigilance-head');
       const isHome = w.vigilance.position === '徐家主宅' || w.vigilance.position === '徐家住宅';
+      const vTitleBtn = node('button', 'vigilance-guide-btn' + (inspectedCharStat === '警惕' ? ' is-inspected' : ''));
+      vTitleBtn.type = 'button';
+      vTitleBtn.setAttribute('aria-expanded', String(inspectedCharStat === '警惕'));
+      vTitleBtn.append(node('strong', '', '徐承邺监视态势'), node('span', 'stat-info-dot', 'ⓘ'));
+      vTitleBtn.onclick = () => toggleCharInspect('警惕');
       vHead.append(
-        node('strong', '', '徐承邺监视态势'),
+        vTitleBtn,
         node('span', 'vigilance-pos-pill' + (isHome ? ' is-home' : ''), isHome ? '徐家主宅 · 正在主宅' : (w.vigilance.position || '外地'))
       );
       vCard.append(vHead);
+      if (inspectedCharStat === '警惕') {
+        const gPanel = buildStatGuidePanel('char', '警惕', charGuideCtx, () => {
+          inspectedCharStat = '';
+          renderWorld(true);
+        });
+        if (gPanel) vCard.append(gPanel);
+      }
       const discLabels = { 0: '未察觉', 1: '怀疑', 2: '线索', 3: '目击锁定', 4: '实锤' };
       const vList = node('div', 'vigilance-list');
       for (const t of (w.vigilance.targets || [])) {
@@ -4826,7 +5242,7 @@
         vRow.append(vTop, track);
         vList.append(vRow);
       }
-      vCard.append(vList, node('span', 'muted', '每完整游戏小时警惕自然回落 2（目击锁定目标不衰减）；仅显示行踪、警惕与发现阶段。'));
+      vCard.append(vList, node('span', 'muted', '轻点标题查看警惕增减与回返机制；每完整游戏小时自然回落 2（目击锁定目标不衰减）。'));
       body.append(vCard);
     }
 
