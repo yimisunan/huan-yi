@@ -53,7 +53,7 @@
     "clock": "game_day_and_HH:MM",
     "close_memory": "cross_midnight_or_final_stamina_below_5",
     "actions": "accepted_paid_story_actions",
-    "legacy_timers": "BUFF/道具/微状态/守护/破局按有效行动；任务按实际面板；监视每完整游戏小时衰减2，每有效行动一次回宅判定",
+    "legacy_timers": "BUFF/道具/微状态/守护/破局按有效行动；任务按实际面板；监视按人物分档衰减（苏1.5/沈徐2/薇3），每有效行动一次回宅判定",
     "stage_threshold": null,
     "game_minutes": null
   },
@@ -100,8 +100,8 @@
     "costs": {
       "1": 20,
       "2": 50,
-      "3": 200,
-      "4": 800
+      "3": 110,
+      "4": 220
     }
   },
   "director": {

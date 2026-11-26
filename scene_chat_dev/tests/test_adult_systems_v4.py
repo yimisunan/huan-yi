@@ -192,7 +192,7 @@ class AdultSystemsV4Tests(unittest.TestCase):
         )
         self.assertEqual(inferred, {'沈知韫': ['foot']})
 
-        # Signature zone develops at 1.35x speed (deep base 12 -> 16 vs non-signature 12)
+        # Signature zone develops at 1.35x speed (deep base 8 -> 11 vs non-signature 8)
         ic.advance_intimate_state(
             st,
             {'shame_events': {'沈知韫': ['C烈度_深度']}},
@@ -200,8 +200,8 @@ class AdultSystemsV4Tests(unittest.TestCase):
             active_cast=['沈知韫'],
             category='C',
         )
-        self.assertEqual(st['intimate']['body_dev']['沈知韫']['foot'], 16)
-        self.assertEqual(st['intimate']['body_dev']['沈知韫']['hand'], 12)
+        self.assertEqual(st['intimate']['body_dev']['沈知韫']['foot'], 11)
+        self.assertEqual(st['intimate']['body_dev']['沈知韫']['hand'], 8)
 
         # Crossing Lv.2 (>=50) triggers dev_milestones & +1 Charm
         st['intimate']['body_dev']['沈知韫']['foot'] = 44
@@ -213,7 +213,7 @@ class AdultSystemsV4Tests(unittest.TestCase):
             active_cast=['沈知韫'],
             category='C',
         )
-        self.assertEqual(st['intimate']['body_dev']['沈知韫']['foot'], 60)
+        self.assertEqual(st['intimate']['body_dev']['沈知韫']['foot'], 55)
         self.assertEqual(len(meta_lv2['dev_milestones']), 1)
         self.assertEqual(meta_lv2['dev_milestones'][0]['level'], 2)
         self.assertEqual(st['panels']['系统宿主']['魅力'], 73)

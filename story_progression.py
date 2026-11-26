@@ -124,9 +124,9 @@ PASSIVE_TARGETS = ('沈知韫', '苏婉青', '徐念薇')
 PASSIVE_LEVELS = (
     {'level': 0, 'tag': 'Lv.0', 'name': '凡人体质', 'cost': 0, 'effect': '无被动增益；越界面临正常防御或反击'},
     {'level': 1, 'tag': 'Lv.1', 'name': '洞察之瞳', 'cost': 20, 'effect': '精准捕捉目标生理伪装、心虚停顿与微小动摇'},
-    {'level': 2, 'tag': 'Lv.2', 'name': '认知欺诈滤镜', 'cost': 50, 'effect': 'C烈度越界好感惩罚减半（可与商业杠杆叠加）；目标潜意识优先合理化宿主行为'},
-    {'level': 3, 'tag': 'Lv.3', 'name': '疲劳诱导', 'cost': 200, 'effect': '精准触发焦虑锚点；目标焦虑/劳作/剧烈抗拒体力消耗翻倍'},
-    {'level': 4, 'tag': 'Lv.4', 'name': '防线支配', 'cost': 800, 'effect': '全景测绘；羞耻侵蚀加深(×0.7)、活跃C额外降防、防线豁免与同质化穿透'},
+    {'level': 2, 'tag': 'Lv.2', 'name': '认知欺诈滤镜', 'cost': 50, 'effect': 'C烈度越界好感惩罚减半（叠加封顶75%且保底-1）；目标潜意识优先合理化宿主行为'},
+    {'level': 3, 'tag': 'Lv.3', 'name': '疲劳诱导', 'cost': 110, 'effect': '目标焦虑/劳作/剧烈抗拒体力消耗翻倍；且目标体力<60时活跃C羞耻额外-1'},
+    {'level': 4, 'tag': 'Lv.4', 'name': '防线支配', 'cost': 220, 'effect': '全景测绘；羞耻侵蚀加深(×0.7)、活跃C额外降防-2、高羞耻完好防线豁免与同质化穿透'},
 )
 
 
@@ -797,7 +797,7 @@ def load_intel_catalog(root, optional=False):
 
 def parse_intel_block(content):
     """Parse 【商业情报与杠杆状态】 from 全局记忆库.txt; missing block defaults cleanly."""
-    out = {'held': [], 'consumed': [], 'su_ab_contacts': 0, 'leverage_armed': ''}
+    out = {'held': [], 'consumed': [], 'su_ab_contacts': 0, 'leverage_armed': '', 'leverage_charges': 0}
     if not content or INTEL_ANCHOR not in content:
         return out
     m = re.search(rf'(?m)({re.escape(INTEL_ANCHOR)}.*?)(?=\n【|\n▲ 第一层：|\Z)', content, re.S)
@@ -818,6 +818,9 @@ def parse_intel_block(content):
         im = re.search(r'INTEL-\d+', lm.group(1))
         if im and im.group(0) in out['held']:
             out['leverage_armed'] = im.group(0)
+    lcm = re.search(r'^商业杠杆护盾：[^\n]*?(\d+)', block, re.M)
+    if lcm:
+        out['leverage_charges'] = max(0, min(3, int(lcm.group(1))))
     return out
 
 
@@ -830,6 +833,7 @@ def write_intel_block(content, intel_state, catalog=None):
     armed = str(intel_state.get('leverage_armed') or '')
     if armed not in held:
         armed = ''
+    charges = max(0, min(3, int(intel_state.get('leverage_charges', 0) or 0)))
     def fmt_id(iid):
         return f'{iid}({name_map[iid]})' if iid in name_map else iid
     lines = [
@@ -839,6 +843,8 @@ def write_intel_block(content, intel_state, catalog=None):
         f'苏婉青AB接触：{su_ab}',
         f'商业杠杆预备：已预备({fmt_id(armed)})' if armed else '商业杠杆预备：未启用',
     ]
+    if charges > 0:
+        lines.append(f'商业杠杆护盾：剩余 {charges} 次')
     block = '\n'.join(lines) + '\n'
     m = re.search(rf'(?m)({re.escape(INTEL_ANCHOR)}.*?)(?=\n【|\n▲ 第一层：|\Z)', content, re.S)
     if m:
@@ -2878,8 +2884,9 @@ def apply_staged(store,engine,stage,body,files,parsed):
         intel_catalog=load_intel_catalog(store.root,optional=True)
         intel_state=parse_intel_block(memory_path.read_text(encoding='utf-8'))
         intel_dirty=False
+        existing_charges=max(0,int(intel_state.get('leverage_charges',0) or 0))
         leverage_armed=intel_state['leverage_armed'] if intel_state['leverage_armed'] in intel_state['held'] else ''
-        use_leverage=bool(leverage_armed) and (not parsed.get('intel_used') or parsed['intel_used']['id']!=leverage_armed)
+        use_leverage=(existing_charges>0) or (bool(leverage_armed) and (not parsed.get('intel_used') or parsed['intel_used']['id']!=leverage_armed))
         resolved_body_acts=engine.infer_body_acts_from_prose(
             prose_joined, events, explicit_acts=(scene_state or {}).get('body_acts') if isinstance(scene_state,dict) else None,
         )
@@ -2890,6 +2897,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
             active_cast=present_actors,pre_event_content=pre_mem,
             insomnia_targets=parsed.get('insomnia_targets'),defer_task=True,
             privacy=eff_privacy,body_acts=resolved_body_acts,
+            action_category=value.get('category'),
         )
         if isinstance(ev_meta,dict) and isinstance(ev_meta.get('normalized_events'),dict):
             events=ev_meta['normalized_events']
@@ -2902,13 +2910,20 @@ def apply_staged(store,engine,stage,body,files,parsed):
                     lmicro.setdefault(hname, {})['residual_tension'] = {'observed_round': action, 'origin': 'activated'}
         lev_meta=(ev_meta or {}).get('leverage_meta') or {}
         if use_leverage and lev_meta.get('applied'):
-            intel_state['held']=[x for x in intel_state['held'] if x!=leverage_armed]
-            if leverage_armed not in intel_state['consumed']:
-                intel_state['consumed'].append(leverage_armed)
-            intel_state['leverage_armed']=''
-            intel_dirty=True
-            iname=next((it['name'] for it in intel_catalog['items'] if it['id']==leverage_armed),leverage_armed)
-            leverage_triggered={'intel_id':leverage_armed,'intel_name':iname,'targets':lev_meta.get('targets',[])}
+            if existing_charges>0:
+                rem_charges=max(0,existing_charges-1)
+                intel_state['leverage_charges']=rem_charges
+                intel_dirty=True
+                leverage_triggered={'intel_id':'SHIELD','intel_name':f'商业杠杆护盾（余{rem_charges}次）','targets':lev_meta.get('targets',[]),'remaining_charges':rem_charges}
+            else:
+                intel_state['held']=[x for x in intel_state['held'] if x!=leverage_armed]
+                if leverage_armed not in intel_state['consumed']:
+                    intel_state['consumed'].append(leverage_armed)
+                intel_state['leverage_armed']=''
+                intel_state['leverage_charges']=2
+                intel_dirty=True
+                iname=next((it['name'] for it in intel_catalog['items'] if it['id']==leverage_armed),leverage_armed)
+                leverage_triggered={'intel_id':leverage_armed,'intel_name':iname,'targets':lev_meta.get('targets',[]),'remaining_charges':2}
         su_targeted = (
             (value.get('conditions') or {}).get('npc') == '苏婉青'
             or any(m.get('kind') == 'dialogue' and m.get('speaker') == '苏婉青' for m in body.get('messages', []))
@@ -3054,6 +3069,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
             scene_prose_all=' '.join(str(m.get('text') or '') for m in (body.get('messages') or []) if isinstance(m,dict))
             st_vig_now,_,_=save_store.load_bundle(stage)
             intl_vig=st_vig_now.get('intimate') or {}
+            host_biz_now=int(((st_vig_now.get('panels') or {}).get('系统宿主') or {}).get('商业嗅觉',0) or 0)
             rr._engine_call(
                 engine.process_vigilance_system,
                 events['vigilance_events'],
@@ -3070,6 +3086,8 @@ def apply_staged(store,engine,stage,body,files,parsed):
                 intel_state=st_vig_now.get('intel') or {},
                 su_stats=(st_vig_now.get('panels') or {}).get('苏婉青') or {},
                 enforce_channel_gate=True,
+                host_biz=host_biz_now,
+                leverage_active=bool(leverage_triggered),
             )
         if kind=='action':
             dir_mem=memory_path.read_text(encoding='utf-8')
@@ -3104,7 +3122,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
         if day_dirty:
             save_store.save_bundle(stage,st_day,ly_day)
     if parsed['sleep']['kind']=='overnight':
-        # 跨夜安稳睡眠：宿主恢复 100；体液锁定跨夜衰减6回合；高欲求/空耗女主触发夜间暗中自渎纾解；未失眠女主恢复体力、残余高潮清零、堕落<30且欲望<15时羞耻防线微幅回弹+1
+        # 跨夜安稳睡眠：宿主恢复 100；体液锁定跨夜衰减6回合；高欲求/空耗女主触发夜间暗中自渎纾解；未失眠女主恢复体力(孕期上限88)、残余高潮清零、堕落<30且欲望<15时羞耻防线微幅回弹+1，并即时夹紧羞耻上限
         st_ov,ly_ov,_=save_store.load_bundle(stage)
         ins_map=st_ov['mechanics'].get('insomnia_applied') or {}
         unlocked_caps=st_ov['mechanics'].setdefault('depravity_unlocked_caps',{h:30 for h in save_store.HEROINES})
@@ -3117,6 +3135,8 @@ def apply_staged(store,engine,stage,body,files,parsed):
             cur_h_dep=int(st_ov['panels'][hname].get('堕落',0))
             cur_h_des=int(st_ov['panels'][hname].get('欲望',0))
             cur_h_pas=int(st_ov['panels'][hname].get('被动',0))
+            cur_h_cp=int(st_ov['panels'][hname].get('内射',0))
+            is_h_preg=bool(st_ov['panels'][hname].get('怀孕'))
             # 1. 跨夜衰减 [持续_体液锁定] 6 回合
             rem_lock_turns=0
             next_buffs=[]
@@ -3126,7 +3146,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
                     new_rem=max(0,old_rem-6)
                     if new_rem>0:
                         rem_lock_turns=new_rem
-                        fl_floor=engine.fluid_lock_floor_for_turns(new_rem)
+                        fl_floor=engine.fluid_lock_floor_for_turns(new_rem,creampie_count=cur_h_cp)
                         next_buffs.append({
                             'name':'持续_体液锁定',
                             'turns':new_rem,
@@ -3138,7 +3158,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
                     new_rem=max(0,old_rem-6)
                     if new_rem>0:
                         rem_lock_turns=new_rem
-                        fl_floor=engine.fluid_lock_floor_for_turns(new_rem)
+                        fl_floor=engine.fluid_lock_floor_for_turns(new_rem,creampie_count=cur_h_cp)
                         next_buffs.append({
                             'name':'持续_体液锁定',
                             'turns':new_rem,
@@ -3147,7 +3167,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
                 else:
                     next_buffs.append(bitem)
             st_ov.setdefault('buffs',{})[hname]=next_buffs
-            lock_floor=engine.fluid_lock_floor_for_turns(rem_lock_turns)
+            lock_floor=engine.fluid_lock_floor_for_turns(rem_lock_turns,creampie_count=cur_h_cp)
             # 2. 夜间私密自渎自动纾解判定
             unrel_key=f'空耗_连续未纾解_{hname}'
             cur_unrel=int(st_ov.get('counters',{}).get(unrel_key,0))
@@ -3162,13 +3182,17 @@ def apply_staged(store,engine,stage,body,files,parsed):
                 m_trace[hname]=2
             elif rem_lock_turns>0 and cur_h_des<lock_floor:
                 ov_patch[hname]['欲望']=lock_floor
+            dep_coef=0.7 if cur_h_pas>=4 else 0.6
+            shame_cap=min(35 if is_h_preg else 100,max(0,100-int(cur_h_dep*dep_coef)))
             if not ins_map.get(hname,False):
                 sta_gain=32 if secret_relief else 40
-                ov_patch[hname]['体力']=min(100,cur_h_sta+sta_gain)
+                sta_cap=88 if is_h_preg else 100
+                ov_patch[hname]['体力']=min(sta_cap,cur_h_sta+sta_gain) if cur_h_sta<sta_cap else cur_h_sta
                 if cur_h_dep<30 and not secret_relief and cur_h_des<15:
-                    dep_coef=0.7 if cur_h_pas>=4 else 0.6
-                    shame_cap=35 if st_ov['panels'][hname].get('怀孕') else max(0,100-int(cur_h_dep*dep_coef))
                     ov_patch[hname]['羞耻']=min(shame_cap,cur_h_shame+1)
+            # 堕落抬升或孕期后确保羞耻立即夹紧至 shame_cap
+            if '羞耻' not in ov_patch[hname] and cur_h_shame>shame_cap:
+                ov_patch[hname]['羞耻']=shame_cap
             st_ov['mechanics']['insomnia_applied'][hname]=False
         for ch,ch_vals in ov_patch.items():
             for ak,av in ch_vals.items():
@@ -3226,6 +3250,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
             operation=op_now_all,
             vigor_costs=res_cfg.get('vigor_costs'),
             body_acts=resolved_body_acts,
+            charm_gained_this_turn=charm_gained_now,
         )
         if parsed['sleep']['kind']=='overnight' or moved_now:
             st_final.setdefault('mechanics',{})['charm_scene_used']=False

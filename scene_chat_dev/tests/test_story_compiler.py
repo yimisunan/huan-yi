@@ -781,8 +781,186 @@ class StoryCompilerTests(unittest.TestCase):
             st_rt, _ = save_store.migrate_from_legacy_texts(mp.read_text(encoding='utf-8'), '')
             self.assertIn('门禁', st_rt['vigilance']['目标']['苏婉青']['动因'])
 
+    def test_attribute_rebalance_plan_b_invariants(self):
+        """Plan B (P0+P1+P2) comprehensive invariants."""
+        import tempfile
+        import injection_core as ic
+        import save_store
+        import story_progression as sp
+
+        # 1. Opening baselines & leverage_charges persistence roundtrip
+        st0 = save_store.default_state()
+        self.assertEqual(st0['panels']['沈知韫']['好感'], 82)
+        self.assertEqual(st0['panels']['沈知韫']['羞耻'], 100)
+        self.assertEqual(st0['panels']['徐念薇']['羞耻'], 96)
+        self.assertEqual(st0['panels']['苏婉青']['羞耻'], 92)
+        self.assertEqual(st0['intel']['leverage_charges'], 0)
+        st0['intel']['leverage_charges'] = 2
+        rendered0 = save_store.render_memory_txt(st0, save_store.default_layers())
+        self.assertIn('商业杠杆护盾：剩余 2 次', rendered0)
+        self.assertEqual(sp.parse_intel_block(rendered0)['leverage_charges'], 2)
+        st_rt, _ = save_store.migrate_from_legacy_texts(rendered0, '')
+        self.assertEqual(st_rt['intel']['leverage_charges'], 2)
+
+        # 2. Passive EXP curve 20/50/110/220
+        tiers = sp.passive_levels(ROOT)
+        self.assertEqual([t['cost'] for t in tiers], [0, 20, 50, 110, 220])
+
+        # 3. Charm <68 penalty tier + fluid lock creampie >=3 floor (62 vs 58)
+        low_c = ic.charm_tier_info(64)
+        self.assertEqual(low_c['name'], '气场受挫')
+        self.assertEqual(low_c['release_vigor_cost'], 14)
+        self.assertEqual(low_c['bt_floor'], 75)
+        self.assertEqual(ic.charm_tier_info(70)['name'], '清俊克制')
+        self.assertEqual(ic.fluid_lock_floor_for_turns(5, creampie_count=0), 58)
+        self.assertEqual(ic.fluid_lock_floor_for_turns(5, creampie_count=3), 62)
+
+        # 4. Orgasm multiplier soft cap 1.50, edging_streak >=3 (+0.15) & vigor <15 (-0.15)
+        max_m, _ = ic._compute_orgasm_mult(
+            100, 100, host_charm=100, body_dev={'沈知韫': {'foot': 90}}, char_name='沈知韫',
+            body_acts={'沈知韫': ['foot']}, host_desire=95, edging_streak=4, host_vigor=100, creampie_count=5,
+        )
+        self.assertEqual(max_m, 1.50)
+        m_base, _ = ic._compute_orgasm_mult(60, 20, host_charm=70, host_desire=50, edging_streak=0, host_vigor=60, creampie_count=0)
+        m_edge3, _ = ic._compute_orgasm_mult(60, 20, host_charm=70, host_desire=90, edging_streak=3, host_vigor=60, creampie_count=0)
+        m_tired, _ = ic._compute_orgasm_mult(60, 20, host_charm=70, host_desire=50, edging_streak=0, host_vigor=10, creampie_count=0)
+        self.assertAlmostEqual(m_edge3 - m_base, 0.15, places=4)
+        self.assertAlmostEqual(m_base - m_tired, 0.15, places=4)
+
+        with tempfile.TemporaryDirectory() as td:
+            mp = Path(td) / 'mem.txt'
+            st = save_store.default_state()
+            # 5. Lv.3 fatigue break (sta < 60 -> extra -1 shame), Lv.4 intact_defense exemption & 75% mitigation cap
+            st['panels']['沈知韫'].update({'好感': 80, '羞耻': 90, '堕落': 0, '体力': 50, '被动': 3})
+            mp.write_text(save_store.render_memory_txt(st, save_store.default_layers()), encoding='utf-8')
+            sh_tired = ic.process_shame_system({'沈知韫': ['C烈度_中度']}, str(mp))['沈知韫']
+            st['panels']['沈知韫']['体力'] = 80
+            mp.write_text(save_store.render_memory_txt(st, save_store.default_layers()), encoding='utf-8')
+            sh_fresh = ic.process_shame_system({'沈知韫': ['C烈度_中度']}, str(mp))['沈知韫']
+            self.assertEqual(sh_fresh - sh_tired, 1)
+
+            # Intact defense stays active at Lv.2/3, exempt at Lv.4; stacked mitigations capped at 75% (floor -1)
+            aff_lv3 = ic.process_affection_system({}, {'沈知韫': ['C烈度_重度']}, str(mp))['沈知韫']
+            self.assertEqual(aff_lv3, 73)  # raw -15 (intact), Lv.2+ *0.5 -> -7
+            aff_stacked = ic.process_affection_system(
+                {}, {'沈知韫': ['C烈度_重度']}, str(mp),
+                business_leverage=True, host_charm=95,
+            )['沈知韫']
+            self.assertEqual(aff_stacked, 76)  # 75% cap on -15 -> -4 (never 0)
+            st['panels']['沈知韫']['被动'] = 4
+            mp.write_text(save_store.render_memory_txt(st, save_store.default_layers()), encoding='utf-8')
+            aff_lv4 = ic.process_affection_system({}, {'沈知韫': ['C烈度_重度']}, str(mp))['沈知韫']
+            self.assertEqual(aff_lv4, 75)  # Lv.4 exempts intact_defense -> raw -10 * 0.5 -> -5
+
+            # 6. Same-turn shame_cap clamp after depravity rise + clean A-tier gentle recovery (+5 cap 30) + nap +15
+            prev_paths = (ic.BASE_DIR, ic.DATA_DIR, ic.MEMORY_FILE, ic.ITEM_FILE, ic.DATA_JSON_FILE)
+            try:
+                ic.BASE_DIR = td
+                ic.DATA_DIR = str(Path(td) / '存档')
+                ic.MEMORY_FILE = str(Path(td) / save_store.RENDERED_MEMORY_PATH)
+                ic.ITEM_FILE = str(Path(td) / save_store.RENDERED_ITEMS_PATH)
+                ic.DATA_JSON_FILE = str(Path(td) / 'data.json')
+                st['panels']['沈知韫'].update({'羞耻': 98, '堕落': 0, '体力': 20, '被动': 0, '欲望': 10})
+                save_store.save_bundle(td, st, save_store.default_layers())
+                ic.apply_story_events(
+                    {'shame_events': {'沈知韫': ['C烈度_轻度']}, 'depravity_events': {'沈知韫': ['内射_首次核爆']}},
+                    None, 1, action_category='C', active_cast=['沈知韫'],
+                )
+                st_c_after, _, _ = save_store.load_bundle(td)
+                # depravity becomes 15 -> shame_cap = 100 - int(15*0.6) = 91 -> clamped <= 91
+                self.assertLessEqual(st_c_after['panels']['沈知韫']['羞耻'], 91)
+
+                st['panels']['沈知韫'].update({'体力': 20, '欲望': 10})
+                save_store.save_bundle(td, st, save_store.default_layers())
+                ic.apply_story_events({}, None, 2, action_category='A', active_cast=['沈知韫'])
+                st_a_after, _, _ = save_store.load_bundle(td)
+                self.assertEqual(st_a_after['panels']['沈知韫']['体力'], 25)
+            finally:
+                ic.BASE_DIR, ic.DATA_DIR, ic.MEMORY_FILE, ic.ITEM_FILE, ic.DATA_JSON_FILE = prev_paths
+
+            st['panels']['沈知韫'].update({'体力': 20, '欲望': 10})
+            mp.write_text(save_store.render_memory_txt(st, save_store.default_layers()), encoding='utf-8')
+            panels_nap = ic.process_desire_stamina_system({'沈知韫': ['恢复_小憩']}, str(mp))
+            self.assertEqual(panels_nap['沈知韫']['体力'], 35)  # 20 + 15
+
+            # 7. Independent biz settlement + biz >= 80 (+15% winning pts/exp & -15% non-witness vig) + leverage vig suppression
+            st['panels']['系统宿主'].update({'积分': 0, '经验值': 0, '商业嗅觉': 80})
+            mp.write_text(save_store.render_memory_txt(st, save_store.default_layers()), encoding='utf-8')
+            host_res = ic.process_host_system(['侵蚀_防线坍塌', '商业_信息获取'], {}, str(mp))
+            self.assertEqual(host_res['积分'], round(30 * 1.15))
+            self.assertEqual(host_res['经验值'], round(20 * 1.15))
+            self.assertEqual(host_res['商业嗅觉'], 84)  # +4 independent
+
+            st_v = save_store.default_state()
+            mp.write_text(save_store.render_memory_txt(st_v, save_store.default_layers()), encoding='utf-8')
+            ic.process_vigilance_system(
+                {'苏婉青': ['异常行迹']}, {}, str(mp),
+                elapsed_hours=0, roll_home=False, active_cast=['苏婉青'],
+                event_evidences={'苏婉青': '查岗电话里她声音微顿。'},
+                enforce_channel_gate=True, host_biz=85, leverage_active=True,
+            )
+            vig = ic._parse_vigilance_block(mp.read_text(encoding='utf-8'))
+            # Base 10 * 1.4 = 14 -> biz 80+ *0.85 = 12 -> leverage -10 => 2
+            self.assertEqual(vig['目标']['苏婉青']['警惕'], 2)
+
+        # 8. body_dev +4/+8, max 2 focus zones, edging_streak >= 3 vigor -2, single-turn Charm cap +1
+        st_i = save_store.default_state()
+        st_i['panels']['系统宿主']['魅力'] = 72
+        st_i['intimate']['body_dev']['沈知韫']['foot'] = 44
+        st_i['intimate']['host_phys'] = {'desire': 90, 'vigor': 50, 'release_count': 0, 'edging_streak': 2, 'fetishes': []}
+        meta = ic.advance_intimate_state(
+            st_i,
+            {'shame_events': {'沈知韫': ['C烈度_深度']}},
+            scene_state={'body_acts': {'沈知韫': ['mouth', 'chest', 'waist', 'foot', 'hand']}},
+            active_cast=['沈知韫'],
+            category='C',
+            charm_gained_this_turn=True,
+        )
+        # Only 2 zones developed (signature 'foot' prioritized + 1 other)
+        developed = [z for z, v in st_i['intimate']['body_dev']['沈知韫'].items() if (v > 0 and z != 'foot') or (z == 'foot' and v > 44)]
+        self.assertEqual(len(developed), 2)
+        self.assertEqual(st_i['intimate']['body_dev']['沈知韫']['foot'], 55)  # 44 + round(8*1.35)=11
+        self.assertEqual(meta['charm_milestone_gain'], 0)  # capped because charm_gained_this_turn=True
+        self.assertEqual(st_i['panels']['系统宿主']['魅力'], 72)
+        self.assertEqual(st_i['intimate']['host_phys']['edging_streak'], 3)
+        self.assertLessEqual(st_i['intimate']['host_phys']['vigor'], 43)  # extra -2 edging fatigue
+
+        # 9. Shop unlock_req (SHOP-011..014) + Compiler Plan B briefings
+        cat = {it['id']: it for it in sp.load_shop_catalog(ROOT)['items']}
+        ok11_charm = sp.evaluate_unlock_req(cat['SHOP-011']['unlock_req'], 0, {'沈知韫': 82}, max_depravity=0, host_charm=75)
+        ok11_low = sp.evaluate_unlock_req(cat['SHOP-011']['unlock_req'], 0, {'沈知韫': 82}, max_depravity=0, host_charm=70)
+        self.assertTrue(ok11_charm['unlocked'])
+        self.assertFalse(ok11_low['unlocked'])
+        ok14_no_dep = sp.evaluate_unlock_req(cat['SHOP-014']['unlock_req'], 20, {'沈知韫': 90}, max_depravity=5, host_charm=70)
+        ok14_ok = sp.evaluate_unlock_req(cat['SHOP-014']['unlock_req'], 20, {'沈知韫': 40}, max_depravity=10, host_charm=70)
+        self.assertFalse(ok14_no_dep['unlocked'])
+        self.assertTrue(ok14_ok['unlocked'])
+
+        st_b = save_store.default_state()
+        st_b['panels']['系统宿主']['商业嗅觉'] = 85
+        st_b['panels']['沈知韫']['怀孕'] = True
+        st_b['intel']['leverage_charges'] = 2
+        st_b['intimate']['host_phys'].update({'desire': 90, 'edging_streak': 3, 'vigor': 12})
+        mem_b = save_store.render_memory_txt(st_b, save_store.default_layers())
+        brief_b = sc.compile_state_qualitative_brief(
+            {
+                'location': '徐家主宅',
+                'cast': ['沈知韫'],
+                'panels': [ln for ln in mem_b.splitlines() if ln.startswith('[') and ']' in ln],
+                'presence': {},
+                'intimate': st_b['intimate'],
+            },
+            mem_b,
+        )
+        self.assertIn('深局棋手', brief_b)
+        self.assertIn('极限控场', brief_b)
+        self.assertIn('动作略沉', brief_b)
+        self.assertIn('商业牵制底气（余2次', brief_b)
+        self.assertIn('孕期易倦', brief_b)
+
 
 if __name__ == '__main__':
     unittest.main()
+
 
 

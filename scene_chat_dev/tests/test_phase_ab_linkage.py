@@ -410,7 +410,7 @@ class PhaseABLinkageTests(unittest.TestCase):
         # Echo persisted in TXT
         echoes = sp.parse_shop_echo_block(mem_path.read_text(encoding='utf-8'))['echoes']
         self.assertTrue(any(e['kind'] == 'passive_upgraded' for e in echoes))
-        # Insufficient EXP for Lv.3 (200 EXP) fails cleanly
+        # Insufficient EXP for Lv.3 (110 EXP) fails cleanly
         with self.assertRaises(rr.RoundError):
             self.svc.upgrade_passive({
                 'request_id': 'pas-3', 'base_revision': r2['snapshot']['revision'],
@@ -453,7 +453,7 @@ class PhaseABLinkageTests(unittest.TestCase):
         self.assertEqual(istate_after_a['leverage_armed'], 'INTEL-001')
         self.assertIn('INTEL-001', istate_after_a['held'])
 
-        # 5. Run C turn with SHAME_04 (C烈度_重度): baseline drop at aff=50 is -15 -> halved to -7 (aff 50 -> 43), INTEL-001 consumed!
+        # 5. Run C turn with SHAME_04 (C烈度_重度): baseline drop at aff=50 is -15 -> halved to -7 (aff 50 -> 43), INTEL-001 consumed and 2 shield charges remain!
         aff_before = engine._read_attr_value(mem_path.read_text(encoding='utf-8'), '沈知韫', '好感')
         run_action_turn(
             self.svc, text='强势逼近试探', option_id='C', category='C',
@@ -467,6 +467,7 @@ class PhaseABLinkageTests(unittest.TestCase):
         self.assertEqual(aff_after, aff_before - 7)
         istate_after_c = sp.parse_intel_block(mem_path.read_text(encoding='utf-8'))
         self.assertEqual(istate_after_c['leverage_armed'], '')
+        self.assertEqual(istate_after_c['leverage_charges'], 2)
         self.assertNotIn('INTEL-001', istate_after_c['held'])
         self.assertIn('INTEL-001', istate_after_c['consumed'])
 

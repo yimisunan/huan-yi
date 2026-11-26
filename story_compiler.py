@@ -639,17 +639,20 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
         hp = intl.get('host_phys') if isinstance(intl.get('host_phys'), dict) else {}
         h_des = int(hp.get('desire', 0) or 0)
         h_vig = int(hp.get('vigor', 100) if hp.get('vigor') is not None else 100)
+        h_edge = int(hp.get('edging_streak', 0) or 0)
         h_fets = [f for f in (hp.get('fetishes') or []) if isinstance(f, str) and f.strip()]
         phys_parts = []
-        if h_des >= 85:
+        if h_des >= 85 and h_edge >= 3:
+            phys_parts.append(f'宿主极限控场(已连蓄{h_edge}轮，侵略张力极强且耐力承压，严禁代打擅自射精)')
+        elif h_des >= 85:
             phys_parts.append('宿主欲望蓄满临界(边缘控场，严禁代打擅自射精，须由玩家自主决断克制或释放)')
         elif h_des >= 60:
             phys_parts.append('宿主欲火灼烫(呼吸沉热、侵略感抬升)')
         elif h_des >= 30:
             phys_parts.append('宿主情欲渐起')
         if intl.get('scene_active') or h_vig < 80:
-            if h_vig <= 15:
-                phys_parts.append('亲密耐力见底(呼吸渐重，宜稍作缓冲或温存收束)')
+            if h_vig < 15:
+                phys_parts.append('亲密耐力见底(体能透支动作略沉，宜稍作缓冲或温存收束)')
             elif h_vig < 45:
                 phys_parts.append(f'亲密耐力偏低({h_vig})')
             else:
@@ -658,16 +661,23 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
             phys_parts.append('显露癖好：' + '、'.join(h_fets[:4]))
         phys_clause = ('；' + '；'.join(phys_parts)) if phys_parts else ''
         extra = f'，积分{host.get("积分", "0")}，经验值{host.get("经验值", "0")}' if include_points else ''
-        notes.append(f'宿主状态：体力{st}({st_desc})，魅力{charm}{charm_desc}，商业嗅觉{biz}[{_biz_sense_desc(biz)}]{extra}{phys_clause}。')
+        biz_note = f'{_biz_sense_desc(biz)}·深局棋手' if biz >= 80 else _biz_sense_desc(biz)
+        notes.append(f'宿主状态：体力{st}({st_desc})，魅力{charm}{charm_desc}，商业嗅觉{biz}[{biz_note}]{extra}{phys_clause}。')
 
-    if intel_state['held']:
+    if intel_state['held'] or int(intel_state.get('leverage_charges', 0) or 0) > 0:
         name_map = {it['id']: it['name'] for it in (intel_catalog or {}).get('items', [])}
         held_labels = [name_map.get(iid, iid) for iid in intel_state['held']]
-        lev_note = ''
+        lev_parts = []
         if intel_state.get('leverage_armed'):
             lev_name = name_map.get(intel_state['leverage_armed'], intel_state['leverage_armed'])
-            lev_note = f'；已暗中备妥筹码「{lev_name}」作商业牵制（仅自然落于压迫感或底气，禁直呼机制词）'
-        notes.append(f'宿主私下掌握的未动用商业线索：{"、".join(held_labels)}（仅宿主知晓，玩家未亮牌前NPC不可知晓{lev_note}）。')
+            lev_parts.append(f'已暗中备妥筹码「{lev_name}」作商业牵制（仅自然落于压迫感或底气，禁直呼机制词）')
+        if int(intel_state.get('leverage_charges', 0) or 0) > 0:
+            lev_parts.append(f'已展开商业牵制底气（余{int(intel_state["leverage_charges"])}次压迫护航）')
+        lev_note = ('；' + '；'.join(lev_parts)) if lev_parts else ''
+        if held_labels:
+            notes.append(f'宿主私下掌握的未动用商业线索：{"、".join(held_labels)}（仅宿主知晓，玩家未亮牌前NPC不可知晓{lev_note}）。')
+        elif lev_parts:
+            notes.append(f'宿主商业牵制态势：{"；".join(lev_parts)}（仅自然化入气场，禁直呼机制词）。')
 
     def _int_stat(raw_val, default=0):
         m = re.match(r'-?\d+', str(raw_val or ''))
@@ -796,7 +806,7 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
         elif cp_cnt >= 2:
             flags.append(f'累计内射{cp_cnt}次(身体对宿主气息与失控侵入形成惯性)')
         if stats.get('怀孕') == 'True' or phys.get('pregnancy_stage') == 'confirmed':
-            flags.append('已确诊怀孕(羞耻上限锁≤35，身体具孕期敏感与身份反差)')
+            flags.append('已确诊怀孕(羞耻上限锁≤35，孕期易倦体态敏感与身份反差并存)')
         elif phys.get('pregnancy_stage') == 'latent':
             flags.append('早孕潜伏微兆(尚未知情确诊，偶现嗜睡/晨起微恶心/小腹微胀)')
         else:
@@ -815,16 +825,33 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
         prefix = f'【远程监控对象态势】{name}' if remote else f'{name}当轮态势'
         return f'{prefix}：好感{aff}/羞耻{shame}/堕落{dep}（{"；".join(flags)}；严禁在台词中直呼数值）。'
 
+    vig_pub = (state or {}).get('vigilance') if isinstance((state or {}).get('vigilance'), dict) else {}
+    vig_targets_pub = vig_pub.get('targets') if isinstance(vig_pub.get('targets'), dict) else {}
     for name in cast:
         if name == '徐承邺':
             place_label = location or '徐家主宅'
-            x_stats = panel_map.get('徐承邺', {})
-            x_dep = _int_stat(x_stats.get('堕落', '0'), 0)
-            x_dep_note = (
-                f'心理裂隙已深(堕落{x_dep}，掌控欲外表下暗藏动摇与自我怀疑)'
-                if x_dep >= 30 else (f'内心已有轻微动摇(堕落{x_dep})' if x_dep > 0 else '情绪沉稳克制')
-            )
-            notes.append(f'徐承邺当轮态势：已抵达{place_label}且真实在场（{x_dep_note}；可合法对白与动作；按监视态势、礼貌掌控欲与信息差边界推演，严禁直呼数值）。')
+            top_v = 0
+            top_stage_lbl = '无察'
+            top_reason = ''
+            for _tinfo in vig_targets_pub.values():
+                if isinstance(_tinfo, dict):
+                    _tv = int(_tinfo.get('vigilance', 0) or 0)
+                    if _tv >= top_v:
+                        top_v = _tv
+                        top_stage_lbl = str(_tinfo.get('stage_label') or top_stage_lbl)
+                        if _tinfo.get('reason'):
+                            top_reason = str(_tinfo['reason'])
+            if top_v >= 65:
+                x_mood = f'审视紧绷({top_stage_lbl}期，礼貌掌控欲下暗藏逼问锋芒)'
+            elif top_v >= 40:
+                x_mood = f'旁敲侧击({top_stage_lbl}期，不动声色试探动向与口风)'
+            elif top_v >= 20:
+                x_mood = f'略起疑云({top_stage_lbl}期，偶有若无其事的追问)'
+            else:
+                x_mood = '情绪沉稳克制，维持长兄与掌权者礼貌掌控欲'
+            if top_reason:
+                x_mood += f'；近期心结：{top_reason}'
+            notes.append(f'徐承邺当轮态势：已抵达{place_label}且真实在场（{x_mood}；可合法对白与动作；按监视态势、礼貌掌控欲与信息差边界推演，严禁直呼数值）。')
             continue
         line = _compile_heroine_line(name, remote=False)
         if line:

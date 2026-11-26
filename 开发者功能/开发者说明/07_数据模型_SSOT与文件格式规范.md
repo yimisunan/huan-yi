@@ -105,7 +105,7 @@ flowchart LR
   "passive": {
     "status": "active",
     "cost_stamina": 0,
-    "costs": {"1": 20, "2": 50, "3": 200, "4": 800}
+    "costs": {"1": 20, "2": 50, "3": 110, "4": 220}
   },
   "director": {
     "status": "active",
@@ -124,7 +124,7 @@ flowchart LR
 
 ### 2.2 `txt文件/事件注册表.json`（6 组 85 条）
 - 顶层：`{"version": 1, "groups": {<group>: [EventEntry, ...]}}`。
-- 6 个事件组规模：`shame_events` (20，含 `SHAME_03` 好感联动、`SHAME_10` 确诊怀孕 `-30` 且锁顶 `<=35`、`SHAME_19` `心理破冰_暧昧试探`、`SHAME_20` `意外撞破_私密自渎`) · `depravity_events` (10，含 `DEPRAVITY_07/08/09` 渐进堕落与 `DEPRAVITY_10` `堕落_私密自渎`) · `ds_events` (18，含 `DS_05` 高潮回落、`DS_17` 绝顶体力扣减与 `DS_18` `自慰_暗中纾解`) · `affection_events` (11，含 `AFFECTION_10/11` 60+ 非越界成长) · **`host_events` (16**，含动态正则模板 `HOST_12: 兑换道具_X` 与新增 **`HOST_16: 情欲操控_温水攻心`** `+5分/+3经`) · `vigilance_events` (10)。
+- 6 个事件组规模：`shame_events` (20，含 `SHAME_03` 好感联动、`SHAME_10` 确诊怀孕 `-30` 且锁顶 `<=35`、`SHAME_19` `心理破冰_暧昧试探`、`SHAME_20` `意外撞破_私密自渎`) · `depravity_events` (10，含 `DEPRAVITY_07/08/09` 渐进堕落与 `DEPRAVITY_10` `堕落_私密自渎`) · `ds_events` (18，含 `DS_05` 高潮回落、`DS_12` `恢复_小憩` `+15`、`DS_17` 绝顶体力扣减与 `DS_18` `自慰_暗中纾解`) · `affection_events` (11，含 `AFFECTION_10/11` 60+ 非越界成长) · **`host_events` (16**，含动态正则模板 `HOST_12: 兑换道具_X` 与新增 **`HOST_16: 情欲操控_温水攻心`** `+5分/+3经`) · `vigilance_events` (10)。
 - 单条目固定 7 键：`id` (`^[A-Z]+_[0-9]{2}$`)、`tag`、`parameters`（具名数值字典）、`parameter_usage`（同键用途说明）、`description`、`pattern`（`null` 或模板正则）、`shared_parameters`（禁止循环或多级转引）。
 
 ### 2.3 `txt文件/关系称谓库.json` 与 `关系称谓查询.jsonl`
@@ -139,19 +139,19 @@ flowchart LR
 
 ### 2.5 `txt文件/系统商城目录.json`（3 档 3 类 16 件商品 + 动态货架）
 - 顶层：`{"version": 1, "tiers": {"low"|"mid"|"high": {"label", "min_price", "max_price"}}, "categories": {"sensual"|"covert"|"daily": {"label"}}, "items": [ShopItem, ...]}`。
-- 单商品固定键：`id`（`^SHOP-\d+$` / 动态 `^DYN-\d+$`）、`name`、`tier`（`low: 1–10`、`mid: 11–50`、`high: 60–999999`）、`price`、`type`、`desc`、`duration`、`expire_rule`、`system_effect`（`""` / `host_stamina:<正整数>` / `buff:<名>:<1-4>:<说明>` / `deploy_device:<camera|audio|aroma>`）、`giftable`（布尔）、`max_per_save`（`null` 或正整数）；可选字段 `category`（`sensual`/`covert`/`daily`）、`usage_mode`（`gift`/`consumable_host`/`consumable_target`/`reusable_tool`/`deployable_device`；`SHOP-013` 为带 `buff:感官缚束:2` 的 `reusable_tool`）、`pack_qty`（单次兑换入囊件数）、`unlock_req`（`{min_biz, min_any_affection, mode}` 叠加门槛）。
+- 单商品固定键：`id`（`^SHOP-\d+$` / 动态 `^DYN-\d+$`）、`name`、`tier`（`low: 1–10`、`mid: 11–50`、`high: 60–999999`）、`price`、`type`、`desc`、`duration`、`expire_rule`、`system_effect`（`""` / `host_stamina:<正整数>` / `buff:<名>:<1-4>:<说明>` / `deploy_device:<camera|audio|aroma>`）、`giftable`（布尔）、`max_per_save`（`null` 或正整数）；可选字段 `category`（`sensual`/`covert`/`daily`）、`usage_mode`（`gift`/`consumable_host`/`consumable_target`/`reusable_tool`/`deployable_device`；`SHOP-013` 为带 `buff:感官缚束:2` 的 `reusable_tool`）、`pack_qty`（单次兑换入囊件数）、`unlock_req`（4 轴 `{min_biz, min_any_affection, min_max_depravity, min_charm, mode}` 叠加门槛：`SHOP-011~014` 绑定魅力/最高堕落/嗅觉混合梯队，杜绝高开局好感穿透）。
 - **硬红线校验**：`story_progression.load_shop_catalog()` 与 `validate_dynamic_shop_items()` 强制禁止毒品/迷药/催情药剂/烟草/精神控制及篡改时效的文案或效果。
 
 ### 2.6 `txt文件/商业情报目录.json`（3 条一次性商业情报）
 - 顶层：`{"version": 1, "leverage_min_biz": 60, "items": [IntelItem, ...]}`。
-- 单情报固定键：`id`（`^INTEL-\d+$`：`INTEL-001` 深圳账目异常 / `INTEL-002` 苏婉青眼线身份 / `INTEL-003` 徐承邺收购盲区）、`name`、`min_biz`（`10/30/60`）、`min_su_ab_contacts`（`0/3/0`）、`desc`、`effect_summary`、`effects`（按目标角色映射 `{attr, delta}` 或 `{host_bonus: {积分, 经验值, 商业嗅觉}}`）。
+- 单情报固定键：`id`（`^INTEL-\d+$`：`INTEL-001` 深圳账目异常 / `INTEL-002` 苏婉青眼线身份 / `INTEL-003` 徐承邺收购盲区）、`name`、`min_biz`（`10/30/60`）、`min_su_ab_contacts`（`0/3/0`）、`desc`、`effect_summary`（含 60+ 商业杠杆 3 次越界护盾与非目击警惕压制说明）、`effects`（按目标角色映射 `{attr, delta}` 或 `{host_bonus: {积分, 经验值, 商业嗅觉}}`）。
 
 ### 2.7 `txt文件/世界变故库.json`（v2 · 活体世界导演统一数据源）
 - 顶层：`{"version": 2, "channels": {...}, "spark_matrix": {...}, "sensual_spark_matrix": {...}, "offstage_clocks": {...}, "beats": [WorldBeat, ...]}`。
 - `channels`（8 类规范媒介通道）：`phone_msg`、`door_visit`、`object_trace`、`sensory_slip`、`third_party`、`schedule_clash`、`conversation_twist`、`offstage_ripple`。
 - `spark_matrix` & `sensual_spark_matrix`：25×25 常规生活张力火花矩阵 + 专属私密情欲张力火花矩阵（由 `load_world_beats()` 透传），配 `moves.soft`（6 条）与 `moves.hard`（5 条）。
 - `offstage_clocks`：4 条角色暗钟（`CLK_XCY` / `CLK_SZY` / `CLK_XNW` / `CLK_SWQ`），每条含 `owner`、`max_segments=4`、`soft_at=3`、`k01_guard` 与 2 个循环阶段 `phases[{label, channel_hint, soft_omen, hard_landing}]`。
-- `beats`（**61 条**精选支点事件，含 31 条常规支点 + 1 条 `covert_risk` 装置风控 + **12 条 Tier-0 `category: "sensual_hook"` 感官契机** + **17 条 `category: "erotic_accident"` 四阶香艳突发意外**）：单条含 `id`、`tier`（`tier0`–`tier4`）、`category`、`channel`、`locations[]`、`required_cast[]`、`time_slots[]`、`min_vigilance`、`min_biz`、可选生理门控与 `requires_door_catch` 防瞬移字段、`weight`、`cooldown`、`once`、`seed_to_add`、`requires_seed`、`objective_event`。
+- `beats`（**75 条**精选支点事件，含常规支点 + 1 条 `covert_risk` 装置风控 + **12 条 Tier-0 `category: "sensual_hook"` 感官契机** + **31 条 `category: "erotic_accident"` 四阶香艳突发意外**）：单条含 `id`、`tier`（`tier0`–`tier4`）、`category`、`channel`、`locations[]`、`required_cast[]`、`time_slots[]`、`min_vigilance`、`min_biz`、可选生理门控与 `requires_door_catch` 防瞬移字段、`weight`、`cooldown`、`once`、`seed_to_add`、`requires_seed`、`objective_event`。
 
 ---
 
@@ -191,7 +191,7 @@ flowchart LR
 
 `存档/` 为完全自包含的累积事实层，单目录迁移即可在无 `.round-runtime/` 与 `data.json` 时零 500 恢复运行态：
 
-- **`存档/save_state.json`（唯一机器状态真相）**：包含 `version: 2`、`panels`、`presence`、`micro_states`、`buffs`、`counters`、**`mechanics`**、**`intimate`（`sub_location`、`privacy`、`clothing_state`、`intimate_beat`、`present_actors`、`active_scene_location`，及 v4 持久化子结构 `host_phys`、`body_dev`、`keepsakes`、`session_charm_gained`）**、`vigilance`、`tasks`（含 `pending_items` 队列）、`items`（`next_seq` + **`active` / `deployed` / `delivered` / `history` 四分仓** + `giftable` / `category` / `usage_mode` / `spot` / `hidden` / `installed_clock` / **`detected_risk`**）、`shop`（`redeemed` / `recent` / `echoes` / **`dynamic_catalog`** / `next_dyn_seq`）、`intel`、`director`（含 **`sensual_drought`**）、`lifecycle`、`runtime` 及 **`rendered_sha256`**（外部编辑 `.txt` 漂移检测指纹，漂移同步时严格保留 `shop.dynamic_catalog` / `next_dyn_seq` / `items.deployed` / `intimate` 全量 JSON 真相）。
+- **`存档/save_state.json`（唯一机器状态真相）**：包含 `version: 2`、`panels`（开局默认：沈知韫 `好感 82 / 羞耻 100`、徐念薇 `好感 30 / 羞耻 96`、苏婉青 `好感 40 / 羞耻 92`，无徐承邺面板）、`presence`、`micro_states`、`buffs`、`counters`、**`mechanics`**、**`intimate`（`sub_location`、`privacy`、`clothing_state`、`intimate_beat`、`present_actors`、`active_scene_location`，及 v4 持久化子结构 `host_phys`、`body_dev`、`keepsakes`、`session_charm_gained`）**、`vigilance`、`tasks`（含 `pending_items` 队列）、`items`（`next_seq` + **`active` / `deployed` / `delivered` / `history` 四分仓** + `giftable` / `category` / `usage_mode` / `spot` / `hidden` / `installed_clock` / **`detected_risk`**）、`shop`（`redeemed` / `recent` / `echoes` / **`dynamic_catalog`** / `next_dyn_seq`）、`intel`（含 `held` / `consumed` / `su_ab_contacts` / `leverage_armed` / **`leverage_charges` `0..3`**）、`director`（含 **`sensual_drought`** / **`heroine_cd`**）、`lifecycle`、`runtime` 及 **`rendered_sha256`**（外部编辑 `.txt` 漂移检测指纹，漂移同步时严格保留 `shop.dynamic_catalog` / `next_dyn_seq` / `items.deployed` / `intimate` 全量 JSON 真相）。
 - **`存档/四层记忆.json`**：持久化结构化 `layers.L1–L4` 条目、`prologue_active` 布尔标志（彻底取代会污染正文的 `PROLOGUE` 隐藏标记行）与房间级 `known_by` 知情元数据。
 - **`存档/近期演播.json`**：滚动保存最新 **12 幕** 已接受演播原文与 `playback` 播放游标；刻意置于 `round_runtime.FILES` 之外，避免单纯推进播放进度改变世界版本指纹。
 - **轻量化可回档存档槽（`.round-runtime/save-slots/<slot_id>/`）**：由 `存档清理器.py` 管理，单槽仅打包必要核心文件（`meta.json` 含 SHA-256 校验与摘要标签，含 `体力`、`亲密耐力`、`魅力`、`私密珍藏` 件数与 `vigilance` 位置/最高警惕、`存档/{save_state,四层记忆,近期演播}.json`、`data.json`、`.round-runtime/interaction/*.json`、`playback.json`），剔除日志、任务凭证与缓存；重置新档时实时调用 `_initial_templates()` 从 `save_store.default_state()` 生成最新结构（不再复用模块导入期静态快照），自动区分 `manual`（手工快照）/ `auto`（新档前自动留存）/ `pre_restore`（回档前安全网），自动槽按配额裁剪而手工槽默认保留，支持浏览器「档案室」与 CLI 一键回档。

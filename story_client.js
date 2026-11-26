@@ -168,7 +168,7 @@
 
   function rationalizationTier(st) {
     if (!st) return null;
-    const intactDefense = st.shame >= 85 && st.depravity < 15 && st.passiveLv < 2;
+    const intactDefense = st.shame >= 85 && st.depravity < 15 && st.passiveLv < 4;
     if (intactDefense || st.affection <= 60) return null;
     if (st.shame < 30) return { level: 'all', text: '合理化闭环 · 全档豁免', tone: 'rose' };
     if (st.shame < 40) return { level: 'deep', text: '合理化闭环 · 深度豁免', tone: 'rose' };
@@ -673,7 +673,7 @@
       if (res?.snapshot) absorb(res.snapshot);
       else await restore();
       if (action === 'arm') {
-        toast('已预备商业杠杆「' + (res?.receipt?.intel_name || intelId) + '」（下次 C 烈度好感惩罚减半）');
+        toast('已预备商业杠杆「' + (res?.receipt?.intel_name || intelId) + '」（下次 C 烈度展开 3 次越界护盾并压制非目击警惕）');
       } else {
         toast('已取消商业杠杆预备');
       }
@@ -3928,8 +3928,10 @@
       }
     }
     if (s.leverage_triggered) {
-      const levName = typeof s.leverage_triggered === 'object' ? (s.leverage_triggered.intel_name || s.leverage_triggered.intel_id || '已生效') : String(s.leverage_triggered);
-      detail.append(node('p', '', '商业杠杆触发：' + levName + '（好感惩罚减半）'));
+      const levObj = typeof s.leverage_triggered === 'object' ? s.leverage_triggered : null;
+      const levName = levObj ? (levObj.intel_name || levObj.intel_id || '护盾生效') : String(s.leverage_triggered);
+      const rem = levObj && Number.isFinite(Number(levObj.charges_remaining)) ? ('，余 ' + Number(levObj.charges_remaining) + ' 次') : '';
+      detail.append(node('p', '', '商业杠杆护盾：' + levName + '（越界掉好感减半 · 压制非目击警惕' + rem + '）'));
     }
     if (Array.isArray(s.intel_consumed) && s.intel_consumed.length) {
       detail.append(node('p', '', '消耗情报：' + s.intel_consumed.join('、')));
@@ -4237,23 +4239,26 @@
       '亲密耐力': {
         title: '亲密耐力（精力）',
         subtitle: '深水纠缠中的持久续航与护航盾',
-        effect: '决定亲密阶段的持久承压：耐力 ≥ 15 时可替当前体力托底（锁底 10 不断电）；魅力越高，每次释放消耗的耐力越少（75 魅力降为 11，85 降为 9，95 降为 8）。',
-        gain: '安稳整夜入睡后满额回满 100；使用体力 / 精力补给道具可同步回补 +15～+25；强肾上腺素突破可提振 +25。',
-        loss: '亲密持续推进与临界释放会持续消耗耐力；跌至 15 以下将失去体能护航，彻底力竭会折损 1 点魅力。',
+        effect: '决定亲密阶段的持久承压：耐力 ≥ 15 时可替当前体力托底（锁底 10 不断电）；魅力越高，每次释放消耗的耐力越少（<68 需 14，68–74 需 12，75 降为 11，85 降为 9，95 降为 8）。若耐力跌破 15，不仅失去锁底护航，且动作发沉令对方高潮推进倍率 -15%。',
+        gain: '安稳整夜入睡后满额回满 100；非亲密跨小时自然回补（+8/小时）；使用体力 / 精力补给道具可同步回补 +15～+25；强肾上腺素突破可提振 +25。',
+        loss: '亲密持续推进与临界释放会持续消耗耐力；连续 3 轮以上卡「极限控场」每轮额外消耗 -2；彻底力竭会折损 1 点魅力。',
         live: ctx => {
-          const cost = ctx.charm >= 95 ? 8 : ctx.charm >= 85 ? 9 : ctx.charm >= 75 ? 11 : 14;
-          const guard = ctx.vigor >= 15 ? '护航就绪（≥15）' : '已跌破护航线（<15）';
+          const cost = ctx.charm >= 95 ? 8 : ctx.charm >= 85 ? 9 : ctx.charm >= 75 ? 11 : ctx.charm >= 68 ? 12 : 14;
+          const guard = ctx.vigor >= 15 ? '护航就绪（≥15）' : '已跌破护航线（<15，高潮 -15%）';
           return '当前 ' + ctx.vigor + ' / 100 · ' + guard + ' · 当前释放耗耐约 ' + cost;
         }
       },
       '宿主欲望': {
         title: '宿主欲望（欲火）',
         subtitle: '蓄积的躁动张力与控欲临界火候',
-        effect: '蓄满至 ≥ 85 会进入「控欲边缘」态，肢体拉扯更具压迫感，并使对方的高潮推进倍率额外提高 10%（引擎始终尊重你的主动权，绝不代你失控）。',
+        effect: '蓄满至 ≥ 85 会进入「控欲边缘」态，使对方高潮推进倍率额外 +10%；若连续 3 轮以上稳住不放则升入「极限控场」（对方高潮 +15%，但每轮额外消耗 2 点亲密耐力；引擎绝不代你失控）。',
         gain: '感官挑逗、近身肢体纠缠、亲密互动升温，以及独处时把玩私密珍藏（+18）都会推高欲火。',
         loss: '主动释放后大幅回落；更换地点（-15）、平静日常（-6）与长时间非亲密跨时（每小时 -5）会自然降温；整夜入睡后高欲留底 25，否则归零。',
         live: ctx => {
-          const tag = ctx.desire >= 85 ? '已入控欲边缘（对方高潮 +10%）' : ctx.desire >= 60 ? '欲火灼烫，距控欲边缘还差 ' + (85 - ctx.desire) : '气息平稳';
+          const edge = Number(ctx.edgingStreak || 0);
+          const tag = (ctx.desire >= 85 && edge >= 3) ? ('极限控场中（连蓄 ' + edge + ' 轮，高潮 +15% / 耐力 -2）')
+            : ctx.desire >= 85 ? '已入控欲边缘（对方高潮 +10%）'
+            : ctx.desire >= 60 ? '欲火灼烫，距控欲边缘还差 ' + (85 - ctx.desire) : '气息平稳';
           return '当前 ' + ctx.desire + ' / 100 · ' + tag;
         }
       },
@@ -4269,7 +4274,7 @@
         title: '系统积分',
         subtitle: '深渊天平结算出的硬通货',
         effect: '用于在「系统商城」零体力兑换感官助兴器物、隐蔽布防装置、恢复补给及剧情定制稀缺品；魅力 ≥ 75 享 9 折，≥ 85 享 85 折。',
-        gain: '每段有效互动按「情欲侵蚀 / 日常守护 / 商业权力」三轨择优结算（只发放单轮积分最高一轨），完成委托任务亦可一键领赏 +15～+80。',
+        gain: '每段有效互动按「情欲侵蚀 / 日常守护 / 商业权力」三轨择优结算（商业嗅觉 ≥ 80 时三轨收益额外 +15%），完成委托任务亦可一键领赏 +15～+80。',
         loss: '在系统商城兑换道具时按折后标价扣除。',
         live: ctx => {
           const disc = ctx.charm >= 85 ? '当前享 85 折' : ctx.charm >= 75 ? '当前享 9 折' : '魅力达 75 起解锁商城折扣';
@@ -4280,8 +4285,8 @@
       '经验值': {
         title: '掌控经验值',
         subtitle: '沉淀于心智博弈中的支配阅历',
-        effect: '用于在「人物名册」为每位女主零体力解锁定向被动（Lv.1 需 20、Lv.2 需 50、Lv.3 需 200、Lv.4 需 800），每次成功升阶还会永久提升主角 +1 魅力。',
-        gain: '与积分同源，随每轮互动三轨择优同步积累（商业博弈与深层心理掌控收益最高），完成委托任务也可获赠 +8～+50。',
+        effect: '用于在「人物名册」为每位女主零体力解锁定向被动（Lv.1 需 20、Lv.2 需 50、Lv.3 需 110、Lv.4 需 220），每次成功升阶还会永久提升主角 +1 魅力。',
+        gain: '与积分同源，随每轮互动三轨择优同步积累（商业嗅觉 ≥ 80 时额外 +15%），完成委托任务也可获赠 +8～+50。',
         loss: '在人物名册解锁女主定向被动阶梯时按门槛消耗。',
         live: ctx => {
           const ready = ctx.readyPassives || [];
@@ -4293,8 +4298,8 @@
       '魅力': {
         title: '主角魅力',
         subtitle: '无声改写气场、容错与吸引力的个人磁力（底线 60）',
-        effect: '五阶递进：75（锋芒初显：正好感 +1、轻中越界减伤 25%、临界破防、商城 9 折）；85（磁吸掌控：轻中减伤 40%、额外降羞 -1、高潮 +8%、商城 85 折）；95（深渊魅影：正好感 +2、轻中 50% / 深重 20% 减伤、额外降羞 -2、高潮 +15%）。',
-        gain: '情欲温水攻心（同场限 1 次）、升级任意女主被动（+1）、女主身体任意部位首次突破 Lv.2 或 Lv.3（+1）、与女主达成同频绝顶（单场限 1 次）。',
+        effect: '五阶递进：<68（气场受挫：释放耐力增至 14、魅力突破门限升至 75）；68–74（清俊克制基准）；75（锋芒初显：正好感 +1、轻中越界减伤 25%、门限降 60、商城 9 折）；85（磁吸掌控：轻中减伤 40%、额外降羞 -1、高潮 +8%、商城 85 折）；95（深渊魅影：正好感 +2、轻中 50% / 深重 20% 减伤、额外降羞 -2、高潮 +15%）。',
+        gain: '情欲温水攻心（同场限 1 次）、升级任意女主被动（+1）、女主身体任意部位首次突破 Lv.2 或 Lv.3（+1）、与女主达成同频绝顶（单场限 1 次）；单轮常规净增上限 +1。',
         loss: '单轮最多折损 -2 且不低于 60：遭徐承邺目击撞破（-2）、引发强烈羞耻反噬（-1）、自身彻底力竭（-1），或对高羞耻低堕落女主冒进亮出私密珍藏对峙（-1）。',
         live: ctx => {
           const ct = ctx.cTier;
@@ -4307,11 +4312,16 @@
       '商业嗅觉': {
         title: '商业嗅觉',
         subtitle: '看穿资本暗流与筹码结构的敏锐眼光（上限 100）',
-        effect: '四阶递进：10（入门解锁初阶情报与 T2 货架）；30（跻身牌桌，解锁高阶情报与 T3 货架）；60（解锁「商业杠杆」，武装一次性情报令下次越界好感惩罚直接减半）；100（全盘商业视野）。',
-        gain: '在涉及商业情报、资本布局、股权筹码与职场博弈的行动中按深度结算 +4 / +8 / +20。',
+        effect: '五阶递进：10（解锁初阶情报与隐秘货架）；30（跻身牌桌，解锁眼线情报与 T3 货架）；60（解锁「商业杠杆」，消耗 1 条情报展开 3 次越界护盾：每次 C 烈度掉分减半并压制当轮非目击警惕 -10）；80（深局棋手：三轨积分与经验收益 +15%，且信息反制减缓非目击警惕 15%）；100（全盘继承者视野）。',
+        gain: '在涉及商业情报、资本布局、股权筹码与职场博弈的行动中按深度独立结算 +4 / +8 / +20（不再被更高积分的情感轨道吞没）。',
         loss: '一旦沉淀不会随时间自然衰减；武装「商业杠杆」仅消耗对应一次性情报，不扣嗅觉数值。',
         live: ctx => {
-          const lv = ctx.biz >= 100 ? '全盘视野' : ctx.biz >= 60 ? '可武装商业杠杆' : ctx.biz >= 30 ? '已跻身牌桌，距杠杆还差 ' + (60 - ctx.biz) : ctx.biz >= 10 ? '初探暗流，距 30 阶还差 ' + (30 - ctx.biz) : '尚未入门（距 10 阶还差 ' + (10 - ctx.biz) + '）';
+          const lv = ctx.biz >= 100 ? '全盘视野（+15%收益 · 反制警惕）'
+            : ctx.biz >= 80 ? '深局棋手（三轨 +15% · 非目击警惕 -15%）'
+            : ctx.biz >= 60 ? '可武装商业杠杆（距 80 阶深局棋手还差 ' + (80 - ctx.biz) + '）'
+            : ctx.biz >= 30 ? '已跻身牌桌，距杠杆还差 ' + (60 - ctx.biz)
+            : ctx.biz >= 10 ? '初探暗流，距 30 阶还差 ' + (30 - ctx.biz)
+            : '尚未入门（距 10 阶还差 ' + (10 - ctx.biz) + '）';
           return '当前 ' + ctx.biz + ' / 100 · ' + lv;
         }
       }
@@ -4320,15 +4330,15 @@
       '好感': {
         title: '好感度',
         subtitle: '信任、偏爱与越界试探时的心理缓冲垫',
-        effect: '决定她对你的亲近意愿与容错空间：好感 > 60 且羞耻已松动时，轻中度越界甚至会转为自我合理化而不再掉分；但若高羞耻且低堕落（防线完好、被动不足 Lv.2），亲情好感不会豁免越界惩罚。',
+        effect: '决定她对你的亲近意愿与容错空间：好感 > 60 且羞耻已松动时，轻中度越界会转为自我合理化而不再掉分；但若高羞耻（≥85）且低堕落（<15）且被动不足 Lv.4，防线完好状态下亲情好感不会豁免越界惩罚。',
         gain: '日常安抚（<50）、自然社交回馈（<60）、深度交心共振（全段 +1～+2）、危机并肩破局（+3）、贴心赠礼与深层心理掌控均可稳步提升。',
-        loss: '防线尚高时强行越界、遭抗拒硬闯或粗暴冒犯会明显掉分（主角高魅力、感官 Buff、被动 Lv.2、把柄与商业杠杆均可独立减伤）。',
+        loss: '防线尚高时强行越界、遭抗拒硬闯或粗暴冒犯会明显掉分；高魅力、感官 Buff、被动 Lv.2、把柄与商业杠杆均可减伤，但多重叠加总减免封顶 75% 且未达合理化闭环时保底至少 -1。',
         live: ctx => {
           const notes = ['当前 ' + ctx.aff + ' / 100'];
           if (ctx.name === '苏婉青') {
             notes.push(ctx.aff >= 85 ? '已触及或突破 85 门槛（需真相揭露 / 温柔侵蚀放宽至 95）' : '默认封顶 85（可通过真相揭露或温柔侵蚀破限至 95）');
-          } else if (ctx.shame >= 85 && ctx.dep < 15 && ctx.passiveLv < 2) {
-            notes.push('当前防线完好：高好感暂不豁免越界掉分，宜先破冰降羞或升至被动 Lv.2');
+          } else if (ctx.shame >= 85 && ctx.dep < 15 && ctx.passiveLv < 4) {
+            notes.push('当前防线完好：高好感暂不豁免越界掉分，宜先破冰降羞（<85）或升至被动 Lv.4');
           } else if (ctx.aff > 60) {
             notes.push('已入高好感缓冲段，配合降羞可大幅压低越界摩擦');
           }
@@ -4338,9 +4348,9 @@
       '羞耻': {
         title: '羞耻防线',
         subtitle: '矜持、伦理束缚与心理底线（越低越失守）',
-        effect: '羞耻越高，对亲密越界的抵触越重；走低后逐步松开距离与言辞底线，且低于 40（配合好感 >75）会持续自然渗漏欲望。上限受当前堕落动态压制（100 − 堕落×0.6），确诊怀孕后永久锁顶 ≤ 35。',
-        gain: '骤然清醒回神时的耻感反弹（+15），以及早中期低堕落（<15）安稳跨夜的小幅回稳（+1），均不会突破当前羞耻上限。',
-        loss: '暧昧破冰（羞耻 >75 时 -3）、近身越界与亲密加深（-2～-6，偷情遮蔽态、堕落 >60 或被动 Lv.4 均会放大）、撞破私密自渎（-6）、命中招牌部位及临界释放都会持续削弱；连续机械重复同烈度会触发同质化免疫。',
+        effect: '羞耻越高，对亲密越界的抵触越重；走低后逐步松开距离与言辞底线，且低于 40（配合好感 >75）会持续自然渗漏欲望。上限受当前堕落即时动态压制（100 − 堕落×0.6，Lv.4 为 ×0.7），确诊怀孕后永久锁顶 ≤ 35。',
+        gain: '骤然清醒回神时的耻感反弹（+15），以及早中期低堕落（<30）安稳跨夜的小幅回稳（+1），均不会突破当前羞耻上限。',
+        loss: '暧昧破冰（羞耻 >75 时 -3）、近身越界与亲密加深（-2～-6，偷情遮蔽态、堕落 >60、被动 Lv.3 疲倦破防或 Lv.4 均会放大）、撞破私密自渎（-6）、命中招牌部位及临界释放都会持续削弱；连续机械重复同烈度会触发同质化免疫。',
         live: ctx => {
           const cap = ctx.shameCap;
           return '当前 ' + ctx.shame + ' · 当前天花板 ' + cap + (ctx.isPreg ? '（孕期永久锁顶 ≤35）' : ('（受堕落 ' + ctx.dep + ' 压制）'));
@@ -4349,13 +4359,13 @@
       '欲望': {
         title: '情欲燥热',
         subtitle: '感官沉溺与理智融化的即时火候',
-        effect: '直接放大高潮累积倍率并动摇羞耻防线；常规刺激最多推至 80，须凭主角魅力压迫（魅力 ≥ 75）或心理羞辱才能一举冲破 100 临界。',
+        effect: '直接放大高潮累积倍率并动摇羞耻防线；常规刺激最多推至 80，须凭主角魅力压迫（魅力 ≥ 75 门限 60、常规 70、<68 升至 75）或心理羞辱冲破 100 临界。',
         gain: '视 / 嗅 / 听多通道感官撩拨（单轮协同至多 +5）、直接肢体刺激（+10）、隔墙遮蔽偷情紧张感（+2）、感官类 Buff 协同、命中招牌部位（+3），以及低羞耻（<40）+ 高好感（>75）自动渗漏（+3）。',
-        loss: '切换场景自然回落（-15）、绝顶清算回落至 35、暗中自渎回落至 40；若挂有「持续_体液锁定」则按浓烈 / 温热 / 余温三阶强制保底（85 / 72 / 58）。',
+        loss: '切换场景自然回落（-15）、绝顶清算回落至 35、暗中自渎回落至 40；若挂有「持续_体液锁定」则按浓烈 / 温热 / 余温三阶强制保底（85 / 72 / 58，累计内射 ≥3 次末段升至 62）。',
         live: ctx => {
           const tags = ['当前 ' + ctx.des + ' / 100'];
           if (ctx.hasFluidLock) tags.push('体液锁定保底生效中');
-          else if (ctx.des >= 80) tags.push('已抵 80 临界，需魅力压迫（≥75）或心理羞辱破百');
+          else if (ctx.des >= 80) tags.push('已抵 80 临界，需魅力压迫或心理羞辱破百');
           if (ctx.shame < 40 && ctx.aff > 75) tags.push('已触发低羞高好感自动渗漏（+3/段）');
           return tags.join(' · ');
         }
@@ -4363,23 +4373,25 @@
       '堕落': {
         title: '堕落刻痕',
         subtitle: '越界沉沦的不可逆印记与阶梯破锁',
-        effect: '每 10 点堕落永久压低 6 点羞耻上限；超过 60 后一切降羞效果额外放大 1.5 倍，并同步加快高潮推进、解锁更私密的称谓与深水区主动迎合。',
+        effect: '每 10 点堕落永久压低 6 点羞耻上限（Lv.4 为 7 点）并即时夹紧；超过 60 后一切降羞效果额外放大 1.5 倍，并同步加快高潮推进、解锁更私密的称谓与深水区主动迎合。',
         gain: '背德共谋（+2）、防线失守（+3）、绝顶蚀刻（+4）、私密自渎（+3）、深层屈从与首次突破（+5～+15）持续累积。设有 30 / 60 / 90 三道阶梯锁，触顶后须以关键主动破锁事件解开下一阶。',
         loss: '刻入认知与身体的习惯化印记，通常只增不退，不会因日常安抚或睡眠回退。',
         live: ctx => {
+          const coef = ctx.passiveLv >= 4 ? 0.7 : 0.6;
           const stage = ctx.dep >= 90 ? '深渊沉溺（90+）' : ctx.dep >= 60 ? '沉沦加速（降羞 ×1.5）' : ctx.dep >= 30 ? '防线松动（30–59）' : '初生裂隙（0–29）';
-          return '当前 ' + ctx.dep + ' / 100 · ' + stage + ' · 压低羞耻上限 ' + Math.floor(ctx.dep * 0.6);
+          return '当前 ' + ctx.dep + ' / 100 · ' + stage + ' · 压低羞耻上限 ' + Math.floor(ctx.dep * coef);
         }
       },
       '体力': {
         title: '对方体力',
         subtitle: '精力余量与生理断电红线',
-        effect: '衡量对方当前的承压与抗拒气力；跌至 ≤ 15 时会触发「生理断电」软倒余韵，无力再维持强硬防备。',
-        gain: '白日小憩恢复 +10（每人每日限 1 次），安稳整夜入睡恢复 +40（若夜间暗中自渎则为 +32）。',
+        effect: '衡量对方当前的承压与抗拒气力；跌至 ≤ 15 时会触发「生理断电」软倒余韵，无力再维持强硬防备（被动达 Lv.3 且体力 <60 时羞耻防线亦会额外动摇 -1）。',
+        gain: '白日小憩恢复 +15（每人每日限 1 次）；虚脱期（体力 ≤25）选择温和日常照料可缓气回补 +5（至 30）；安稳整夜入睡恢复 +40（夜间自渎为 +32；确诊怀孕后整夜体力上限为 88）。',
         loss: '焦虑紧绷（-2）、日常劳作（-5）、剧烈抗拒（-15）、在场高欲空耗（-5）、暗中自渎（-8）与绝顶痉挛（-15）均会消耗；被动达 Lv.3 后焦虑 / 劳作 / 抗拒消耗翻倍。',
         live: ctx => {
           const tags = ['当前 ' + ctx.stamina + ' / 100'];
-          if (ctx.stamina <= 15) tags.push('已触发低体力软倒红线（≤15）');
+          if (ctx.stamina <= 15) tags.push('已触发低体力软倒红线（≤15），温和日常照料可缓气回体');
+          else if (ctx.stamina < 60 && ctx.passiveLv >= 3) tags.push('体倦动摇（<60）：活跃 C 羞耻额外 -1');
           if (ctx.passiveLv >= 3) tags.push('被动 Lv.3 生效：劳作与抗拒消耗翻倍');
           return tags.join(' · ');
         }
@@ -4388,20 +4400,20 @@
         title: '高潮累积',
         subtitle: '濒临失控的感官峰谷进度',
         effect: '蓄满 100 即触发绝顶清算：瞬间清空高潮、扣除对方 15 点体力、欲望回落至 35（受锁底保护），大幅击穿羞耻防线；若与主角同拍释放则达成同频绝顶，奖主角 +1 魅力。',
-        gain: '亲密刺激按轻 / 中 / 重度基础推进 +15 / +30 / +50，并受欲望、堕落、身体部位开发阶梯、主角控欲边缘与高阶魅力多重放大。',
+        gain: '亲密刺激按轻 / 中 / 重度基础推进 +15 / +30 / +50，并受欲望、堕落、身体部位开发阶梯、主角控欲边缘（+10%/+15%）、高阶魅力与累计内射惯性（≥3 次 +5%）多重调制（总倍率区间 0.45×～1.50×；主角耐力 <15 时 -15%）。',
         loss: '停止推进并切换场景时回落 -30；安稳睡眠或跨夜后残余高潮归零。'
       },
       '内射': {
         title: '深层内释次数',
         subtitle: '不可逆越界的累计刻印与受孕检定入口',
-        effect: '每次触发都会递增计数、挂上 24 回合「持续_体液锁定」（三阶锁住高欲望底线），并自动触发一次受孕暗骰；首次触发更会引发剧烈破防与丰厚积分 / 经验 / 体力回涌。',
+        effect: '每次触发都会递增计数、挂上 24 回合「持续_体液锁定」（三阶锁住高欲望底线），并自动触发一次受孕暗骰；累计达 3 次及以上时，身体惯性令体液锁定末段底线升至 62 且高潮倍率额外 +5%。',
         gain: '在亲密顶点选择深层内释时自动累加。',
         loss: '历史累计记录，不会减少。'
       },
       '怀孕': {
         title: '孕育状态',
         subtitle: '彻底改写关系走向的身份转折',
-        effect: '确诊后立即扣减 30 点羞耻并将羞耻上限永久锁死在 ≤ 35，深刻影响后续亲密互动、隐瞒博弈与家族暗线。',
+        effect: '确诊后立即扣减 30 点羞耻并将羞耻上限永久锁死在 ≤ 35，伴随孕期易倦体态（整夜体力恢复上限 88），深刻影响后续亲密互动、隐瞒博弈与家族暗线。',
         gain: '仅在未孕状态下发生深层内释时进行隐秘检定（常规 10%，高堕落 >80 或绝顶同拍达 40%；安全期 ×0.25、危险期 ×2）；命中后先经 2 天早孕潜伏期，跨日自动显影确诊。',
         loss: '一旦显影确诊为持久剧情状态，不会自行消退。'
       },
@@ -4415,8 +4427,8 @@
       '被动': {
         title: '定向支配被动',
         subtitle: '以主角经验值刻下的专属心理支配阶梯',
-        effect: 'Lv.1 削弱日常抗拒与防备；Lv.2 认知欺诈滤镜（越界掉好感再减半并解除高羞耻亲情豁免）；Lv.3 疲劳诱导（焦虑 / 劳作 / 抗拒体力消耗翻倍）；Lv.4 防线支配（一切降羞效果额外 ×1.25）。',
-        gain: '消耗主角「经验值」在下方被动卡片零体力逐阶解锁（20 / 50 / 200 / 800），每次升阶同时永久奖主角 +1 魅力。',
+        effect: 'Lv.1 洞察之瞳（捕捉生理伪装与破绽）；Lv.2 认知欺诈滤镜（越界掉好感减半，叠加封顶 75% 且保底 -1）；Lv.3 疲劳诱导（焦虑 / 劳作 / 抗拒消耗翻倍，且目标体力 <60 时活跃 C 羞耻额外 -1）；Lv.4 防线支配（羞耻上限侵蚀 ×0.7、活跃 C 额外降羞 -2、高羞耻完好防线豁免与同质化穿透）。',
+        gain: '消耗主角「经验值」在下方被动卡片零体力逐阶解锁（20 / 50 / 110 / 220），每次升阶同时永久奖主角 +1 魅力。',
         loss: '永久生效，不会降级。'
       },
       '生理周期': {
@@ -4556,6 +4568,7 @@
       stamina: staminaVal,
       vigor: vigorVal,
       desire: desireVal,
+      edgingStreak: Number(hp.edging_streak ?? 0),
       budget: budgetVal,
       charm: charmVal,
       biz: bizVal,
@@ -4697,7 +4710,7 @@
       const cBody = node('div', 'hub-fold-body');
       if (cTier) {
         const strip = node('div', 'intel-tier-strip');
-        for (const [th, lbl] of [[70, '70 清俊'], [75, '75 锋芒'], [85, '85 磁吸'], [95, '95 魅影']]) {
+        for (const [th, lbl] of [[68, '68 清俊'], [75, '75 锋芒'], [85, '85 磁吸'], [95, '95 魅影']]) {
           strip.append(node('span', 'intel-tier-pill' + ((cTier.charm ?? 70) >= th ? ' is-reached' : ''), lbl));
         }
         cBody.append(strip);
@@ -4721,16 +4734,17 @@
       const heldSet = new Set(intel.held || []);
       const consumedSet = new Set(intel.consumed || []);
       const armedId = intel.leverage_armed || '';
+      const levCharges = Math.max(0, Number(intel.leverage_charges || 0));
       const suAb = intel.su_ab_contacts ?? 0;
       const availCount = intel.catalog.filter(it => !heldSet.has(it.id) && !consumedSet.has(it.id) && bizVal >= (it.min_biz || 0) && suAb >= (it.min_su_ab_contacts || 0)).length;
 
       const iSec = node('details', 'hub-fold intel-section');
-      if (armedId || availCount > 0) iSec.open = true;
+      if (armedId || levCharges > 0 || availCount > 0) iSec.open = true;
       const iHead = node('summary', 'hub-fold-summary');
       const iTitleWrap = node('div', 'hub-fold-title');
       iTitleWrap.append(
         node('strong', '', '商业嗅觉与一次性情报'),
-        node('span', 'muted', '持有 ' + heldSet.size + (availCount ? (' · ' + availCount + ' 项可入库') : '') + (armedId ? ' · 杠杆已预备' : ''))
+        node('span', 'muted', '持有 ' + heldSet.size + (availCount ? (' · ' + availCount + ' 项可入库') : '') + (levCharges > 0 ? (' · 护盾余 ' + levCharges + ' 次') : '') + (armedId ? ' · 杠杆已预备' : ''))
       );
       const iRight = node('span', 'fold-right');
       iRight.append(node('span', 'quest-badge', '嗅觉 ' + bizVal + ' / 100'), node('span', 'fold-caret', '▾'));
@@ -4739,15 +4753,21 @@
 
       const iBody = node('div', 'hub-fold-body');
       const tierStrip = node('div', 'intel-tier-strip');
-      for (const [th, lbl] of [[10, '10 入门'], [30, '30 被看见'], [60, '60 杠杆'], [100, '100 视野']]) {
+      for (const [th, lbl] of [[10, '10 入门'], [30, '30 被看见'], [60, '60 杠杆'], [80, '80 深局'], [100, '100 视野']]) {
         tierStrip.append(node('span', 'intel-tier-pill' + (bizVal >= th ? ' is-reached' : ''), lbl));
       }
       iBody.append(tierStrip);
 
+      if (levCharges > 0) {
+        const shieldBanner = node('div', 'leverage-banner');
+        shieldBanner.append(node('span', '', '商业杠杆护盾生效中：剩余 ' + levCharges + ' 次（后续 C 烈度自动减半越界掉好感并压制至多 10 点非目击警惕，非 C 烈度不消耗）'));
+        iBody.append(shieldBanner);
+      }
+
       if (armedId) {
         const armedItem = intel.catalog.find(x => x.id === armedId);
         const banner = node('div', 'leverage-banner');
-        banner.append(node('span', '', '商业杠杆已预备：「' + (armedItem ? armedItem.name : armedId) + '」（下次 C 烈度好感惩罚减半，非 C 烈度不浪费）'));
+        banner.append(node('span', '', '商业杠杆已预备：「' + (armedItem ? armedItem.name : armedId) + '」（下次 C 烈度展开 3 次越界护盾并压制非目击警惕，非 C 烈度不浪费）'));
         const disarmBtn = node('button', 'btn-outline', '取消预备');
         disarmBtn.type = 'button';
         disarmBtn.disabled = !canTransactDeterministic();
@@ -5147,7 +5167,7 @@
       }
       bdBody.append(
         bdGrid,
-        node('p', 'stat-inline-note', '五区开发只增不退（Lv.0–3：0 / 20 / 50 / 80），随阶梯叠加 +5% / +12% / +22% 高潮推进；命中 ★ 招牌部位享 1.35× 成长与额外降羞，任意部位首破 Lv.2 / Lv.3 同步奖主角 +1 魅力。')
+        node('p', 'stat-inline-note', '五区开发只增不退（Lv.0–3：0 / 20 / 50 / 80），单回至多聚焦 2 区（轻中 +4 / 深度 +8），随阶梯叠加 +5% / +12% / +22% 高潮推进；命中 ★ 招牌部位享 1.35× 成长与额外降羞，首破 Lv.2 / Lv.3 同步奖主角 +1 魅力（单回净涨封顶 +1）。')
       );
       bdCard.append(bdBody);
       body.append(bdCard);

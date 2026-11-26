@@ -978,7 +978,20 @@ def _derive_lifecycle(engine, body, content, *, active_cast=None):
         preview_tags = [tag for tag in original_tags if tag != exhaust_tag]
         projected = None
         if name in result['ds_events']:
-            projected = _engine_call(engine.process_desire_stamina_system, {name: preview_tags}, engine.MEMORY_FILE).get(name)
+            _hc_m = re.search(r'\[系统宿主\][^\n]*?魅力\s*(-?\d+)', content)
+            _hc_val = int(_hc_m.group(1)) if _hc_m else 70
+            _priv_val = 'open_public'
+            for _pk, _pl in save_store.PRIVACY_LABELS.items():
+                if f'隐私={_pl}' in content or f'隐私档位：{_pl}' in content:
+                    _priv_val = _pk
+                    break
+            projected = _engine_call(
+                engine.process_desire_stamina_system,
+                {name: preview_tags},
+                engine.MEMORY_FILE,
+                host_charm=_hc_val,
+                privacy=_priv_val,
+            ).get(name)
         projected_desire = projected['欲望'] if projected else int(desire[1])
         # The existing engine's clearance produces 35 desire; explicit clearance or self-relief also ends a streak.
         relieved = (

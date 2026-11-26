@@ -632,9 +632,9 @@ class SaveArchitectureV2Tests(unittest.TestCase):
 
         # (9a) Dynamic EXP costs from 互动运行配置.json
         tiers = sp.passive_levels(self.tmp)
-        self.assertEqual([t['cost'] for t in tiers], [0, 20, 50, 200, 800])
+        self.assertEqual([t['cost'] for t in tiers], [0, 20, 50, 110, 220])
 
-        # (9b) Nap max once per day (+10) + Insomnia non-stacking (-5) + Overnight +40 stamina for non-insomniac heroines
+        # (9b) Nap max once per day (+15) + Insomnia non-stacking (-5) + Overnight +40 stamina for non-insomniac heroines
         st, ly, _ = save_store.load_bundle(self.tmp)
         st['panels']['沈知韫']['体力'] = 50
         st['panels']['苏婉青']['体力'] = 50
@@ -651,9 +651,9 @@ class SaveArchitectureV2Tests(unittest.TestCase):
         )
         complete_current_playback(self.svc)
         st_n1, _, _ = save_store.load_bundle(self.tmp)
-        self.assertEqual(st_n1['panels']['沈知韫']['体力'], 60)  # +10
+        self.assertEqual(st_n1['panels']['沈知韫']['体力'], 65)  # +15
 
-        # Second nap same day -> blocked (stays 60!)
+        # Second nap same day -> blocked (stays 65!)
         run_action_turn(
             self.svc, text=nap_txt, option_id='A', category='A',
             messages=[{'kind': 'narration', 'speaker': '', 'text': nap_txt}],
@@ -663,9 +663,9 @@ class SaveArchitectureV2Tests(unittest.TestCase):
         )
         complete_current_playback(self.svc)
         st_n2, _, _ = save_store.load_bundle(self.tmp)
-        self.assertEqual(st_n2['panels']['沈知韫']['体力'], 60)
+        self.assertEqual(st_n2['panels']['沈知韫']['体力'], 65)
 
-        # Insomnia twice same night -> only first applies (-5: 60 -> 55), second blocked (stays 55)
+        # Insomnia twice same night -> only first applies (-5: 65 -> 60), second blocked (stays 60)
         ins_txt = '夜深了，沈知韫辗转反侧难以入睡，整夜失眠。'
         run_action_turn(
             self.svc, text=ins_txt, option_id='A', category='A',
@@ -676,7 +676,7 @@ class SaveArchitectureV2Tests(unittest.TestCase):
         )
         complete_current_playback(self.svc)
         st_i1, _, _ = save_store.load_bundle(self.tmp)
-        self.assertEqual(st_i1['panels']['沈知韫']['体力'], 55)
+        self.assertEqual(st_i1['panels']['沈知韫']['体力'], 60)
         self.assertTrue(st_i1['mechanics']['insomnia_applied']['沈知韫'])
 
         run_action_turn(
@@ -688,9 +688,9 @@ class SaveArchitectureV2Tests(unittest.TestCase):
         )
         complete_current_playback(self.svc)
         st_i2, _, _ = save_store.load_bundle(self.tmp)
-        self.assertEqual(st_i2['panels']['沈知韫']['体力'], 55)
+        self.assertEqual(st_i2['panels']['沈知韫']['体力'], 60)
 
-        # Overnight sleep -> host=100, non-insomniac 苏婉青/徐念薇 get +40 (50->90), insomniac 沈知韫 stays 55, insomnia_applied reset!
+        # Overnight sleep -> host=100, non-insomniac 苏婉青/徐念薇 get +40 (50->90), insomniac 沈知韫 stays 60, insomnia_applied reset!
         ov_txt = '夜色沉去，他在卧室安稳睡了一整晚，次日七点醒来。'
         run_action_turn(
             self.svc, text=ov_txt, option_id='A', category='A',
@@ -702,12 +702,12 @@ class SaveArchitectureV2Tests(unittest.TestCase):
         complete_current_playback(self.svc)
         st_ov, _, _ = save_store.load_bundle(self.tmp)
         self.assertEqual(st_ov['panels']['系统宿主']['体力'], 100)
-        self.assertEqual(st_ov['panels']['沈知韫']['体力'], 55)
+        self.assertEqual(st_ov['panels']['沈知韫']['体力'], 60)
         self.assertEqual(st_ov['panels']['苏婉青']['体力'], 90)
         self.assertEqual(st_ov['panels']['徐念薇']['体力'], 90)
         self.assertFalse(st_ov['mechanics']['insomnia_applied']['沈知韫'])
 
-        # Day 2 nap now succeeds again (55 -> 65)
+        # Day 2 nap now succeeds again (60 -> 75)
         run_action_turn(
             self.svc, text=nap_txt, option_id='A', category='A',
             messages=[{'kind': 'narration', 'speaker': '', 'text': nap_txt}],
@@ -717,23 +717,28 @@ class SaveArchitectureV2Tests(unittest.TestCase):
         )
         complete_current_playback(self.svc)
         st_n3, _, _ = save_store.load_bundle(self.tmp)
-        self.assertEqual(st_n3['panels']['沈知韫']['体力'], 65)
+        self.assertEqual(st_n3['panels']['沈知韫']['体力'], 75)
 
-        # (9c) Passive Lv.2 halves C-intensity violation drop (-10 -> -5, stacked with leverage -> -2) & Lv.3 doubles NPC stamina drain
+        # (9c) Passive Lv.2 halves C-intensity violation drop (intact_defense stays active until Lv.4; 75% mitigation cap), Lv.4 exempts intact_defense, Lv.3 doubles NPC stamina drain
         st_p, ly_p, _ = save_store.load_bundle(self.tmp)
         st_p['panels']['沈知韫']['被动'] = 2
         st_p['panels']['沈知韫']['好感'] = 80
         st_p['panels']['沈知韫']['羞耻'] = 90
+        st_p['panels']['沈知韫']['堕落'] = 0
         st_p['panels']['沈知韫']['体力'] = 80
         save_store.save_bundle(self.tmp, st_p, ly_p)
         engine = rr._engine(self.tmp, self.tmp)
         aff_lv2 = engine.process_affection_system({}, {'沈知韫': ['C烈度_重度']}, str(self.tmp / rr.FILES[0]))
-        self.assertEqual(aff_lv2['沈知韫'], 75)  # -10 * 0.5 = -5
+        self.assertEqual(aff_lv2['沈知韫'], 73)  # intact_defense -> raw -15, Lv.2 *0.5 -> -7
         aff_lv2_lev = engine.process_affection_system(
             {}, {'沈知韫': ['C烈度_重度']}, str(self.tmp / rr.FILES[0]),
             business_leverage=True,
         )
-        self.assertEqual(aff_lv2_lev['沈知韫'], 78)  # int(-5 / 2) = -2
+        self.assertEqual(aff_lv2_lev['沈知韫'], 76)  # stacked Lv.2 + leverage capped at 75% mitigation -> -4
+        st_p['panels']['沈知韫']['被动'] = 4
+        save_store.save_bundle(self.tmp, st_p, ly_p)
+        aff_lv4 = engine.process_affection_system({}, {'沈知韫': ['C烈度_重度']}, str(self.tmp / rr.FILES[0]))
+        self.assertEqual(aff_lv4['沈知韫'], 75)  # Lv.4 exempts intact_defense -> raw -10, Lv.2+ *0.5 -> -5
 
         st_p['panels']['沈知韫']['被动'] = 3
         save_store.save_bundle(self.tmp, st_p, ly_p)

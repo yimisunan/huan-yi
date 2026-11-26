@@ -273,9 +273,9 @@ def default_state():
         'version': 2,
         'panels': {
             '系统宿主': {'积分': 0, '经验值': 0, '体力': 100, '魅力': 70, '商业嗅觉': 0},
-            '沈知韫': {'好感': 95, '堕落': 0, '欲望': 0, '羞耻': 100, '体力': 100, '高潮': 0, '内射': 0, '怀孕': False, '被动': 0},
-            '徐念薇': {'好感': 30, '堕落': 0, '欲望': 0, '羞耻': 99, '体力': 100, '高潮': 0, '内射': 0, '怀孕': False, '被动': 0},
-            '苏婉青': {'好感': 40, '堕落': 0, '欲望': 0, '羞耻': 99, '体力': 100, '高潮': 0, '内射': 0, '怀孕': False, '被动': 0},
+            '沈知韫': {'好感': 82, '堕落': 0, '欲望': 0, '羞耻': 100, '体力': 100, '高潮': 0, '内射': 0, '怀孕': False, '被动': 0},
+            '徐念薇': {'好感': 30, '堕落': 0, '欲望': 0, '羞耻': 96, '体力': 100, '高潮': 0, '内射': 0, '怀孕': False, '被动': 0},
+            '苏婉青': {'好感': 40, '堕落': 0, '欲望': 0, '羞耻': 92, '体力': 100, '高潮': 0, '内射': 0, '怀孕': False, '被动': 0},
         },
         'presence': {
             name: {'location': loc, 'reason': reason}
@@ -329,6 +329,7 @@ def default_state():
             'consumed': [],
             'su_ab_contacts': 0,
             'leverage_armed': '',
+            'leverage_charges': 0,
         },
         'director': default_director(),
         'lifecycle': {
@@ -741,6 +742,7 @@ def normalize_state(raw):
         base['intel']['su_ab_contacts'] = max(0, _parse_int(ri.get('su_ab_contacts'), 0))
         armed = str(ri.get('leverage_armed') or '')
         base['intel']['leverage_armed'] = armed if armed in base['intel']['held'] else ''
+        base['intel']['leverage_charges'] = max(0, min(3, _parse_int(ri.get('leverage_charges'), 0)))
     if isinstance(raw.get('director'), dict):
         base['director'].update(copy.deepcopy(raw['director']))
     if isinstance(raw.get('lifecycle'), dict):
@@ -1110,7 +1112,7 @@ def migrate_from_legacy_texts(memory_text='', items_text='', data_dict=None, bas
         im_blk = re.search(r'(?m)(【商业情报与杠杆状态】.*?)(?=\n【|\n▲ 第一层：|\Z)', pre, re.S)
         if im_blk:
             ib = im_blk.group(1)
-            intel = {'held': [], 'consumed': [], 'su_ab_contacts': 0, 'leverage_armed': ''}
+            intel = {'held': [], 'consumed': [], 'su_ab_contacts': 0, 'leverage_armed': '', 'leverage_charges': 0}
             hm2 = re.search(r'^持有情报：([^\n]+)', ib, re.M)
             if hm2 and hm2.group(1).strip() not in _EMPTY_MARKERS:
                 intel['held'] = list(dict.fromkeys(re.findall(r'INTEL-\d+', hm2.group(1))))
@@ -1125,6 +1127,9 @@ def migrate_from_legacy_texts(memory_text='', items_text='', data_dict=None, bas
                 aid = re.search(r'INTEL-\d+', lm2.group(1))
                 if aid and aid.group(0) in intel['held']:
                     intel['leverage_armed'] = aid.group(0)
+            lcm2 = re.search(r'^商业杠杆护盾：[^\n]*?(\d+)', ib, re.M)
+            if lcm2:
+                intel['leverage_charges'] = max(0, min(3, int(lcm2.group(1))))
             state['intel'] = intel
 
         # 10. Director
@@ -1361,6 +1366,8 @@ def render_memory_txt(state, mem_layers):
     lines.append('已耗情报：' + (' | '.join(intel['consumed']) if intel['consumed'] else '（无）'))
     lines.append(f"苏婉青AB接触：{intel['su_ab_contacts']}")
     lines.append(f"商业杠杆预备：已预备({intel['leverage_armed']})" if intel['leverage_armed'] else '商业杠杆预备：未启用')
+    if int(intel.get('leverage_charges', 0) or 0) > 0:
+        lines.append(f"商业杠杆护盾：剩余 {int(intel['leverage_charges'])} 次")
     lines.append('')
 
     intl = state.get('intimate') or default_intimate()

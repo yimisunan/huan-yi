@@ -2,7 +2,7 @@
   "playback": {
     "completed": false,
     "revealed": 0,
-    "segment_id": "prologue-a71319687435e1d1a7e2bf52df6f9125",
+    "segment_id": "prologue-6554030471bf005e044a3f911ccedd46",
     "version": 1
   },
   "segments": [
@@ -32,7 +32,7 @@
         "prompt": "此刻，你准备怎么回应？"
       },
       "handoff": "",
-      "id": "prologue-a71319687435e1d1a7e2bf52df6f9125",
+      "id": "prologue-6554030471bf005e044a3f911ccedd46",
       "input": "",
       "input_kind": "system",
       "input_known_by": [

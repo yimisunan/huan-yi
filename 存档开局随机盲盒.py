@@ -410,7 +410,7 @@ OPENING_TASKS = {
         'title': '雨歇微凉',
         'target': '沈知韫',
         'attr': '好感',
-        'value': 97,
+        'value': 85,
         'tier': 'small',
         'item_desc': '细棉格子手帕',
     },

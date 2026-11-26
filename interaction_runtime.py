@@ -611,7 +611,7 @@ def view(store, files=None):
             'unrelieved_streak': int(counters_map.get(f'空耗_连续未纾解_{hname}', 0) or 0),
             'masturbation_trace': int(trace_map.get(hname, 0) or 0),
             'fluid_lock_turns': fl_turns,
-            'fluid_lock_floor': engine.fluid_lock_floor_for_turns(fl_turns),
+            'fluid_lock_floor': engine.fluid_lock_floor_for_turns(fl_turns, creampie_count=int(hpanel.get('内射', 0) or 0)),
         }
     delivered_intimate_gifts = {}
     for hname in save_store.HEROINES:

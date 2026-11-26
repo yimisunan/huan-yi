@@ -3,7 +3,7 @@
     "actions": 0,
     "count": 1,
     "last_sequence": 1,
-    "segment_id": "prologue-a71319687435e1d1a7e2bf52df6f9125"
+    "segment_id": "prologue-6554030471bf005e044a3f911ccedd46"
   },
   "options_text": "",
   "presence": {
@@ -27,13 +27,13 @@
   "prologue": {
     "heroine": "全员家宴",
     "privacy": "open_public",
-    "request_id": "reset-20261126_105315_ce03303817094def831beff85b01d8a2",
+    "request_id": "reset-20261126_120710_dcc479aa8e9042aa95e49bff82274433",
     "scenario_id": "zhiyun_sunday_noon",
     "sub_location": "主宅餐厅",
     "title": "周日午间 · 主宅餐厅 · 家庭",
     "weekday": "周日"
   },
-  "request_id": "prologue-a71319687435e1d1a7e2bf52df6f9125",
+  "request_id": "prologue-6554030471bf005e044a3f911ccedd46",
   "round": 1,
   "sceneTitle": "徐家主宅",
   "state_version": 1,

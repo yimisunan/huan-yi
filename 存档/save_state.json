@@ -36,6 +36,7 @@
     "consumed": [],
     "held": [],
     "leverage_armed": "",
+    "leverage_charges": 0,
     "su_ab_contacts": 0
   },
   "intimate": {
@@ -207,7 +208,7 @@
       "好感": 30,
       "怀孕": false,
       "欲望": 0,
-      "羞耻": 99,
+      "羞耻": 96,
       "被动": 0,
       "高潮": 0
     },
@@ -215,7 +216,7 @@
       "体力": 100,
       "内射": 0,
       "堕落": 0,
-      "好感": 95,
+      "好感": 82,
       "怀孕": false,
       "欲望": 0,
       "羞耻": 100,
@@ -236,7 +237,7 @@
       "好感": 40,
       "怀孕": false,
       "欲望": 0,
-      "羞耻": 99,
+      "羞耻": 92,
       "被动": 0,
       "高潮": 0
     }
@@ -260,9 +261,9 @@
     }
   },
   "rendered_sha256": {
-    "data_runtime": "39f8feefbf8034c8eb38c8dbd6cb4f2db8f4f18e2c005efc7d8e1f24acb52fd1",
+    "data_runtime": "64f3a3356dd5a3c5390409d8213334e2ea0e53754e36561c0cf319a4d0fbf237",
     "items_txt": "6b7263cae6f8e90eb04cf3a09ac41c96225362a44d9d0032cb74334eea6ec666",
-    "memory_txt": "6e17c234502aa2c55c214633f3ed7225a6d6a97ceb0b3a1808cd4bad6ec422b7"
+    "memory_txt": "95cdf2c762b12281ed7b3e5d8cffa464d65d750fbc618ab2fa79a617d0c025e2"
   },
   "runtime": {
     "action_index": 0,
@@ -273,14 +274,14 @@
     "closed_by": "",
     "item_recovered": 0,
     "last_closed": 0,
-    "last_segment_id": "prologue-a71319687435e1d1a7e2bf52df6f9125",
+    "last_segment_id": "prologue-6554030471bf005e044a3f911ccedd46",
     "last_sequence": 1,
     "memory_round": 1,
     "phase": "ready",
     "prologue": {
       "heroine": "全员家宴",
       "privacy": "open_public",
-      "request_id": "reset-20261126_105315_ce03303817094def831beff85b01d8a2",
+      "request_id": "reset-20261126_120710_dcc479aa8e9042aa95e49bff82274433",
       "scenario_id": "zhiyun_sunday_noon",
       "sub_location": "主宅餐厅",
       "title": "周日午间 · 主宅餐厅 · 家庭",

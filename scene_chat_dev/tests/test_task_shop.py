@@ -707,12 +707,12 @@ class TaskAndShopTests(unittest.TestCase):
         })
         self.assertEqual(r_cam['status'], 'committed')
 
-        # SHOP-014 requires BOTH min_biz >= 15 AND min_any_affection >= 55
+        # SHOP-014 requires BOTH min_biz >= 15 AND min_max_depravity >= 10
         engine = rr._engine(self.root, self.root)
         mem_path = self.root / rr.FILES[0]
         mem_low = engine._simulate_panel(
             mem_path.read_text(encoding='utf-8'),
-            {'沈知韫': {'好感': 30}, '苏婉青': {'好感': 30}, '徐念薇': {'好感': 30}},
+            {'沈知韫': {'堕落': 0}, '苏婉青': {'堕落': 0}, '徐念薇': {'堕落': 0}},
         )
         mem_path.write_text(mem_low, encoding='utf-8')
         snap3 = self.service.interaction_snapshot()
@@ -723,7 +723,7 @@ class TaskAndShopTests(unittest.TestCase):
                 'save_epoch': snap3['save_epoch'],
                 'item_id': 'SHOP-014',
             })
-        mem_hi = engine._simulate_panel(mem_path.read_text(encoding='utf-8'), {'沈知韫': {'好感': 60}})
+        mem_hi = engine._simulate_panel(mem_path.read_text(encoding='utf-8'), {'沈知韫': {'堕落': 12}})
         mem_path.write_text(mem_hi, encoding='utf-8')
         snap4 = self.service.interaction_snapshot()
         r_drop = self.service.redeem_shop({

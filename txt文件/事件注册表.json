@@ -611,7 +611,7 @@
         "id": "DS_12",
         "tag": "恢复_小憩",
         "parameters": {
-          "new_sta_01": 10
+          "new_sta_01": 15
         },
         "parameter_usage": {
           "new_sta_01": "new_sta 增加"

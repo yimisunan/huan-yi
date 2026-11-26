@@ -203,7 +203,9 @@
       "giftable": true,
       "max_per_save": 2,
       "unlock_req": {
-        "min_any_affection": 55
+        "min_max_depravity": 5,
+        "min_charm": 75,
+        "mode": "any"
       }
     },
     {
@@ -222,7 +224,9 @@
       "giftable": true,
       "max_per_save": 2,
       "unlock_req": {
-        "min_any_affection": 60
+        "min_max_depravity": 12,
+        "min_charm": 78,
+        "mode": "any"
       }
     },
     {
@@ -241,8 +245,8 @@
       "giftable": false,
       "max_per_save": 1,
       "unlock_req": {
-        "min_biz": 10,
-        "min_any_affection": 65,
+        "min_biz": 12,
+        "min_max_depravity": 18,
         "mode": "any"
       }
     },
@@ -263,7 +267,7 @@
       "max_per_save": 2,
       "unlock_req": {
         "min_biz": 15,
-        "min_any_affection": 55,
+        "min_max_depravity": 10,
         "mode": "all"
       }
     },
