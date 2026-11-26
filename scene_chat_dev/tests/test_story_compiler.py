@@ -1081,6 +1081,67 @@ class StoryCompilerTests(unittest.TestCase):
         self.assertIn('mind_updates', settle['system_prompt'])
         self.assertIn('cast_mind', settle['user_context'])
 
+        # 6. Post-audit hardening assertions (P1-1 / P1-2 / P1-3 / P2-1 / P2-2)
+        # P1-1: prologue_active suppresses scene_entry_residue on Turn 1 unless move_player
+        state_pro = dict(state3, prologue_active=True)
+        d_pro = json.loads(sc.build_user_delta(
+            ROOT, state_pro, proj, history=[], new_history_only=[],
+            text='继续聊', selected=None, resolved_op=None, intent_evidence=None,
+            preview_cost={'before': 100, 'reserved': 5},
+            runtime={'clock': {'day': 1, 'time': '12:15'}, 'memory_round': 1, 'phase': 'ready'},
+            memory_text=mem_txt, include_full_anchor=True, mode='dual_stream_v2',
+            director_roll={'scene_turns_in_place': 1},
+        ))
+        self.assertNotIn('scene_entry_residue', d_pro)
+        d_pro_move = json.loads(sc.build_user_delta(
+            ROOT, dict(state_pro, location='工作室', cast=['徐念薇']), proj, history=[], new_history_only=[],
+            text='去画室', selected=None, resolved_op={'code': 'move_player', 'destination': '工作室'}, intent_evidence=None,
+            preview_cost={'before': 100, 'reserved': 5},
+            runtime={'clock': {'day': 1, 'time': '19:30'}, 'memory_round': 1, 'phase': 'ready'},
+            memory_text=mem_txt, include_full_anchor=True, mode='dual_stream_v2',
+            director_roll={'scene_turns_in_place': 1},
+        ))
+        self.assertIn('scene_entry_residue', d_pro_move)
+        self.assertNotIn('晚霞', d_pro_move['scene_entry_residue']['moments']['徐念薇'])
+
+        # P1-1 room-level present_actors filter + P1-2 no cross-location mismatch
+        snap_room = sp.build_scene_entry_snapshot(
+            ROOT, '徐家主宅', ['沈知韫', '徐念薇'], clock={'day': 1, 'time': '23:30'}, present_actors=['徐念薇'],
+        )
+        self.assertEqual(list(snap_room.keys()), ['徐念薇'])
+        snap_shen_studio = sp.build_scene_entry_snapshot(ROOT, '工作室', ['沈知韫'], clock={'day': 1, 'time': '15:00'})
+        self.assertNotIn('厨房', snap_shen_studio['沈知韫'])
+        snap_su_comp = sp.build_scene_entry_snapshot(ROOT, '公司', ['苏婉青'], clock={'day': 1, 'time': '11:00'})
+        self.assertNotIn('餐边柜', snap_su_comp['苏婉青'])
+
+        # P1-3: K01 hard guard blocks non-Shen mind_updates & new_thread when locked; allows Shen or when unlocked
+        k01_locked = sp._sanitize_director_echo(
+            {
+                'new_thread': {'who': ['徐念薇'], 'topic': '遗嘱写着唯一合法继承人是志北', 'tension': 'hard'},
+                'mind_updates': {
+                    '徐念薇': {'impression': '怀疑遗嘱写着千亿家产唯一合法继承人是志北', 'mood': '略显烦躁不想寒暄'},
+                    '沈知韫': {'preoccupation': '独守遗嘱秘密怕志北察觉'},
+                },
+            },
+            cat, dstate, is_action=True, secrets_unlocked=(),
+        )
+        self.assertNotIn('new_thread', k01_locked)
+        self.assertNotIn('impression', k01_locked['mind_updates']['徐念薇'])
+        self.assertEqual(k01_locked['mind_updates']['徐念薇']['mood'], '略显烦躁不想寒暄')
+        self.assertIn('沈知韫', k01_locked['mind_updates'])
+        k01_unlocked = sp._sanitize_director_echo(
+            {'mind_updates': {'徐念薇': {'impression': '已知遗嘱写着唯一合法继承人是志北'}}},
+            cat, dstate, is_action=True, secrets_unlocked=('K01',),
+        )
+        self.assertIn('impression', k01_unlocked['mind_updates']['徐念薇'])
+
+        # P2-1 & P2-2: no internal cast_mind literal in Zone 0, single_prefix_v2 parity, healthy Zone 0/1 headroom
+        self.assertNotIn('`cast_mind`', z0)
+        z0_single = sc.build_zone0_global(ROOT, mode='single_prefix_v2', protagonist_style='faithful')
+        self.assertIn('mind_updates', z0_single)
+        self.assertLess(len(z0), 9000)
+        self.assertLess(len(z1), 6620)
+
 
 if __name__ == '__main__':
     unittest.main()

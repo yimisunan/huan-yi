@@ -1144,7 +1144,7 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
             '若 memory.fact == "" 则 memory.transfers 必须交 {}；memory.compact 严禁带【数字】前缀或换行；需转移时严格依据 memory_transfer_sources.source_bodies 原文浓缩。\n'
             '进行中任务严禁驱动剧情；仅当delta携带milestone_echo时允许1句低侵入氛围轻顿且禁提系统词。'
             '若cost_preview.kind=="action"且tasks.current为空或status=="已完成"，结合task_whitelist_current按task_schema六键续接新任务（value严格大于当前值）；进行中或SYSTEM时resolution.task写""。'
-            '仅当玩家在正文中明确亮牌动用 delta.held_intel 中某条情报时才填 resolution.intel_used；action回合可选填 resolution.director_echo 维护未完线头与暗钟，严禁编造。'
+            '仅当玩家在正文中明确亮牌动用 delta.held_intel 中某条情报时才填 resolution.intel_used；action回合可选填 resolution.director_echo 维护未完线头、暗钟与角色心绪印象(mind_updates)，严禁编造。'
         )
 
     parts = [protocol, codex, global_kb]
@@ -1351,11 +1351,18 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
             'people': cast_mind_view,
             'rule': '在场人物此刻的未散余绪、手头牵挂与暗自记账：作为内在驱动自然流露、借题发挥或隔幕提起，严禁生硬复读原文，更禁开上帝视角读主角括号内心。',
         }
-    if scene_turns <= 1 and cast and not intimate_active_now:
+    prologue_active_now = bool((state or {}).get('prologue_active', False))
+    is_move_op = (
+        (isinstance(resolved_op, dict) and resolved_op.get('code') == 'move_player')
+        or (isinstance(operation_context, dict) and isinstance(operation_context.get('detail'), dict)
+            and operation_context['detail'].get('kind') == 'move_player')
+    )
+    if scene_turns <= 1 and cast and not intimate_active_now and (not prologue_active_now or is_move_op):
         dstate_entry = sp.parse_director_block(memory_text) if memory_text else {}
         entry_res = sp.build_scene_entry_snapshot(
             root, location, cast, weekday=cur_weekday, clock=clock,
             director_state=dstate_entry, npc_mind=raw_mind,
+            present_actors=intl_now.get('present_actors') if not is_move_op else None,
         )
         if entry_res:
             delta['scene_entry_residue'] = {

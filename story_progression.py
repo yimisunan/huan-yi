@@ -1130,7 +1130,14 @@ def _thread_topic_similar(a, b):
     return bool(union and (inter / union) >= 0.55)
 
 
-def _sanitize_director_echo(raw, catalog, dstate, is_action):
+_ECHO_WILL_SECRET_RE = re.compile(
+    r'唯一合法继承人|唯一继承人|亲生子继承|继承真相|千亿家产唯一'
+    r'|遗嘱[^\n。！？]{0,12}(?:指定|写着|留给|归|给了|继承|家产|份额)'
+    r'|(?:志北|亲生子|继承权)[^\n。！？]{0,10}遗嘱'
+)
+
+
+def _sanitize_director_echo(raw, catalog, dstate, is_action, *, secrets_unlocked=()):
     """Fault-tolerant whitelist sanitizer for optional resolution.director_echo; never raises RoundError."""
     if not is_action or raw in (None, '') or not isinstance(raw, dict):
         return None
@@ -1138,6 +1145,7 @@ def _sanitize_director_echo(raw, catalog, dstate, is_action):
     channels_map = (catalog or {}).get('channels') or DIRECTOR_DEFAULT_CHANNELS
     clocks_cfg = (catalog or {}).get('offstage_clocks') or {}
     active_ids = {t['id'] for t in (dstate or {}).get('active_threads', []) if isinstance(t, dict) and t.get('id')}
+    k01_open = 'K01' in set(secrets_unlocked or ())
 
     nt = raw.get('new_thread')
     if isinstance(nt, dict):
@@ -1152,8 +1160,10 @@ def _sanitize_director_echo(raw, catalog, dstate, is_action):
                     ws = str(w).strip()
                     if ws in DIRECTOR_VALID_PEOPLE and ws not in who:
                         who.append(ws)
-            tension = 'hard' if nt.get('tension') == 'hard' else 'soft'
-            out['new_thread'] = {'who': who, 'topic': topic, 'tension': tension}
+            k01_leak = (not k01_open) and bool(_ECHO_WILL_SECRET_RE.search(topic)) and (not who or any(w != '沈知韫' for w in who))
+            if not k01_leak:
+                tension = 'hard' if nt.get('tension') == 'hard' else 'soft'
+                out['new_thread'] = {'who': who, 'topic': topic, 'tension': tension}
 
     ct = raw.get('close_thread')
     closed = []
@@ -1193,6 +1203,8 @@ def _sanitize_director_echo(raw, catalog, dstate, is_action):
                 if isinstance(val, str):
                     txt = _clean_single_line(val)[:limit]
                     if len(txt) >= 3 and txt.lower() not in invalid_tokens:
+                        if (not k01_open) and wname != '沈知韫' and _ECHO_WILL_SECRET_RE.search(txt):
+                            continue
                         entry[field] = txt
             if entry:
                 clean_mu[wname] = entry
@@ -1273,8 +1285,8 @@ def advance_npc_mind(st_final, mind_updates=None, *, active_cast=(), overnight=F
 
 _SCENE_RESIDUE_TABLE = {
     ('沈知韫', '徐家主宅', 'morning'): '刚核完几封早间工作邮件，手机扣在餐桌边，杯里黑咖啡凉了一截',
-    ('沈知韫', '徐家主宅', 'afternoon'): '刚吩咐完厨房调整午后茶点，平板屏还停在集团月度简报页',
-    ('沈知韫', '徐家主宅', 'evening'): '刚卸下外出耳饰、换回居家开衫，手里还捏着一份没看完的对账折页',
+    ('沈知韫', '徐家主宅', 'afternoon'): '刚结束一通工作确认把手机按暗，平板屏还停在集团月度简报页',
+    ('沈知韫', '徐家主宅', 'evening'): '刚卸下外出耳饰换回居家开衫，手里还捏着一份没看完的对账折页',
     ('沈知韫', '徐家主宅', 'night'): '书房台灯只开了一盏，脚尖半挂着拖鞋，正揉着发酸的眉心收尾批注',
     ('沈知韫', '公司', 'morning'): '刚散完早会回办公室，桌角叠着两份待签字的文件，语音条还没点完',
     ('沈知韫', '公司', 'afternoon'): '正站在落地窗边接完一通供应商电话，保温杯里的花茶已经放温',
@@ -1282,7 +1294,7 @@ _SCENE_RESIDUE_TABLE = {
     ('沈知韫', '公司', 'night'): '整层楼只剩董事长室亮着灯，高跟鞋脱在桌下，正低头划掉报表里的疑点',
     ('苏婉青', '徐家主宅', 'morning'): '刚把带来的老字号点心盒放上餐边柜，顺手理平针织裙下摆',
     ('苏婉青', '徐家主宅', 'afternoon'): '刚帮婆婆添过半盏温水，手机屏幕在手包边悄悄亮了一下又被按暗',
-    ('苏婉青', '徐家主宅', 'evening'): '刚整理好准备带回公寓的随身小包，正盘算着晚点怎么回承邺的消息',
+    ('苏婉青', '徐家主宅', 'evening'): '刚把随身小包挪到手边整理好，正盘算着晚点怎么回承邺的消息',
     ('苏婉青', '市中心顶层公寓', 'morning'): '刚给阳台绿植喷完水，茶几上摆着切了一半的橙子和没来得及收的快递盒',
     ('苏婉青', '市中心顶层公寓', 'afternoon'): '窝在落地窗边翻家居杂志，屋里静得能听见挂钟轻响，电视开着静音',
     ('苏婉青', '市中心顶层公寓', 'evening'): '刚热好一人份晚汤却没动几口，正把冷掉的手机搁回沙发扶手边',
@@ -1295,7 +1307,7 @@ _SCENE_RESIDUE_TABLE = {
     ('徐念薇', '大学', 'afternoon'): '正坐在系楼长廊边修改草图构图，铅笔屑落在帆布裙摆上还没拍掉',
     ('徐念薇', '工作室', 'morning'): '正把几幅半成品油画靠墙重新排光，空气里浮着淡淡松节油味',
     ('徐念薇', '工作室', 'afternoon'): '踩着矮凳给新画框绷麻布，嘴里咬着发圈，地上散着两张废稿',
-    ('徐念薇', '工作室', 'evening'): '拿画刀刮掉调色盘边干硬的颜料，窗外晚霞刚从画布边沿退下去',
+    ('徐念薇', '工作室', 'evening'): '拿画刀刮掉调色盘边干硬的颜料，画室顶灯在画布边沿投下一道冷光',
     ('徐念薇', '工作室', 'night'): '画室只留了一盏冷白工作灯，围裙下摆蹭了道灰蓝，正盯着二稿出神',
     ('徐承邺', '徐家主宅', 'morning'): '西装袖扣刚扣好一半，正站在客厅边听助理语音边扫过餐桌',
     ('徐承邺', '徐家主宅', 'afternoon'): '靠在真皮沙发里划着项目报表，手边放着新捎回来的高价茶叶礼盒',
@@ -1304,10 +1316,21 @@ _SCENE_RESIDUE_TABLE = {
     ('徐承邺', '市中心顶层公寓', 'night'): '松开衬衫最上面两颗扣子靠在书房椅背上，还在翻手机里的并购群消息',
 }
 
+_SCENE_RESIDUE_GENERIC_BY_CHAR = {
+    '沈知韫': '刚把手机屏按灭收进手包，神色沉稳，眉心仍留着一丝刚处理完事务的余韵',
+    '苏婉青': '刚理平袖口褶皱，手包搁在身侧，指尖轻轻按着静音的手机边沿',
+    '徐念薇': '正把单边耳机摘下来绕进掌心，目光淡淡扫过四周，手里还拿着手机',
+    '徐承邺': '刚把一条语音听完按灭屏幕，抬手整了整衬衫领口',
+}
 
-def build_scene_entry_snapshot(root, location, cast, weekday='', clock=None, director_state=None, npc_mind=None):
+
+def build_scene_entry_snapshot(root, location, cast, weekday='', clock=None, director_state=None, npc_mind=None, *, present_actors=None):
     """Deterministic zero-cost 'in medias res' activity residue when entering a scene (scene_turns <= 1)."""
     if not cast:
+        return {}
+    room_set = {a for a in (present_actors or ()) if a in cast}
+    target_cast = [c for c in cast if (not room_set or c in room_set)]
+    if not target_cast:
         return {}
     slot = _clock_time_slot(clock)
     dstate = director_state if isinstance(director_state, dict) else {}
@@ -1319,7 +1342,7 @@ def build_scene_entry_snapshot(root, location, cast, weekday='', clock=None, dir
     for cid, meta in clocks_cfg.items():
         owner = meta.get('owner')
         cst = clocks.get(cid) or {}
-        if owner in cast and int(cst.get('p') or 0) >= 2:
+        if owner in target_cast and int(cst.get('p') or 0) >= 2:
             phases = meta.get('phases') or []
             if phases:
                 ph = phases[int(cst.get('ph') or 0) % len(phases)]
@@ -1327,16 +1350,10 @@ def build_scene_entry_snapshot(root, location, cast, weekday='', clock=None, dir
                 if lbl:
                     hot_clock_by_owner[owner] = lbl
     out = {}
-    for name in cast:
+    for name in target_cast:
         if name not in save_store.NPC_MIND_TARGETS:
             continue
-        base = _SCENE_RESIDUE_TABLE.get((name, location, slot))
-        if not base:
-            # Fallback by character + slot or generic natural activity
-            for alt_loc in ('徐家主宅', '市中心顶层公寓', '工作室', '公司'):
-                if (name, alt_loc, slot) in _SCENE_RESIDUE_TABLE:
-                    base = _SCENE_RESIDUE_TABLE[(name, alt_loc, slot)]
-                    break
+        base = _SCENE_RESIDUE_TABLE.get((name, location, slot)) or _SCENE_RESIDUE_GENERIC_BY_CHAR.get(name)
         if not base:
             continue
         if name in hot_clock_by_owner:
@@ -2908,11 +2925,19 @@ def resolution(root,files,body):
             finally:
                 try: Path(tf_path).unlink()
                 except OSError: pass
+    raw_ss_pre=files.get(save_store.SAVE_STATE_PATH)
+    secrets_pre=()
+    if raw_ss_pre:
+        try:
+            secrets_pre=tuple(((json.loads(raw_ss_pre.decode('utf-8')).get('mechanics') or {}).get('secrets_unlocked')) or ())
+        except Exception:
+            secrets_pre=()
     director_echo=_sanitize_director_echo(
         value.get('director_echo'),
         load_world_beats(root,optional=True),
         parse_director_block(memory_raw),
         is_action=(kind=='action'),
+        secrets_unlocked=secrets_pre,
     )
     tier_costs=active_costs(root,files)
     guard=stamina_guard_info(root,files)

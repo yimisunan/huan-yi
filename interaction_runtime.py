@@ -1702,7 +1702,7 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
             prompt_files = dict(files)
     memory_text = (prompt_files[rr.FILES[0]] or b'').decode('utf-8')
     live_state = view(story.store, prompt_files)
-    bundle_state, _, _ = save_store.load_bundle(story.root, prompt_files)
+    bundle_state, layers_bundle, _ = save_store.load_bundle(story.root, prompt_files)
     scenario = packet_data.get('scenario', {})
     req_op_v2 = (packet_data.get('operation') or {}).get('requested')
     eff_intl_v2 = copy.deepcopy(live_state.get('intimate') or save_store.default_intimate())
@@ -1719,6 +1719,7 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
         'remote_vitals_targets': list(scenario.get('remote_vitals_targets') or []),
         'mechanics': copy.deepcopy(bundle_state.get('mechanics') or {}),
         'npc_mind': copy.deepcopy(bundle_state.get('npc_mind') or save_store.default_npc_mind()),
+        'prologue_active': bool((layers_bundle or {}).get('prologue_active', False)),
     }
     cast = effective_state['cast']
     references = context.get('references', [])
