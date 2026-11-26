@@ -261,7 +261,7 @@ def compile_relationships(root, cast, references=()):
         },
         'beliefs': beliefs,
         'forms': forms,
-        'rule': '称谓为合法候选（f正式/r放松/b商务/i私密亲密，未单列场合沿用f或r；s自称/a称呼），承接上下文可用我/你或省略；公开场守正统亲属称谓，仅私密/失守态可取i私密候选；绝密仅限known_only_by本人，严禁向unknown_by_present泄露或碰巧知晓。',
+        'rule': '称谓为合法候选（f正式/r放松/b商务/i私密亲密，未单列场合沿用f或r；s自称/a称呼），承接上下文可用我/你或省略；常规/公开场对母亲/姐姐/嫂子/大哥严禁直呼名字，i私密称谓仅对独处或失守的对应特定对象单独生效、禁扩散至同场旁观亲属；绝密仅限known_only_by本人，严禁向unknown_by_present泄露或碰巧知晓。',
     }
 
 
@@ -922,7 +922,7 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
         if style == 'faithful':
             protagonist_rule = (
                 '   - 主角具身在场（忠实演绎）：用 [A:徐志北] / [N] 自然承接玩家本轮行动，允许输出 1～3 句贴合原意图的简短 [D:徐志北] 口语（建议≤40字、默认静音可在语音设置开启主角配音，正文禁任何声学/XML标签）；'
-                '若玩家输入已有直接引语则保留原意。不代增新决定、新承诺、烈度升级或未授权反派滤镜。\n'
+                '称呼人物须严格沿用玩家本轮原输入称谓（不把母亲/姐姐/嫂子擅自改叫名字），括号内无声/眼神示意不擅自改写为喊话；若玩家输入已有直接引语则保留原意，不代增新决定、新承诺、烈度升级或未授权反派滤镜。\n'
             )
             action_line_rule = (
                 '   [A:角色姓名] 归属明确的具体动作（在场人物或徐志北；禁任何声学/XML标签；高羞耻身体露馅时可用 ｛表面端庄｜本能破绽｝）\n'
@@ -967,7 +967,7 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
         )
     else:
         single_player_rule = (
-            'messages中每幕须含徐志北具身动作与五感承接，忠实演绎模式下允许最多3句严格贴合玩家原意图的简短dialogue(speaker=="徐志北"，建议≤40字、禁任何声学/XML标签、禁新增决定或烈度升级)，'
+            'messages中每幕须含徐志北具身动作与五感承接，忠实演绎模式下允许最多3句严格贴合玩家原意图的简短dialogue(speaker=="徐志北"，建议≤40字、禁任何声学/XML标签、称呼沿用玩家原输入且禁将无声眼神示意改写喊话、禁新增决定或烈度升级)，'
             if style == 'faithful'
             else 'messages中严禁出现kind=="dialogue"且speaker=="徐志北"（玩家追问用kind=="action",speaker=="徐志北"或narration间接动作表达，每幕至少2处主角具身动作），'
         )

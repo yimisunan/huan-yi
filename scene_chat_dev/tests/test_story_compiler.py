@@ -49,6 +49,46 @@ class StoryCompilerTests(unittest.TestCase):
         self.assertTrue(compiled['forms'])
         self.assertTrue(compiled['shared'])
 
+        # Full-cast address & self-address boundary checks (no awkward given-name leaks in regular occasions).
+        full = sc.compile_relationships(ROOT, ['沈知韫', '苏婉青', '徐念薇', '徐承邺', '次要NPC'])
+        forms = full['forms']
+        # Younger brother -> elder sister: regular occasions use 二姐/姐/姐姐 only; 念薇 only in intimate after 姐姐.
+        zb_nw = forms['徐志北->徐念薇']
+        self.assertNotIn('念薇', zb_nw['f'].get('a', []))
+        self.assertIn('二姐', zb_nw['f'].get('a', []))
+        self.assertNotIn('念薇', zb_nw['r'].get('a', []))
+        self.assertIn('姐姐', zb_nw['r'].get('a', []))
+        self.assertEqual(zb_nw['i'].get('a'), ['姐姐', '念薇'])
+        # Brother-in-law -> sister-in-law & younger brother -> elder brother: kinship only in f/r.
+        zb_wq = forms['徐志北->苏婉青']
+        self.assertNotIn('婉青', zb_wq['f'].get('a', []))
+        self.assertNotIn('婉青', zb_wq['r'].get('a', []))
+        self.assertIn('嫂子', zb_wq['f'].get('a', []))
+        self.assertEqual(zb_wq['i'].get('a'), ['嫂子', '婉青'])
+        zb_cy = forms['徐志北->徐承邺']
+        self.assertNotIn('承邺', zb_cy['f'].get('a', []))
+        self.assertNotIn('承邺', zb_cy['r'].get('a', []))
+        self.assertIn('大哥', zb_cy['f'].get('a', []))
+        # Younger sister -> sister-in-law / elder brother: no given-name leak in regular occasions.
+        self.assertNotIn('婉青', forms['徐念薇->苏婉青']['f'].get('a', []))
+        self.assertNotIn('承邺', forms['徐念薇->徐承邺']['f'].get('a', []))
+        # Regular self-address: seniors & peers do not self-refer by given name; intimate retains it.
+        self.assertNotIn('念薇', forms['徐念薇->徐志北']['f'].get('s', []))
+        self.assertNotIn('婉青', forms['苏婉青->徐志北']['f'].get('s', []))
+        self.assertNotIn('知韫', forms['沈知韫->次要NPC'].get('s', []))
+        self.assertIn('知韫', forms['沈知韫->徐志北']['i'].get('s', []))
+        # Secondary NPCs use formal titles, never given names.
+        self.assertNotIn('知韫', forms['次要NPC->沈知韫']['f'].get('a', []))
+        self.assertIn('沈董', forms['次要NPC->沈知韫']['f'].get('a', []))
+        self.assertNotIn('婉青', forms['次要NPC->苏婉青']['f'].get('a', []))
+        self.assertIn('少奶奶', forms['次要NPC->苏婉青']['f'].get('a', []))
+        self.assertNotIn('念薇', forms['次要NPC->徐念薇'].get('a', []))
+        self.assertIn('徐小姐', forms['次要NPC->徐念薇'].get('a', []))
+        # Elder -> junior and spouses still keep natural given-name address.
+        self.assertIn('志北', forms['沈知韫->徐志北']['f'].get('a', []))
+        self.assertIn('婉青', forms['徐承邺->苏婉青']['f'].get('a', []))
+        self.assertIn('承邺', forms['苏婉青->徐承邺']['f'].get('a', []))
+
     def test_compile_event_catalog_preserves_regex_and_strips_scoring_params(self):
         raw_ev = (ROOT / 'txt文件/事件注册表.json').read_text(encoding='utf-8')
         catalog = sc.compile_event_catalog(ROOT)

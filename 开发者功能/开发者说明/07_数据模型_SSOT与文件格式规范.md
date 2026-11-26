@@ -13,7 +13,7 @@ flowchart LR
     subgraph Sources["权威原源 (SSOT · 唯一允许手工编辑处)"]
         CFG["txt文件/互动运行配置.json\n(地点/别名/双轨体力/记忆预算)"]
         EVT["txt文件/事件注册表.json\n(6组 85个事件ID与算分参数)"]
-        REL["txt文件/关系称谓库.json\n(7实体/12类型/13事实/17角色/4场合/2身份规则/3信念)"]
+        REL["txt文件/关系称谓库.json\n(7实体/12类型/13事实/17角色/4场合/5身份规则/3信念)"]
         KB["txt文件/知识库/*.json\n(4库 24条目 · ST-v1格式)"]
         RULES["txt文件/{场景交流规范,全局执行法典,\n一键注入指南,提示词,故事检索索引}"]
     end
@@ -129,7 +129,7 @@ flowchart LR
 
 ### 2.3 `txt文件/关系称谓库.json` 与 `关系称谓查询.jsonl`
 - 原库精确 8 键：`version: 1`、`entities`（`{short, status: "active"|"deceased"|"category"}`）、`types`（`{layer: "blood"|"social"|"legal", roles: []|[r1,r2]}`）、`facts`（`{type, subject, object, known_by: "*"|[entity...], text}`，同层无序实体对禁止重复或反向双写）、`roles`（`{label, self:{formal,relaxed,business,intimate}, address:{formal,relaxed,business,intimate}}`）、`title_rules`（支持可选 `target: "self" | "address"` 精准指定合入自称或称呼候选）、`beliefs`（`{holder, text}`）、`selection`（`{optional: true, rule}`）。
-- 当前数据基线：7 个实体（5 活跃：沈知韫/苏婉青/徐念薇/徐承邺/徐志北；1 已故：徐家亡父；1 类别：次要NPC）、12 条公开事实 `R01–R12` + 1 条私有绝密 `K01`（`known_by: ["沈知韫"]`）、**2 条身份称谓规则**（`次要NPC → 苏婉青` `address`: `少奶奶`；`次要NPC → 沈知韫` `address`: `沈董`/`董事长`）、3 条信念 `B01–B03`，以及针对三女主私密失防语境的 `intimate` 场合专属称谓表。`relationship_query.py` 内置 `ELDER_ROLES` 在常规场合自动剔除长辈直呼简称，并在 `intimate` 场合完整开放失防称谓。
+- 当前数据基线：7 个实体（5 活跃：沈知韫/苏婉青/徐念薇/徐承邺/徐志北；1 已故：徐家亡父；1 类别：次要NPC）、12 条公开事实 `R01–R12` + 1 条私有绝密 `K01`（`known_by: ["沈知韫"]`）、**5 条身份称谓规则**（`次要NPC → 苏婉青`：`少奶奶`/`苏女士`；`→ 沈知韫`：`沈董`/`董事长`；`→ 徐念薇`：`徐小姐`/`二小姐`；`→ 徐承邺`：`大少爷`/`徐总`/`徐先生`；`→ 徐志北`：`二少爷`/`徐少爷`/`徐先生`）、3 条信念 `B01–B03`，以及针对三女主私密失防语境的 `intimate` 场合专属称谓表。`relationship_query.py` 内置 `ELDER_ROLES` 与 `SENIOR_ADDRESS_ROLES`（纳入养姐/养兄/嫂子），常规场合自动剔除尊长及 `次要NPC` 直呼简称，常规自称仅晚辈面向长辈附带简称，`intimate` 场合保留显式失防称谓且仅对独处/失守的特定对象单独生效。
 - 派生 `关系称谓查询.jsonl` 共 **42 行**：第 1 行为含 `source.sha256` 与 `resolver.sha256` 的元数据头；第 2–37 行为 36 条 `lore.称谓.<speaker>.<listener|未明确>`；第 38–42 行为 5 条 `lore.知情.<person>`。
 
 ### 2.4 `txt文件/知识库/*.json`（4 库 24 条，ST-v1 格式）

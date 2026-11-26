@@ -11,6 +11,7 @@ OCCASIONS = ('formal', 'relaxed', 'business', 'intimate')
 
 
 ELDER_ROLES = frozenset({'mother', 'adoptive_mother', 'mother_in_law', 'father'})
+SENIOR_ADDRESS_ROLES = ELDER_ROLES | frozenset({'elder_brother', 'elder_sister', 'sister_in_law'})
 
 
 class RelationshipError(ValueError):
@@ -204,10 +205,11 @@ class RelationshipRegistry:
                     continue
                 sr, lr = roles if speaker == item['subject'] else list(reversed(roles))
                 matched_roles.append((key, item, sr, lr))
-            speaker_is_elder = any(sr in ELDER_ROLES for _, _, sr, _ in matched_roles)
+            speaker_is_category = self.data['entities'][speaker]['status'] == 'category'
             listener_is_elder = any(lr in ELDER_ROLES for _, _, _, lr in matched_roles)
-            own = self._neutral(speaker, 'self', include_short=not speaker_is_elder)
-            address = self._neutral(listener, 'address', include_short=not listener_is_elder)
+            listener_is_senior = any(lr in SENIOR_ADDRESS_ROLES for _, _, _, lr in matched_roles)
+            own = self._neutral(speaker, 'self', include_short=(listener_is_elder and not speaker_is_category))
+            address = self._neutral(listener, 'address', include_short=(not listener_is_senior and not speaker_is_category))
             relations = []
             for key, item, sr, lr in matched_roles:
                 facts[key] = self._fact(key, item)
@@ -230,7 +232,7 @@ class RelationshipRegistry:
             common = set.intersection(*({x['text'] for x in group} for group in groups))
             candidates = self._merge(x for group in groups for x in group if x['text'] in common)
         else:
-            candidates = self._neutral(speaker, 'self')
+            candidates = self._neutral(speaker, 'self', include_short=False)
             # Unknown audience permits public identity facts only, including deceased relatives.
             for key, item in self.data['facts'].items():
                 if item['known_by'] == '*' and speaker in {item['subject'], item['object']}:
