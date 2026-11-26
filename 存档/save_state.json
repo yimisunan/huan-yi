@@ -21,7 +21,8 @@
     "consumed_once": [],
     "event_cooldowns": {},
     "global_cooldown": 0,
-    "last_time_slot": "morning",
+    "heroine_cd": 0,
+    "last_time_slot": "afternoon",
     "next_thread_seq": 1,
     "offstage_clocks": {},
     "pending_seeds": [],
@@ -55,6 +56,36 @@
         "state": "neat"
       }
     },
+    "body_dev": {
+      "徐念薇": {
+        "chest": 0,
+        "core": 0,
+        "foot": 0,
+        "hand": 0,
+        "oral": 0
+      },
+      "沈知韫": {
+        "chest": 0,
+        "core": 0,
+        "foot": 0,
+        "hand": 0,
+        "oral": 0
+      },
+      "苏婉青": {
+        "chest": 0,
+        "core": 0,
+        "foot": 0,
+        "hand": 0,
+        "oral": 0
+      }
+    },
+    "host_phys": {
+      "desire": 0,
+      "edging_streak": 0,
+      "fetishes": [],
+      "release_count": 0,
+      "vigor": 100
+    },
     "inter_heroine": {
       "徐念薇->沈知韫": 0,
       "徐念薇->苏婉青": 0,
@@ -63,6 +94,8 @@
       "苏婉青->徐念薇": 0,
       "苏婉青->沈知韫": 0
     },
+    "keepsakes": [],
+    "next_keepsake_seq": 1,
     "noise_risk": 0,
     "present_actors": [
       "沈知韫",
@@ -72,6 +105,7 @@
     "privacy": "open_public",
     "scene_active": false,
     "session_beats": 0,
+    "session_charm_gained": false,
     "session_orgasms": {
       "徐念薇": 0,
       "沈知韫": 0,
@@ -114,6 +148,7 @@
         "tier": ""
       }
     },
+    "charm_scene_used": false,
     "depravity_unlocked_caps": {
       "徐念薇": 30,
       "沈知韫": 30,
@@ -166,7 +201,7 @@
   },
   "panels": {
     "徐念薇": {
-      "体力": 65,
+      "体力": 100,
       "内射": 0,
       "堕落": 0,
       "好感": 30,
@@ -175,9 +210,6 @@
       "羞耻": 99,
       "被动": 0,
       "高潮": 0
-    },
-    "徐承邺": {
-      "堕落": 0
     },
     "沈知韫": {
       "体力": 100,
@@ -228,27 +260,27 @@
     }
   },
   "rendered_sha256": {
-    "data_runtime": "ccf63827d166ceee6540d22589a87031b914a9b61d99e91ab89c414f4fcbfacc",
+    "data_runtime": "39f8feefbf8034c8eb38c8dbd6cb4f2db8f4f18e2c005efc7d8e1f24acb52fd1",
     "items_txt": "6b7263cae6f8e90eb04cf3a09ac41c96225362a44d9d0032cb74334eea6ec666",
-    "memory_txt": "d6b1293881b785d9e4b5307df70e7df56bdb4544c11427e11881a43380ed8dab"
+    "memory_txt": "6e17c234502aa2c55c214633f3ed7225a6d6a97ceb0b3a1808cd4bad6ec422b7"
   },
   "runtime": {
     "action_index": 0,
     "clock": {
       "day": 1,
-      "time": "11:50"
+      "time": "12:00"
     },
     "closed_by": "",
     "item_recovered": 0,
     "last_closed": 0,
-    "last_segment_id": "prologue-2c87ddbaf8ce87d4d610ecc9440da27f",
+    "last_segment_id": "prologue-a71319687435e1d1a7e2bf52df6f9125",
     "last_sequence": 1,
     "memory_round": 1,
     "phase": "ready",
     "prologue": {
       "heroine": "全员家宴",
       "privacy": "open_public",
-      "request_id": "reset-20261124_154453_6f70ead9f71946b5a5fc951186d32edd",
+      "request_id": "reset-20261126_105315_ce03303817094def831beff85b01d8a2",
       "scenario_id": "zhiyun_sunday_noon",
       "sub_location": "主宅餐厅",
       "title": "周日午间 · 主宅餐厅 · 家庭",
@@ -284,21 +316,25 @@
     "位置": "外地",
     "目标": {
       "徐志北": {
+        "动因": "",
         "发现": 0,
         "发现几率": 0,
         "警惕": 0
       },
       "徐念薇": {
+        "动因": "",
         "发现": 0,
         "发现几率": 0,
         "警惕": 0
       },
       "沈知韫": {
+        "动因": "",
         "发现": 0,
         "发现几率": 0,
         "警惕": 0
       },
       "苏婉青": {
+        "动因": "",
         "发现": 0,
         "发现几率": 0,
         "警惕": 0

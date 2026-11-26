@@ -274,9 +274,14 @@ def _summarize_save_state(st_obj, data_obj):
     panels = (st_obj.get('panels') or {}) if isinstance(st_obj, dict) else {}
     host_p = panels.get('系统宿主') or {}
     intl_p = (st_obj.get('intimate') or {}) if isinstance(st_obj, dict) else {}
+    host_phys = intl_p.get('host_phys') if isinstance(intl_p.get('host_phys'), dict) else {}
+    vig_obj = (st_obj.get('vigilance') or {}) if isinstance(st_obj, dict) else {}
+    vig_targets = vig_obj.get('目标') if isinstance(vig_obj.get('目标'), dict) else {}
+    max_vig = max((int((t or {}).get('警惕', 0) or 0) for t in vig_targets.values() if isinstance(t, dict)), default=0)
     panel_summary = {
         'host': {
             '体力': int(host_p.get('体力', 100) or 0),
+            '亲密耐力': int(host_phys.get('vigor', 100) if host_phys.get('vigor') is not None else 100),
             '积分': int(host_p.get('积分', 0) or 0),
             '魅力': int(host_p.get('魅力', 70) or 70),
             '商业嗅觉': int(host_p.get('商业嗅觉', 0) or 0),
@@ -289,6 +294,10 @@ def _summarize_save_state(st_obj, data_obj):
                 '堕落': int((panels.get(h) or {}).get('堕落', 0) or 0),
             }
             for h in save_store.HEROINES
+        },
+        'vigilance': {
+            '位置': str(vig_obj.get('位置') or '外地'),
+            '最高警惕': max_vig,
         },
     }
     return {
@@ -725,22 +734,23 @@ def _reset_files(root, keep_backup=True, request_id=None, scenario_id=None, no_p
         if not safe(root, TX).exists():
             shutil.rmtree(backup, ignore_errors=True)
         raise
+    templates = _initial_templates()
     try:
         for item in entries:
             path = safe(root, item['path'])
-            if item['path'] in TEMPLATES:
-                atomic(path, TEMPLATES[item['path']].encode('utf-8'))
+            if item['path'] in templates:
+                atomic(path, templates[item['path']].encode('utf-8'))
             elif item['path'] == 'data.json':
                 write_json(path, _initial_data_dict())
             elif item['path'] == EPOCH:
                 write_json(path, {'version': 1, 'epoch': uuid.uuid4().hex, 'request_id': request_id})
             elif path.exists():
                 remove(path)
-        for relative, content in TEMPLATES.items():
+        for relative, content in templates.items():
             if safe(root, relative).read_text(encoding='utf-8') != content:
                 raise RuntimeError('初始化内容核对失败')
         for item in entries:
-            if item['path'] not in TEMPLATES and item['path'] not in ('data.json', EPOCH) and safe(root, item['path']).exists():
+            if item['path'] not in templates and item['path'] not in ('data.json', EPOCH) and safe(root, item['path']).exists():
                 raise RuntimeError('旧档残留核对失败：' + item['path'])
         initial_data = json.loads(safe(root, 'data.json').read_text(encoding='utf-8'))
         if initial_data.get('round') != 0 or initial_data.get('storyNodes') != []:

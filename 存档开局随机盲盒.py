@@ -542,6 +542,7 @@ def initialize_prologue(root, request_id, scenario_id=None):
         raise rr.RoundError('序幕中的地点未登记')
     engine = rr._engine(root, root)
     st, layers, _ = save_store.load_bundle(root, files)
+    st = save_store.normalize_state(st)
     if any((layers.get('layers') or {}).get(k) for k in ('L1', 'L2', 'L3', 'L4')):
         raise rr.ConflictError('已有记忆，不能另抽序幕覆盖')
     st['presence'] = {
@@ -550,6 +551,7 @@ def initialize_prologue(root, request_id, scenario_id=None):
     }
     st['director']['scene_location'] = st['presence']['徐志北']['location']
     st['director']['last_time_slot'] = sp._clock_time_slot(chosen['clock'])
+    st['director'].setdefault('heroine_cd', 0)
     # 房间级在场人与隐私隔离：避免同栋楼门外未入室角色混入 known_by
     present_actors = list(chosen.get('present_actors') or [])
     intl = st.setdefault('intimate', save_store.default_intimate())
