@@ -51,6 +51,7 @@ function createHarness() {
         registeredRoutes: [],
         registeredNav: [],
         registeredCommands: [],
+        registeredHooks: [],
         functionSetCalls: [],
         chatCalls: [],
         monitorPosts: [],
@@ -65,9 +66,9 @@ function createHarness() {
         setInterval: () => 999,
         clearInterval: () => {},
         require: (modPath) => {
-            if (modPath === './ui/settings.ui.js') {
+            if (modPath === './ui/settings.ui.js' || modPath === './ui/theater.ui.js') {
                 const fn = function placeholder() {};
-                fn.__operit_toolpkg_module_path = 'ui/settings.ui.js';
+                fn.__operit_toolpkg_module_path = modPath.replace(/^\.\//, '');
                 fn.__operit_toolpkg_export_name = 'default';
                 return { default: fn };
             }
@@ -82,15 +83,15 @@ function createHarness() {
             registerUiRoute(def) { state.registeredRoutes.push(def); },
             registerNavigationEntry(def) { state.registeredNav.push(def); },
             registerCoreCommand(def) { state.registeredCommands.push(def); },
+            registerSystemPromptComposeHook(def) { state.registeredHooks.push('system:' + def.id); },
+            registerToolPromptComposeHook(def) { state.registeredHooks.push('tool_prompt:' + def.id); },
+            registerToolLifecycleHook(def) { state.registeredHooks.push('tool_lifecycle:' + def.id); },
+            registerPromptFinalizeHook(def) { state.registeredHooks.push('finalize:' + def.id); },
+            registerPromptEstimateFinalizeHook(def) { state.registeredHooks.push('estimate_finalize:' + def.id); },
             registerChatInputHook() {},
             registerAppLifecycleHook() {},
-            callDependency: async (dep, method, args) => {
-                if (method === 'character.list') return [];
-                if (method === 'character.create') return { ...args.values, id: 'card-1' };
-                if (method === 'character.get') return { id: 'card-1', marks: 'local.story.operit_bridge:readonly', name: '同席互动·项目只读', characterSetting: '', otherContentChat: '', chatModelBindingMode: 'FIXED_MODEL', chatProviderId: 'google', chatModelId: 'gemini-4', toolAccessConfig: {} };
-                if (method === 'character.update') return { id: args.id, ...args.changes };
-                if (method === 'chat.configuration.binding.read') return { selection: 'card:card-1' };
-                throw new Error('unexpected dep: ' + method);
+            callDependency: async (dep, method) => {
+                throw new Error('v2.2.0 must not call external dependency: ' + dep + ':' + method);
             },
         },
         Tools: {
@@ -195,6 +196,7 @@ function makeMockComposeCtx(ipcCall) {
     const states = new Map();
     const refs = new Map();
     const toasts = [];
+    const navCalls = [];
     const colorToken = (name) => ({ name, copy: () => ({ name }) });
     const makeMod = () => new Proxy({}, { get: () => () => makeMod() });
     const UI = new Proxy({}, {
@@ -215,6 +217,7 @@ function makeMockComposeCtx(ipcCall) {
             return refs.get(key);
         },
         showToast(msg) { toasts.push(msg); },
+        navigate(route) { navCalls.push(route); },
     };
     const uiBox = {
         exports: {},
@@ -224,7 +227,7 @@ function makeMockComposeCtx(ipcCall) {
     vm.createContext(uiBox);
     vm.runInContext(uiSource, uiBox);
     assert.strictEqual(typeof uiBox.exports.default, 'function', 'ui/settings.ui.js must export default screen');
-    return { ctx, render: () => uiBox.exports.default(ctx), toasts };
+    return { ctx, render: () => uiBox.exports.default(ctx), toasts, navCalls };
 }
 
 function findNode(tree, predicate) {
@@ -242,29 +245,42 @@ function findNode(tree, predicate) {
 }
 
 async function run() {
-    // 1. Plugin registration registers native UI route + sidebar & toolbox navigation entries.
+    // 1. Plugin registration registers theater + settings UI routes, sidebar & toolbox nav entries, and 5 native hooks.
     {
         const { box, state } = createHarness();
         assert.strictEqual(box.exports.registerToolPkg(), true);
-        assert.strictEqual(state.registeredRoutes.length, 1);
-        assert.strictEqual(state.registeredRoutes[0].route, 'toolpkg:local.story.operit_bridge:ui:settings');
-        assert.strictEqual(state.registeredRoutes[0].runtime, 'compose_dsl');
-        assert.strictEqual(state.registeredRoutes[0].screen.__operit_toolpkg_module_path, 'ui/settings.ui.js');
+        assert.strictEqual(state.registeredRoutes.length, 2);
         assert.deepStrictEqual(
-            state.registeredNav.map(n => n.surface).sort(),
-            ['main_sidebar_plugins', 'toolbox']
+            state.registeredRoutes.map(r => r.route),
+            ['toolpkg:local.story.operit_bridge:ui:theater', 'toolpkg:local.story.operit_bridge:ui:settings']
         );
-        console.log('PASS 1: native settings UI route + sidebar/toolbox entries registered');
+        assert.strictEqual(state.registeredRoutes[0].screen.__operit_toolpkg_module_path, 'ui/theater.ui.js');
+        assert.strictEqual(state.registeredRoutes[1].screen.__operit_toolpkg_module_path, 'ui/settings.ui.js');
+        assert.strictEqual(state.registeredNav.length, 4);
+        assert.deepStrictEqual(
+            state.registeredHooks,
+            [
+                'system:story_bridge_system_prompt',
+                'tool_prompt:story_bridge_tool_filter',
+                'tool_lifecycle:story_bridge_tool_intercept',
+                'finalize:story_bridge_prompt_finalize',
+                'estimate_finalize:story_bridge_prompt_estimate_finalize',
+            ]
+        );
+        console.log('PASS 1: theater + settings UI routes, sidebar/toolbox entries & 5 native hooks registered');
     }
 
-    // 2. Backend IPC actions: ui_snapshot, fixed primary model, invalid model rollback, bind_function_slot, settlement_thinking, max_turns.
+    // 2. Backend IPC actions: ui_snapshot, CHAT primary model bind, direct function-slot rebinding, settlement_thinking, max_turns.
     {
-        const { box, config, state, bindings } = createHarness();
+        const { box, state, bindings } = createHarness();
         const snap = await box.exports.receive({ action: 'ui_snapshot' });
         const manifestVersion = JSON.parse(
             fs.readFileSync(path.join(__dirname, '../local.story.operit_bridge/manifest.json'), 'utf8')
         ).version;
         assert.strictEqual(snap.version, manifestVersion);
+        assert.strictEqual(snap.selfHosted, true);
+        assert.strictEqual(snap.participantId, 'model:chat');
+        assert.strictEqual(snap.theaterRoute, 'toolpkg:local.story.operit_bridge:ui:theater');
         // Verify JS streaming preview parser also cleanly handles 旁白：[N], bare 旁白：, and inline glued tags.
         const streamed = box.parseStreamMessages(
             '旁白：[N] 书房冷气偏低。\n[D:沈知韫] [low restrained voice] 还没睡？\n旁白：[N] 她抬手点了点文件。\n[D:沈知韫] 怎么看？ 旁白：[N] 她问得很平。\n旁白：冷气还在沉。\n',
@@ -281,30 +297,21 @@ async function run() {
         assert.strictEqual(snap.availableModels.length, 4);
         assert.strictEqual(snap.functionBindings.length, 3);
         assert.strictEqual(snap.primaryModelMode, 'slot');
+        assert.strictEqual(snap.functionType, 'CHAT');
         assert.strictEqual(snap.model.model_id, 'gemini-4');
         assert.strictEqual(snap.settlementModel.model_id, 'gemini-2.5-flash');
 
-        // Switch primary model to fixed DeepSeek 4.1 -> CHAT slot remains untouched!
-        const fixed = await box.exports.receive({
-            action: 'primary_model',
-            primaryModelMode: 'fixed',
-            primaryProviderId: 'deepseek',
-            primaryModelId: 'deepseek-4.1',
-            includeCatalog: true,
+        // Directly rebind CHAT slot to DeepSeek 4.1!
+        const reboundPrimary = await box.exports.receive({
+            action: 'bind_function_slot',
+            slot: 'CHAT',
+            providerId: 'deepseek',
+            modelId: 'deepseek-4.1',
         });
-        assert.strictEqual(fixed.primaryModelMode, 'fixed');
-        assert.strictEqual(fixed.model.function_type, 'FIXED');
-        assert.strictEqual(fixed.model.model_id, 'deepseek-4.1');
-        assert.strictEqual(bindings.CHAT.modelId, 'gemini-4', 'Fixed story primary must NOT touch global CHAT slot');
-
-        // Invalid fixed model throws and preserves previous valid config.
-        await assert.rejects(() => box.exports.receive({
-            action: 'primary_model',
-            primaryModelMode: 'fixed',
-            primaryProviderId: 'ghost',
-            primaryModelId: 'missing-model',
-        }), /故事专属主模型未找到/);
-        assert.strictEqual(config.primaryModelId, 'deepseek-4.1');
+        assert.strictEqual(reboundPrimary.primaryModelMode, 'slot');
+        assert.strictEqual(reboundPrimary.model.function_type, 'CHAT');
+        assert.strictEqual(reboundPrimary.model.model_id, 'deepseek-4.1');
+        assert.strictEqual(bindings.CHAT.modelId, 'deepseek-4.1');
 
         // Directly rebind SUMMARY slot to deepseek-v3.2 via Operit model function-set!
         const rebound = await box.exports.receive({
@@ -314,8 +321,8 @@ async function run() {
             modelId: 'deepseek-v3.2',
             useAsSettlement: true,
         });
-        assert.strictEqual(state.functionSetCalls.length, 1);
-        assert.deepStrictEqual(state.functionSetCalls[0], { slot: 'SUMMARY', prov: 'deepseek', mod: 'deepseek-v3.2' });
+        assert.strictEqual(state.functionSetCalls.length, 2);
+        assert.deepStrictEqual(state.functionSetCalls[1], { slot: 'SUMMARY', prov: 'deepseek', mod: 'deepseek-v3.2' });
         assert.strictEqual(rebound.settlementModel.model_id, 'deepseek-v3.2');
         assert.strictEqual(rebound.settlementFallback, false);
 
@@ -332,39 +339,41 @@ async function run() {
         });
         assert.strictEqual(adv.workspacePath, '/storage/emulated/0/custom');
         assert.strictEqual(adv.endpoint, 'http://127.0.0.1:5055');
-        console.log('PASS 2: primary fixed override, direct function-slot rebinding, thinking & max_turns IPC verified');
+        console.log('PASS 2: self-hosted CHAT & SUMMARY slot rebinding, thinking & max_turns IPC verified');
     }
 
     // 3. End-to-end Compose DSL settings.ui.js render + interactive clicks against real main.js IPC!
     {
         const { box, state } = createHarness();
-        const { render, toasts } = makeMockComposeCtx((ch, payload) => state.ipcHandlers[ch](payload));
+        const { render, toasts, navCalls } = makeMockComposeCtx((ch, payload) => state.ipcHandlers[ch](payload));
 
         // Initial render has onLoad hook -> triggers ui_snapshot.
         const initialTree = render();
         assert.strictEqual(typeof initialTree.props.onLoad, 'function');
         await initialTree.props.onLoad();
 
-        // Re-render after load: verify all key interactive controls exist and work!
+        // Re-render after load: verify Open Theater quick button + CHAT primary binding + SUMMARY settlement binding!
         let tree = render();
-        const fixedChip = findNode(tree, n => n.props && n.props.key === 'primary-mode:fixed');
-        assert(fixedChip, 'primary-mode:fixed FilterChip must render');
-        fixedChip.props.onClick();
-        await new Promise(r => setImmediate(r));
-        await new Promise(r => setImmediate(r));
+        const openTheaterBtn = findNode(tree, n => n.props && n.props.key === 'btn-open-theater');
+        assert(openTheaterBtn, 'btn-open-theater Button must render');
+        openTheaterBtn.props.onClick();
+        assert.deepStrictEqual(navCalls, ['toolpkg:local.story.operit_bridge:ui:theater']);
 
-        tree = render();
-        const fixedDropdown = findNode(tree, n => n.props && n.props.key === 'primary-fixed-model');
-        assert(fixedDropdown, 'primary-fixed-model DropdownMenu must appear in fixed mode');
+        const primaryBindDropdown = findNode(tree, n => n.props && n.props.key === 'primary-slot-bind-model');
+        assert(primaryBindDropdown, 'primary-slot-bind-model DropdownMenu must render');
         // Index 0 in sorted availableModels is DeepSeek deepseek-4.1
-        fixedDropdown.props.onClick(0);
+        primaryBindDropdown.props.onClick(0);
+        tree = render();
+        const primaryBindBtn = findNode(tree, n => n.props && n.props.key === 'btn-bind-primary-slot');
+        assert(primaryBindBtn, 'btn-bind-primary-slot Button must render');
+        primaryBindBtn.props.onClick();
         await new Promise(r => setImmediate(r));
         await new Promise(r => setImmediate(r));
 
         tree = render();
         const bindDropdown = findNode(tree, n => n.props && n.props.key === 'settlement-slot-bind-model');
         assert(bindDropdown, 'settlement-slot-bind-model DropdownMenu must render');
-        // Pick deepseek-v3.2 (index 1 in sorted list: DeepSeek deepseek-4.1, DeepSeek deepseek-v3.2, Google ...)
+        // Pick deepseek-v3.2 (index 1 in sorted list)
         bindDropdown.props.onClick(1);
         tree = render();
         const bindBtn = findNode(tree, n => n.props && n.props.key === 'btn-bind-settlement-slot');
@@ -372,9 +381,11 @@ async function run() {
         bindBtn.props.onClick();
         await new Promise(r => setImmediate(r));
         await new Promise(r => setImmediate(r));
-        assert.strictEqual(state.functionSetCalls.length, 1);
-        assert.strictEqual(state.functionSetCalls[0].slot, 'SUMMARY');
-        assert.strictEqual(state.functionSetCalls[0].mod, 'deepseek-v3.2');
+        assert.strictEqual(state.functionSetCalls.length, 2);
+        assert.strictEqual(state.functionSetCalls[0].slot, 'CHAT');
+        assert.strictEqual(state.functionSetCalls[0].mod, 'deepseek-4.1');
+        assert.strictEqual(state.functionSetCalls[1].slot, 'SUMMARY');
+        assert.strictEqual(state.functionSetCalls[1].mod, 'deepseek-v3.2');
 
         // Select settlement thinking mode chip ('on') + click +1 turn button.
         tree = render();
@@ -394,14 +405,14 @@ async function run() {
         await new Promise(r => setImmediate(r));
 
         const finalSnap = await box.exports.receive({ action: 'status' });
-        assert.strictEqual(finalSnap.primaryModelMode, 'fixed');
+        assert.strictEqual(finalSnap.primaryModelMode, 'slot');
         assert.strictEqual(finalSnap.model.model_id, 'deepseek-4.1');
         assert.strictEqual(finalSnap.settlementModel.model_id, 'deepseek-v3.2');
         assert.strictEqual(finalSnap.settlementThinking, true);
         assert.strictEqual(finalSnap.settlementThinkingMode, 'on');
         assert.strictEqual(finalSnap.maxTurnsPerSession, 11);
         assert(toasts.length >= 4, 'UI should emit clear toast feedback');
-        console.log('PASS 3: Compose DSL settings.ui.js end-to-end UI render & interaction tests passed');
+        console.log('PASS 3: Compose DSL settings.ui.js end-to-end UI render, theater navigation & slot binding tests passed');
     }
 
     // 4. Operit 2 workspace-ID binding resolution (path -> existing SAF workspace ID, unknown path -> auto-create) + UI picker.

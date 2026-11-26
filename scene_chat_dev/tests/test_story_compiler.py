@@ -575,6 +575,106 @@ class StoryCompilerTests(unittest.TestCase):
         self.assertIn('recalled_memories', inc_delta)
         self.assertIn('深圳分部合同', inc_delta['recalled_memories'][0]['body'])
 
+    def test_custom_system_rules_primary_and_settlement_isolated_and_unlimited(self):
+        import tempfile
+        import importlib.util
+        import interaction_runtime as ir
+
+        base_z0 = sc.build_zone0_global(ROOT, mode='dual_stream_v2')
+        dummy_proj = {'text': '', 'current': None, 'index': [], 'transfers': {}, 'limits': {'round_chars': 600}}
+        dummy_contract = {'checks': {'intent': '', 'knowledge': '', 'action': '', 'pace': ''}, 'resolution': None}
+        base_settle = sc.build_settlement_spec(
+            ROOT, self.state, dummy_proj, '测试输入', None, None, None,
+            {'kind': 'system'}, {'memory_round': 1, 'phase': 'ready'}, self.memory_text,
+            {}, dummy_contract, None,
+        )
+
+        # Disabled rules must produce 100% byte-identical Zone 0 and Stage 2 system prompts.
+        long_primary = ('主模型电影质感约束。' * 1500).strip()  # > 13,500 chars (no artificial cap!)
+        long_settle = ('副模型额外审计偏好。' * 1500).strip()   # > 13,500 chars (no artificial cap!)
+        off_prefs = {
+            'custom_rules_enabled': False,
+            'custom_rules_position': 'append',
+            'custom_rules_text': long_primary,
+            'settlement_custom_rules_enabled': False,
+            'settlement_custom_rules_position': 'append',
+            'settlement_custom_rules_text': long_settle,
+        }
+        self.assertEqual(sc.build_zone0_global(ROOT, mode='dual_stream_v2', custom_rules=off_prefs), base_z0)
+        settle_off = sc.build_settlement_spec(
+            ROOT, self.state, dummy_proj, '测试输入', None, None, None,
+            {'kind': 'system'}, {'memory_round': 1, 'phase': 'ready'}, self.memory_text,
+            {}, dummy_contract, None, settlement_custom_rules=off_prefs,
+        )
+        self.assertEqual(settle_off['system_prompt'], base_settle['system_prompt'])
+        self.assertEqual(settle_off['system_sha256'], base_settle['system_sha256'])
+
+        # Primary ON (append & prepend) affects ONLY Zone 0, never Stage 2!
+        primary_append_prefs = {**off_prefs, 'custom_rules_enabled': True, 'custom_rules_position': 'append'}
+        z0_app = sc.build_zone0_global(ROOT, mode='dual_stream_v2', custom_rules=primary_append_prefs)
+        self.assertTrue(z0_app.startswith(base_z0))
+        self.assertIn(long_primary, z0_app)
+        self.assertNotIn(long_settle, z0_app)
+
+        primary_prepend_prefs = {**off_prefs, 'custom_rules_enabled': True, 'custom_rules_position': 'prepend'}
+        z0_pre = sc.build_zone0_global(ROOT, mode='dual_stream_v2', custom_rules=primary_prepend_prefs)
+        self.assertTrue(z0_pre.startswith('【玩家自定义系统级规则'))
+        self.assertTrue(z0_pre.endswith(base_z0))
+
+        # Stage 2 remains untouched when only primary rule is enabled.
+        settle_with_primary_only = sc.build_settlement_spec(
+            ROOT, self.state, dummy_proj, '测试输入', None, None, None,
+            {'kind': 'system'}, {'memory_round': 1, 'phase': 'ready'}, self.memory_text,
+            {}, dummy_contract, None, settlement_custom_rules=primary_append_prefs,
+        )
+        self.assertEqual(settle_with_primary_only['system_prompt'], base_settle['system_prompt'])
+
+        # Settlement ON (append & prepend) affects ONLY Stage 2 system_prompt, never Zone 0!
+        settle_append_prefs = {**off_prefs, 'settlement_custom_rules_enabled': True, 'settlement_custom_rules_position': 'append'}
+        settle_app = sc.build_settlement_spec(
+            ROOT, self.state, dummy_proj, '测试输入', None, None, None,
+            {'kind': 'system'}, {'memory_round': 1, 'phase': 'ready'}, self.memory_text,
+            {}, dummy_contract, None, settlement_custom_rules=settle_append_prefs,
+        )
+        self.assertTrue(settle_app['system_prompt'].startswith(base_settle['system_prompt']))
+        self.assertIn(long_settle, settle_app['system_prompt'])
+        self.assertNotEqual(settle_app['system_sha256'], base_settle['system_sha256'])
+        self.assertEqual(sc.build_zone0_global(ROOT, mode='dual_stream_v2', custom_rules=settle_append_prefs), base_z0)
+
+        settle_prepend_prefs = {**off_prefs, 'settlement_custom_rules_enabled': True, 'settlement_custom_rules_position': 'prepend'}
+        settle_pre = sc.build_settlement_spec(
+            ROOT, self.state, dummy_proj, '测试输入', None, None, None,
+            {'kind': 'system'}, {'memory_round': 1, 'phase': 'ready'}, self.memory_text,
+            {}, dummy_contract, None, settlement_custom_rules=settle_prepend_prefs,
+        )
+        self.assertTrue(settle_pre['system_prompt'].startswith('【玩家自定义后台结算规则'))
+        self.assertTrue(settle_pre['system_prompt'].endswith(base_settle['system_prompt']))
+
+        # Persistence via save_story_prefs/load_story_prefs + preservation across 存档清理器.plan_reset().
+        with tempfile.TemporaryDirectory() as td:
+            td_path = Path(td)
+            saved = ir.save_story_prefs(td_path, {
+                'custom_rules_enabled': True,
+                'custom_rules_position': 'prepend',
+                'custom_rules_text': long_primary + '\r\n第二行',
+                'settlement_custom_rules_enabled': True,
+                'settlement_custom_rules_position': 'append',
+                'settlement_custom_rules_text': long_settle,
+            })
+            loaded = ir.load_story_prefs(td_path)
+            self.assertEqual(loaded, saved)
+            self.assertEqual(loaded['custom_rules_text'], long_primary + '\n第二行')
+            self.assertEqual(loaded['settlement_custom_rules_text'], long_settle)
+
+            (td_path / 'injection_core.py').write_text('# stub\n', encoding='utf-8')
+            (td_path / 'round_runtime.py').write_text('# stub\n', encoding='utf-8')
+            spec = importlib.util.spec_from_file_location('save_cleaner', ROOT / '存档清理器.py')
+            cleaner = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(cleaner)
+            plan = cleaner.plan_reset(td_path)
+            planned_paths = {row['path'].replace('\\', '/') for row in plan}
+            self.assertNotIn(ir.STORY_PREFS_PATH, planned_paths, '存档清理器 must preserve .round-runtime/story/prefs.json')
+
 
 if __name__ == '__main__':
     unittest.main()

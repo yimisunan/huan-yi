@@ -1453,7 +1453,40 @@ html[data-theme="ivory"] .advance-btn {
   margin-bottom: 6px;
 }
 
-.decision-ornament { color: var(--gold); display: inline-flex; flex: none; }
+.decision-ornament { color: var(--gold); display: inline-flex; flex: none; transition: color 0.4s ease, opacity 0.4s ease; }
+.decision-ornament.is-cue-subtle { color: rgba(214, 168, 152, 0.78); }
+.decision-ornament.is-cue-accident {
+  color: rgba(216, 142, 132, 0.86);
+  animation: cue-breath 5.5s ease-in-out infinite;
+}
+[data-theme="ivory"] .decision-ornament.is-cue-subtle { color: rgba(154, 96, 84, 0.72); }
+[data-theme="ivory"] .decision-ornament.is-cue-accident { color: rgba(162, 78, 72, 0.82); }
+
+.decision-cue {
+  flex: none;
+  font: 400 10px/1 var(--font-serif);
+  letter-spacing: 0.16em;
+  color: rgba(214, 168, 152, 0.85);
+  opacity: 0.34;
+  user-select: none;
+  white-space: nowrap;
+  transition: opacity 0.35s ease;
+}
+.decision-cue.is-accident {
+  color: rgba(216, 146, 136, 0.9);
+  opacity: 0.42;
+}
+.decision-header:hover .decision-cue { opacity: 0.72; }
+[data-theme="ivory"] .decision-cue { color: rgba(146, 92, 82, 0.85); opacity: 0.38; }
+[data-theme="ivory"] .decision-cue.is-accident { color: rgba(156, 74, 68, 0.9); opacity: 0.46; }
+
+@keyframes cue-breath {
+  0%, 100% { opacity: 0.62; }
+  50% { opacity: 0.92; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .decision-ornament.is-cue-accident { animation: none; opacity: 0.84; }
+}
 
 .decision-header h2 {
   margin: 0;
@@ -4656,6 +4689,30 @@ html[data-theme="ivory"] .shop-inquiry-reply.is-err {
   border-style: dashed;
   opacity: 0.88;
 }
+.item-tag.is-grade-t1 {
+  color: #b7c4cf;
+  border-color: rgba(183, 196, 207, 0.32);
+  background: rgba(183, 196, 207, 0.1);
+}
+.item-tag.is-grade-t2 {
+  color: #79d2a6;
+  border-color: rgba(121, 210, 166, 0.36);
+  background: rgba(121, 210, 166, 0.12);
+}
+.item-tag.is-grade-t3 {
+  color: var(--gold-bright, #e7c07b);
+  border-color: rgba(231, 192, 123, 0.44);
+  background: rgba(231, 192, 123, 0.14);
+}
+.item-tag.is-grade-t4 {
+  color: #f38ba8;
+  border-color: rgba(243, 139, 168, 0.5);
+  background: rgba(243, 139, 168, 0.16);
+}
+html[data-theme="ivory"] .item-tag.is-grade-t1 { color: #54616d; }
+html[data-theme="ivory"] .item-tag.is-grade-t2 { color: #206b48; }
+html[data-theme="ivory"] .item-tag.is-grade-t3 { color: #8c5c19; }
+html[data-theme="ivory"] .item-tag.is-grade-t4 { color: #a1294b; }
 .item-tag.is-locked {
   border-color: rgba(208, 97, 97, 0.45);
   background: rgba(208, 97, 97, 0.12);
@@ -5539,3 +5596,82 @@ html[data-theme="ivory"] .trace-chip.is-host-phys {
   padding: 0;
 }
 
+/* Custom System Rules Editor (Primary Zone 0 & Settlement Stage 2) */
+.custom-rule-tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.custom-rule-tab {
+  min-height: 36px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
+}
+.custom-rule-tab[aria-selected="true"] {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+  color: var(--gold-bright);
+}
+.custom-rule-editor {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.custom-rule-textarea {
+  width: 100%;
+  min-height: 148px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+  font: 13px/1.55 var(--font-sans);
+  resize: vertical;
+  outline: none;
+  box-sizing: border-box;
+}
+.custom-rule-textarea:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px var(--gold-soft);
+}
+.custom-rule-textarea::placeholder {
+  color: var(--muted);
+  opacity: 0.78;
+}
+.custom-rule-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+.custom-rule-dirty {
+  color: var(--gold-bright);
+  font-weight: 600;
+}
+.custom-rule-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.custom-rule-hint {
+  margin: 2px 0 0;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+html[data-theme="ivory"] .custom-rule-tab[aria-selected="true"],
+html[data-theme="ivory"] .custom-rule-dirty {
+  color: #8b5e1a;
+}

@@ -36,14 +36,10 @@ async function run(){
 
  // 2.1.2 Regression A: External chat deletion bypasses boundChatCache -> ensureSession recreates chatId -> liveSession forces isFresh=true and resets counters.
  {
+  const extStore = new Map();
   const b2={exports:{},console,setTimeout,clearTimeout,setInterval,clearInterval,
-   config:{workspacePath:'/fixture',endpoint:'http://127.0.0.1:5000',chatId:'',participantId:'',inFlight:null,outbox:null,dualStageEnabled:true,liveSessionPolicy:'continuous'},
-   ToolPkg:{ipc:{on(){}},callDependency:async(pkg,fn,args)=>{
-    if(fn==='character.get') return {id:args.id,marks:'local.story.operit_bridge:readonly',name:'同席互动·项目只读',characterSetting:'old',otherContentChat:'old',chatModelBindingMode:'FIXED_MODEL',chatProviderId:'p1',chatModelId:'m1',toolAccessConfig:{enabled:true,allowedBuiltinTools:['read_file','read_file_full','read_file_part','file_info','grep_code'],allowedPackages:[],allowedSkills:[],allowedMcpServers:[]}};
-    if(fn==='character.update') return {id:args.id,...args.changes};
-    if(fn==='chat.configuration.binding.read') return {selection:'card:card-1'};
-    return {id:'card-1'};
-   }},
+   config:{workspacePath:'/fixture',endpoint:'http://127.0.0.1:5000',chatId:'',participantId:'model:chat',inFlight:null,outbox:null,dualStageEnabled:true,liveSessionPolicy:'continuous'},
+   ToolPkg:{ipc:{on(){}},callDependency:async(pkg,fn)=>{ throw new Error('must not call dependency '+pkg+':'+fn); }},
    PluginConfig:{flush:async()=>{}},
    existingChats:new Set(['chat-1']),
    createdSeq:1,
@@ -55,6 +51,8 @@ async function run(){
     createNew:async()=>{const id='chat-'+(++b2.createdSeq);b2.existingChats.add(id);return {chatId:id};},
     updateTitle:async()=>{},
     cancel:async()=>{},
+    writeExtension:async(target,val)=>{extStore.set(target.chatId,val);return {extension:val};},
+    readExtension:async(target)=>({extension:extStore.get(target.chatId)||null}),
    },
    SoftwareSettings:{exec:async()=>({success:true})},
   };

@@ -577,6 +577,7 @@ def _validate_scene_state(raw, active_cast, building_cast=None):
         'intimate_active', 'privacy', 'sub_location', 'present_actors',
         'attire_updates', 'trace_adds', 'inter_heroine_deltas',
         'body_acts', 'host_release', 'keepsake_adds', 'keepsake_updates',
+        'shop_adds',
     }
     _keys(raw, allowed_keys, 'scene_state')
     out = {}
@@ -722,6 +723,31 @@ def _validate_scene_state(raw, active_cast, building_cast=None):
                 clean_ku.append(patch)
         if clean_ku:
             out['keepsake_updates'] = clean_ku
+    if 'shop_adds' in raw and raw['shop_adds'] not in (None, ''):
+        sa = raw['shop_adds']
+        if not isinstance(sa, list):
+            raise RoundError('scene_state.shop_adds须为数组')
+        clean_sa = []
+        for item in sa[:4]:
+            if not isinstance(item, dict):
+                continue
+            sname = str(item.get('name') or '').strip()[:32]
+            if not sname:
+                continue
+            entry = {'name': sname}
+            for k in ('grade', 'category', 'usage_mode', 'desc', 'system_effect', 'tier', 'type'):
+                if item.get(k) is not None:
+                    entry[k] = str(item.get(k)).strip()[:200]
+            for k in ('price', 'pack_qty', 'max_per_save'):
+                if item.get(k) is not None:
+                    entry[k] = item.get(k)
+            if isinstance(item.get('unlock_req'), dict):
+                entry['unlock_req'] = item['unlock_req']
+            if isinstance(item.get('giftable'), bool):
+                entry['giftable'] = item['giftable']
+            clean_sa.append(entry)
+        if clean_sa:
+            out['shop_adds'] = clean_sa
     return out or None
 
 

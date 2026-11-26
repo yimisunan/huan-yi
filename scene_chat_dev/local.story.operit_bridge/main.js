@@ -8,8 +8,11 @@ let busy = null;
 let lastError = '';
 let monitorTimer = null, monitorBusy = false, starting = null;
 let controlSupported = null, sessionReady = false;
-const PLUGIN_VERSION = '2.1.9';
+const PLUGIN_VERSION = '2.2.0';
 const SETTINGS_ROUTE = 'toolpkg:local.story.operit_bridge:ui:settings';
+const THEATER_ROUTE = 'toolpkg:local.story.operit_bridge:ui:theater';
+const BRIDGE_PARTICIPANT_ID = 'model:chat';
+const BRIDGE_EXT_MARKER = 'local.story.operit_bridge';
 const DEFAULT_MAX_TURNS = 10;
 const MAX_PLAYER_DIALOGUE_PER_TURN = 3;
 const KNOWN_FUNCTION_SLOTS = ['CHAT', 'SUMMARY', 'TRANSLATION', 'TITLE_GENERATION', 'MEMORY', 'GREP', 'ROLE_RESPONSE_PLANNER'];
@@ -30,14 +33,14 @@ function syncServiceEpoch(epoch) {
     }
     lastServiceEpoch = epoch;
 }
-let verifiedCardCache = new Map();
+let bridgeChatRegistry = new Map();
+let nonBridgeChatCache = new Set();
 let boundChatCache = new Map();
 let resolvedWorkspacePathCache = new Map();
 let settlementModelInfo = null, settlementCheckedAt = 0, settlementFallback = false;
 let modelCatalogCache = { models: [], bindings: [], workspaces: [] }, catalogCheckedAt = 0;
 const FILE_TOOLS = ['list_files', 'find_files', 'grep_code', 'read_file', 'read_file_full', 'read_file_part', 'file_info', 'file_exists'];
-const LIVE_READ_TOOLS = ['read_file','read_file_full','read_file_part','file_info','grep_code'];
-const ROLE_MARK = 'local.story.operit_bridge:readonly';
+const LIVE_READ_TOOLS = ['read_file', 'read_file_full', 'read_file_part', 'file_info', 'grep_code'];
 const SESSION_TIMEOUT = 600000;
 
 function cliData(raw) {
@@ -64,49 +67,166 @@ async function restoreChat(chatId, returnChatId) {
     }
 }
 
-// 平台 character.update 会以 changes 整体覆盖卡片：只写本插件托管的字段，其余沿用卡上现有值，
-// 否则用户手动勾选的标签会被空数组覆盖掉。
-const CARD_PRESERVED_KEYS = ['advancedCustomPrompt', 'attachedTagIds', 'avatarUri', 'memoryBindingMode',
-    'openingStatement', 'otherContentVoice', 'sharedMemoryId', 'sharedMemoryMounts', 'themeConfigId'];
-function cardWritePayload(card, changes) {
-    const out = { ...changes };
-    if (card) {
-        for (const key of CARD_PRESERVED_KEYS) {
-            if (out[key] === undefined && Object.prototype.hasOwnProperty.call(card, key)) out[key] = card[key];
-        }
-    }
-    return out;
-}
-
-function roleChanges(model, scene = false, customPrompts = null) {
+function roleProfile(scene = false, customPrompts = null) {
     if (scene === 'live') {
-        const base = { ...roleChanges(model, true),
-            toolAccessConfig:{enabled:true,allowedBuiltinTools:LIVE_READ_TOOLS,allowedPackages:[],allowedSkills:[],allowedMcpServers:[]}, name: '同席互动·项目只读',
-            characterSetting: '你是正式互动故事生成者。entry_mode=live_interaction时，material_delivery=program_inline_v1表示material与required_sources已由程序从冻结源完整读取并直接交付；完整理解正文，不为证明读取而逐段重读packet，也不声称执行了未发生的工具读取。没有该标记时按packet.read_ranges读取。确需旧史时，只补查本任务许可路径与精确范围。依据设定、正式存档和玩家意图推演连贯剧情，在需要玩家新决定处停下。只交本次output_contract要求的裸JSON；保留主权、知情边界和角色主体性；对白只归实际在场人物，玩家台词不得代写；费用与数值由程序结算。不写文件、不执行命令。',
-            otherContentChat: '遵循本次output_contract；正式传输中operation无操作时明确写空字符串两个双引号，不省略值，桥接在合法解析后转换为内部null。resolution.task、resolution.sleep.start及conditions.npc无内容写空字符串，不得省略值；有任务/时间则写合法对象。conditions依本次resolution_policy：普通付费必须七字段完整对象，无NPC仅npc为空；免费SYSTEM才无条件。严格区分玩家私有状态与角色共同知情。正文与登记操作一致；未支持操作写待处理，不宣称完成。' };
-        if (customPrompts && typeof customPrompts.characterSetting === 'string') {
-            base.characterSetting = customPrompts.characterSetting;
-            base.otherContentChat = typeof customPrompts.otherContentChat === 'string' ? customPrompts.otherContentChat : '';
-        }
-        return base;
+        const defaultPrimary = '你是正式互动故事生成者。entry_mode=live_interaction时，material_delivery=program_inline_v1表示material与required_sources已由程序从冻结源完整读取并直接交付；完整理解正文，不为证明读取而逐段重读packet，也不声称执行了未发生的工具读取。没有该标记时按packet.read_ranges读取。确需旧史时，只补查本任务许可路径与精确范围。依据设定、正式存档和玩家意图推演连贯剧情，在需要玩家新决定处停下。只交本次output_contract要求的裸JSON；保留主权、知情边界和角色主体性；对白只归实际在场人物，玩家台词不得代写；费用与数值由程序结算。不写文件、不执行命令。';
+        const defaultSecondary = '遵循本次output_contract；正式传输中operation无操作时明确写空字符串两个双引号，不省略值，桥接在合法解析后转换为内部null。resolution.task、resolution.sleep.start及conditions.npc无内容写空字符串，不得省略值；有任务/时间则写合法对象。conditions依本次resolution_policy：普通付费必须七字段完整对象，无NPC仅npc为空；免费SYSTEM才无条件。严格区分玩家私有状态与角色共同知情。正文与登记操作一致；未支持操作写待处理，不宣称完成。';
+        const partA = customPrompts && typeof customPrompts.zone0Global === 'string' ? customPrompts.zone0Global.trim() : defaultPrimary;
+        const partB = customPrompts && typeof customPrompts.zone1Scene === 'string' ? customPrompts.zone1Scene.trim() : (customPrompts ? '' : defaultSecondary);
+        return {
+            role: 'live',
+            title: '故事生成 · 项目工作区',
+            allowedTools: LIVE_READ_TOOLS.slice(),
+            systemPrefix: partB ? (partA + '\n\n' + partB) : partA,
+        };
     }
-    return { name: scene ? '场景交流·项目只读' : '故事生成·项目只读', description: '网页故事桥接的专用只读生成参与者。',
-        characterSetting: scene ? '你是隔离场景交流参与者。entry_mode=scene_chat时只真实读取指定packet，按其中交流规范回应；不执行完整回合读取链、字数、节拍、OPTIONS或结算。当前packet覆盖事实，不从旧会话引入其他场景。只输出裸JSON，不写文件、不执行命令。' : '你是项目故事回合生成器。按本次网页信封调用真实只读文件工具；当前文件是事实源，历史会话不能代替本轮读取。最终只返回契约JSON；禁止写文件、执行命令、外部服务或自行提交。',
-        otherContentChat: scene ? '完整读取指定packet，截断则分段补全；只返回messages/facts_delta/needs/handoff。' : '工具读取可以分多步，最终回复只包含单个裸JSON。遵循当前reading_policy与output_contract；不能伪造读取、阅据或V1。',
-        marks: ROLE_MARK, chatModelBindingMode: 'FIXED_MODEL',
-        chatProviderId: model.provider_id, chatModelId: model.model_id,
-        toolAccessConfig: { enabled: true, allowedBuiltinTools: FILE_TOOLS,
-            allowedPackages: [], allowedSkills: [], allowedMcpServers: [] } };
+    if (scene) {
+        return {
+            role: 'scene',
+            title: '场景交流 · 项目工作区',
+            allowedTools: FILE_TOOLS.slice(),
+            systemPrefix: '你是隔离场景交流参与者。entry_mode=scene_chat时只真实读取指定packet，按其中交流规范回应；不执行完整回合读取链、字数、节拍、OPTIONS或结算。当前packet覆盖事实，不从旧会话引入其他场景。只输出裸JSON，不写文件、不执行命令。\n\n完整读取指定packet，截断则分段补全；只返回messages/facts_delta/needs/handoff。',
+        };
+    }
+    return {
+        role: 'legacy',
+        title: '故事生成 · 项目工作区',
+        allowedTools: FILE_TOOLS.slice(),
+        systemPrefix: '你是项目故事回合生成器。按本次网页信封调用真实只读文件工具；当前文件是事实源，历史会话不能代替本轮读取。最终只返回契约JSON；禁止写文件、执行命令、外部服务或自行提交。\n\n工具读取可以分多步，最终回复只包含单个裸JSON。遵循当前reading_policy与output_contract；不能伪造读取、阅据或V1。',
+    };
 }
 
-async function ownedStoryCard(model, scene) {
-    const expectedName = roleChanges(model, scene).name;
-    const listed = await ToolPkg.callDependency('com.operit.character_cards', 'character.list', {}).catch(() => []);
-    const items = Array.isArray(listed) ? listed : (listed && Array.isArray(listed.characters) ? listed.characters : []);
-    for (const item of items) {
-        if (!item || !item.id || (item.name && item.name !== expectedName)) continue;
-        const card = await ToolPkg.callDependency('com.operit.character_cards', 'character.get', { id: item.id }).catch(() => null);
-        if (card && card.marks === ROLE_MARK && card.name === expectedName) return { ...card, id: item.id };
+function stripPackageSystemSections(prompt) {
+    if (typeof prompt !== 'string' || !prompt) return '';
+    return prompt
+        .replace(/(?:^|\n{2,})(?:包系统：|PACKAGE SYSTEM)[\s\S]*?(?=\n{2,}(?:可用工具|AVAILABLE TOOLS|附件|ATTACHMENT|文件同步|FILE SYNC|工作区|WORKSPACE)|$)/gi, '\n\n')
+        .replace(/(?:^|\n)No packages are currently available\.\s*/gi, '\n')
+        .replace(/(?:^|\n)To use a package:\s*\n<tool name="use_package">[\s\S]*?<\/tool>\s*/gi, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
+function stripWorldbookBlocks(prompt) {
+    if (typeof prompt !== 'string' || !prompt) return '';
+    return prompt
+        .replace(/<worldbook\b[^>]*>[\s\S]*?<\/worldbook>/gi, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+}
+
+function normalizeBridgeExtensionRecord(raw) {
+    const ext = raw && typeof raw === 'object'
+        ? (raw.extension && typeof raw.extension === 'object' ? raw.extension : raw)
+        : null;
+    if (!ext || ext.bridge !== BRIDGE_EXT_MARKER) return null;
+    const role = ext.role === 'live' || ext.role === 'scene' ? ext.role : 'legacy';
+    const allowedTools = Array.isArray(ext.allowedTools) && ext.allowedTools.length
+        ? ext.allowedTools.filter(t => typeof t === 'string' && t)
+        : (role === 'live' ? LIVE_READ_TOOLS.slice() : FILE_TOOLS.slice());
+    return {
+        bridge: BRIDGE_EXT_MARKER,
+        version: 1,
+        role,
+        allowedTools,
+        systemPrefix: typeof ext.systemPrefix === 'string' ? ext.systemPrefix : '',
+        zone0Sha: typeof ext.zone0Sha === 'string' ? ext.zone0Sha : '',
+        zone1Sha: typeof ext.zone1Sha === 'string' ? ext.zone1Sha : '',
+    };
+}
+
+async function syncBridgeChatContext(chatId, profile, extra = {}) {
+    if (!chatId || typeof chatId !== 'string') return null;
+    const record = {
+        bridge: BRIDGE_EXT_MARKER,
+        version: 1,
+        role: profile.role || 'live',
+        allowedTools: Array.isArray(profile.allowedTools) ? profile.allowedTools.slice() : LIVE_READ_TOOLS.slice(),
+        systemPrefix: typeof profile.systemPrefix === 'string' ? profile.systemPrefix : '',
+        zone0Sha: typeof extra.zone0Sha === 'string' ? extra.zone0Sha : '',
+        zone1Sha: typeof extra.zone1Sha === 'string' ? extra.zone1Sha : '',
+    };
+    nonBridgeChatCache.delete(chatId);
+    bridgeChatRegistry.set(chatId, record);
+    if (typeof Tools !== 'undefined' && Tools.Chat && typeof Tools.Chat.writeExtension === 'function') {
+        await Tools.Chat.writeExtension({ kind: 'chat', chatId }, record);
+    }
+    return record;
+}
+
+async function resolveBridgeChatState(chatId) {
+    if (!chatId || typeof chatId !== 'string') return null;
+    if (bridgeChatRegistry.has(chatId)) return bridgeChatRegistry.get(chatId);
+    if (nonBridgeChatCache.has(chatId)) return null;
+    if (typeof Tools !== 'undefined' && Tools.Chat && typeof Tools.Chat.readExtension === 'function') {
+        try {
+            const raw = await Tools.Chat.readExtension({ kind: 'chat', chatId });
+            const record = normalizeBridgeExtensionRecord(raw);
+            if (record) {
+                bridgeChatRegistry.set(chatId, record);
+                return record;
+            }
+        } catch (_) {}
+    }
+    if (nonBridgeChatCache.size > 256) nonBridgeChatCache.clear();
+    nonBridgeChatCache.add(chatId);
+    return null;
+}
+
+function extractHookChatId(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+    if (typeof payload.chatId === 'string' && payload.chatId) return payload.chatId;
+    const execCtx = payload.metadata && typeof payload.metadata === 'object' ? payload.metadata.executionContext : null;
+    if (execCtx && typeof execCtx.chatId === 'string' && execCtx.chatId) return execCtx.chatId;
+    if (payload.runtimeContext && typeof payload.runtimeContext.chatId === 'string' && payload.runtimeContext.chatId) {
+        return payload.runtimeContext.chatId;
+    }
+    return null;
+}
+
+async function composeStorySystemPrompt(event) {
+    const payload = event && event.eventPayload ? event.eventPayload : null;
+    if (!payload || payload.stage !== 'compose_system_prompt_sections') return null;
+    const state = await resolveBridgeChatState(extractHookChatId(payload));
+    if (!state || !state.systemPrefix) return null;
+    const corePrompt = stripPackageSystemSections(typeof payload.systemPrompt === 'string' ? payload.systemPrompt : '');
+    const composed = corePrompt ? (state.systemPrefix + '\n\n' + corePrompt) : state.systemPrefix;
+    return { systemPrompt: composed };
+}
+
+async function filterStoryTools(event) {
+    const payload = event && event.eventPayload ? event.eventPayload : null;
+    if (!payload || !['filter_tool_call_tools', 'build_tool_prompt', 'filter_tool_prompt_items'].includes(payload.stage)) {
+        return null;
+    }
+    const state = await resolveBridgeChatState(extractHookChatId(payload));
+    if (!state) return null;
+    if (!Array.isArray(payload.availableTools)) return null;
+    const allowed = new Set(Array.isArray(state.allowedTools) ? state.allowedTools : LIVE_READ_TOOLS);
+    return {
+        availableTools: payload.availableTools.filter(
+            tool => tool && typeof tool.name === 'string' && allowed.has(tool.name) && !tool.activationSource
+        ),
+    };
+}
+
+async function interceptStoryToolCall(event) {
+    if (!event || event.eventName !== 'tool_call_intercept') return;
+    const payload = event.eventPayload || {};
+    const state = await resolveBridgeChatState(extractHookChatId(payload));
+    if (!state) return;
+    const toolName = String(payload.toolName || '');
+    const allowed = new Set(Array.isArray(state.allowedTools) ? state.allowedTools : LIVE_READ_TOOLS);
+    if (allowed.has(toolName)) return { action: 'allow' };
+    return { action: 'block', reason: '故事桥接专用会话仅允许只读文件检索工具：' + toolName };
+}
+
+async function finalizeStoryPrompt(event) {
+    const payload = event && event.eventPayload ? event.eventPayload : null;
+    if (!payload || payload.stage !== 'before_finalize_prompt') return null;
+    const state = await resolveBridgeChatState(extractHookChatId(payload));
+    if (!state) return null;
+    if (typeof payload.systemPrompt === 'string' && /<worldbook\b/i.test(payload.systemPrompt)) {
+        return { systemPrompt: stripWorldbookBlocks(payload.systemPrompt) };
     }
     return null;
 }
@@ -266,18 +386,34 @@ function auditWorkspaceValue(config) {
 
 async function ensureSession(config, model, scene = false, persist = () => PluginConfig.flush(config), skipPromptReset = false) {
     if (!config.workspacePath) throw new Error('故事会话尚未绑定项目工作区，请先配置workspacePath');
-    const cachedBoundKey = config.chatId && config.participantId
-        ? JSON.stringify([config.chatId, config.participantId, config.workspacePath, model.key, String(scene)])
+    // Smoothly migrate legacy v2.1.x card-bound sessions to native model:chat sessions on first run.
+    if (config.participantId && config.participantId !== BRIDGE_PARTICIPANT_ID) {
+        if (config.chatId) {
+            boundChatCache.delete(config.chatId);
+            bridgeChatRegistry.delete(config.chatId);
+            config.chatId = '';
+        }
+        config.participantId = BRIDGE_PARTICIPANT_ID;
+        sessionReady = false;
+        await persist();
+    } else if (!config.participantId) {
+        config.participantId = BRIDGE_PARTICIPANT_ID;
+    }
+
+    const profile = roleProfile(scene);
+    const cachedBoundKey = config.chatId
+        ? JSON.stringify([config.chatId, BRIDGE_PARTICIPANT_ID, config.workspacePath, model.key, String(scene)])
         : '';
-    if (cachedBoundKey && boundChatCache.get(config.chatId) === cachedBoundKey && verifiedCardCache.has(config.participantId)) {
+    if (cachedBoundKey && boundChatCache.get(config.chatId) === cachedBoundKey && bridgeChatRegistry.has(config.chatId)) {
         const existing = await Tools.Chat.listChats({ chat_ids: [config.chatId] });
         if (!Array.isArray(existing.chats)) throw new Error('无法核验故事专用会话');
         if (existing.chats.some(chat => chat.id === config.chatId)) {
             if (!(await Tools.Chat.agentStatus(config.chatId)).isIdle) throw new Error('故事专用会话忙碌，未重复提交');
             sessionReady = true;
-            return { chatId: config.chatId, participantId: config.participantId };
+            return { chatId: config.chatId, participantId: BRIDGE_PARTICIPANT_ID };
         }
         boundChatCache.delete(config.chatId);
+        bridgeChatRegistry.delete(config.chatId);
         config.chatId = '';
         sessionReady = false;
         await persist();
@@ -287,73 +423,54 @@ async function ensureSession(config, model, scene = false, persist = () => Plugi
         if (!Array.isArray(existing.chats)) throw new Error('无法核验故事专用会话');
         if (!existing.chats.some(chat => chat.id === config.chatId)) {
             boundChatCache.delete(config.chatId);
+            bridgeChatRegistry.delete(config.chatId);
             config.chatId = '';
             sessionReady = false;
             await persist();
         }
     }
-    if (!config.participantId) {
-        // Reuse this plugin's own card after a reinstall or cleared config; never delete user data.
-        const found = await ownedStoryCard(model, scene);
-        if (found) { config.participantId = found.id; await persist(); }
-    }
-    let card;
-    if (config.participantId) {
-        card = await ToolPkg.callDependency('com.operit.character_cards', 'character.get', { id: config.participantId });
-        if (card.marks !== ROLE_MARK) throw new Error('专用角色标记不符，已停止自动修改');
-        const expected = roleChanges(model, scene, skipPromptReset ? { characterSetting: card.characterSetting, otherContentChat: card.otherContentChat } : null);
-        if (card.characterSetting !== expected.characterSetting || card.otherContentChat !== expected.otherContentChat || card.chatModelBindingMode !== 'FIXED_MODEL' || card.chatProviderId !== expected.chatProviderId || card.chatModelId !== expected.chatModelId ||
-                JSON.stringify(card.toolAccessConfig) !== JSON.stringify(expected.toolAccessConfig)) {
-            if (config.chatId && !(await Tools.Chat.agentStatus(config.chatId)).isIdle) throw new Error('专用会话仍在运行，不能更新模型或权限');
-            card = await ToolPkg.callDependency('com.operit.character_cards', 'character.update', { id: config.participantId, changes: cardWritePayload(card, expected) });
-        }
-        verifiedCardCache.set(config.participantId, model.key);
-    } else {
-        try {
-            card = await ToolPkg.callDependency('com.operit.character_cards', 'character.create', { values: { ...roleChanges(model, scene), attachedTagIds: [] } });
-        } catch (error) {
-            if (!/已存在|exist/i.test(String(error.message || error))) throw error;
-            card = await ownedStoryCard(model, scene);
-            if (!card) throw new Error('同名角色卡已存在但不是本插件的专用卡，未自动删除或覆盖；请先确认该卡来源。');
-        }
-        if (!card || !card.id) throw new Error('未取得专用角色标识');
-        config.participantId = card.id;
-        verifiedCardCache.set(config.participantId, model.key);
-        await persist();
-    }
     if (!config.chatId) {
-        const chat = await Tools.Chat.createNew({ setAsCurrentChat: false,
-            input: { 'com.operit.character_cards': { version: 1, selection: 'card:' + config.participantId } } });
-        if (!chat.chatId) throw new Error('未取得专用会话标识');
+        // Passing selection:'model:chat' is ignored cleanly when character_cards is uninstalled,
+        // and prevents auto-binding the user's active card when character_cards is still enabled.
+        const chat = await Tools.Chat.createNew({
+            setAsCurrentChat: false,
+            input: { 'com.operit.character_cards': { version: 1, selection: BRIDGE_PARTICIPANT_ID } },
+        });
+        if (!chat || !chat.chatId) throw new Error('未取得专用会话标识');
         config.chatId = chat.chatId;
+        config.participantId = BRIDGE_PARTICIPANT_ID;
         await persist();
-        await Tools.Chat.updateTitle(chat.chatId, '故事生成 · 项目工作区');
+        await Tools.Chat.updateTitle(chat.chatId, profile.title);
     }
     await bindWorkspaceToChat(config.chatId, config.workspacePath);
-    const binding = await ToolPkg.callDependency('com.operit.character_cards', 'chat.configuration.binding.read', { chatId: config.chatId });
-    if (binding.selection !== 'card:' + config.participantId) throw new Error('专用会话参与者绑定已改变');
     if (!(await Tools.Chat.agentStatus(config.chatId)).isIdle) throw new Error('故事专用会话忙碌，未重复提交');
-    boundChatCache.set(config.chatId, JSON.stringify([config.chatId, config.participantId, config.workspacePath, model.key, String(scene)]));
+    const existingState = await resolveBridgeChatState(config.chatId);
+    if (!existingState || !skipPromptReset || existingState.role !== profile.role) {
+        await syncBridgeChatContext(config.chatId, profile, {
+            zone0Sha: existingState ? existingState.zone0Sha : '',
+            zone1Sha: existingState ? existingState.zone1Sha : '',
+        });
+    }
+    boundChatCache.set(config.chatId, JSON.stringify([config.chatId, BRIDGE_PARTICIPANT_ID, config.workspacePath, model.key, String(scene)]));
     sessionReady = true;
-    return { chatId: config.chatId, participantId: config.participantId };
+    return { chatId: config.chatId, participantId: BRIDGE_PARTICIPANT_ID };
 }
 
-async function syncCardPrefixes(config, model, session, zone0Global, zone1Scene, zone0Sha, zone1Sha) {
+async function syncLivePrefixes(config, model, session, zone0Global, zone1Scene, zone0Sha, zone1Sha) {
     const state = config.liveSession || {};
-    const targetSig = JSON.stringify([session.participantId, model.key, zone0Sha, zone1Sha]);
-    if (state.syncedCardSig === targetSig && verifiedCardCache.get(session.participantId + ':prefix') === targetSig) {
+    const targetSig = JSON.stringify([session.chatId, model.key, zone0Sha, zone1Sha]);
+    const mem = bridgeChatRegistry.get(session.chatId);
+    if (state.syncedPrefixSig === targetSig && mem && mem.zone0Sha === zone0Sha && mem.zone1Sha === zone1Sha) {
         return;
     }
     if (session.chatId && !(await Tools.Chat.agentStatus(session.chatId)).isIdle) {
         throw new Error('专用会话仍在运行，不能更新冻结前缀');
     }
-    const changes = roleChanges(model, 'live', { characterSetting: zone0Global, otherContentChat: zone1Scene });
-    const currentCard = await ToolPkg.callDependency('com.operit.character_cards', 'character.get', { id: session.participantId }).catch(() => null);
-    await ToolPkg.callDependency('com.operit.character_cards', 'character.update', { id: session.participantId, changes: cardWritePayload(currentCard, changes) });
+    const profile = roleProfile('live', { zone0Global, zone1Scene });
+    await syncBridgeChatContext(session.chatId, profile, { zone0Sha, zone1Sha });
     state.zone0Sha = zone0Sha;
     state.zone1Sha = zone1Sha;
-    state.syncedCardSig = targetSig;
-    verifiedCardCache.set(session.participantId + ':prefix', targetSig);
+    state.syncedPrefixSig = targetSig;
     config.liveSession = { ...state };
     await PluginConfig.flush(config);
 }
@@ -437,12 +554,15 @@ async function liveSession(config, model, task) {
     let isFresh = !state || !state.chatId;
     if (reason) {
         if (state && state.chatId && !(await Tools.Chat.agentStatus(state.chatId)).isIdle) throw new Error('旧正式会话尚未结束，不能切换');
-        if (state && state.chatId) boundChatCache.delete(state.chatId);
+        if (state && state.chatId) {
+            boundChatCache.delete(state.chatId);
+            bridgeChatRegistry.delete(state.chatId);
+        }
         const sameIdentity = Boolean(state && state.identity === identity);
-        state = { identity, chatId: '', participantId: state ? state.participantId : '', observedChars: 0,
+        state = { identity, chatId: '', participantId: BRIDGE_PARTICIPANT_ID, observedChars: 0,
             turnCount: 0, lastCommittedSeq: 0, interactionScope: task.interaction_scope || '', dirty: false,
             zone0Sha: state ? state.zone0Sha || '' : '', zone1Sha: state ? state.zone1Sha || '' : '',
-            syncedCardSig: state ? state.syncedCardSig || '' : '',
+            syncedPrefixSig: state ? (state.syncedPrefixSig || state.syncedCardSig || '') : '',
             lastTailHook: sameIdentity && state && state.lastTailHook ? state.lastTailHook : '',
             generation: ((state && state.generation) || 0) + 1, resetReason: reason };
         config.liveSession = state;
@@ -883,7 +1003,7 @@ async function executeSessionV2(config, task, model, session) {
                 || !/^[0-9a-f]{48}$/.test(material.delivery.id)) {
             throw new Error('v2程序交付资料不完整，未生成');
         }
-        await syncCardPrefixes(config, model, session, material.zone0_global, material.zone1_scene,
+        await syncLivePrefixes(config, model, session, material.zone0_global, material.zone1_scene,
             material.zone0_sha256, material.zone1_sha256);
         const delivered = { ...material.delivery };
         const nextCommittedSeq = (material.last_committed_sequence || 0) + 1;
@@ -1367,7 +1487,7 @@ async function interruptedSession(config) {
     const flight = config.inFlight;
     if (!flight) return;
     await Tools.Chat.cancel(flight.chat_id).catch(() => {});
-    const isV2 = Boolean(flight.is_v2 || (flight.entry_mode === 'live_interaction' && config.liveSession && config.liveSession.syncedCardSig && config.liveSession.chatId === flight.chat_id));
+    const isV2 = Boolean(flight.is_v2 || (flight.entry_mode === 'live_interaction' && config.liveSession && (config.liveSession.syncedPrefixSig || config.liveSession.syncedCardSig) && config.liveSession.chatId === flight.chat_id));
     if (!config.outbox) config.outbox = { request_id: flight.request_id, model_key: flight.model_key, entry_mode: flight.entry_mode,
         ...(isV2 ? { meta: { isV2: true } } : {}),
         body: { lease: flight.lease, error: 'Operit在正式会话执行中重启，未自动重复生成；原行动已保留，请显式重试。' } };
@@ -1530,31 +1650,9 @@ async function bindFunctionSlot(slot, providerId, modelId) {
 }
 
 async function resolveModel(config) {
-    if (config && config.primaryModelMode === 'fixed' && config.primaryProviderId && config.primaryModelId) {
-        const providerId = String(config.primaryProviderId).trim();
-        const modelId = String(config.primaryModelId).trim();
-        const key = JSON.stringify(['FIXED', providerId, modelId]);
-        if (!modelInfo || modelInfo.key !== key || Date.now() - modelCheckedAt > 30000) {
-            let details = null;
-            try {
-                details = cliObject(await Tools.SoftwareSettings.exec(['model', 'show', providerId, modelId, '--json']));
-            } catch (_) {
-                const catalog = await fetchModelCatalog(true);
-                const found = catalog.models.find(m => m.provider_id === providerId && m.model_id === modelId);
-                if (found) details = { providerId: found.provider_id, modelId: found.model_id, providerName: found.provider_name, pricing: found.pricing_configured ? {} : null };
-            }
-            if (!details || details.providerId !== providerId || details.modelId !== modelId) {
-                throw new Error('故事专属主模型未找到或已删除（' + modelId + '），请在设置页重新选择主模型或切换回功能槽');
-            }
-            modelDetails = { provider_name: details.providerName || providerId, pricing_configured: details.pricing != null };
-            modelCheckedAt = Date.now();
-        }
-        modelInfo = { key, function_type: 'FIXED', provider_id: providerId, model_id: modelId, ...modelDetails };
-        return modelInfo;
-    }
-    const slot = (config && config.functionType) || 'CHAT';
+    const slot = 'CHAT';
     const binding = cliObject(await Tools.SoftwareSettings.exec(['model', 'function-show', slot, '--json']));
-    if (!binding.providerId || !binding.modelId) throw new Error('故事功能未绑定模型');
+    if (!binding.providerId || !binding.modelId) throw new Error('故事主模型未绑定（请先在 Operit 绑定 CHAT 功能槽模型）');
     const key = JSON.stringify([slot, binding.providerId, binding.modelId]);
     if (!modelInfo || modelInfo.key !== key || Date.now() - modelCheckedAt > 30000) {
         const details = cliObject(await Tools.SoftwareSettings.exec(['model', 'show', binding.providerId, binding.modelId, '--json']));
@@ -1574,10 +1672,9 @@ async function checkModel(config, key) {
 
 async function resolveSettlementModel(config, primaryModel) {
     const slot = (config && config.settlementFunctionType) || 'SUMMARY';
-    const primarySlot = (config && config.functionType) || 'CHAT';
-    const isFixedPrimary = config && config.primaryModelMode === 'fixed';
+    const primarySlot = 'CHAT';
     const baseModel = primaryModel || modelInfo;
-    if (!isFixedPrimary && slot === primarySlot && baseModel) {
+    if (slot === primarySlot && baseModel) {
         settlementModelInfo = baseModel;
         settlementFallback = false;
         settlementCheckedAt = Date.now();
@@ -1604,7 +1701,7 @@ async function resolveSettlementModel(config, primaryModel) {
         return { slot, model: settlementModelInfo, fallback: false };
     } catch (_) {
         settlementFallback = true;
-        let fallbackModel = !isFixedPrimary ? (baseModel || null) : null;
+        let fallbackModel = baseModel || null;
         if (!fallbackModel) {
             try {
                 const fb = cliObject(await Tools.SoftwareSettings.exec(['model', 'function-show', primarySlot, '--json']));
@@ -1635,9 +1732,8 @@ async function resolveSettlementModel(config, primaryModel) {
 function settings() {
     if (!settingsPromise) settingsPromise = PluginConfig.use('story_bridge', {
         enabled: false, endpoint: 'http://127.0.0.1:5000', functionType: 'CHAT',
-        primaryModelMode: 'slot', primaryProviderId: '', primaryModelId: '',
         outbox: null, lastRejection: null,
-        workspacePath: '', chatId: '', participantId: '', inFlight: null, liveSessionPolicy:'continuous',
+        workspacePath: '', chatId: '', participantId: BRIDGE_PARTICIPANT_ID, inFlight: null, liveSessionPolicy: 'continuous',
         dualStageEnabled: true, settlementFunctionType: 'SUMMARY', settlementThinking: false,
         settlementThinkingMode: 'auto',
         maxTurnsPerSession: DEFAULT_MAX_TURNS
@@ -1876,53 +1972,6 @@ async function deliver(config, token) {
     await PluginConfig.flush(config);
 }
 
-async function handleShopInquiry(config, model, token) {
-    let claimRes;
-    try {
-        claimRes = await http('/api/story/worker/shop-inquiry/claim', {}, token);
-    } catch (error) {
-        if (error && error.statusCode === 404) return false;
-        throw error;
-    }
-    const iq = claimRes && claimRes.inquiry;
-    if (!iq || !iq.id || !iq.lease) return false;
-    let submitBody;
-    try {
-        const settleTarget = await resolveSettlementModel(config, model);
-        let iqTimer = null;
-        try {
-            const callPromise = Tools.Chat.call({
-                functionType: settleTarget.slot,
-                recordTokenUsage: true,
-                enableThinking: false,
-                turns: [
-                    { kind: 'system', content: String(iq.system_prompt || '') },
-                    { kind: 'user', content: String(iq.user_prompt || '') }
-                ]
-            });
-            const timeoutPromise = new Promise((_, reject) => {
-                iqTimer = setTimeout(() => reject(new Error('商城AI询货调用超时')), 90000);
-            });
-            const generated = await Promise.race([callPromise, timeoutPromise]);
-            if (iqTimer !== null) { clearTimeout(iqTimer); iqTimer = null; }
-            submitBody = {
-                lease: iq.lease,
-                text: String((generated && generated.text) || '')
-            };
-        } catch (err) {
-            if (iqTimer !== null) { clearTimeout(iqTimer); iqTimer = null; }
-            throw err;
-        }
-    } catch (err) {
-        submitBody = {
-            lease: iq.lease,
-            error: String((err && err.message) || err).slice(0, 400)
-        };
-    }
-    await http('/api/story/worker/shop-inquiry/' + encodeURIComponent(iq.id) + '/complete', submitBody, token);
-    return true;
-}
-
 async function work() {
     const config = await settings();
     await interruptedSession(config);
@@ -1948,6 +1997,7 @@ async function work() {
     let response;
     if (status.save_epoch && config.legacySaveEpoch && config.legacySaveEpoch !== status.save_epoch && config.chatId) {
         boundChatCache.delete(config.chatId);
+        bridgeChatRegistry.delete(config.chatId);
         config.chatId = '';
         await PluginConfig.flush(config);
     }
@@ -1969,7 +2019,6 @@ async function work() {
         }
     }
     if (!response || !response.task) {
-        if (await handleShopInquiry(config, model, token)) return true;
         return false;
     }
     const task = response.task;
@@ -2049,8 +2098,8 @@ function runtimeReport(config) {
         running, busy: !!busy || !!starting, last_error: lastError.slice(0, 500),
         plugin_version: PLUGIN_VERSION, model: modelInfo, session: liveSessionView(config),
         dual_stage: config.dualStageEnabled !== false,
-        primary_model_mode: config.primaryModelMode === 'fixed' ? 'fixed' : 'slot',
-        primary_function_type: config.functionType || 'CHAT',
+        primary_model_mode: 'slot',
+        primary_function_type: 'CHAT',
         settlement_function_type: config.settlementFunctionType || 'SUMMARY',
         settlement_model: settlementModelInfo,
         settlement_fallback: !!settlementFallback,
@@ -2069,7 +2118,7 @@ async function monitor() {
         let model = null;
         try {
             model = await resolveModel(config);
-            if (lastError && /^故事专属主模型|^无法读取 Operit 功能模型|^故事功能未绑定/.test(lastError)) lastError = '';
+            if (lastError && /^故事主模型|^故事专属主模型|^无法读取 Operit 功能模型|^故事功能未绑定/.test(lastError)) lastError = '';
         } catch (err) {
             modelInfo = null;
             lastError = String(err.message || err).slice(0, 500);
@@ -2291,41 +2340,14 @@ async function receive(input = {}) {
         mutated = true;
     } else if (action === 'primary_model') {
         assertIdleForSettings(config, '切换主模型');
-        const mode = input.primaryModelMode === 'fixed' ? 'fixed' : 'slot';
-        if (mode === 'fixed') {
-            const prov = String(input.primaryProviderId || '').trim();
-            const mod = String(input.primaryModelId || '').trim();
-            if (!prov || !mod || prov.length > 256 || mod.length > 256) throw new Error('请选择有效的主模型服务商与模型');
-            const prevMode = config.primaryModelMode, prevProv = config.primaryProviderId, prevMod = config.primaryModelId;
-            config.primaryModelMode = 'fixed';
-            config.primaryProviderId = prov;
-            config.primaryModelId = mod;
-            modelCheckedAt = 0;
-            try {
-                await resolveModel(config);
-            } catch (err) {
-                config.primaryModelMode = prevMode;
-                config.primaryProviderId = prevProv;
-                config.primaryModelId = prevMod;
-                modelCheckedAt = 0;
-                throw err;
-            }
-        } else {
-            const slot = input.functionType !== undefined ? String(input.functionType).trim() : (config.functionType || 'CHAT');
-            if (!/^[A-Z][A-Z0-9_]{0,63}$/.test(slot)) throw new Error('主模型功能槽名称无效');
-            const prevMode = config.primaryModelMode, prevSlot = config.functionType;
-            config.primaryModelMode = 'slot';
-            config.functionType = slot;
-            modelCheckedAt = 0;
-            try {
-                await resolveModel(config);
-            } catch (err) {
-                config.primaryModelMode = prevMode;
-                config.functionType = prevSlot;
-                modelCheckedAt = 0;
-                throw err;
-            }
+        const prov = String(input.primaryProviderId || input.providerId || '').trim();
+        const mod = String(input.primaryModelId || input.modelId || '').trim();
+        if (prov && mod) {
+            await bindFunctionSlot('CHAT', prov, mod);
         }
+        config.functionType = 'CHAT';
+        modelCheckedAt = 0;
+        await resolveModel(config);
         lastError = '';
         await PluginConfig.flush(config);
         mutated = true;
@@ -2371,20 +2393,7 @@ async function receive(input = {}) {
         if (running || busy || config.outbox || config.inFlight) throw new Error('请先停止桥接并等待当前任务结束');
         if (input.functionType !== undefined) {
             if (!/^[A-Z][A-Z0-9_]{0,63}$/.test(input.functionType)) throw new Error('功能模型名称无效');
-            config.functionType = input.functionType;
-            modelCheckedAt = 0;
-        }
-        if (input.primaryModelMode !== undefined) {
-            if (!['slot', 'fixed'].includes(input.primaryModelMode)) throw new Error('primaryModelMode须为slot或fixed');
-            config.primaryModelMode = input.primaryModelMode;
-            modelCheckedAt = 0;
-        }
-        if (input.primaryProviderId !== undefined) {
-            config.primaryProviderId = String(input.primaryProviderId || '').trim();
-            modelCheckedAt = 0;
-        }
-        if (input.primaryModelId !== undefined) {
-            config.primaryModelId = String(input.primaryModelId || '').trim();
+            config.functionType = 'CHAT';
             modelCheckedAt = 0;
         }
         if (input.workspacePath !== undefined) {
@@ -2440,17 +2449,16 @@ async function receive(input = {}) {
     try {
         const model = await resolveModel(config);
         await resolveSettlementModel(config, model).catch(() => {});
-        if (mutated && lastError && /^故事专属主模型|^无法读取 Operit 功能模型|^故事功能未绑定/.test(lastError)) lastError = '';
+        if (mutated && lastError && /^故事主模型|^故事专属主模型|^无法读取 Operit 功能模型|^故事功能未绑定/.test(lastError)) lastError = '';
     } catch (error) { lastError = String(error.message || error); }
     if (mutated && !input._fromMonitor) void monitor();
 
     const settleThinkMode = effectiveSettlementThinkingMode(config);
     return { running, enabled: config.enabled, busy: busy !== null, model: modelInfo,
-        version: PLUGIN_VERSION, controlSupported, sessionReady,
-        functionType: config.functionType || 'CHAT',
-        primaryModelMode: config.primaryModelMode === 'fixed' ? 'fixed' : 'slot',
-        primaryProviderId: config.primaryProviderId || '',
-        primaryModelId: config.primaryModelId || '',
+        version: PLUGIN_VERSION, controlSupported, sessionReady, selfHosted: true,
+        theaterRoute: THEATER_ROUTE,
+        functionType: 'CHAT',
+        primaryModelMode: 'slot',
         dualStage: config.dualStageEnabled !== false,
         settlementFunctionType: config.settlementFunctionType || 'SUMMARY',
         settlementThinking: settleThinkMode === 'on',
@@ -2460,7 +2468,7 @@ async function receive(input = {}) {
         pendingResult: config.outbox !== null, lastError,
         mode: 'operit_session', workspacePath: config.workspacePath, endpoint: config.endpoint,
         liveSession: liveSessionView(config),
-        chatId: config.chatId, participantId: config.participantId,
+        chatId: config.chatId, participantId: BRIDGE_PARTICIPANT_ID,
         inFlight: config.inFlight && { request_id: config.inFlight.request_id },
         ...(wantCatalog ? { availableModels: modelCatalogCache.models, functionBindings: modelCatalogCache.bindings, availableWorkspaces: modelCatalogCache.workspaces || [] } : {}) };
 }
@@ -2483,21 +2491,20 @@ function terminate() {
 
 function controlMessage(value) {
     const state = value.lastError ? '桥接需要处理：' + value.lastError : value.running
-        ? '故事桥接已启动。回故事页选择行动；请保持Operit小窗可见。'
+        ? '故事桥接已启动。可直接打开侧边栏「深渊天平剧场」或回故事页选择行动。'
         : '故事桥接已暂停，已领取的行动会完成一次。';
-    const primarySource = value.primaryModelMode === 'fixed' ? '专属固定' : '功能槽 ' + (value.functionType || 'CHAT');
-    const modeLine = '\n生成模式：' + (value.dualStage !== false ? '双阶段流式(v2)' : '单阶段精简(v2)');
+    const modeLine = '\n生成模式：' + (value.dualStage !== false ? '双阶段流式(v2 · 原生自托管)' : '单阶段精简(v2 · 原生自托管)');
     const thinkMode = ['auto', 'off', 'on'].includes(value.settlementThinkingMode)
         ? value.settlementThinkingMode : (value.settlementThinking ? 'on' : 'auto');
     const thinkLabel = thinkMode === 'auto' ? '·智能思考' : thinkMode === 'on' ? '·深度思考' : '·非思考';
     const settleLine = value.dualStage !== false
         ? '\n后台结算(' + (value.settlementFunctionType || 'SUMMARY') + thinkLabel + ')：'
             + (value.settlementModel ? value.settlementModel.model_id + ' · ' + value.settlementModel.provider_name : '未绑定')
-            + (value.settlementFallback ? '（未绑定，自动回退主功能槽）' : '')
+            + (value.settlementFallback ? '（未绑定，自动回退 CHAT 槽）' : '')
         : '';
     return (value.liveSession && !value.liveSession.chat_id ? '正式会话将在下次行动建立。\n' : '')
         + state
-        + (value.model ? '\n主模型(' + primarySource + ')：' + value.model.model_id + ' · ' + value.model.provider_name : '')
+        + (value.model ? '\n主模型(CHAT 槽)：' + value.model.model_id + ' · ' + value.model.provider_name : '')
         + modeLine + settleLine;
 }
 
@@ -2558,7 +2565,16 @@ ToolPkg.ipc.on(CHANNEL, receive);
 
 function registerToolPkg() {
     const settingsScreen = typeof require === 'function' ? require('./ui/settings.ui.js').default : 'ui/settings.ui.js';
+    const theaterScreen = typeof require === 'function' ? require('./ui/theater.ui.js').default : 'ui/theater.ui.js';
     if (typeof ToolPkg.registerUiRoute === 'function') {
+        ToolPkg.registerUiRoute({
+            id: 'theater',
+            route: THEATER_ROUTE,
+            runtime: 'compose_dsl',
+            screen: theaterScreen,
+            keepAlive: true,
+            title: { zh: '深渊天平剧场', en: 'Story Theater' }
+        });
         ToolPkg.registerUiRoute({
             id: 'settings',
             route: SETTINGS_ROUTE,
@@ -2569,6 +2585,22 @@ function registerToolPkg() {
         });
     }
     if (typeof ToolPkg.registerNavigationEntry === 'function') {
+        ToolPkg.registerNavigationEntry({
+            id: 'story_theater_sidebar',
+            route: THEATER_ROUTE,
+            surface: 'main_sidebar_plugins',
+            title: { zh: '深渊天平剧场', en: 'Story Theater' },
+            icon: 'AutoStories',
+            order: 158
+        });
+        ToolPkg.registerNavigationEntry({
+            id: 'story_theater_toolbox',
+            route: THEATER_ROUTE,
+            surface: 'toolbox',
+            title: { zh: '深渊天平剧场', en: 'Story Theater' },
+            icon: 'AutoStories',
+            order: 158
+        });
         ToolPkg.registerNavigationEntry({
             id: 'story_bridge_sidebar',
             route: SETTINGS_ROUTE,
@@ -2586,6 +2618,21 @@ function registerToolPkg() {
             order: 160
         });
     }
+    if (typeof ToolPkg.registerSystemPromptComposeHook === 'function') {
+        ToolPkg.registerSystemPromptComposeHook({ id: 'story_bridge_system_prompt', function: composeStorySystemPrompt });
+    }
+    if (typeof ToolPkg.registerToolPromptComposeHook === 'function') {
+        ToolPkg.registerToolPromptComposeHook({ id: 'story_bridge_tool_filter', function: filterStoryTools });
+    }
+    if (typeof ToolPkg.registerToolLifecycleHook === 'function') {
+        ToolPkg.registerToolLifecycleHook({ id: 'story_bridge_tool_intercept', function: interceptStoryToolCall });
+    }
+    if (typeof ToolPkg.registerPromptFinalizeHook === 'function') {
+        ToolPkg.registerPromptFinalizeHook({ id: 'story_bridge_prompt_finalize', function: finalizeStoryPrompt });
+    }
+    if (typeof ToolPkg.registerPromptEstimateFinalizeHook === 'function') {
+        ToolPkg.registerPromptEstimateFinalizeHook({ id: 'story_bridge_prompt_estimate_finalize', function: finalizeStoryPrompt });
+    }
     ToolPkg.registerCoreCommand({ id: 'story_bridge_control', name: 'storybridge', title: '故事桥接',
         description: '启动、暂停或检查故事桥接，不经过模型生成。',
         usage: '/storybridge start | stop | status | reset-session | session <continuous|service_restart|per_action> | mode <dual|single> | settlement <SUMMARY> | thinking <auto|off|on> | max-turns <2-30>', function: bridgeCommand });
@@ -2595,6 +2642,11 @@ function registerToolPkg() {
     ToolPkg.registerAppLifecycleHook({ id: 'story_terminate', event: 'application_on_terminate', function: terminate });
     return true;
 }
+exports.composeStorySystemPrompt = composeStorySystemPrompt;
+exports.filterStoryTools = filterStoryTools;
+exports.interceptStoryToolCall = interceptStoryToolCall;
+exports.finalizeStoryPrompt = finalizeStoryPrompt;
+exports.resolveBridgeChatState = resolveBridgeChatState;
 exports.bridgeCommand = bridgeCommand;
 exports.bridgeInput = bridgeInput;
 exports.receive = receive;

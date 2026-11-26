@@ -363,10 +363,11 @@
         <!-- Collapsible Decision Choices Panel -->
         <section id="decisionPanel" class="decision-deck" aria-labelledby="decisionPrompt" hidden>
           <div class="decision-header">
-            <span class="decision-ornament" aria-hidden="true">
+            <span id="decisionOrnament" class="decision-ornament" aria-hidden="true">
               <svg viewBox="0 0 22 12" width="22" height="12"><path d="M0 6h6m10 0h6M11 1.5 14.5 6 11 10.5 7.5 6Z" fill="none" stroke="currentColor" stroke-width="1.2"/></svg>
             </span>
             <h2 id="decisionPrompt"></h2>
+            <span id="decisionCue" class="decision-cue" hidden aria-hidden="true"></span>
             <button id="deckToggleBtn" type="button" class="deck-peek-btn" aria-label="收起抉择查看剧情">
               <span>看剧情</span>
               <svg viewBox="0 0 24 24" class="chip-svg" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -634,19 +635,16 @@
       <details class="bridge-group-card bridge-fold">
         <summary class="bridge-group-head">
           <h3>主模型 · 前景演播</h3>
-          <span class="fold-right"><span id="storyPrimaryBadge" class="cost-chip">功能槽</span><span class="fold-caret" aria-hidden="true">▾</span></span>
+          <span class="fold-right"><span id="storyPrimaryBadge" class="cost-chip">CHAT 槽</span><span class="fold-caret" aria-hidden="true">▾</span></span>
         </summary>
         <div class="bridge-fold-body">
           <div class="picker-block">
-            <label for="storyPrimaryMode">主模型来源</label>
-            <select id="storyPrimaryMode">
-              <option value="slot">跟随 Operit 功能槽（默认 CHAT）</option>
-              <option value="fixed">故事专属固定模型（不改 Operit 主聊天）</option>
-            </select>
-          </div>
-          <div class="picker-block">
-            <label id="storyPrimaryTargetLabel" for="storyPrimaryTarget">主模型选择</label>
-            <select id="storyPrimaryTarget"></select>
+            <label id="storyPrimaryTargetLabel" for="storyPrimaryTarget">直接修改「CHAT」槽绑定的主模型</label>
+            <div class="action-row">
+              <select id="storyPrimaryTarget"></select>
+              <button id="storyBindPrimaryBtn" type="button" class="btn-outline compact-btn">绑定</button>
+            </div>
+            <p class="muted">原生自托管模式已剥离角色卡依赖，前景演播默认跟随 Operit 的 CHAT 功能槽（保存后同步更新全局 CHAT 槽；也可在 Operit 单聊输入框临时切模型）。</p>
           </div>
           <p id="storyPrimaryStatus" class="muted" role="status"></p>
         </div>

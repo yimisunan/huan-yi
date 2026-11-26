@@ -344,8 +344,8 @@ class NarrativeOverhaulTests(unittest.TestCase):
         self.assertGreater(probs[-1], probs[0])
         self.assertLessEqual(probs[-1], 0.85)
 
-        # Global cooldown forces prob = 0.0
-        m_cd = sp.write_director_block(base_mem, {'calm_streak': 5, 'global_cooldown': 1})
+        # Both world global_cooldown and decoupled heroine_cd on cooldown -> prob = 0.0
+        m_cd = sp.write_director_block(base_mem, {'calm_streak': 5, 'global_cooldown': 1, 'heroine_cd': 1})
         r_cd = sp.roll_director_beat(self.tmp, state, m_cd, runtime, '周三', rng=FixedRng([0.0]))
         self.assertFalse(r_cd['triggered'])
         self.assertEqual(r_cd['probability'], 0.0)

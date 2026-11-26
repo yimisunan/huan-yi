@@ -97,49 +97,46 @@
 | `GET`/`POST` | `/api/tts` | `tts_api` | `text`(1–12000), `voice`, `speaker?`, `emotion?`, `tts_model?`, `speed_scale?`, `expressive_boost?`, `stream?` | 剥离 `【】*`；仅 Fish 注入音素，非 `drama-3` 智能降级 XML 标签并抽取中文导演句英文控制词，支持生理韵律微调；Singleflight + 内存/磁盘 LRU + 4 并发槽 |
 | `POST` | `/api/tts/prefetch` | `tts_prefetch_api` | `{items: [{text, voice, speaker?, speed_scale?, expressive_boost?}]}`（须 `X-Voice-Client: 1`） | 批量向后预热接下来 3 句台词，闲置槽位并发 2，100ms 快速超时放弃 |
 
-### 3.2 正式互动、档案室、确定性交易、任务、流式推送与桥接路由（`story_service.py`，37 个路由）
+### 3.2 正式互动、档案室、确定性交易、任务、流式推送与桥接路由（`story_service.py`，34 个路由）
 
-> **统一行动与确定性交易分界**：地图移动、道具部分/整组赠予（`transfer_item`）、主动道具使用（`use_item`）、隐蔽装置部署/回收/远程查看（`deploy_item` / `retrieve_item` / `inspect_deployed`）、免费恢复道具与强制休息统一经 `POST /api/story/tasks` 进入 `story_progression.create()`；**档案室存档槽快照/回档/删除、系统商城兑换、动态进货下架、委托奖励领取、经验被动升级、商业情报获取与商业杠杆切换**为 0 体力、0 模型调用的纯确定性事务，经独立路由共用 `RoundStore` WAL 原子落盘并广播 SSE `committed` / `save_reset` / `shop_updated`。AI 定制询货通过独立队列由桥接无状态生成并在服务端严格红线校验后入库。
+> **统一行动与确定性交易分界**：地图移动、道具部分/整组赠予（`transfer_item`）、主动道具使用（`use_item`）、隐蔽装置部署/回收/远程查看（`deploy_item` / `retrieve_item` / `inspect_deployed`）、私密珍藏互动（`keepsake_action`）、剧情内 `【商城定制】` 进货、免费恢复道具与强制休息统一经 `POST /api/story/tasks` 进入 `story_progression.create()`；**档案室存档槽快照/回档/删除、系统商城兑换、动态进货下架、委托奖励领取、经验被动升级、商业情报获取与商业杠杆切换**为 0 体力、0 模型调用的纯确定性事务，经独立路由共用 `RoundStore` WAL 原子落盘并广播 SSE `committed` / `save_reset` / `shop_updated`。
 
 | # | 方法 | 路径 | 鉴权 | 关键参数 / Body | 核心行为与返回 |
 |---|---|---|---|---|---|
-| 1 | `GET` | `/api/story/live` | 同源 | `?before=<seq>&limit=<1..60>` | 正式剧场快照（`DEFAULT_LIVE_LIMIT = 10` 倒序懒加载）：`world`（含 `weekday`、`buffs`、`vigilance`、`passive_tiers`、`secrets_unlocked`、`intel`、`shop_state`、`micro_states`、`physiology`、`intimate`、`active_costs`、`items` 含 `usage_mode`/`category`、独立 `deployed_items`、`delivered_items`、`visual_assets`）、`settlement`、`playback`、`history`、`has_older`、`stream_preview`、`revision`、`bridge`、`save_epoch`、`interaction_protocol` |
+| 1 | `GET` | `/api/story/live` | 同源 | `?before=<seq>&limit=<1..60>` | 正式剧场快照（`DEFAULT_LIVE_LIMIT = 10` 倒序懒加载）：`world`（含 `weekday`、`buffs`、`vigilance`、`passive_tiers`、`secrets_unlocked`、`intel`、`shop_state`、`micro_states`、`physiology`、`intimate`、`active_costs`、`stamina_guard`、`host_charm_tier`、`body_zone_meta`、`keepsake_meta`、`items`、独立 `deployed_items`、`delivered_items`、`visual_assets`）、`settlement`、`playback`、`history`、`has_older`、`stream_preview`、`revision`、`bridge`、`save_epoch`、`interaction_protocol` |
 | 2 | `GET` | `/api/story/stream` | 同源 | `?since=<seq>` | SSE 实时推送流（`ready` / `story_stream` / `committed` / `task_state` / `bridge_state` / `save_reset` / `shop_updated`） |
 | 3 | `POST` | `/api/story/live/progress` | Client | `{save_epoch, segment_id, revealed, completed, catchup?}` | 单调步进演播进度并仅写入 `playback.json` 与 `存档/近期演播.json`，默认返回 `compact: true` 单幕轻量增量降低长局刷新开销 |
-| 4 | `POST` | `/api/story/new-game` | Client | `{request_id, save_epoch, confirm:"new_game", scenario_id?, reroll_only?}` | 统一按 `experimental.lock → store._locked()` 锁序防 AB-BA 死锁；支持指定 10 序幕之一或随机抽取、`reroll_only` 仅在 `actions==0` 时零备份原地重抽序幕，否则自动保存轻量化 `auto` 存档槽后重建新档并清理 `shop_inquiries.json`，发 `save_reset` 事件 |
+| 4 | `POST` | `/api/story/new-game` | Client | `{request_id, save_epoch, confirm:"new_game", scenario_id?, reroll_only?}` | 统一按 `experimental.lock → store._locked()` 锁序防 AB-BA 死锁；支持指定 10 序幕之一或随机抽取、`reroll_only` 仅在 `actions==0` 时零备份原地重抽序幕，否则自动保存轻量化 `auto` 存档槽后重建新档，发 `save_reset` 事件 |
 | 5 | `GET` | `/api/story/prologues` | 同源 | — | 返回全部 10 组开局剧本元数据（`id/title/heroine/summary/sub_location/privacy/present_actors`）、当前开局 `current`、`actions`、`can_reroll` 与 `save_epoch` |
-| 6 | `GET` | `/api/story/saves` | 同源 | — | 返回当前存档摘要 `current`（天数/时刻/地点/行动数/剧本标题）、全部轻量化档槽 `slots[]` 与 `save_epoch` |
+| 6 | `GET` | `/api/story/saves` | 同源 | — | 返回当前存档摘要 `current`（天数/时刻/地点/行动数/魅力/珍藏/剧本标题）、全部轻量化档槽 `slots[]` 与 `save_epoch` |
 | 7 | `POST` | `/api/story/saves/snapshot` | Client | `{save_epoch, label?}`（备注 ≤60 字） | 零体力原子创建手工存档槽（`.round-runtime/save-slots/<slot_id>/`）并返回新档槽元数据 |
 | 8 | `POST` | `/api/story/saves/restore` | Client | `{save_epoch, slot_id, confirm:"restore_save", request_id?}` | 按 `experimental.lock → store._locked()` 锁序先自动留存当前档 `pre_restore` 快照，再通过 2PC 回档至指定档槽、刷新 `save_epoch` 并广播 SSE `save_reset` |
 | 9 | `DELETE` | `/api/story/saves/<slot_id>` | Client | `?save_epoch=...` 或 JSON `{save_epoch}` | 校验空闲与 `save_epoch` 后原子删除指定档槽目录 |
 | 10 | `GET` | `/api/story/snapshot` | 同源 | — | 旧完整回合页面快照 |
 | 11 | `GET` | `/api/story/tasks` | 同源 | — | 返回最新任务状态、桥接在线/配置视图、协议标志与 `save_epoch`/`service_epoch` |
 | 12 | `GET` | `/api/story/tasks/<key>` | 同源 | Path `<key>` | 查询单个任务公开状态（`404` 表示不存在，供前端 `pending` 幂等恢复核查） |
-| 13 | `POST` | `/api/story/tasks` | Client | `{request_id, base_revision, action, entry_mode, selection, operation?, save_epoch?, model_key?}` | 提交行动；支持 `move_player` / `transfer_item` / `use_item` / `deploy_item` / `retrieve_item` / `inspect_deployed` / `use_recovery_item` |
+| 13 | `POST` | `/api/story/tasks` | Client | `{request_id, base_revision, action, entry_mode, selection, operation?, save_epoch?, model_key?}` | 提交行动；支持 8 类登记操作及剧情内 `【商城定制】` 标签触发 |
 | 14 | `POST` | `/api/story/tasks/<key>/cancel` | Client | `{}` | 取消任务，清预览并调用 `sp.refund()` 全额退还预扣体力 |
 | 15 | `POST` | `/api/story/tasks/<key>/retry` | Client | `{model_key?}` | 沿用原 `request_id` 与输入重试失败/中断/冲突任务 |
-| 16 | `GET` | `/api/story/shop` | 同源 | — | 合并静态 16 件商品与 `save_state.json["shop"]["dynamic_catalog"]` 动态货架，附带 `unlock_req`（商业嗅觉+好感）评估、`categories`、`latest_inquiry`、`points` 与 `can_transact` |
-| 17 | `POST` | `/api/story/shop/redeem` | Client | `{request_id, base_revision, save_epoch, item_id}` | 确定性 0 体力兑换静态 `SHOP-*` 或动态 `DYN-*` 商品入囊（强制校验 `unlock_req` 与 `pack_qty`），广播 SSE `committed` |
-| 18 | `POST` | `/api/story/shop/inquire` | Client | `{query, save_epoch}` | 浏览器发起 AI 定制询货入队（1–120 字；仅在无活跃剧情任务且无进行中询货时允许），`wake_worker=True` 唤醒桥接 |
-| 19 | `GET` | `/api/story/shop/inquire/<iq_id>` | 同源 | Path `<iq_id>` | 轮询询货状态（`queued`/`claimed`/`completed`/`failed`、店主回复、新上架商品与被拒原因） |
-| 20 | `DELETE` | `/api/story/shop/dynamic/<item_id>` | Client | `?save_epoch=...` 或 JSON `{save_epoch?}` | 确定性下架并移除 `save_state.json["shop"]["dynamic_catalog"]` 中指定 `DYN-*` 商品，广播 SSE `shop_updated` |
-| 21 | `POST` | `/api/story/task/claim` | Client | `{request_id, base_revision, save_epoch}` | 确定性 0 体力按 FIFO 顺序领取 `tasks.pending_items` 队列队首待发奖励入囊 |
-| 22 | `POST` | `/api/story/passive/upgrade` | Client | `{request_id, base_revision, save_epoch, target}` | 确定性 0 体力将目标女主被动升阶 `Lv.N→Lv.(N+1)` |
-| 23 | `POST` | `/api/story/intel/acquire` | Client | `{request_id, base_revision, save_epoch, intel_id}` | 确定性 0 体力获取一次性商业情报 |
-| 24 | `POST` | `/api/story/intel/leverage` | Client | `{request_id, base_revision, save_epoch, armed, intel_id?}` | 确定性 0 体力武装/解除商业杠杆 |
-| 25 | `GET` | `/api/story/bridge-info` | 同源 | — | 读取或懒生成 `.round-runtime/story/bridge-key.json` 返回 `{token}` |
-| 26 | `POST` | `/api/story/bridge/control` | Client | `{action, ...}` | 下发桥接控制指令并 `wake_worker=True` |
-| 27 | `POST` | `/api/story/worker/control` | Bridge | `{runtime, ack_id?, ack_error?}` | 插件每 6s 上报运行态与确认指令结果 |
-| 28 | `GET` | `/api/story/worker/wait` | Bridge | `?since=<int>&timeout=<float>` | Long-Polling 等待剧情任务、排队询货（`shop_inquiry`）或控制指令 |
-| 29 | `POST` | `/api/story/worker/claim` | Bridge | `{model?}` | 领取队首 `queued` 剧情任务，签发 120s `lease` |
-| 30 | `POST` | `/api/story/worker/shop-inquiry/claim` | Bridge | `{}` | 桥接无活跃剧情任务时认领排队商城询货，返回编译好的无状态 `system_prompt` 与 `user_prompt` |
-| 31 | `POST` | `/api/story/worker/shop-inquiry/<iq_id>/complete` | Bridge | `{lease, text?, payload?, error?}` | 桥接提交无状态询货结果，服务端运行红线/价位/解锁兜底校验后原子写入 `DYN-*` 并推 SSE `shop_updated` |
-| 32 | `POST` | `/api/story/worker/<key>/material` | Bridge | `{lease, chat_id, participant_id, ...}` | 颁发 v1 / v2 冻结资料与 `settlement_spec` |
-| 33 | `POST` | `/api/story/worker/<key>/stream` | Bridge | `{lease, stage, messages?, revision?}` | 上报瞬时流式预览节点并广播 SSE `story_stream` |
-| 34 | `POST` | `/api/story/worker/<key>/heartbeat` | Bridge | `{lease}` | 续期 `lease_until = now + 120` |
-| 35 | `POST` | `/api/story/worker/<key>/preflight` | Bridge | `{lease, text, conversation_audit}` | v1 / 旧回合提交前读审计预检 |
-| 36 | `POST` | `/api/story/worker/<key>/result` | Bridge | `{lease, text?, error?, conversation_audit?, timing?, allow_settlement_retry?}` | 提交最终结果或报错；通过审计/双阶段重试/装配后经 `RoundStore` 原子落盘 |
-| 37 | `POST` | `/api/story/preferences` | Client | `{protagonist_style?, settlement_thinking_mode?}` | 保存并广播玩家演播偏好至 `.round-runtime/story/prefs.json` |
+| 16 | `GET` | `/api/story/shop` | 同源 | — | 合并静态 16 件商品与 `save_state.json["shop"]["dynamic_catalog"]` 动态货架，附带 4 轴 `unlock_req`（嗅觉/好感/最高堕落/魅力）、`unlocked_grade`（`T1～T4`）、魅力折扣、`points` 与 `can_transact` |
+| 17 | `POST` | `/api/story/shop/redeem` | Client | `{request_id, base_revision, save_epoch, item_id}` | 确定性 0 体力兑换静态 `SHOP-*` 或动态 `DYN-*` 商品入囊（强制校验 4 轴 `unlock_req`、魅力折扣与 `pack_qty`），广播 SSE `committed` |
+| 18 | `DELETE` | `/api/story/shop/dynamic/<item_id>` | Client | `?save_epoch=...` 或 JSON `{save_epoch?}` | 确定性下架并移除 `save_state.json["shop"]["dynamic_catalog"]` 中指定 `DYN-*` 商品，广播 SSE `shop_updated` |
+| 19 | `POST` | `/api/story/task/claim` | Client | `{request_id, base_revision, save_epoch}` | 确定性 0 体力按 FIFO 顺序领取 `tasks.pending_items` 队列队首待发奖励入囊 |
+| 20 | `POST` | `/api/story/passive/upgrade` | Client | `{request_id, base_revision, save_epoch, target}` | 确定性 0 体力将目标女主被动升阶 `Lv.N→Lv.(N+1)` |
+| 21 | `POST` | `/api/story/intel/acquire` | Client | `{request_id, base_revision, save_epoch, intel_id}` | 确定性 0 体力获取一次性商业情报 |
+| 22 | `POST` | `/api/story/intel/leverage` | Client | `{request_id, base_revision, save_epoch, armed, intel_id?}` | 确定性 0 体力武装/解除商业杠杆 |
+| 23 | `GET` | `/api/story/bridge-info` | 同源 | — | 读取或懒生成 `.round-runtime/story/bridge-key.json` 返回 `{token}` |
+| 24 | `POST` | `/api/story/bridge/control` | Client | `{action, ...}` | 下发桥接控制指令并 `wake_worker=True` |
+| 25 | `POST` | `/api/story/worker/control` | Bridge | `{runtime, ack_id?, ack_error?}` | 插件每 6s 上报运行态与确认指令结果 |
+| 26 | `GET` | `/api/story/worker/wait` | Bridge | `?since=<int>&timeout=<float>` | Long-Polling 等待剧情任务或控制指令 |
+| 27 | `POST` | `/api/story/worker/claim` | Bridge | `{model?}` | 领取队首 `queued` 剧情任务，签发 120s `lease` |
+| 28 | `POST` | `/api/story/worker/shop-inquiry/claim` | Bridge | `{}` | 兼容 `v2.1.8` 桥接插件的静默空返回路由（恒返 `{"inquiry": null}`，免重装 `.toolpkg`） |
+| 29 | `POST` | `/api/story/worker/<key>/material` | Bridge | `{lease, chat_id, participant_id, ...}` | 颁发 v1 / v2 冻结资料与 `settlement_spec` |
+| 30 | `POST` | `/api/story/worker/<key>/stream` | Bridge | `{lease, stage, messages?, revision?}` | 上报瞬时流式预览节点并广播 SSE `story_stream` |
+| 31 | `POST` | `/api/story/worker/<key>/heartbeat` | Bridge | `{lease}` | 续期 `lease_until = now + 120` |
+| 32 | `POST` | `/api/story/worker/<key>/preflight` | Bridge | `{lease, text, conversation_audit}` | v1 / 旧回合提交前读审计预检 |
+| 33 | `POST` | `/api/story/worker/<key>/result` | Bridge | `{lease, text?, error?, conversation_audit?, timing?, allow_settlement_retry?}` | 提交最终结果或报错；通过审计/双阶段重试/装配后经 `RoundStore` 原子落盘 |
+| 34 | `POST` | `/api/story/preferences` | Client | `{protagonist_style?, director_pacing?, custom_rules_enabled?, custom_rules_position?, custom_rules_text?, settlement_custom_rules_enabled?, settlement_custom_rules_position?, settlement_custom_rules_text?}` | 保存并广播玩家演播偏好（主角戏份风格、女主意外节奏 `slow/standard/frequent`，以及主模型 `Zone 0` / 副模型 `Stage 2` 独立的无字数上限自定义系统级 Rule）至 `.round-runtime/story/prefs.json`（重置存档与同步 GitHub 均自动保留） |
 
 ### 3.3 隔离实验场景与只读旧档导入路由（`scene_chat.py`，15 个路由）
 

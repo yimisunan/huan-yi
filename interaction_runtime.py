@@ -141,8 +141,17 @@ STORY_PREFS_PATH = '.round-runtime/story/prefs.json'
 
 
 def load_story_prefs(root):
-    """Load runtime story preferences (defaults: faithful protagonist presence)."""
-    defaults = {'protagonist_style': 'faithful'}
+    """Load runtime story preferences (defaults: faithful protagonist, standard director pacing, custom rules off)."""
+    defaults = {
+        'protagonist_style': 'faithful',
+        'director_pacing': 'standard',
+        'custom_rules_enabled': False,
+        'custom_rules_position': 'append',
+        'custom_rules_text': '',
+        'settlement_custom_rules_enabled': False,
+        'settlement_custom_rules_position': 'append',
+        'settlement_custom_rules_text': '',
+    }
     p = Path(root) / STORY_PREFS_PATH
     if not p.is_file():
         return dict(defaults)
@@ -152,6 +161,13 @@ def load_story_prefs(root):
             return dict(defaults)
         return {
             'protagonist_style': sc.normalize_protagonist_style(raw.get('protagonist_style', 'faithful')),
+            'director_pacing': sp.normalize_director_pacing(raw.get('director_pacing', 'standard')),
+            'custom_rules_enabled': bool(raw.get('custom_rules_enabled', False)),
+            'custom_rules_position': sc.normalize_custom_rules_position(raw.get('custom_rules_position', 'append')),
+            'custom_rules_text': sc.normalize_custom_rules_text(raw.get('custom_rules_text', '')),
+            'settlement_custom_rules_enabled': bool(raw.get('settlement_custom_rules_enabled', False)),
+            'settlement_custom_rules_position': sc.normalize_custom_rules_position(raw.get('settlement_custom_rules_position', 'append')),
+            'settlement_custom_rules_text': sc.normalize_custom_rules_text(raw.get('settlement_custom_rules_text', '')),
         }
     except Exception:
         return dict(defaults)
@@ -161,13 +177,45 @@ def save_story_prefs(root, updates):
     """Persist validated runtime story preferences atomically."""
     if not isinstance(updates, dict):
         raise rr.RoundError('偏好设置须为对象')
-    rr._keys(updates, {'protagonist_style'}, '偏好设置')
+    allowed_keys = {
+        'protagonist_style', 'director_pacing',
+        'custom_rules_enabled', 'custom_rules_position', 'custom_rules_text',
+        'settlement_custom_rules_enabled', 'settlement_custom_rules_position', 'settlement_custom_rules_text',
+    }
+    rr._keys(updates, allowed_keys, '偏好设置')
     cur = load_story_prefs(root)
     if 'protagonist_style' in updates:
         val = updates['protagonist_style']
         if val not in ('faithful', 'silent'):
             raise rr.RoundError('主角戏份风格须为 faithful 或 silent')
         cur['protagonist_style'] = val
+    if 'director_pacing' in updates:
+        val = updates['director_pacing']
+        if val not in sp.DIRECTOR_PACING_MODES:
+            raise rr.RoundError('女主意外节奏须为 slow、standard 或 frequent')
+        cur['director_pacing'] = val
+    for prefix, label in (
+        ('custom_rules', '主模型自定义系统提示词'),
+        ('settlement_custom_rules', '副模型自定义系统提示词'),
+    ):
+        en_key = prefix + '_enabled'
+        pos_key = prefix + '_position'
+        txt_key = prefix + '_text'
+        if en_key in updates:
+            val = updates[en_key]
+            if type(val) is not bool:
+                raise rr.RoundError(f'{label}开关须为布尔值')
+            cur[en_key] = val
+        if pos_key in updates:
+            val = updates[pos_key]
+            if val not in sc.CUSTOM_RULES_POSITIONS:
+                raise rr.RoundError(f'{label}注入位置须为 append 或 prepend')
+            cur[pos_key] = val
+        if txt_key in updates:
+            val = updates[txt_key]
+            if not isinstance(val, str):
+                raise rr.RoundError(f'{label}正文须为字符串')
+            cur[txt_key] = sc.normalize_custom_rules_text(val)
     target = Path(root) / STORY_PREFS_PATH
     target.parent.mkdir(parents=True, exist_ok=True)
     rr._atomic(target, rr._json(cur))
@@ -1359,7 +1407,8 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
         director_roll = prior_roll
     elif is_action_turn:
         director_roll = sp.roll_director_beat(
-            story.root, effective, memory, runtime, state.get('weekday', '')
+            story.root, effective, memory, runtime, state.get('weekday', ''),
+            pacing_mode=load_story_prefs(story.root)['director_pacing'],
         )
     else:
         dstate = sp.parse_director_block(memory)
@@ -1636,9 +1685,13 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
     cast = effective_state['cast']
     references = context.get('references', [])
     text_input = packet_data.get('input', '')
-    protagonist_style = load_story_prefs(story.root)['protagonist_style']
+    story_prefs = load_story_prefs(story.root)
+    protagonist_style = story_prefs['protagonist_style']
 
-    zone0_global = sc.build_zone0_global(story.root, mode=protocol_mode, protagonist_style=protagonist_style)
+    zone0_global = sc.build_zone0_global(
+        story.root, mode=protocol_mode, protagonist_style=protagonist_style,
+        custom_rules=story_prefs,
+    )
     zone1_scene = sc.build_zone1_scene(
         story.root, effective_state, cast, references,
         memory_text=memory_text, extra_text='', mode=protocol_mode,
@@ -1709,6 +1762,7 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
             envelope.get('resolution_policy'), envelope['output_contract'],
             envelope.get('operation_context'), required_sources=supplements,
             intel_catalog=intel_catalog, director_roll=context.get('director_roll'),
+            settlement_custom_rules=story_prefs,
         )
 
     record = {
