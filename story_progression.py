@@ -2914,7 +2914,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
                 rem_charges=max(0,existing_charges-1)
                 intel_state['leverage_charges']=rem_charges
                 intel_dirty=True
-                leverage_triggered={'intel_id':'SHIELD','intel_name':f'商业杠杆护盾（余{rem_charges}次）','targets':lev_meta.get('targets',[]),'remaining_charges':rem_charges}
+                leverage_triggered={'intel_id':'SHIELD','intel_name':'商业杠杆护盾','targets':lev_meta.get('targets',[]),'remaining_charges':rem_charges}
             else:
                 intel_state['held']=[x for x in intel_state['held'] if x!=leverage_armed]
                 if leverage_armed not in intel_state['consumed']:

@@ -3930,7 +3930,10 @@
     if (s.leverage_triggered) {
       const levObj = typeof s.leverage_triggered === 'object' ? s.leverage_triggered : null;
       const levName = levObj ? (levObj.intel_name || levObj.intel_id || '护盾生效') : String(s.leverage_triggered);
-      const rem = levObj && Number.isFinite(Number(levObj.charges_remaining)) ? ('，余 ' + Number(levObj.charges_remaining) + ' 次') : '';
+      const remRaw = levObj ? (levObj.remaining_charges ?? levObj.charges_remaining) : null;
+      const rem = (remRaw !== null && remRaw !== undefined && Number.isFinite(Number(remRaw)) && !/（余\d+次）/.test(levName))
+        ? ('，余 ' + Number(remRaw) + ' 次')
+        : '';
       detail.append(node('p', '', '商业杠杆护盾：' + levName + '（越界掉好感减半 · 压制非目击警惕' + rem + '）'));
     }
     if (Array.isArray(s.intel_consumed) && s.intel_consumed.length) {
@@ -4752,7 +4755,7 @@
       iSec.append(iHead);
 
       const iBody = node('div', 'hub-fold-body');
-      const tierStrip = node('div', 'intel-tier-strip');
+      const tierStrip = node('div', 'intel-tier-strip is-five');
       for (const [th, lbl] of [[10, '10 入门'], [30, '30 被看见'], [60, '60 杠杆'], [80, '80 深局'], [100, '100 视野']]) {
         tierStrip.append(node('span', 'intel-tier-pill' + (bizVal >= th ? ' is-reached' : ''), lbl));
       }
@@ -6865,6 +6868,8 @@
         prog: w.progression,
         micro_states: w.micro_states,
         physiology: w.physiology,
+        intimate: w.intimate,
+        host_charm_tier: w.host_charm_tier,
         visual_assets: w.visual_assets
       } : null
     });

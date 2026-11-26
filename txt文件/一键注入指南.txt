@@ -332,7 +332,7 @@ Python负责排序、推流和盖戳；AI只提供当回合增量，并按后续
 - 消耗_日常劳作：new_sta_01=5（new_sta 扣减）
 - 消耗_剧烈抗拒：new_sta_01=15（new_sta 扣减）
 - 状态_空耗惩罚：new_sta_01=5（new_sta 扣减）
-- 恢复_小憩：new_sta_01=10（new_sta 增加）
+- 恢复_小憩：new_sta_01=15（new_sta 增加）
 - 恢复_安稳睡眠：new_sta_01=40（new_sta 增加）
 - 高潮_轻度累积：new_org_01=15（new_org 增加）
 - 高潮_中度累积：new_org_01=30（new_org 增加）

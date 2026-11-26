@@ -958,6 +958,15 @@ class StoryCompilerTests(unittest.TestCase):
         self.assertIn('商业牵制底气（余2次', brief_b)
         self.assertIn('孕期易倦', brief_b)
 
+        # 10. Event registry table sync in 一键注入指南.txt & frontend parity checks
+        reg = rr._event_registry(ROOT, ic)
+        self.assertEqual(len(reg), 6)
+        js_txt = (ROOT / 'story_client.js').read_text(encoding='utf-8')
+        self.assertIn('levObj.remaining_charges', js_txt)
+        self.assertIn('intel-tier-strip is-five', js_txt)
+        self.assertIn('host_charm_tier: w.host_charm_tier', js_txt)
+        self.assertIn('intimate: w.intimate', js_txt)
+
 
 if __name__ == '__main__':
     unittest.main()

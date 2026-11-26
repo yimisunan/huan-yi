@@ -2732,6 +2732,20 @@ body.kb-open #composer { max-height: 62dvh; }
   gap: 6px;
 }
 
+.intel-tier-strip.is-five {
+  grid-template-columns: repeat(5, 1fr);
+}
+
+@media (max-width: 440px) {
+  .intel-tier-strip.is-five {
+    gap: 4px;
+  }
+  .intel-tier-strip.is-five .intel-tier-pill {
+    font-size: 10px;
+    padding: 4px 2px;
+  }
+}
+
 .intel-tier-pill {
   text-align: center;
   padding: 5px 4px;
