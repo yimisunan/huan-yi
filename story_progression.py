@@ -1227,14 +1227,62 @@ def _sanitize_director_echo(raw, catalog, dstate, is_action, *, secrets_unlocked
     return out or None
 
 
-def advance_npc_mind(st_final, mind_updates=None, *, active_cast=(), overnight=False, day_crossed=False, aff_deltas=None):
-    """Decay transient moods/impressions and apply optional Stage 2 mind_updates with zero extra LLM calls."""
+def advance_npc_mind(
+    st_final,
+    mind_updates=None,
+    *,
+    active_cast=(),
+    overnight=False,
+    day_crossed=False,
+    aff_deltas=None,
+    events=None,
+    coy_chars=(),
+    action_category='',
+    pre_values=None,
+    engine=None,
+):
+    """Decay transient moods/impressions, maintain dark-box resentment/shift kind, and apply Stage 2 mind_updates."""
     if not isinstance(st_final, dict):
         return
     mind_map = st_final.setdefault('npc_mind', save_store.default_npc_mind())
     cast_set = set(active_cast or ())
     updates = mind_updates if isinstance(mind_updates, dict) else {}
     aff_map = aff_deltas if isinstance(aff_deltas, dict) else {}
+    coy_set = set(coy_chars or ())
+    ev_map = events if isinstance(events, dict) else {}
+    shame_ev = ev_map.get('shame_events') or {}
+    aff_ev = ev_map.get('affection_events') or {}
+    ds_ev = ev_map.get('ds_events') or {}
+    host_ev = ev_map.get('host_events') or []
+    pre_map = pre_values if isinstance(pre_values, dict) else {}
+
+    def _etag(ident, fallback=''):
+        if engine is not None and hasattr(engine, '_event_tag'):
+            try:
+                return engine._event_tag(ident)
+            except Exception:
+                return fallback
+        return fallback
+
+    t_aff01 = _etag('AFFECTION_01', '阻止侵犯_成功')
+    t_aff02 = _etag('AFFECTION_02', '暴力下流_雪崩')
+    t_ds10 = _etag('DS_10', '消耗_剧烈抗拒')
+    t_sh03 = _etag('SHAME_03', 'C烈度_深度')
+    t_sh04 = _etag('SHAME_04', 'C烈度_重度')
+    t_sh09 = _etag('SHAME_09', '无意识被侵_苏醒发现')
+    t_sh14 = _etag('SHAME_14', '耻感反弹_苏醒')
+    deep_warm_aff = {_etag('AFFECTION_10', '情感共振_深度交心'), _etag('AFFECTION_11', '危机并肩_实质破局')}
+    mild_warm_aff = {
+        _etag('AFFECTION_03', '基础安抚'),
+        _etag('AFFECTION_06', '社交微幅回馈'),
+        _etag('AFFECTION_07', '暴跌回升_恢复中'),
+    }
+    warm_host_tags = {
+        _etag('HOST_05', '日常_信任建立'),
+        _etag('HOST_06', '日常_情感共振'),
+        _etag('HOST_08', '日常_温和累进'),
+    }
+    has_warm_host = any(t in warm_host_tags for t in host_ev)
 
     for name in save_store.NPC_MIND_TARGETS:
         slot = mind_map.get(name)
@@ -1284,9 +1332,49 @@ def advance_npc_mind(st_final, mind_updates=None, *, active_cast=(), overnight=F
                 if not replaced:
                     slot['impressions'].append({'text': new_imp, 'ttl': 6})
                 slot['impressions'] = slot['impressions'][-2:]
-        # 4. Track subtle recent affection trend for de-numericized qualitative brief
+        # 4. Track affection trend, dark-box resentment (0..100), and shift kind for qualitative brief
         if name in save_store.HEROINES:
             dval = int(aff_map.get(name, 0) or 0)
+            s_tags = shame_ev.get(name) or []
+            a_tags = aff_ev.get(name) or []
+            d_tags = ds_ev.get(name) or []
+            is_coy = name in coy_set
+            cur_res = max(0, min(100, int(slot.get('resentment') or 0)))
+
+            # 4a. Resentment accumulation on genuine offense / coercion / blackout push
+            res_gain = 0
+            if t_aff02 in a_tags:
+                res_gain += 35
+            if t_aff01 in a_tags:
+                res_gain += 18
+            if t_ds10 in d_tags:
+                res_gain += 12
+            if (t_sh09 in s_tags) or (t_sh14 in s_tags):
+                res_gain += 15
+            pre_sta = pre_map.get((name, '体力'))
+            pre_shame = pre_map.get((name, '羞耻'))
+            if pre_sta is not None and int(pre_sta) <= 15 and ((t_sh03 in s_tags) or (t_sh04 in s_tags)):
+                res_gain += 20
+            if (not is_coy) and dval <= -4:
+                res_gain += 10
+            elif (not is_coy) and -3 <= dval <= -2 and (pre_shame is None or int(pre_shame) >= 85):
+                res_gain += 6
+
+            # 4b. Resentment healing on sincere respectful interaction & time cooling
+            res_heal = 0
+            if res_gain == 0:
+                if action_category in ('A', 'B') and name in cast_set and not s_tags and (t_aff01 not in a_tags) and (t_aff02 not in a_tags) and (t_ds10 not in d_tags):
+                    if any(t in deep_warm_aff for t in a_tags):
+                        res_heal += 15
+                    elif any(t in mild_warm_aff for t in a_tags) or has_warm_host:
+                        res_heal += 10
+                    else:
+                        res_heal += 5
+                if overnight or day_crossed:
+                    res_heal += 8
+            slot['resentment'] = max(0, min(100, cur_res + res_gain - res_heal))
+
+            # 4c. Affection trend & semantic shift classification (prevents coy_fluster from poisoning next turn as annoyance)
             if dval != 0:
                 slot['aff_delta_last'] = max(-20, min(20, dval))
             elif overnight or day_crossed:
@@ -1294,6 +1382,15 @@ def advance_npc_mind(st_final, mind_updates=None, *, active_cast=(), overnight=F
             else:
                 prev_d = int(slot.get('aff_delta_last') or 0)
                 slot['aff_delta_last'] = int(prev_d / 2) if abs(prev_d) > 1 else 0
+
+            if is_coy:
+                slot['last_shift_kind'] = 'coy_fluster'
+            elif res_gain > 0 or (dval <= -1 and not is_coy):
+                slot['last_shift_kind'] = 'true_friction'
+            elif dval >= 1:
+                slot['last_shift_kind'] = 'warm_gain'
+            elif overnight or day_crossed or int(slot.get('aff_delta_last') or 0) == 0:
+                slot['last_shift_kind'] = ''
 
 
 _SCENE_RESIDUE_TABLE = {
@@ -2342,6 +2439,7 @@ def derive_micro_state_changes(engine, events, conditions, cast, before_memory):
     probe_shame_tags = {engine._event_tag('SHAME_01'), engine._event_tag('SHAME_02'), engine._event_tag('SHAME_19')}
     climax_tags = {engine._event_tag('DS_17'), engine._event_tag('DS_18')}
     cog_tear_tag = engine._event_tag('HOST_01')
+    coy_tag = engine._event_tag('AFFECTION_12')
 
     has_warm_host = any(t in warm_host_tags for t in host_ev)
     has_cog_tear = cog_tear_tag in host_ev
@@ -2363,7 +2461,7 @@ def derive_micro_state_changes(engine, events, conditions, cast, before_memory):
             or any(t in climax_tags for t in d_tags)
         ):
             delta['residual_tension'] = True
-        if has_cog_tear or (cur_shame > 75 and any(t in probe_shame_tags for t in s_tags)):
+        if has_cog_tear or (coy_tag in a_tags) or (cur_shame > 75 and any(t in probe_shame_tags for t in s_tags)):
             delta['confusion_debt'] = True
         if intensity in ('A', 'B') and (has_warm_host or any(t in warm_aff_tags for t in a_tags)) and not delta.get('residual_tension'):
             delta['momentary_ease'] = True
@@ -3089,7 +3187,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
     events=parsed['events'];lifecycle=None;states=None;counts=None
     task_completed=False;task_issued=False;completed_task_info=None
     leverage_triggered=None;intel_consumed=None;schedule_moves=[]
-    charm_gained_now=False
+    charm_gained_now=False;coy_chars=[]
     active_cast=parsed.get('active_cast') or []
     st_pre,ly_pre,_=save_store.load_bundle(stage)
     prologue_active_pre=bool(ly_pre.get('prologue_active'))
@@ -3178,6 +3276,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
         )
         if isinstance(ev_meta,dict) and isinstance(ev_meta.get('normalized_events'),dict):
             events=ev_meta['normalized_events']
+        coy_chars = (ev_meta or {}).get('coy_chars') or []
         auto_climax = (ev_meta or {}).get('auto_climax') or []
         if auto_climax and isinstance(states, dict) and isinstance(lifecycle, dict):
             lmicro = lifecycle.setdefault('micro', {})
@@ -3547,10 +3646,15 @@ def apply_staged(store,engine,stage,body,files,parsed):
         advance_npc_mind(
             st_final,
             mind_updates=de_obj.get('mind_updates') if kind=='action' else None,
-            active_cast=active_cast,
+            active_cast=present_actors if kind=='action' else active_cast,
             overnight=(parsed['sleep']['kind']=='overnight'),
             day_crossed=crossed,
             aff_deltas=aff_deltas,
+            events=events if kind=='action' else None,
+            coy_chars=coy_chars,
+            action_category=value.get('category','A') if kind=='action' else '',
+            pre_values=before_values,
+            engine=engine,
         )
         # 纯 JSON 三轨结构化记忆落盘（携带后端权威房间级 scene_known_by 与 K01 硬守卫）
         mem_payload=parsed.get('memory_payload') or {'fact':str((value.get('memory') or {}).get('fact') or ''),'anchor_ops':[],'chronicle_digest':None,'tags':[]}

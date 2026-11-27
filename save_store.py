@@ -134,6 +134,8 @@ def default_npc_mind():
             'preoccupation': '批阅集团季度例行报表，顺便留意志北近来的作息与定力',
             'impressions': [],
             'aff_delta_last': 0,
+            'resentment': 0,
+            'last_shift_kind': '',
         },
         '苏婉青': {
             'mood': '',
@@ -141,6 +143,8 @@ def default_npc_mind():
             'preoccupation': '盘算周五去主宅请安带什么点心合婆婆口味，独处时略感冷清',
             'impressions': [],
             'aff_delta_last': 0,
+            'resentment': 0,
+            'last_shift_kind': '',
         },
         '徐念薇': {
             'mood': '',
@@ -148,6 +152,8 @@ def default_npc_mind():
             'preoccupation': '青年画展二稿配色一直卡着，不想被家里催着掺和徐家事务',
             'impressions': [],
             'aff_delta_last': 0,
+            'resentment': 0,
+            'last_shift_kind': '',
         },
         '徐承邺': {
             'mood': '',
@@ -155,6 +161,8 @@ def default_npc_mind():
             'preoccupation': '外地并购谈判拉锯中，急着在母亲面前做出亮眼实绩',
             'impressions': [],
             'aff_delta_last': 0,
+            'resentment': 0,
+            'last_shift_kind': '',
         },
     }
 
@@ -1662,12 +1670,18 @@ def normalize_state(raw):
                     if itxt:
                         clean_imps.append({'text': itxt, 'ttl': 4})
         aff_delta = max(-20, min(20, _parse_int(rm.get('aff_delta_last'), 0)))
+        resentment = max(0, min(100, _parse_int(rm.get('resentment'), 0)))
+        shift_kind = str(rm.get('last_shift_kind') or '').strip()
+        if shift_kind not in ('', 'coy_fluster', 'warm_gain', 'true_friction'):
+            shift_kind = ''
         base['npc_mind'][name] = {
             'mood': mood_txt,
             'mood_ttl': mood_ttl,
             'preoccupation': preocc,
             'impressions': clean_imps[-2:],
             'aff_delta_last': aff_delta,
+            'resentment': resentment,
+            'last_shift_kind': shift_kind,
         }
     if isinstance(raw.get('lifecycle'), dict):
         base['lifecycle'].update(copy.deepcopy(raw['lifecycle']))

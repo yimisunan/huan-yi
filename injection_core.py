@@ -718,14 +718,15 @@ def process_desire_stamina_system(
     host_desire=0,
     host_vigor=100,
     edging_streak=0,
+    coy_chars=None,
 ):
     """
     语义化规则包：生理体力与欲望高潮后台计算引擎
-    接管欲望自然渗漏、复合感官刺激、招牌敏感带协同、刺激上限(80)、临界突破(100，含体液锁定期与魅力协同)、
+    接管欲望自然渗漏、复合感官刺激、招牌敏感带协同、欲拒还迎禁忌拉扯悸动、刺激上限(80)、临界突破(100，含体液锁定期与魅力协同)、
     隐私潜行肾上腺素、同源高潮增速调制(含1.50x软顶/耐力见底阻尼/极限控场/内射惯性)、场景切换回落、被动Lv.3双倍消耗、
     体力消耗、三阶体液锁定、自慰暗中纾解与自动高潮清算。
     """
-    if (not ds_events and not creampie_chars and not active_cast) or not os.path.exists(memory_file):
+    if (not ds_events and not creampie_chars and not active_cast and not coy_chars) or not os.path.exists(memory_file):
         return {}
         
     with open(memory_file, "r", encoding="utf-8") as f:
@@ -737,12 +738,17 @@ def process_desire_stamina_system(
     charm_info = charm_tier_info(host_charm)
     bd_map = body_dev if isinstance(body_dev, dict) else {}
     acts_map = body_acts if isinstance(body_acts, dict) else {}
+    coy_set = set(coy_chars or ())
     iter_items = list((ds_events or {}).items())
     seen_chars = {c for c, _ in iter_items}
     for c_extra in (creampie_chars or ()):
         if c_extra not in seen_chars:
             iter_items.append((c_extra, []))
             seen_chars.add(c_extra)
+    for c_coy in coy_set:
+        if c_coy not in seen_chars:
+            iter_items.append((c_coy, []))
+            seen_chars.add(c_coy)
     passive_only_chars = set()
     for c_cast in (active_cast or ()):
         if c_cast in save_store.HEROINES and c_cast not in seen_chars:
@@ -778,9 +784,10 @@ def process_desire_stamina_system(
         char_acts = list(acts_map.get(char_name) or ())
         sig_zone = save_store.HEROINE_SIGNATURE_ZONES.get(char_name)
         sig_hit = bool(sig_zone and sig_zone in char_acts)
+        is_coy = char_name in coy_set
         
         seepage_eligible = (cur_shame < 40 and cur_aff > 75)
-        if char_name in passive_only_chars and not seepage_eligible and not sig_hit:
+        if char_name in passive_only_chars and not seepage_eligible and not sig_hit and not is_coy:
             continue
 
         new_des = cur_des
@@ -826,16 +833,21 @@ def process_desire_stamina_system(
             elif tag == _event_tag('DS_16'): raw_org_add += _event_param('DS_16', 'new_org_01'); has_active_arousal = True
             elif tag == _event_tag('DS_18'): has_self_relief = True
             
-        # 3. 多通道复合感官刺激（主通道全额 + 次通道 50% 协同，单回合上限 +5；羞耻 > 80 时视觉保留 +1 悸动底线，任意官能 Buff 下全额放行）
+        # 3. 多通道复合感官刺激（主通道全额 + 次通道 50% 协同，单回合上限 +5；羞耻 > 80 时视觉保留 +1 悸动底线，欲拒还迎放宽至 +2，任意官能 Buff 下全额放行）
         char_buffs = parsed_buffs.get(char_name) or []
         if cur_shame > 80 and sensory_visual > 0:
             if not _has_sensual_buff(char_buffs):
-                sensory_visual = min(sensory_visual, 1)
+                sensory_visual = min(sensory_visual, 2 if is_coy else 1)
         s_vals = sorted([sensory_visual, sensory_smell, sensory_audio], reverse=True)
         sensory_add = min(5, int(round(s_vals[0] + 0.5 * (s_vals[1] + s_vals[2]))))
         new_des += sensory_add
 
-        # 3.5 空间隐私潜行肾上腺素 (+2)、招牌敏感带命中 (+3) 与高魅力压迫协同 (+2)
+        # 3.5 欲拒还迎禁忌拉扯悸动 (+3)、空间隐私潜行肾上腺素 (+2)、招牌敏感带命中 (+3) 与高魅力压迫协同 (+2)
+        if is_coy:
+            coy_des_add = _event_param('AFFECTION_12', 'desire_bonus_02')
+            new_des += coy_des_add
+            has_active_arousal = True
+            print(f" [欲望引擎] 💓 {char_name} 触发【欲拒还迎·禁忌拉扯悸动】，欲望额外 +{coy_des_add}。")
         if sig_hit:
             new_des += 3
             has_active_arousal = True
@@ -937,11 +949,84 @@ def process_desire_stamina_system(
     return computed_changes
 
 
-def process_affection_system(affection_events, shame_events, memory_file, *, business_leverage=False, leverage_meta=None, su_85_unlocked=None, unlock_out=None, host_charm=None):
+COY_AFF_FLOORS = {
+    "沈知韫": 70,
+    "苏婉青": 60,
+    "徐念薇": 58,
+}
+
+
+def compute_tension_profile(
+    char_name,
+    *,
+    cur_aff=50,
+    cur_shame=100,
+    cur_des=0,
+    cur_dep=0,
+    cur_passive=0,
+    privacy='open_public',
+    has_buff=False,
+    resentment=0,
+):
+    """Dual-Control (SES Approach vs SIS Inhibition) tension synthesis shared by backend settlement and foreground brief."""
+    aff = max(0, min(100, int(cur_aff or 0)))
+    shame = max(0, min(100, int(cur_shame if cur_shame is not None else 100)))
+    des = max(0, min(100, int(cur_des or 0)))
+    dep = max(0, min(100, int(cur_dep or 0)))
+    pas = max(0, int(cur_passive or 0))
+    res = max(0, min(100, int(resentment or 0)))
+    aff_floor = COY_AFF_FLOORS.get(char_name, 65)
+
+    approach = min(
+        100,
+        max(0, int(round(0.45 * aff + 0.35 * des + 0.20 * dep + (10 if has_buff else 0) + (5 if pas >= 2 else 0)))),
+    )
+    priv_mod = 12 if privacy == 'open_public' else (-8 if privacy == 'locked_private' else 0)
+    inhibition = min(100, max(0, int(round(shame + priv_mod))))
+    tension = min(approach, inhibition)
+    res_block = int(_event_param('AFFECTION_12', 'resentment_block_03'))
+
+    if res >= res_block:
+        quadrant = 'resentful'
+    elif aff < aff_floor and des < 35 and dep < 15 and not has_buff:
+        quadrant = 'true_reject'
+    elif (approach >= 48 or (aff >= aff_floor and des >= 40)) and inhibition >= 60 and tension >= 40:
+        quadrant = 'coy_tension'
+    elif approach >= 55 and inhibition < 60:
+        quadrant = 'yielding'
+    else:
+        quadrant = 'neutral'
+
+    return {
+        'approach': approach,
+        'inhibition': inhibition,
+        'tension': tension,
+        'quadrant': quadrant,
+        'resentment': res,
+        'aff_floor': aff_floor,
+    }
+
+
+def process_affection_system(
+    affection_events,
+    shame_events,
+    memory_file,
+    *,
+    business_leverage=False,
+    leverage_meta=None,
+    su_85_unlocked=None,
+    unlock_out=None,
+    host_charm=None,
+    resentment_map=None,
+    privacy='open_public',
+    active_cast=None,
+    ds_events=None,
+    coy_out=None,
+):
     """
     语义化规则包：好感度畸变与阻滞计算引擎
     监听 SHAME_EVENTS 中的越界行为，结合当前面板实现自动掉分、高羞耻完好防线修正、合理化闭环、
-    意外撞破自渎把柄折半、高魅力破冰加成与越界缓和及被动 Lv.2 减半。
+    五重安全闸欲拒还迎表里翻正、意外撞破自渎把柄折半、高魅力破冰加成与越界缓和及被动 Lv.2 减半。
     处理苏婉青的 85 分背德天花板持久化锁死，以及商业杠杆（C烈度越界好感惩罚减半，可与被动 Lv.2 叠加）。
     """
     if not affection_events and not shame_events:
@@ -971,6 +1056,12 @@ def process_affection_system(affection_events, shame_events, memory_file, *, bus
         persisted_su_unlocked = bool(su_85_unlocked)
         
     computed_changes = {}
+    parsed_buffs_all = parse_persistent_buffs(content)
+    res_map = resentment_map if isinstance(resentment_map, dict) else {}
+    cast_list = list(active_cast or ())
+    ds_map = ds_events if isinstance(ds_events, dict) else {}
+    coy_tag = _event_tag('AFFECTION_12')
+    coy_res_block = int(_event_param('AFFECTION_12', 'resentment_block_03'))
     
     # 只要在好感字典或羞耻字典里出现的角色，统统拉出来接受结算
     all_chars = set(affection_events.keys() if affection_events else []).union(
@@ -980,6 +1071,8 @@ def process_affection_system(affection_events, shame_events, memory_file, *, bus
         match_aff = re.search(rf"\[{re.escape(char_name)}\].*?好感\s*(-?\d+)", content)
         match_shame = re.search(rf"\[{re.escape(char_name)}\].*?羞耻\s*(-?\d+)", content)
         match_dep = re.search(rf"\[{re.escape(char_name)}\].*?堕落\s*(-?\d+)", content)
+        match_des = re.search(rf"\[{re.escape(char_name)}\].*?欲望\s*(-?\d+)", content)
+        match_sta = re.search(rf"\[{re.escape(char_name)}\].*?体力\s*(-?\d+)", content)
         match_pas = re.search(rf"\[{re.escape(char_name)}\].*?被动\s*Lv\.?(\d+)", content)
         
         if not (match_aff and match_shame):
@@ -988,37 +1081,75 @@ def process_affection_system(affection_events, shame_events, memory_file, *, bus
         cur_aff = int(match_aff.group(1))
         cur_shame = int(match_shame.group(1))
         cur_dep = int(match_dep.group(1)) if match_dep else 0
+        cur_des = int(match_des.group(1)) if match_des else 0
+        cur_sta = int(match_sta.group(1)) if match_sta else 100
         cur_passive = int(match_pas.group(1)) if match_pas else 0
+        cur_res = max(0, min(100, int(res_map.get(char_name, 0) or 0)))
         new_aff = cur_aff
         
         a_tags = affection_events.get(char_name, []) if affection_events else []
         s_tags = shame_events.get(char_name, []) if shame_events else []
+        d_tags = ds_map.get(char_name, []) if ds_map else []
         if not isinstance(a_tags, list): a_tags = []
         if not isinstance(s_tags, list): s_tags = []
+        if not isinstance(d_tags, list): d_tags = []
+        char_buffs = parsed_buffs_all.get(char_name) or []
+        has_sensual = _has_sensual_buff(char_buffs)
+
+        # 0. 五重确定性安全硬闸：评估「欲拒还迎_嘴硬心软」是否真正满足表里翻正资格
+        coy_qualified = False
+        if coy_tag in a_tags:
+            has_deep_heavy = (_event_tag('SHAME_03') in s_tags or _event_tag('SHAME_04') in s_tags)
+            has_mid_c = (_event_tag('SHAME_02') in s_tags)
+            coercive_aff = {_event_tag('AFFECTION_01'), _event_tag('AFFECTION_02')}
+            coercive_shame = {_event_tag('SHAME_11'), _event_tag('SHAME_12'), _event_tag('SHAME_13')}
+            aff_floor = COY_AFF_FLOORS.get(char_name, 65)
+            is_crowded_public = (privacy == 'open_public') and (len(cast_list) >= 2 or '徐承邺' in cast_list)
+
+            block_reason = ''
+            if cur_res >= coy_res_block:
+                block_reason = f'真实反感裂痕({cur_res}≥{coy_res_block})锁死'
+            elif not (cur_aff >= aff_floor or cur_des >= 40 or cur_dep >= 15 or has_sensual):
+                block_reason = f'感情与生理未达准入(好感{cur_aff}<{aff_floor}且欲望{cur_des}<40)'
+            elif (has_deep_heavy and cur_shame >= 55) or (has_mid_c and cur_shame >= 80 and cur_des < 45 and not has_sensual):
+                block_reason = f'高羞耻({cur_shame})越界烈度超窗'
+            elif (set(a_tags) & coercive_aff) or (set(s_tags) & coercive_shame) or (_event_tag('DS_10') in d_tags) or cur_sta <= 15:
+                block_reason = '存在强迫/剧烈抗拒/解离或生理断电'
+            elif is_crowded_public and (has_mid_c or has_deep_heavy):
+                block_reason = '公开多人场禁中深度欲拒还迎翻正'
+
+            if not block_reason:
+                coy_qualified = True
+                if isinstance(coy_out, set):
+                    coy_out.add(char_name)
+                print(f" [好感引擎] 💞 {char_name} 通过五重安全闸，触发【欲拒还迎·表里翻正】：免除本轮轻中越界扣分并转为正向心动。")
+            else:
+                print(f" [好感引擎] 🚫 {char_name} 未通过【欲拒还迎】安全闸（{block_reason}），驳回翻正并按真实防线结算。")
         
         # 1. 越界联动下降机制 (跨模块监听 SHAME_EVENTS；当羞耻>=85且堕落<15且未达被动Lv.4时防线完好，亲情/长辈高好感不享受>60越界轻判)
         intact_defense = (cur_shame >= 85 and cur_dep < 15 and cur_passive < 4)
         eff_aff = min(60, cur_aff) if intact_defense else cur_aff
         violation_drop = 0
-        if _event_tag('SHAME_04') in s_tags:
-            if eff_aff > _event_param('SHAME_04', 'cur_aff_03'): violation_drop -= _event_param('SHAME_04', 'violation_drop_05') if cur_shame < _event_param('SHAME_04', 'cur_shame_04') else _event_param('SHAME_04', 'violation_drop_06')
-            elif eff_aff >= _event_param('SHAME_04', 'cur_aff_07'): violation_drop -= _event_param('SHAME_04', 'violation_drop_08')
-            else: violation_drop -= _event_param('SHAME_04', 'violation_drop_09')
-        elif _event_tag('SHAME_03') in s_tags:
-            if eff_aff > _event_param('SHAME_03', 'cur_aff_03'): violation_drop -= _event_param('SHAME_03', 'violation_drop_05') if cur_shame < _event_param('SHAME_03', 'cur_shame_04') else _event_param('SHAME_03', 'violation_drop_06')
-            elif eff_aff >= _event_param('SHAME_03', 'cur_aff_07'): violation_drop -= _event_param('SHAME_03', 'violation_drop_08')
-            else: violation_drop -= _event_param('SHAME_03', 'violation_drop_09')
-        elif _event_tag('SHAME_02') in s_tags:
-            if eff_aff > _event_param('SHAME_02', 'cur_aff_03'): violation_drop -= _event_param('SHAME_02', 'violation_drop_05') if cur_shame < _event_param('SHAME_02', 'cur_shame_04') else _event_param('SHAME_02', 'violation_drop_06')
-            elif eff_aff >= _event_param('SHAME_02', 'cur_aff_07'): violation_drop -= _event_param('SHAME_02', 'violation_drop_08')
-            else: violation_drop -= _event_param('SHAME_02', 'violation_drop_09')
-        elif _event_tag('SHAME_01') in s_tags:
-            if eff_aff > _event_param('SHAME_01', 'cur_aff_02'): violation_drop -= _event_param('SHAME_01', 'violation_drop_04') if cur_shame < _event_param('SHAME_01', 'cur_shame_03') else _event_param('SHAME_01', 'violation_drop_05')
-            elif eff_aff >= _event_param('SHAME_01', 'cur_aff_06'): violation_drop -= _event_param('SHAME_01', 'violation_drop_07')
-            else: violation_drop -= _event_param('SHAME_01', 'violation_drop_08')
+        if not coy_qualified:
+            if _event_tag('SHAME_04') in s_tags:
+                if eff_aff > _event_param('SHAME_04', 'cur_aff_03'): violation_drop -= _event_param('SHAME_04', 'violation_drop_05') if cur_shame < _event_param('SHAME_04', 'cur_shame_04') else _event_param('SHAME_04', 'violation_drop_06')
+                elif eff_aff >= _event_param('SHAME_04', 'cur_aff_07'): violation_drop -= _event_param('SHAME_04', 'violation_drop_08')
+                else: violation_drop -= _event_param('SHAME_04', 'violation_drop_09')
+            elif _event_tag('SHAME_03') in s_tags:
+                if eff_aff > _event_param('SHAME_03', 'cur_aff_03'): violation_drop -= _event_param('SHAME_03', 'violation_drop_05') if cur_shame < _event_param('SHAME_03', 'cur_shame_04') else _event_param('SHAME_03', 'violation_drop_06')
+                elif eff_aff >= _event_param('SHAME_03', 'cur_aff_07'): violation_drop -= _event_param('SHAME_03', 'violation_drop_08')
+                else: violation_drop -= _event_param('SHAME_03', 'violation_drop_09')
+            elif _event_tag('SHAME_02') in s_tags:
+                if eff_aff > _event_param('SHAME_02', 'cur_aff_03'): violation_drop -= _event_param('SHAME_02', 'violation_drop_05') if cur_shame < _event_param('SHAME_02', 'cur_shame_04') else _event_param('SHAME_02', 'violation_drop_06')
+                elif eff_aff >= _event_param('SHAME_02', 'cur_aff_07'): violation_drop -= _event_param('SHAME_02', 'violation_drop_08')
+                else: violation_drop -= _event_param('SHAME_02', 'violation_drop_09')
+            elif _event_tag('SHAME_01') in s_tags:
+                if eff_aff > _event_param('SHAME_01', 'cur_aff_02'): violation_drop -= _event_param('SHAME_01', 'violation_drop_04') if cur_shame < _event_param('SHAME_01', 'cur_shame_03') else _event_param('SHAME_01', 'violation_drop_05')
+                elif eff_aff >= _event_param('SHAME_01', 'cur_aff_06'): violation_drop -= _event_param('SHAME_01', 'violation_drop_07')
+                else: violation_drop -= _event_param('SHAME_01', 'violation_drop_08')
 
         raw_violation_drop = violation_drop
-        if violation_drop == _event_param('SHAME_04', 'violation_drop_10') and (_event_tag('SHAME_04') in s_tags or _event_tag('SHAME_03') in s_tags or _event_tag('SHAME_02') in s_tags or _event_tag('SHAME_01') in s_tags):
+        if (not coy_qualified) and violation_drop == _event_param('SHAME_04', 'violation_drop_10') and (_event_tag('SHAME_04') in s_tags or _event_tag('SHAME_03') in s_tags or _event_tag('SHAME_02') in s_tags or _event_tag('SHAME_01') in s_tags):
             print(f" [好感引擎] 💖 {char_name} 触发【合理化闭环】！好感与羞耻达标，潜意识自我保护启动，未造成好感下降。")
 
         # 意外撞破_私密自渎（把柄在握+身体诚实情动）：当轮C烈度越界好感惩罚自动减半
@@ -1029,8 +1160,7 @@ def process_affection_system(affection_events, shame_events, memory_file, *, bus
 
         # 官能辅助道具 BUFF（含静态 SHOP、AI 动态进货 DYN-* 与眼罩滚轮）：轻/中度越界（SHAME_01/02）好感惩罚减半
         if violation_drop < 0 and (_event_tag('SHAME_01') in s_tags or _event_tag('SHAME_02') in s_tags):
-            char_buffs = parse_persistent_buffs(content).get(char_name) or []
-            if _has_sensual_buff(char_buffs):
+            if has_sensual:
                 halved_buff = int(violation_drop / 2)
                 print(f" [好感引擎] 🕯️ {char_name} 触发【官能辅助 BUFF 缓和】：轻中度越界好感惩罚减半 {violation_drop} -> {halved_buff}")
                 violation_drop = halved_buff
@@ -1062,7 +1192,7 @@ def process_affection_system(affection_events, shame_events, memory_file, *, bus
             print(f" [好感引擎] ⚖️ {char_name} 触发【商业杠杆】：越界好感惩罚减半 {violation_drop} -> {halved}")
             violation_drop = halved
 
-        # 多重减免硬护栏：未达合理化闭环（原始惩罚 < 0）时，总减免封顶 75% 且保底至少 -1（杜绝 int(-1/2)==0 归零漏洞）
+        # 多重减免硬护栏：未达合理化闭环且非欲拒还迎合格翻正（原始惩罚 < 0）时，总减免封顶 75% 且保底至少 -1（杜绝 int(-1/2)==0 归零漏洞）
         if raw_violation_drop < 0:
             min_penalty = -max(1, int(round(abs(raw_violation_drop) * 0.25)))
             if violation_drop > min_penalty:
@@ -1096,6 +1226,9 @@ def process_affection_system(affection_events, shame_events, memory_file, *, bus
                 new_aff += g; positive_gain += g
             elif tag == _event_tag('AFFECTION_11'):
                 g = _event_param('AFFECTION_11', 'new_aff_01')
+                new_aff += g; positive_gain += g
+            elif tag == coy_tag and coy_qualified:
+                g = _event_param('AFFECTION_12', 'new_aff_01')
                 new_aff += g; positive_gain += g
         if positive_gain > 0 and charm_info['aff_bonus'] > 0:
             new_aff += charm_info['aff_bonus']
@@ -4047,24 +4180,33 @@ def apply_story_events(events, task_issue, memory_round, *, business_leverage=Fa
             panels.setdefault(who, {})['羞耻'] = val
         _flush_sim()
 
+    resentment_map = {
+        h: int(((state.get('npc_mind') or {}).get(h) or {}).get('resentment', 0) or 0)
+        for h in save_store.HEROINES
+    }
+    coy_chars = set()
     if shame or norm_events['affection_events']:
         for who, val in process_affection_system(
             norm_events['affection_events'], shame, MEMORY_FILE,
             business_leverage=business_leverage, leverage_meta=leverage_meta,
             su_85_unlocked=bool(state['mechanics'].get('su_affection_85_unlocked')),
             unlock_out=unlock_out, host_charm=host_charm,
+            resentment_map=resentment_map, privacy=eff_privacy,
+            active_cast=active_cast, ds_events=norm_events['ds_events'],
+            coy_out=coy_chars,
         ).items():
             panels.setdefault(who, {})['好感'] = val
         _flush_sim()
 
     heroine_cast = [c for c in (active_cast or ()) if c in save_store.HEROINES]
     auto_climax = set()
-    if norm_events['ds_events'] or creampie_chars or heroine_cast:
+    if norm_events['ds_events'] or creampie_chars or heroine_cast or coy_chars:
         for who, values in process_desire_stamina_system(
             norm_events['ds_events'], MEMORY_FILE, creampie_chars=creampie_chars,
             active_cast=heroine_cast, host_charm=host_charm, privacy=eff_privacy,
             climax_out=auto_climax, body_dev=body_dev_now, body_acts=body_acts,
             host_desire=host_desire_now, host_vigor=host_vigor_now, edging_streak=edging_streak_now,
+            coy_chars=coy_chars,
         ).items():
             panels.setdefault(who, {}).update({k: values[k] for k in ('欲望', '体力', '高潮')})
         climax_tag = _event_tag('DS_17')
@@ -4136,7 +4278,13 @@ def apply_story_events(events, task_issue, memory_round, *, business_leverage=Fa
             for key, val in reward.items(): host[key] += val
             with open(MEMORY_FILE, 'w', encoding='utf-8') as handle:
                 handle.write(_simulate_panel(content, {'系统宿主': host}))
-    return {'leverage_meta': leverage_meta, 'normalized_events': norm_events, 'mechanics_notes': mech_notes, 'auto_climax': sorted(auto_climax)}
+    return {
+        'leverage_meta': leverage_meta,
+        'normalized_events': norm_events,
+        'mechanics_notes': mech_notes,
+        'auto_climax': sorted(auto_climax),
+        'coy_chars': sorted(coy_chars),
+    }
 
 
 def consume_story_recovery_item(item_id, recovery, memory_round):

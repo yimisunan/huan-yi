@@ -12,7 +12,7 @@
 flowchart LR
     subgraph Sources["权威原源 (SSOT · 唯一允许手工编辑处)"]
         CFG["txt文件/互动运行配置.json\n(地点/别名/双轨体力/记忆预算)"]
-        EVT["txt文件/事件注册表.json\n(6组 85个事件ID与算分参数)"]
+        EVT["txt文件/事件注册表.json\n(6组 86个事件ID与算分参数)"]
         REL["txt文件/关系称谓库.json\n(7实体/12类型/13事实/17角色/4场合/5身份规则/3信念)"]
         KB["txt文件/知识库/*.json\n(4库 24条目 · ST-v1格式)"]
         SEC["txt文件/隐秘守卫注册表.json\n(4条暗线守卫 S01~S04 + 4人话量预算)"]
@@ -126,9 +126,9 @@ flowchart LR
 }
 ```
 
-### 2.2 `txt文件/事件注册表.json`（6 组 85 条）
+### 2.2 `txt文件/事件注册表.json`（6 组 86 条）
 - 顶层：`{"version": 1, "groups": {<group>: [EventEntry, ...]}}`。
-- 6 个事件组规模：`shame_events` (20，含 `SHAME_03` 好感联动、`SHAME_10` 确诊怀孕 `-30` 且锁顶 `<=35`、`SHAME_19` `心理破冰_暧昧试探`、`SHAME_20` `意外撞破_私密自渎`) · `depravity_events` (10，含 `DEPRAVITY_07/08/09` 渐进堕落与 `DEPRAVITY_10` `堕落_私密自渎`) · `ds_events` (18，含 `DS_05` 高潮回落、`DS_12` `恢复_小憩` `+15`、`DS_17` 绝顶体力扣减与 `DS_18` `自慰_暗中纾解`) · `affection_events` (11，含 `AFFECTION_10/11` 60+ 非越界成长) · **`host_events` (16**，含动态正则模板 `HOST_12: 兑换道具_X` 与新增 **`HOST_16: 情欲操控_温水攻心`** `+5分/+3经`) · `vigilance_events` (10)。
+- 6 个事件组规模：`shame_events` (20，含 `SHAME_03` 好感联动、`SHAME_10` 确诊怀孕 `-30` 且锁顶 `<=35`、`SHAME_19` `心理破冰_暧昧试探`、`SHAME_20` `意外撞破_私密自渎`) · `depravity_events` (10，含 `DEPRAVITY_07/08/09` 渐进堕落与 `DEPRAVITY_10` `堕落_私密自渎`) · `ds_events` (18，含 `DS_05` 高潮回落、`DS_12` `恢复_小憩` `+15`、`DS_17` 绝顶体力扣减与 `DS_18` `自慰_暗中纾解`) · `affection_events` (12，含 `AFFECTION_10/11` 60+ 非越界成长与 `AFFECTION_12` `欲拒还迎_嘴硬心软`) · **`host_events` (16**，含动态正则模板 `HOST_12: 兑换道具_X` 与新增 **`HOST_16: 情欲操控_温水攻心`** `+5分/+3经`) · `vigilance_events` (10)。
 - 单条目固定 7 键：`id` (`^[A-Z]+_[0-9]{2}$`)、`tag`、`parameters`（具名数值字典）、`parameter_usage`（同键用途说明）、`description`、`pattern`（`null` 或模板正则）、`shared_parameters`（禁止循环或多级转引）。
 
 ### 2.3 `txt文件/关系称谓库.json` 与 `关系称谓查询.jsonl`
@@ -202,7 +202,7 @@ flowchart LR
 
 `存档/` 为完全自包含的累积事实层，单目录迁移即可在无 `.round-runtime/` 与 `data.json` 时零 500 恢复运行态：
 
-- **`存档/save_state.json`（唯一机器状态真相）**：包含 `version: 2`、`panels`（开局默认：沈知韫 `好感 82 / 羞耻 100`、徐念薇 `好感 30 / 羞耻 96`、苏婉青 `好感 40 / 羞耻 92`，无徐承邺面板）、`presence`、`micro_states`、`buffs`、`counters`、**`mechanics`**、**`intimate`（`sub_location`、`privacy`、`clothing_state`、`intimate_beat`、`present_actors`、`active_scene_location`，及 v4 持久化子结构 `host_phys`、`body_dev`、`keepsakes`、`session_charm_gained`）**、`vigilance`、`tasks`（含 `pending_items` 队列）、`items`（`next_seq` + **`active` / `deployed` / `delivered`（封顶 40）/ `history`（封顶 50）四分仓** + `giftable` / `category` / `usage_mode` / `spot` / `hidden` / `installed_clock` / **`detected_risk`**）、`shop`（`redeemed` / `recent` / `echoes` / **`dynamic_catalog`** / `next_dyn_seq`）、`intel`（含 `held` / `consumed` / `su_ab_contacts` / `leverage_armed` / **`leverage_charges` `0..3`**）、`director`（含 **`sensual_drought`** / **`heroine_cd`**）、**`npc_mind`（4 人 `沈知韫/苏婉青/徐念薇/徐承邺` 的持久化暗箱心智：`mood`/`mood_ttl`/`preoccupation`/`impressions[<=2]`/`aff_delta_last`，仅喂给 AI 不暴露至前端）**、`lifecycle`、`runtime` 及 **`rendered_sha256`**（SHA-256 匹配时零解析直读 JSON，仅当遗留引擎沙盒改动 `.txt` 时经窄边界 `harvest_engine_txt_mutations()` 收割变动字段，严格不碰 `memory_store.json` 或 JSON 原生子系统）。
+- **`存档/save_state.json`（唯一机器状态真相）**：包含 `version: 2`、`panels`（开局默认：沈知韫 `好感 82 / 羞耻 100`、徐念薇 `好感 30 / 羞耻 96`、苏婉青 `好感 40 / 羞耻 92`，无徐承邺面板）、`presence`、`micro_states`、`buffs`、`counters`、**`mechanics`**、**`intimate`（`sub_location`、`privacy`、`clothing_state`、`intimate_beat`、`present_actors`、`active_scene_location`，及 v4 持久化子结构 `host_phys`、`body_dev`、`keepsakes`、`session_charm_gained`）**、`vigilance`、`tasks`（含 `pending_items` 队列）、`items`（`next_seq` + **`active` / `deployed` / `delivered`（封顶 40）/ `history`（封顶 50）四分仓** + `giftable` / `category` / `usage_mode` / `spot` / `hidden` / `installed_clock` / **`detected_risk`**）、`shop`（`redeemed` / `recent` / `echoes` / **`dynamic_catalog`** / `next_dyn_seq`）、`intel`（含 `held` / `consumed` / `su_ab_contacts` / `leverage_armed` / **`leverage_charges` `0..3`**）、`director`（含 **`sensual_drought`** / **`heroine_cd`**）、**`npc_mind`（4 人 `沈知韫/苏婉青/徐念薇/徐承邺` 的持久化暗箱心智：`mood`/`mood_ttl`/`preoccupation`/`impressions[<=2]`/`aff_delta_last`/`resentment (0..100)`/`last_shift_kind`（`''/coy_fluster/warm_gain/true_friction`），仅喂给 AI 与结算引擎，严禁暴露至前端）**、`lifecycle`、`runtime` 及 **`rendered_sha256`**（SHA-256 匹配时零解析直读 JSON，仅当遗留引擎沙盒改动 `.txt` 时经窄边界 `harvest_engine_txt_mutations()` 收割变动字段，严格不碰 `memory_store.json` 或 JSON 原生子系统）。
 - **`存档/memory_store.json`（v2 三轨结构化记忆真相，取代旧 `存档/四层记忆.json`）**：
   - `version: 2`、`prologue_active`、`next_anchor_seq` / `next_episode_seq` / `next_chronicle_seq`；
   - `anchors`（上限 60）与 `resolved_anchors`（上限 40）：永久事实/约定/转折/线索/秘密锚点，单条含 `id`/`kind`/`importance`/`day`/`entities`/`known_by`/`text`，经 K01 绝密硬守卫自动剥离越权知情者；

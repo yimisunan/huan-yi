@@ -868,6 +868,23 @@
         "description": "危机并肩_实质破局；协助化解商业、画展或查岗实质危机，数值不由模型计算。",
         "pattern": null,
         "shared_parameters": []
+      },
+      {
+        "id": "AFFECTION_12",
+        "tag": "欲拒还迎_嘴硬心软",
+        "parameters": {
+          "new_aff_01": 1,
+          "desire_bonus_02": 3,
+          "resentment_block_03": 25
+        },
+        "parameter_usage": {
+          "new_aff_01": "new_aff 欲拒还迎翻正基值",
+          "desire_bonus_02": "new_des 禁忌拉扯悸动附加",
+          "resentment_block_03": "resentment 真实反感硬拦截阈值"
+        },
+        "description": "欲拒还迎_嘴硬心软；台面嘴硬轻拒/借故岔开，但内隐呼吸发软/泛红/未真推开且通过后端五重安全闸时触发好感反升与悸动，数值不由模型计算。",
+        "pattern": null,
+        "shared_parameters": []
       }
     ],
     "host_events": [

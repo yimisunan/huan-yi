@@ -153,9 +153,16 @@ _SETTLE_BACKEND_MATH_RES = (
     re.compile(r'高潮累积受欲望、堕落、宿主魅力[^。]*。'),
     re.compile(r'（若跨夜入睡时[^）]*上限88）'),
     re.compile(r'；纯A级平和照料回合若目标体力≤25且无消耗标签，后端自动轻缓回神\+5（至多回至30）'),
+    re.compile(r'，失眠由后端按 save_state\.json 的 mechanics\.insomnia_applied 防同夜叠加'),
+    re.compile(r'由后端按 mechanics\.nap_last_day 强拦单日最多1次，'),
+    # Pure Python persistence notes in sys.affection / sys.depravity (preserving all AI trigger rules 100%)
+    re.compile(r'（其中深度操控首次/重复由后端据[^）]*）'),
+    re.compile(r'（即使好感暂未破 85，后续回合仍保持已解锁）'),
+    re.compile(r'（持久化保存于 mechanics\.depravity_unlocked_caps）'),
     # Pure Python RNG math in sys.pregnancy (preserving 内射/外射/潜伏期/确诊怀孕 trigger rules 100%)
     re.compile(r'\(安全期×0\.25[^)]*不进受孕暗骰\)'),
     re.compile(r'，并自动挂载24回合【持续_体液锁定】BUFF（[^）]*）'),
+    re.compile(r'\(determine_cycle_phase / process_pregnancy_rng\)'),
     # Backend counter persistence implementation details in sys.breakout (preserving all 4 breakout & effective_progress rules)
     re.compile(r'并在 breakout_triggered 非空时真实落盘冷却计数[^。]*。'),
 )
@@ -642,6 +649,7 @@ def sanitize_history_for_context(history):
 def compute_zone1_persona_flags(state, memory_text=''):
     """Compute coarse session-freezable persona stage buckets and unlocked secret keys for Zone 1."""
     panel_map = _parse_panel_map((state or {}).get('panels', []))
+    mind_map = (state or {}).get('npc_mind') if isinstance((state or {}).get('npc_mind'), dict) else {}
     cast = (state or {}).get('cast', [])
     char_stage = {}
     for name in cast:
@@ -650,11 +658,17 @@ def compute_zone1_persona_flags(state, memory_text=''):
         stats = panel_map.get(name, {})
         shame_m = re.match(r'-?\d+', str(stats.get('羞耻', '100')))
         dep_m = re.match(r'-?\d+', str(stats.get('堕落', '0')))
+        aff_m = re.match(r'-?\d+', str(stats.get('好感', '0')))
+        des_m = re.match(r'-?\d+', str(stats.get('欲望', '0')))
         shame = int(shame_m.group(0)) if shame_m else 100
         dep = int(dep_m.group(0)) if dep_m else 0
+        aff = int(aff_m.group(0)) if aff_m else 0
+        desire = int(des_m.group(0)) if des_m else 0
+        resentment = int(((mind_map.get(name) or {}).get('resentment') or 0))
+        coy_floor = ic.COY_AFF_FLOORS.get(name, 65)
         if dep >= 35 or shame < 45:
             char_stage[name] = 'stage3'
-        elif shame >= 75 and dep < 15:
+        elif shame >= 75 and dep < 15 and not (shame < 90 and aff >= coy_floor and desire >= 40 and resentment < 25):
             char_stage[name] = 'stage1'
         else:
             char_stage[name] = 'stage2'
@@ -1012,6 +1026,24 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
     cast = (state or {}).get('cast', [])
     location = (state or {}).get('location', '')
 
+    def _heroine_tension_directive(name, tension_prof, last_shift_kind=''):
+        """Translate dual-axis SES/SIS tension & dark-box resentment into concise character-faithful acting cues."""
+        res = int((tension_prof or {}).get('resentment') or 0)
+        quad = str((tension_prof or {}).get('quadrant') or 'neutral')
+        if res >= 50:
+            return '【真实裂痕·严正冷淡】近期粗暴越界或失信已伤及底线，明确抗拒亲近与敷衍哄骗，禁演成嘴硬心软，须见实质道歉与退让方能缓和'
+        if res >= 25:
+            return '【真实裂痕·委屈戒备】因先前越界或压迫仍存真实委屈与戒心，防备收紧且拒走半推半就，须先展现尊重与诚意方渐冰释'
+        if quad == 'coy_tension' or last_shift_kind == 'coy_fluster':
+            if name == '沈知韫':
+                return '【表里拉扯】嘴上端着长辈体面低声轻斥或借正事岔开，耳尖泛红、呼吸发软却未真推开，显出默许试探的隐秘偏心'
+            if name == '苏婉青':
+                return '【表里拉扯】台面仍挂得体礼数与浅笑周旋，指尖微颤、声息放缓却顺水留人，藏不住心防松动与暗中迎合'
+            if name == '徐念薇':
+                return '【表里拉扯】嘴硬嫌弃或拿兄妹规矩轻哼挡驾，耳根透热、眼神躲闪却不肯挪开半步，透出别扭依赖与隐秘心动'
+            return '【表里拉扯】台面矜持轻拒，肢体与呼吸却悄然发软未真抽离，显出口是心非的暗涌拉扯'
+        return ''
+
     def _compile_heroine_line(name, *, remote=False):
         stats = panel_map.get(name, {})
         if not stats:
@@ -1030,22 +1062,44 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
         dep_desc = _heroine_depravity_desc(dep)
         if dep_desc:
             core_parts.append(dep_desc)
-        aff_trend = int(((mind_map.get(name) or {}).get('aff_delta_last') or 0))
-        if aff_trend >= 3:
+        mind_slot = mind_map.get(name) or {}
+        aff_trend = int(mind_slot.get('aff_delta_last') or 0)
+        resentment = int(mind_slot.get('resentment') or 0)
+        shift_kind = str(mind_slot.get('last_shift_kind') or '').strip()
+        if shift_kind == 'coy_fluster':
+            core_parts.append('刚经历嘴硬心软的近距试探，余热与窘迫交织未散')
+        elif shift_kind == 'true_friction' or (not shift_kind and aff_trend < 0):
+            if aff_trend <= -3:
+                core_parts.append('刚因越界或摩擦心生芥蒂，态度明显收冷')
+            else:
+                core_parts.append('刚才略有不快，语气比平日收紧了些')
+        elif aff_trend >= 3:
             core_parts.append('近来对你态度比先前明显松动热络了些')
         elif aff_trend >= 1:
             core_parts.append('近来对你态度比先前略微缓和了半分')
-        elif aff_trend <= -3:
-            core_parts.append('刚因越界或摩擦心生芥蒂，态度明显收冷')
-        elif aff_trend <= -1:
-            core_parts.append('刚才略有不快，语气比平日收紧了些')
+
+        char_buffs = buff_map.get(name, [])
+        if not remote:
+            tension_prof = ic.compute_tension_profile(
+                name,
+                cur_aff=aff,
+                cur_shame=shame,
+                cur_des=desire,
+                cur_dep=dep,
+                cur_passive=lv_num,
+                privacy=str(intl.get('privacy') or 'open_public'),
+                has_buff=bool(char_buffs),
+                resentment=resentment,
+            )
+            tension_dir = _heroine_tension_directive(name, tension_prof, shift_kind)
+            if tension_dir:
+                core_parts.append(tension_dir)
 
         flags = []
         pas_desc = _heroine_passive_desc(lv_num, remote=remote)
         if pas_desc:
             flags.append(pas_desc)
 
-        char_buffs = buff_map.get(name, [])
         if char_buffs:
             b_desc = '、'.join(
                 f'{b["name"]}(剩{b["turns"]}轮:{_strip_buff_math_jargon(b["effect"]) or b["effect"]})'
