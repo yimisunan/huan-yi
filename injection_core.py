@@ -377,7 +377,7 @@ def process_host_system(host_events, shame_events, memory_file):
                     cost = int(tag.split("_")[1])
                     cur_pts -= cost
                     print(f" 🛒 [宿主引擎] 商城兑换，扣除 {cost} 积分。")
-                except:
+                except (ValueError, TypeError):
                     pass
             elif tag == _event_tag('HOST_13'): cur_sta -= _event_param('HOST_13', 'cur_sta_01')
             elif tag == _event_tag('HOST_14'): cur_sta -= _event_param('HOST_14', 'cur_sta_01')
@@ -2962,7 +2962,7 @@ def update_global_memory(current_round, memory_deltas, panel_changes):
     
     with open(MEMORY_FILE, "w", encoding="utf-8") as f:
         f.write(content)
-    # 若 P2 JSON 已存在，同步更新四层记忆.json（清除 prologue_active）
+    # 若 P3 记忆存储已存在，同步更新 memory_store.json（清除 prologue_active），同时保留本轮写入的 L1-L4 文本
     if os.path.exists(os.path.join(BASE_DIR, save_store.MEMORY_LAYERS_PATH)):
         try:
             st_obj, ly_obj, _ = save_store.load_bundle(BASE_DIR)
@@ -2971,7 +2971,22 @@ def update_global_memory(current_round, memory_deltas, panel_changes):
                 {"L1": l1_items, "L2": l2_items, "L3": l3_items, "L4": l4_items},
                 prologue_active=False if new_round else ly_obj.get("prologue_active", False),
             )
+            if new_round and isinstance(ly_obj, dict) and 'episodes' in ly_obj:
+                ly_obj = save_store.record_memory_turn(
+                    ly_obj,
+                    fact=new_round,
+                    day=max(1, int(current_round or 1)),
+                    location=str((st_obj.get('presence') or {}).get('徐志北', {}).get('location') or ''),
+                    day_crossed=True,
+                )
+            st_obj['runtime']['last_closed'] = max(int(st_obj['runtime'].get('last_closed') or 0), int(current_round or 0))
             save_store.save_bundle(BASE_DIR, st_obj, ly_obj)
+            # Only preserve legacy L1-L4 MEMORY_FILE verbatim when L2/L3/L4 legacy layers are populated
+            if l2_items or l3_items or l4_items:
+                with open(MEMORY_FILE, "w", encoding="utf-8") as f:
+                    f.write(content)
+                st_obj.setdefault('rendered_sha256', {})['memory_txt'] = save_store._sha256_bytes(content.encode('utf-8'))
+                save_store._atomic_write_bytes(os.path.join(BASE_DIR, save_store.SAVE_STATE_PATH), save_store._json_bytes(st_obj))
         except Exception:
             pass
         

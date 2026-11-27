@@ -312,6 +312,9 @@ def _resolve_fish_api_key(override_key=None):
     return '', 'none'
 
 
+_PHONEME_CACHE_LOCK = threading.Lock()
+
+
 def _load_phoneme_map():
     """加载专有名词/多音字服务端注音映射（仅对 Fish Audio 请求生效，不污染剧情原文）。"""
     try:
@@ -319,24 +322,25 @@ def _load_phoneme_map():
         mtime = st.st_mtime
     except OSError:
         return None, {}
-    if _PHONEME_CACHE['mtime'] == mtime and _PHONEME_CACHE['pattern'] is not None:
-        return _PHONEME_CACHE['pattern'], _PHONEME_CACHE['mapping']
-    try:
-        with open(PHONEME_MAP_FILE, 'r', encoding='utf-8') as f:
-            raw = json.load(f)
-        mapping = {
-            str(k): str(v)
-            for k, v in (raw.get('safe_auto_replace') or {}).items()
-            if isinstance(k, str) and k and isinstance(v, str) and v
-        }
-        if not mapping:
+    with _PHONEME_CACHE_LOCK:
+        if _PHONEME_CACHE['mtime'] == mtime and _PHONEME_CACHE['pattern'] is not None:
+            return _PHONEME_CACHE['pattern'], _PHONEME_CACHE['mapping']
+        try:
+            with open(PHONEME_MAP_FILE, 'r', encoding='utf-8') as f:
+                raw = json.load(f)
+            mapping = {
+                str(k): str(v)
+                for k, v in (raw.get('safe_auto_replace') or {}).items()
+                if isinstance(k, str) and k and isinstance(v, str) and v
+            }
+            if not mapping:
+                return None, {}
+            ordered = sorted(mapping.keys(), key=len, reverse=True)
+            pattern = re.compile('|'.join(re.escape(k) for k in ordered))
+            _PHONEME_CACHE.update({'mtime': mtime, 'pattern': pattern, 'mapping': mapping})
+            return pattern, mapping
+        except Exception:
             return None, {}
-        ordered = sorted(mapping.keys(), key=len, reverse=True)
-        pattern = re.compile('|'.join(re.escape(k) for k in ordered))
-        _PHONEME_CACHE.update({'mtime': mtime, 'pattern': pattern, 'mapping': mapping})
-        return pattern, mapping
-    except Exception:
-        return None, {}
 
 
 def _apply_fish_phonemes(text):
@@ -1099,10 +1103,10 @@ def add_voice_repo():
     data = request.json or {}
     vid = _normalize_voice_repo_id(data.get('id'))
     if not vid:
-        return jsonify({'status': 'error', 'msg': '缺少音色 ID'}), 400
+        return jsonify({'status': 'error', 'error': '缺少音色 ID', 'msg': '缺少音色 ID'}), 400
     items = _load_voice_repo()
     if any(x['id'] == vid for x in items):
-        return jsonify({'status': 'error', 'msg': '该音色已在语音库中', 'items': items, 'count': len(items)}), 409
+        return jsonify({'status': 'error', 'error': '该音色已在语音库中', 'msg': '该音色已在语音库中', 'items': items, 'count': len(items)}), 409
     items.append({
         'id': vid,
         'name': str(data.get('name') or '').strip(),
@@ -1118,11 +1122,11 @@ def update_voice_repo():
     data = request.json or {}
     vid = _normalize_voice_repo_id(data.get('id'))
     if not vid:
-        return jsonify({'status': 'error', 'msg': '缺少音色 ID'}), 400
+        return jsonify({'status': 'error', 'error': '缺少音色 ID', 'msg': '缺少音色 ID'}), 400
     items = _load_voice_repo()
     target = next((x for x in items if x['id'] == vid), None)
     if target is None:
-        return jsonify({'status': 'error', 'msg': '未找到该收藏音色', 'items': items, 'count': len(items)}), 404
+        return jsonify({'status': 'error', 'error': '未找到该收藏音色', 'msg': '未找到该收藏音色', 'items': items, 'count': len(items)}), 404
     if 'name' in data:
         target['name'] = str(data.get('name') or '').strip()
     if 'note' in data:
@@ -1135,7 +1139,7 @@ def update_voice_repo():
 def delete_voice_repo():
     vid = (request.args.get('id') or '').strip()
     if not vid:
-        return jsonify({'status': 'error', 'msg': '缺少音色 ID'}), 400
+        return jsonify({'status': 'error', 'error': '缺少音色 ID', 'msg': '缺少音色 ID'}), 400
     items = _load_voice_repo()
     before = len(items)
     items = [x for x in items if x['id'] != vid]
@@ -1260,7 +1264,7 @@ def _fish_request_json(url, params=None, timeout=6, retries=0, api_key=None):
             last_err = f"Fish Audio 接口报错 {res.status_code}: {res.text[:300]}"
         except Exception as e:
             last_err = str(e)
-            if attempt < max(1, int(retries)):
+            if attempt < max(0, int(retries)):
                 time.sleep(0.8 * (attempt + 1))
     if last_err:
         print(f"⚠️ Fish Audio 请求失败（已重试）: {last_err}")
@@ -1949,12 +1953,14 @@ def _write_disk_tts_cache(key, audio):
     if not path or not audio or len(audio) > TTS_DISK_CACHE_MAX_BYTES:
         return
     with TTS_DISK_CACHE_LOCK:
+        tmp_path = None
         try:
             os.makedirs(TTS_DISK_CACHE_DIR, exist_ok=True)
             tmp_path = f'{path}.{uuid.uuid4().hex}.tmp'
             with open(tmp_path, 'wb') as f:
                 f.write(audio)
             os.replace(tmp_path, path)
+            tmp_path = None
             entries = []
             total = 0
             for item in Path(TTS_DISK_CACHE_DIR).glob('*.bin'):
@@ -1979,6 +1985,12 @@ def _write_disk_tts_cache(key, audio):
                         continue
         except OSError:
             pass
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
 
 
 def _is_tts_cached(key):
@@ -2132,11 +2144,15 @@ def _stream_cached_tts(key, factory, mimetype='audio/mpeg', extra_headers=None, 
     stopped = threading.Event()
 
     def emit(kind, value):
+        deadline = time.monotonic() + 15.0
         while not stopped.is_set():
             try:
                 messages.put((kind, value), timeout=0.2)
                 return
             except queue.Full:
+                if time.monotonic() >= deadline:
+                    stopped.set()
+                    return
                 continue
 
     def worker():

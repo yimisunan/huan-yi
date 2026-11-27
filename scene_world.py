@@ -38,29 +38,16 @@ class LegacyWorld:
 
     @contextlib.contextmanager
     def read_lock(self):
-        """Use RoundStore's exact locks, but never call its recovery/publish hooks."""
-        import fcntl
+        """Use RoundStore's exact FUSE-safe locks, but never call its recovery/publish hooks."""
         if not self.store.thread_lock.acquire(timeout=10):
             raise rr.ConflictError('旧回合正在提交，请稍后导入')
         try:
             self.store.runtime.mkdir(exist_ok=True)
-            with self.store._path('.round-runtime/lock').open('a+b') as handle:
-                deadline = time.monotonic() + 10
-                while True:
-                    try:
-                        fcntl.lockf(handle, fcntl.LOCK_SH | fcntl.LOCK_NB)
-                        break
-                    except BlockingIOError:
-                        if time.monotonic() >= deadline:
-                            raise rr.ConflictError('旧回合正在提交，请稍后导入')
-                        time.sleep(.05)
-                try:
-                    for name in ('journal.json', 'reset-journal.json'):
-                        if (self.store.runtime/name).exists():
-                            raise rr.RecoveryError('旧存档有未恢复事务；请先由原执行器恢复，再导入')
-                    yield
-                finally:
-                    fcntl.lockf(handle, fcntl.LOCK_UN)
+            with rr.acquire_process_lock(self.root, timeout=10.0, conflict_message='旧回合正在提交，请稍后导入'):
+                for name in ('journal.json', 'reset-journal.json'):
+                    if (self.store.runtime/name).exists():
+                        raise rr.RecoveryError('旧存档有未恢复事务；请先由原执行器恢复，再导入')
+                yield
         finally:
             self.store.thread_lock.release()
 
@@ -224,7 +211,7 @@ class LegacyWorld:
         if positions != sorted(positions):
             raise rr.RoundError('记忆层顺序无效')
         approved = visibility.get('entries', {})
-        json_known_map = {}
+        json_known_queues = {}
         prologue_from_json = False
         if save_store.MEMORY_LAYERS_PATH in texts:
             try:
@@ -239,7 +226,7 @@ class LegacyWorld:
                         if isinstance(kb, list) and kb and set(kb) <= entities:
                             day_i = max(1, int(ep.get('day') or 1))
                             lkey = 'L1' if idx_ep >= max(0, len(eps) - 3) else 'L2'
-                            json_known_map[(lkey, day_i, day_i)] = sorted(set(kb))
+                            json_known_queues.setdefault((lkey, day_i, day_i), []).append(sorted(set(kb)))
                 else:
                     layer_map = layers_meta.get('layers') if isinstance(layers_meta.get('layers'), dict) else layers_meta
                     for lkey in ('L1', 'L2', 'L3', 'L4'):
@@ -250,7 +237,7 @@ class LegacyWorld:
                             if isinstance(kb, list) and kb and set(kb) <= entities:
                                 sr_i = int(j_entry.get('start_round') or j_entry.get('round') or 1)
                                 er_i = int(j_entry.get('end_round') or sr_i)
-                                json_known_map[(lkey, sr_i, er_i)] = sorted(set(kb))
+                                json_known_queues.setdefault((lkey, sr_i, er_i), []).append(sorted(set(kb)))
             except (ValueError, TypeError):
                 prologue_from_json = False
         for index, start in enumerate(positions):
@@ -272,11 +259,13 @@ class LegacyWorld:
                 known = None
                 vis_basis = None
                 sr_i, er_i = int(entry[1]), int(entry[2] or entry[1])
+                q_key = (lkey, sr_i, er_i)
                 if isinstance(rule, dict) and rule.get('basis') and isinstance(rule.get('known_by'), list) and rule['known_by'] and set(rule['known_by']) <= entities:
                     known = sorted(set(rule['known_by']))
                     vis_basis = rule['basis']
-                elif (lkey, sr_i, er_i) in json_known_map:
-                    known = json_known_map[(lkey, sr_i, er_i)]
+                elif json_known_queues.get(q_key):
+                    q = json_known_queues[q_key]
+                    known = q.pop(0) if len(q) > 1 else q[0]
                     vis_basis = 'memory_layers_json'
                 item = record('legacy_memory', '', 'memory', raw, source, known)
                 item.update(layer=lkey, start_round=sr_i, end_round=er_i, text_sha256=fingerprint)

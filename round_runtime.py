@@ -177,7 +177,13 @@ def _memory_state(engine, files):
     state_obj, mem_store, _ = save_store.load_bundle(Path(engine.BASE_DIR), files)
     content = (files[FILES[0]].decode('utf-8') if files.get(FILES[0]) is not None
                else save_store.render_memory_txt(state_obj, mem_store))
-    if files.get(save_store.MEMORY_STORE_PATH) is not None and isinstance(mem_store, dict) and mem_store.get('version') == 2:
+    txt_drifted = False
+    if files.get(FILES[0]) is not None:
+        exp_sha = str((state_obj.get('rendered_sha256') or {}).get('memory_txt') or '')
+        if exp_sha and save_store._sha256_bytes(files[FILES[0]]) != exp_sha:
+            txt_drifted = True
+    if (not txt_drifted and files.get(save_store.MEMORY_STORE_PATH) is not None
+            and isinstance(mem_store, dict) and mem_store.get('version') == 2):
         display_layers = save_store.layer_strings(mem_store)
         if mem_store.get('prologue_active'):
             return content, display_layers, 0
@@ -587,7 +593,7 @@ def _validate_scene_state(raw, active_cast, building_cast=None):
         'intimate_active', 'privacy', 'sub_location', 'present_actors',
         'attire_updates', 'trace_adds', 'inter_heroine_deltas',
         'body_acts', 'host_release', 'keepsake_adds', 'keepsake_updates',
-        'shop_adds',
+        'shop_adds', 'unlock_secrets',
     }
     _keys(raw, allowed_keys, 'scene_state')
     out = {}
@@ -647,7 +653,7 @@ def _validate_scene_state(raw, active_cast, building_cast=None):
                 if not kind:
                     continue
                 desc = str(tr.get('desc') or kind).strip()[:80]
-                turns = int(tr.get('turns') or 4) if isinstance(tr.get('turns'), int) else 4
+                turns = int(tr.get('turns') or 4) if (type(tr.get('turns')) is int) else 4
                 kept.append({'kind': kind, 'desc': desc, 'turns': max(1, min(12, turns)), 'visible': bool(tr.get('visible', True))})
             if kept:
                 clean_ta[who] = kept
@@ -758,6 +764,13 @@ def _validate_scene_state(raw, active_cast, building_cast=None):
             clean_sa.append(entry)
         if clean_sa:
             out['shop_adds'] = clean_sa
+    if 'unlock_secrets' in raw and raw['unlock_secrets'] not in (None, ''):
+        us = raw['unlock_secrets']
+        if not isinstance(us, list) or not all(isinstance(x, str) for x in us):
+            raise RoundError('scene_state.unlock_secrets须为字符串数组')
+        clean_us = list(dict.fromkeys(x.strip()[:48] for x in us[:4] if x.strip()))
+        if clean_us:
+            out['unlock_secrets'] = clean_us
     return out or None
 
 
@@ -1303,6 +1316,11 @@ class RoundStore:
             for leftover in interaction.glob('.*.json.round-tmp-*'):
                 if leftover.is_file() and not leftover.is_symlink():
                     leftover.unlink()
+        save_dir = self._path('存档')
+        if save_dir.is_dir():
+            for leftover in save_dir.glob('.*.ss-tmp-*'):
+                if leftover.is_file() and not leftover.is_symlink():
+                    leftover.unlink()
         for folder in self.runtime.glob('work-*'):
             if folder.is_dir() and not folder.is_symlink():
                 shutil.rmtree(folder)
@@ -1353,15 +1371,33 @@ class RoundStore:
             data['state_version'] = sequence
             data['request_id'] = request_id
             after['data.json'] = _json(data)
-            # Sync JSON truth with settled legacy stage files & re-render views.
-            st_obj, ly_obj, _ = save_store.load_bundle(stage, after, sync_txt_drift=True)
-            st_obj['micro_states'] = copy.deepcopy(micro)
-            st_obj['counters'] = copy.deepcopy(counters)
-            st_obj['lifecycle'] = copy.deepcopy(lifecycle)
-            st_obj['runtime']['last_sequence'] = max(int(st_obj['runtime'].get('last_sequence') or 0), sequence)
-            ly_obj['prologue_active'] = False
-            rendered = save_store.render_bundle_bytes(st_obj, ly_obj, data_dict=data)
-            after.update(rendered)
+            # Sync P3 JSON truth only when the workspace already uses P3 JSON; preserve pure legacy .txt workspaces verbatim.
+            if files.get(save_store.MEMORY_STORE_PATH) is not None or files.get(save_store.SAVE_STATE_PATH) is not None:
+                settled_mem_txt = after[FILES[0]]
+                st_obj, ly_obj, _ = save_store.load_bundle(stage, after, sync_txt_drift=True)
+                st_obj['micro_states'] = copy.deepcopy(micro)
+                st_obj['counters'] = copy.deepcopy(counters)
+                st_obj['lifecycle'] = copy.deepcopy(lifecycle)
+                st_obj['runtime']['last_sequence'] = max(int(st_obj['runtime'].get('last_sequence') or 0), sequence)
+                ly_obj['prologue_active'] = False
+                cur_rnd = max(1, int(body.get('current_round') or 1))
+                st_obj['runtime']['last_closed'] = max(int(st_obj['runtime'].get('last_closed') or 0), cur_rnd)
+                mem_deltas = body.get('memory_deltas') or {}
+                l1_delta = str(mem_deltas.get('l1_new_round') or mem_deltas.get('L1') or '').strip()
+                if l1_delta:
+                    ly_obj = save_store.record_memory_turn(
+                        ly_obj,
+                        fact=l1_delta,
+                        day=cur_rnd,
+                        location=str((st_obj.get('presence') or {}).get('徐志北', {}).get('location') or ''),
+                        day_crossed=True,
+                    )
+                rendered = save_store.render_bundle_bytes(st_obj, ly_obj, data_dict=data)
+                if settled_mem_txt is not None:
+                    rendered[FILES[0]] = settled_mem_txt
+                    st_obj.setdefault('rendered_sha256', {})['memory_txt'] = save_store._sha256_bytes(settled_mem_txt)
+                    rendered[save_store.SAVE_STATE_PATH] = save_store._json_bytes(st_obj)
+                after.update(rendered)
             _, _, end_round = _memory_state(engine, after)
             if end_round != body['current_round']:
                 raise RoundError('结算后的记忆回合与正文不一致')

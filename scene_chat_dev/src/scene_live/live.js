@@ -85,7 +85,8 @@
    if (kind === 'action') heading.append(node('span','kind-label','动作'));
    n.append(heading);
   }
-  n.append(node('div','text',text));
+  const cleanText = String(text || '').replace(/\[[^\]\r\n]{1,180}\]\s*/g, '').replace(/<\/?(?:whisper|emphasis|soft|fast|slow|stress|forceful|chinese|english|japanese|korean|cantonese|french|german|spanish)>/gi, '').replace(/<\|phoneme_start\|>[^<\r\n]{1,40}<\|phoneme_end\|>/g, '').replace(/<\|[^|\r\n]+\|>/g, '').replace(/[｛{]([^｜|}\r\n]+)[｜|]([^｝}\r\n]+)[｝}]/g, '$1（$2）').trim();
+  n.append(node('div','text',cleanText));
   return n;
  }
  function timeline() {

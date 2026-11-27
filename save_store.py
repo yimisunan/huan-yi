@@ -17,7 +17,6 @@ and manual Operit chats; never reverse-parsed during formal live_interaction):
 import copy
 import hashlib
 import json
-import math
 import os
 from pathlib import Path
 import re
@@ -2563,32 +2562,52 @@ def load_bundle(root, files=None, *, sync_txt_drift=True):
         except ValueError:
             pass
 
-    if raw_state and raw_mem_store:
+    def _safe_decode(raw_bytes):
+        if not raw_bytes:
+            return ''
+        return raw_bytes.decode('utf-8', errors='replace')
+
+    parsed_state = None
+    if raw_state:
         try:
-            state = normalize_state(json.loads(raw_state.decode('utf-8')))
-            mem_store = normalize_memory_store(json.loads(raw_mem_store.decode('utf-8')))
+            obj = json.loads(raw_state.decode('utf-8'))
+            if isinstance(obj, dict):
+                parsed_state = normalize_state(obj)
+        except (ValueError, TypeError, AttributeError):
+            parsed_state = None
 
-            if sync_txt_drift:
-                sha = state.get('rendered_sha256') or {}
-                mem_drifted = bool(raw_mem and sha.get('memory_txt') and _sha256_bytes(raw_mem) != sha['memory_txt'])
-                items_drifted = bool(raw_items and sha.get('items_txt') and _sha256_bytes(raw_items) != sha['items_txt'])
-                if mem_drifted or items_drifted:
-                    state = harvest_engine_txt_mutations(
-                        state,
-                        raw_mem.decode('utf-8') if (mem_drifted and raw_mem) else '',
-                        raw_items.decode('utf-8') if (items_drifted and raw_items) else '',
-                    )
-            return state, mem_store, recent
-        except ValueError:
-            pass
+    parsed_mem = None
+    if raw_mem_store:
+        try:
+            obj = json.loads(raw_mem_store.decode('utf-8'))
+            if isinstance(obj, dict):
+                parsed_mem = normalize_memory_store(obj)
+        except (ValueError, TypeError, AttributeError):
+            parsed_mem = None
 
-    # Cold bootstrap only when JSON files do not exist yet
-    state, legacy_layers = migrate_from_legacy_texts(
-        raw_mem.decode('utf-8') if raw_mem else '',
-        raw_items.decode('utf-8') if raw_items else '',
+    if parsed_state is not None and parsed_mem is not None:
+        state, mem_store = parsed_state, parsed_mem
+        if sync_txt_drift:
+            sha = state.get('rendered_sha256') or {}
+            mem_drifted = bool(raw_mem and sha.get('memory_txt') and _sha256_bytes(raw_mem) != sha['memory_txt'])
+            items_drifted = bool(raw_items and sha.get('items_txt') and _sha256_bytes(raw_items) != sha['items_txt'])
+            if mem_drifted or items_drifted:
+                state = harvest_engine_txt_mutations(
+                    state,
+                    _safe_decode(raw_mem) if (mem_drifted and raw_mem) else '',
+                    _safe_decode(raw_items) if (items_drifted and raw_items) else '',
+                )
+        return state, mem_store, recent
+
+    # Partial or cold fallback: rebuild ONLY the missing/corrupt half from legacy texts without discarding the intact JSON.
+    migrated_state, legacy_layers = migrate_from_legacy_texts(
+        _safe_decode(raw_mem),
+        _safe_decode(raw_items),
         data_dict,
     )
-    return state, normalize_memory_store(legacy_layers), recent
+    final_state = parsed_state if parsed_state is not None else migrated_state
+    final_mem = parsed_mem if parsed_mem is not None else normalize_memory_store(legacy_layers)
+    return final_state, final_mem, recent
 
 
 def render_bundle_bytes(state, mem_store, recent=None, *, data_dict=None):

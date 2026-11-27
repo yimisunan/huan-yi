@@ -548,36 +548,80 @@ def restore_save_slot(root, slot_id, *, auto_backup_current=True, request_id=Non
     if auto_backup_current:
         try:
             auto_backup = create_save_slot(root, label='回档前自动备份', kind='auto_before_restore')
-        except Exception:
-            auto_backup = None
+        except Exception as exc:
+            raise RuntimeError('回档前自动备份失败，已中止回档以保护当前存档：' + str(exc)) from exc
 
-    # 清理全部运行时临时与过时缓存，避免旧任务/旧预览污染回档后的存档
-    for item in plan_reset(root):
-        rel = item['path']
-        if rel in restore_sources or rel == EPOCH:
-            continue
-        target = safe(root, rel)
-        if target.exists():
-            remove(target)
-
-    # 写回存档槽内全部核心文件与目录
-    for rel, src in restore_sources.items():
-        dst = safe(root, rel)
-        if src.is_file():
-            if dst.is_dir():
-                remove(dst)
-            atomic(dst, src.read_bytes())
-        else:
-            if dst.exists():
-                remove(dst)
-            copy_saved(src, dst)
-
-    # 若存档槽仅含 P2 JSON（或需同步单向渲染），确认 bundle 一致并补全缺失的 .txt / data.json
-    st, ly, rc = save_store.load_bundle(root)
-    save_store.save_bundle(root, st, ly, rc)
+    # 准备 WAL 事务回滚副本，确保回档中途崩溃或磁盘满时可原子恢复
+    entries = plan_reset(root)
+    existing_paths = {item['path'] for item in entries}
+    for rel in restore_sources:
+        if rel not in existing_paths:
+            entries.append({'path': rel, 'before': inventory(root, rel)})
+    ident = datetime.now().strftime('%Y%m%d_%H%M%S_') + uuid.uuid4().hex
+    backup = safe(root, BACKUPS + '/' + ident)
+    backup.mkdir(parents=True)
+    record = {
+        'version': 1,
+        'id': ident,
+        'phase': 'prepared',
+        'keep_backup': False,
+        'slim_slot_path': None,
+        'entries': entries,
+    }
+    try:
+        for index, item in enumerate(entries):
+            if item['before'] is not None:
+                saved_rel = BACKUPS + '/' + ident + '/slot-' + str(index)
+                copy_saved(safe(root, item['path']), safe(root, saved_rel))
+                if inventory(root, saved_rel) != item['before']:
+                    raise RuntimeError('回档前事务快照不完整，已中止回档')
+        for item in entries:
+            if inventory(root, item['path']) != item['before']:
+                raise RuntimeError('回档前文件发生变化，已中止回档')
+        write_json(backup / 'manifest.json', record)
+        write_json(safe(root, TX), record)
+    except BaseException:
+        if not safe(root, TX).exists():
+            shutil.rmtree(backup, ignore_errors=True)
+        raise
 
     new_epoch = uuid.uuid4().hex
-    write_json(safe(root, EPOCH), {'version': 1, 'epoch': new_epoch, 'request_id': request_id or f'restore-{slot_id}'})
+    try:
+        # 清理全部运行时临时与过时缓存，避免旧任务/旧预览污染回档后的存档
+        for item in entries:
+            rel = item['path']
+            if rel in restore_sources or rel == EPOCH:
+                continue
+            target = safe(root, rel)
+            if target.exists():
+                remove(target)
+
+        # 写回存档槽内全部核心文件与目录
+        for rel, src in restore_sources.items():
+            dst = safe(root, rel)
+            if src.is_file():
+                if dst.is_dir():
+                    remove(dst)
+                atomic(dst, src.read_bytes())
+            else:
+                if dst.exists():
+                    remove(dst)
+                copy_saved(src, dst)
+
+        # 若存档槽仅含 JSON（或需同步单向渲染），确认 bundle 一致并补全缺失的 .txt / data.json
+        st, ly, rc = save_store.load_bundle(root)
+        save_store.save_bundle(root, st, ly, rc)
+
+        write_json(safe(root, EPOCH), {'version': 1, 'epoch': new_epoch, 'request_id': request_id or f'restore-{slot_id}'})
+        record['phase'] = 'committed'
+        write_json(safe(root, TX), record)
+    except BaseException:
+        try:
+            restore_record(root, read_record(root))
+        except Exception as exc:
+            raise RuntimeError('回档中断，恢复副本已保留；停止服务后运行 --recover') from exc
+        raise
+    finish_record(root, record)
     return {
         'status': 'restored',
         'slot_id': slot_id,

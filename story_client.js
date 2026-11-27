@@ -46,12 +46,6 @@
     large: '积分+80 · 经验+50 · 小道具×1'
   };
 
-  const SHOP_TIER_LABELS = {
-    low: '低阶小物（≤10 积分）',
-    mid: '中阶好物（11～50 积分）',
-    high: '高阶臻品（≥60 积分）'
-  };
-
   const SHOP_CATEGORY_ORDER = ['ai_restock', 'sensual', 'covert', 'daily'];
   const SHOP_CATEGORY_LABELS = {
     ai_restock: 'AI 定制进货',
@@ -194,7 +188,6 @@
     ROLE_RESPONSE_PLANNER: 'ROLE_RESPONSE_PLANNER（角色规划）',
   };
   const BRIDGE_BASE_SLOTS = ['SUMMARY', 'TRANSLATION', 'TITLE_GENERATION', 'MEMORY', 'GREP', 'ROLE_RESPONSE_PLANNER', 'CHAT'];
-  const BRIDGE_PRIMARY_SLOTS = ['CHAT', 'SUMMARY', 'TRANSLATION', 'TITLE_GENERATION', 'MEMORY', 'GREP', 'ROLE_RESPONSE_PLANNER'];
 
   const urls = new VoiceClient.AudioUrlStore(8, 16 * 1024 * 1024);
   const audioCache = new Map();
@@ -1772,6 +1765,11 @@
 
   function updatePlateParallax() {
     parallaxRaf = 0;
+    for (const img of Array.from(visiblePlates)) {
+      if (!img || !img.parentElement || (img.isConnected === false)) {
+        visiblePlates.delete(img);
+      }
+    }
     if (reducedMotion()) return;
     const stream = $('stream');
     if (!stream) return;
@@ -3743,6 +3741,8 @@
           + '|' + turnLoc + '|' + prevKind + '|' + lastPlateLoc + '|' + seenSig;
         const cached = segmentDomCache.get(cacheKey);
         if (cached) {
+          segmentDomCache.delete(cacheKey);
+          segmentDomCache.set(cacheKey, cached);
           for (const nd of cached.nodes) out.push(nd);
           prevKind = cached.endPrevKind;
           lastPlateLoc = cached.endPlateLoc;
@@ -3830,9 +3830,11 @@
         prevKind = 'settlement';
       }
       if (canCacheTurn && cacheKey) {
-        if (segmentDomCache.size > 60) {
+        const maxCacheSize = Math.max(80, (history?.length || 0) + 16);
+        while (segmentDomCache.size >= maxCacheSize) {
           const firstKey = segmentDomCache.keys().next().value;
-          if (firstKey !== undefined) segmentDomCache.delete(firstKey);
+          if (firstKey === undefined) break;
+          segmentDomCache.delete(firstKey);
         }
         segmentDomCache.set(cacheKey, {
           nodes: turnNodes,
@@ -5321,7 +5323,8 @@
     const passiveLvNum = passiveLvM ? Number(passiveLvM[1]) : 0;
     const depNum = charPanel.stats['堕落']?.num ?? 0;
     const isPregBool = charPanel.stats['怀孕']?.bool === true;
-    const baseShameCap = Math.max(0, 100 - Math.floor(depNum * 0.6));
+    const depCoef = passiveLvNum >= 4 ? 0.7 : 0.6;
+    const baseShameCap = Math.max(0, 100 - Math.floor(depNum * depCoef));
     const charGuideCtx = {
       name,
       aff: charPanel.stats['好感']?.num ?? 0,
@@ -8148,6 +8151,10 @@
     } finally {
       progressing = false;
       controls();
+      if (restoreQueued) {
+        restoreQueued = false;
+        void restore();
+      }
     }
   }
 
@@ -8553,7 +8560,7 @@
     haptic(14);
     const finalText = rawDraft.trim() || (attached?.defaultAction || '');
     const isPureRec = !attached && /^\s*使用恢复道具\s*[：:]?\s*ITEM-\d+\s*[。！!]?\s*$/.test(finalText);
-    const cost = isPureRec ? 0 : 15;
+    const cost = isPureRec ? 0 : customReserveCost();
     const op = attached?.operation || null;
 
     if (composerSheetOpen) closeComposerSheet();
@@ -9349,12 +9356,27 @@
     if (Number.isInteger(idNum) && idNum > lastSseSeq) lastSseSeq = idNum;
   }
 
+  let lastSseEpoch = '';
+  let readingFocusRaf = 0;
+
+  function scheduleReadingFocus() {
+    if (readingFocusRaf) return;
+    readingFocusRaf = requestAnimationFrame(() => {
+      readingFocusRaf = 0;
+      applyReadingFocus();
+    });
+  }
+
   function connectSSE() {
     if (typeof EventSource === 'undefined' || document.hidden) return;
     if (sse && sse.readyState !== 2) return;
     closeSSE();
     try {
-      const qs = lastSseSeq > 0 ? '?since=' + encodeURIComponent(String(lastSseSeq)) : '';
+      const params = [];
+      if (lastSseSeq > 0) params.push('since=' + encodeURIComponent(String(lastSseSeq)));
+      const knownEpoch = lastSseEpoch || snapshot?.service_epoch || '';
+      if (knownEpoch) params.push('epoch=' + encodeURIComponent(String(knownEpoch)));
+      const qs = params.length ? '?' + params.join('&') : '';
       const es = new EventSource('/api/story/stream' + qs);
       sse = es;
       es.onopen = () => {
@@ -9366,8 +9388,23 @@
       es.addEventListener('ready', event => {
         try {
           const info = JSON.parse(event.data);
+          if (info?.service_epoch) {
+            if (lastSseEpoch && lastSseEpoch !== info.service_epoch) {
+              lastSseSeq = Number.isInteger(info?.seq) ? info.seq : 0;
+              scheduleRestore(20);
+            }
+            lastSseEpoch = info.service_epoch;
+          }
           if (Number.isInteger(info?.seq) && info.seq > lastSseSeq) lastSseSeq = info.seq;
         } catch (_) {}
+      });
+      es.addEventListener('resync', event => {
+        try {
+          const info = JSON.parse(event.data);
+          if (Number.isInteger(info?.seq)) lastSseSeq = info.seq;
+          if (info?.service_epoch) lastSseEpoch = info.service_epoch;
+        } catch (_) {}
+        scheduleRestore(20);
       });
       es.addEventListener('story_stream', event => {
         trackSseEventSeq(event);
@@ -9379,6 +9416,7 @@
       es.addEventListener('committed', event => { trackSseEventSeq(event); scheduleRestore(20); });
       es.addEventListener('task_state', event => { trackSseEventSeq(event); scheduleRestore(40); });
       es.addEventListener('bridge_state', event => { trackSseEventSeq(event); scheduleRestore(80); });
+      es.addEventListener('preferences_updated', event => { trackSseEventSeq(event); scheduleRestore(60); });
       es.addEventListener('save_reset', event => { trackSseEventSeq(event); scheduleRestore(20); });
       es.addEventListener('shop_updated', event => { trackSseEventSeq(event); void handleShopUpdatedEvent(event); });
       es.onerror = () => {
@@ -9460,7 +9498,7 @@
     if ($('stream').scrollHeight - $('stream').scrollTop - $('stream').clientHeight < 70) {
       $('jump').hidden = true;
     }
-    applyReadingFocus();
+    scheduleReadingFocus();
     schedulePlateParallax();
   }, { passive: true });
 

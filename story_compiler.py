@@ -575,7 +575,7 @@ def compile_codex_runtime(root):
         body = body[:cut_old].rstrip()
     body = body.replace('禁止只写在 craft_note / SYSTEM_LOG。', '禁止省略或仅作后台概括。')
     body = re.sub(r'\n-\s*craft_note\s*可标注[^\n]*', '', body)
-    body = re.sub(r'\n*正式连续入口entry_mode=live_interaction[^\n]*\n*', '\n\n', body)
+    body = re.sub(r'\n*正式连续入口\s*`?entry_mode=live_interaction`?[^\n]*\n*', '\n\n', body)
     body = re.sub(r'### 0\. 卷零专用术语[\s\S]*?(?=### 1\. 轨 A)', '', body)
     body = re.sub(r'\n+---\n+', '\n\n', body)
     return _sc_cache_set(key, _clean_text(body))
@@ -1410,7 +1410,7 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
                     '   [A:角色姓名] 归属明确的具体动作（在场人物或徐志北；禁任何声学/XML标签；高羞耻身体露馅时可用 ｛表面端庄｜本能破绽｝）\n'
                 )
                 dialogue_line_rule = (
-                    '   [D:角色姓名] 纯开口台词（仅限在场cast或≤3句忠实 [D:徐志北]；禁场外对白、禁外层引号“...”及第三人称动作旁白；三女主按 narrative.dialogue_tts 使用精炼英文/双语导演提示 [...]、句中情绪转折、原生点标签 [pause]/[sigh]/[small laugh] 与词级标签 <whisper>/<soft>/<emphasis>/<slow>/<fast>/<forceful>，及必要 ｛表层｜潜台词｝）\n'
+                    '   [D:角色姓名] 纯开口台词（仅限在场cast或≤3句忠实 [D:徐志北]；禁场外对白、禁外层引号“...”及第三人称动作旁白；三女主按 narrative.dialogue_tts 使用精炼英文/双语导演提示 [...]、句中情绪转折、原生点标签 [pause]/[sigh]/[small laugh] 与词级标签 <whisper>/<soft>/<emphasis>/<stress>/<slow>/<fast>/<forceful>，及必要 ｛表层｜潜台词｝）\n'
                 )
             else:
                 protagonist_rule = (
@@ -1420,7 +1420,7 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
                     '   [A:角色姓名] 归属明确的具体动作（在场人物或徐志北；玩家提问亦用 [A:徐志北]/[N] 间接表达，严禁 [D:徐志北]；禁任何声学/XML标签；高羞耻身体露馅可用 ｛表面端庄｜本能破绽｝）\n'
                 )
                 dialogue_line_rule = (
-                    '   [D:角色姓名] 纯开口台词（严格限在场cast，严禁 [D:徐志北] 或场外对白；禁外层引号“...”及第三人称动作旁白；三女主按 narrative.dialogue_tts 使用精炼英文/双语导演提示 [...]、句中转折、原生 [pause]/[sigh] 与词级标签 <whisper>/<soft>/<emphasis>/<slow>/<fast>/<forceful>，及必要 ｛表层｜潜台词｝）\n'
+                    '   [D:角色姓名] 纯开口台词（严格限在场cast，严禁 [D:徐志北] 或场外对白；禁外层引号“...”及第三人称动作旁白；三女主按 narrative.dialogue_tts 使用精炼英文/双语导演提示 [...]、句中转折、原生 [pause]/[sigh] 与词级标签 <whisper>/<soft>/<emphasis>/<stress>/<slow>/<fast>/<forceful>，及必要 ｛表层｜潜台词｝）\n'
                 )
             protocol = (
                 '【前台演播协议 · 文字沉浸流式剧场（dual_stream_v2）】\n'
@@ -1466,6 +1466,7 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
                 '进行中任务严禁驱动剧情；仅当delta携带milestone_echo时允许1句低侵入氛围轻顿且禁提系统词。'
                 '若cost_preview.kind=="action"且tasks.current为空或status=="已完成"，结合task_whitelist_current按task_schema六键续接新任务（value严格大于当前值）；进行中或SYSTEM时resolution.task写""。'
                 '仅当玩家在正文中明确亮牌动用 delta.held_intel 中某条情报时才填 resolution.intel_used；action回合可选填 resolution.director_echo 维护未完线头、暗钟与角色心绪印象(mind_updates)，严禁编造。'
+                '可选填 resolution.scene_state（无变化省略或写""）：{"intimate_active":true/false,"privacy":"open_public|semi_open|thin_wall|under_cover|locked_private","sub_location":"<=48字","present_actors":["当前房内实际在场女主"],"attire_updates":{},"trace_adds":{},"inter_heroine_deltas":{},"body_acts":{},"host_release":true,"keepsake_adds":[],"keepsake_updates":[],"shop_adds":[],"unlock_secrets":["SECRET-XNW-PAINTING"]}（所有子键可选；shop_adds 仅当 delta.shop_custom_directive 生效时按正文新推道具填写；unlock_secrets 仅当徐念薇在场且正文确已揭开蒙布旧画或点破画展赞助受阻时填写）。'
             )
 
         parts = [protocol, codex, global_kb]
@@ -2528,7 +2529,7 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
             '"events":[{"group":"事件组","target":"角色名或系统宿主","tags":["白名单原标签"],"evidence":"正文逐字子串"}],'
             '"memory":{"fact":"<=160字新因果或空串","anchor_ops":[],"chronicle_digest":""},'
             '"conditions":{"intensity":"A|B|C","effective_progress":true/false,"scene":"地点","npc":"角色或空串","action_changed":true/false,"stress_signals":非负整数,"breakout_triggered":[]}或""(仅SYSTEM),'
-            '"sleep":{"kind":"none|collapse|interrupted|overnight","start":"HH:MM或空串","evidence":"正文子串或空串"},"task":""或6键对象,"items":[]},'
+            '"sleep":{"kind":"none|collapse|interrupted|overnight","start":{"day":正整数,"time":"HH:MM"}或"HH:MM"或空串,"evidence":"正文子串或空串"},"task":""或6键对象,"items":[]},'
             '"quality_flags":[]}\n'
             '硬性规则：\n'
             '1. 传输空值约定：无操作operation、无待处理handoff、无任务resolution.task、无睡眠起点resolution.sleep.start、'
@@ -2539,8 +2540,8 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
             '3. 事件与依据：events每项含group/target/tags/evidence；只用下列合法标签原名；'
             'evidence必须是foreground_messages中某条text的逐字原样子串（若正文含｛表层｜潜台词｝，可引用原串或表层子串，严禁改字或引用decision选项）；'
             'host_events的target固定为"系统宿主"（优雅掌控_魅力精进：每场景限1次，仅宿主展现游刃有余的魅力掌控时打入）；'
-            '⚠️【监视目标防错铁律】vigilance_events的target必须是【被徐承邺监视的对象】（仅限"沈知韫"/"苏婉青"/"徐念薇"/"徐志北"四选一），严禁填监视者"徐承邺"本人！若正文仅口头提及徐承邺的交代或行程而无实质警惕增减，请直接省略该条事件；'
-            'shame_events/depravity_events/ds_events/affection_events 严禁填徐承邺（死亡查岗_沉沦期target填在场女主）；当operation_context.detail.kind=="inspect_deployed"时，允许对detail.remote_cast中的远程目标据正文结算自慰_暗中纾解/私密自渎/意外撞破_私密自渎，其余事件组target必须严格属于本场实际在场角色姓名。目标体力<=15且无玩家括号强行授权时严禁施加C烈度_深度/重度。免费SYSTEM不得附带事件/任务/物品。'
+            '【监视目标防错铁律】vigilance_events的target限被监视者("沈知韫"/"苏婉青"/"徐念薇"/"徐志北")，严禁填"徐承邺"；仅口头提及其行程无警惕变化时省略；'
+            'shame_events/depravity_events/ds_events/affection_events 严禁填徐承邺（死亡查岗_沉沦期target填在场女主）；当operation_context.detail.kind=="inspect_deployed"时，允许对detail.remote_cast中的远程目标据正文结算自慰_暗中纾解/堕落_私密自渎/意外撞破_私密自渎，其余事件组target必须严格属于本场实际在场角色姓名。目标体力<=15且无玩家括号强行授权时严禁施加C烈度_深度/重度。免费SYSTEM不得附带事件/任务/物品。'
             '「首次」「深度操控_首次」「内射_首次核爆」「同质化免疫_回合2/3」「小憩单日限次」「失眠防叠加」「状态_空耗惩罚」「生理_危险期」均由后端据持久化记录自动派生与拦截，模型只需如实标注本幕发生的基础事件。'
             '多档标签判准速查（严禁自造白名单外标签）：'
             'C烈度_轻度(越界言语挑逗/近距离施压/非敏感部位试探)、C烈度_中度(亲吻/隔衣贴合/轻度敏感部位触碰)、C烈度_深度(褪衣暴露/直接敏感带抚弄/口交侍奉，仅限C档)、C烈度_重度(实质性交/强行突破/高危越界结合，仅限C档)；'
@@ -2577,9 +2578,9 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
             '13. 段末抉择兜底（仅缺省触发）：foreground_decision_missing为false时省略fallback_decision；'
             '为true时补fallback_decision={"prompt":"<=300字","options":[{"id":"A","text":"日常(<=500字)"},{"id":"B","text":"社交(<=500字)"},{"id":"C","text":"主动(<=500字)"}]}'
             '（三项互异；转场项可附"operation":{"code":"move_player","destination":"合法地点"}）。\n'
-            '14. 空间隐私与亲密态势增量 resolution.scene_state（可选，无变化直接省略或写""）：仅当本幕真实发生了房门反锁/隔墙偷欢/同席桌下暗触/子区切换/衣着凌乱褪衣换装/新增吻痕潮红痕迹/女主间疑心或共谋变化/身体部位开发互动/主角明确释放/偷藏或收下贴身衣物/剧情【商城定制】新推道具，或正式进入/收束亲密状态时填写：'
-            '{"intimate_active":true或false,"privacy":"open_public|semi_open|thin_wall|under_cover|locked_private","sub_location":"<=48字子区名","present_actors":["当前房内实际同席角色"],"attire_updates":{"女主名":{"outfit":"穿搭名或default","state":"neat|disheveled|half_undressed|wet|torn"}},"trace_adds":{"女主名":[{"kind":"吻痕|指印|潮红|发丝凌乱","desc":"<=60字","turns":4,"visible":true}]},"inter_heroine_deltas":{"A->B":1或-1},"body_acts":{"女主名":["oral|hand|chest|foot|core"]},"host_release":true,"keepsake_adds":[{"owner":"女主名","name":"衣物名","kind":"panties|stockings|bra|nightwear|accessory","method":"stolen|taken_intimate|gifted","condition":"fresh_warm|stained_damp|faded","desc":"<=60字"}],"keepsake_updates":[{"id":"KS-编号","owner_aware":true,"condition":"stained_damp"}],"shop_adds":[{"name":"道具名","grade":"T1|T2|T3|T4","category":"sensual|covert|daily","usage_mode":"gift|consumable_target|reusable_tool|deployable_device","price":10到260,"pack_qty":1到3,"desc":"用途说明","system_effect":""或"buff:名:1-3:效"或"deploy_device:camera|audio|aroma","max_per_save":1到3}]}'
-            '（所有子键均可选；贴身偷藏衣物只走keepsake_adds；shop_adds仅在context.shop_custom_requested==true时按正文新推道具摘录，严禁塞入resolution.items或虚构）。\n\n'
+            '14. resolution.scene_state（可选，无变化省略或写""）：仅本幕发生隐私/子区/衣着/痕迹/女主暗流/部位开发/释放/贴身衣物/【商城定制】/画室旧画揭破或进出亲密态时填：'
+            '{"intimate_active":true或false,"privacy":"open_public|semi_open|thin_wall|under_cover|locked_private","sub_location":"<=48字子区名","present_actors":["当前房内实际同席角色"],"attire_updates":{"女主名":{"outfit":"穿搭名或default","state":"neat|disheveled|half_undressed|wet|torn"}},"trace_adds":{"女主名":[{"kind":"吻痕|指印|潮红|发丝凌乱","desc":"<=60字","turns":4,"visible":true}]},"inter_heroine_deltas":{"A->B":1或-1},"body_acts":{"女主名":["oral|hand|chest|foot|core"]},"host_release":true,"keepsake_adds":[{"owner":"女主名","name":"衣物名","kind":"panties|stockings|bra|nightwear|accessory","method":"stolen|taken_intimate|gifted","condition":"fresh_warm|stained_damp|faded","desc":"<=60字"}],"keepsake_updates":[{"id":"KS-编号","owner_aware":true,"condition":"stained_damp"}],"shop_adds":[{"name":"道具名","grade":"T1|T2|T3|T4","category":"sensual|covert|daily","usage_mode":"gift|consumable_target|reusable_tool|deployable_device","price":10到260,"pack_qty":1到3,"desc":"用途说明","system_effect":""或"buff:名:1-3:效"或"deploy_device:camera|audio|aroma","max_per_save":1到3}],"unlock_secrets":["SECRET-XNW-PAINTING"]}'
+            '（子键均可选；贴身衣物只走keepsake_adds；shop_adds仅shop_custom_requested==true按正文摘录禁入items；unlock_secrets仅徐念薇在场且正文揭破旧画/画展时填["SECRET-XNW-PAINTING"]）。\n\n'
             '【合法事件标签白名单】\n'
             + json.dumps(catalog, ensure_ascii=False, separators=(',', ':'))
             + '\n\n【事件触发判定精简规则】\n'
@@ -2807,6 +2808,14 @@ _DRAMA3_XML_STRIP_RE = re.compile(
     r'</?(?:whisper|emphasis|soft|fast|slow|stress|forceful|chinese|english|japanese|korean|cantonese|french|german|spanish)>',
     re.I,
 )
+_DRAMA3_XML_VALID_NAMES = frozenset({
+    'whisper', 'emphasis', 'soft', 'fast', 'slow', 'stress', 'forceful',
+    'chinese', 'english', 'japanese', 'korean', 'cantonese', 'french', 'german', 'spanish',
+})
+_ANY_XML_TAG_RE = re.compile(r'<(/?)([a-zA-Z][a-zA-Z0-9_-]{1,24})(?:\s+[^>\r\n]{1,64})?>')
+_FULLWIDTH_TAG_RE = re.compile(r'［(N|A|D)(?:[:：]([^］\r\n]{1,24}))?］')
+_FULLWIDTH_MOVE_RE = re.compile(r'［(?i:MOVE)[:：]\s*([^］\r\n]+?)\s*］')
+_MARKDOWN_FENCE_BLOCK_RE = re.compile(r'```[a-zA-Z0-9_-]*[ \t]*\r?\n([\s\S]*?)\r?\n?```')
 _OUTER_QUOTES_ONLY_RE = re.compile(
     r'^(?:“([^“”]+)”|"([^"]+)"|「([^「」]+)」|『([^『』]+)』)\s*$',
     re.S,
@@ -2820,20 +2829,65 @@ _MIXED_ACTION_DIALOGUE_RE = re.compile(
 )
 
 
+def _strip_unknown_xml_tags(text):
+    """Strip hallucinated or attribute-bearing XML tags while keeping valid bare Drama 3 tags."""
+    def _repl(m):
+        raw = m.group(0)
+        name = (m.group(2) or '').lower()
+        if name in _DRAMA3_XML_VALID_NAMES and ' ' not in raw and '\t' not in raw:
+            return raw
+        return ''
+    return _ANY_XML_TAG_RE.sub(_repl, text or '')
+
+
+def _normalize_fullwidth_script_tags(text):
+    """Normalize full-width brackets on script headers ［N］/［A：...］/［D：...］ and ［MOVE：...］."""
+    def _tag_repl(m):
+        code, who = m.group(1), m.group(2)
+        if who is not None:
+            return f'[{code}:{who.strip()}]'
+        return f'[{code}]'
+    out = _FULLWIDTH_TAG_RE.sub(_tag_repl, text)
+    out = _FULLWIDTH_MOVE_RE.sub(lambda m: f'[MOVE:{m.group(1).strip()}]', out)
+    return out
+
+
+def _unwrap_stream_markdown_fence(text):
+    """Extract fenced script block if model wrapped Stage 1 output in ```...``` with chatter."""
+    if '```' not in text:
+        return text
+    for fm in _MARKDOWN_FENCE_BLOCK_RE.finditer(text):
+        inner = (fm.group(1) or '').strip()
+        if any(_LINE_TAG_RE.match(ln) for ln in inner.splitlines()):
+            if not _DECISION_BLOCK_SPLIT_RE.search(inner) and not _INLINE_DECISION_SEP_RE.search(inner):
+                tail = text[fm.end():]
+                dm = _DECISION_BLOCK_SPLIT_RE.search(tail) or _INLINE_DECISION_SEP_RE.search(tail)
+                if dm:
+                    return inner + '\n' + tail[dm.start():].strip()
+            return inner
+    if text.startswith('```'):
+        stripped = re.sub(r'^```[a-zA-Z0-9_-]*\n?', '', text)
+        stripped = re.sub(r'\n?```\s*$', '', stripped)
+        return stripped
+    return text
+
+
 def _normalize_stream_node(kind, who, body):
     text = (body or '').strip()
     if not text:
         return []
     if kind == 'narration':
-        cleaned = _DRAMA3_XML_STRIP_RE.sub('', _ANY_VOICE_BRACKET_RE.sub('', text)).strip() or text
+        cleaned = _ANY_XML_TAG_RE.sub('', _DRAMA3_XML_STRIP_RE.sub('', _ANY_VOICE_BRACKET_RE.sub('', text))).strip() or text
         return [{'kind': 'narration', 'speaker': '', 'text': cleaned}]
     if kind == 'action':
-        cleaned = _DRAMA3_XML_STRIP_RE.sub('', _ANY_VOICE_BRACKET_RE.sub('', text)).strip() or text
+        cleaned = _ANY_XML_TAG_RE.sub('', _DRAMA3_XML_STRIP_RE.sub('', _ANY_VOICE_BRACKET_RE.sub('', text))).strip() or text
         return [{'kind': 'action', 'speaker': who, 'text': cleaned}]
     # kind == 'dialogue'
     if who == '徐志北':
         # Protagonist dialogue stays clean & tag-free (default muted, optional clean voice); strip any stray bracket/XML tags.
-        text = _DRAMA3_XML_STRIP_RE.sub('', _ANY_VOICE_BRACKET_RE.sub('', text)).strip() or text
+        text = _ANY_XML_TAG_RE.sub('', _DRAMA3_XML_STRIP_RE.sub('', _ANY_VOICE_BRACKET_RE.sub('', text))).strip() or text
+    else:
+        text = _strip_unknown_xml_tags(text).strip() or text
     tm = _LEADING_VOICE_TAGS_RE.match(text)
     leading_tags = (tm.group(1) or '').strip() if tm else ''
     rest = (tm.group(2) or '').strip() if tm else text
@@ -2858,7 +2912,8 @@ def _normalize_stream_node(kind, who, body):
         )
         starts_first_second = bool(re.match(r'^(?:我|你|您|咱们|我们|你们)(?:们|[，,。、\s]|$)', act_raw))
         if speech_raw and is_third_person_lead and not starts_first_second and not act_raw.startswith(('｛', '{', '[')):
-            act_clean = act_raw.rstrip('，,、；;：: ')
+            act_clean = _ANY_XML_TAG_RE.sub('', _DRAMA3_XML_STRIP_RE.sub('', _ANY_VOICE_BRACKET_RE.sub('', act_raw))).strip()
+            act_clean = act_clean.rstrip('，,、；;：: ')
             if act_clean and act_clean[-1] not in '。！？!?…':
                 act_clean += '。'
             inner_qm = _OUTER_QUOTES_ONLY_RE.match(speech_raw)
@@ -2941,10 +2996,8 @@ def parse_stream_story(raw_text, allowed_speakers=None, partial=False,
     """Parse lightweight line-streaming script format into canonical {messages, decision}."""
     if not isinstance(raw_text, str):
         raise rr.RoundError('前台演播正文缺失')
-    text = raw_text.strip()
-    if text.startswith('```'):
-        text = re.sub(r'^```[a-zA-Z0-9_-]*\n?', '', text)
-        text = re.sub(r'\n?```\s*$', '', text)
+    text = _normalize_fullwidth_script_tags(raw_text.strip())
+    text = _unwrap_stream_markdown_fence(text)
 
     body_text, decision_text, in_decision = _split_decision_text(text)
     body_lines = body_text.splitlines()
@@ -2961,6 +3014,7 @@ def parse_stream_story(raw_text, allowed_speakers=None, partial=False,
             in_decision = True
 
     raw_messages = []
+    pending_header = None
     allowed = set(allowed_speakers) if allowed_speakers is not None else None
     dialogue_allowed = (allowed | {'徐志北'}) if (allowed is not None and allow_player_dialogue) else allowed
 
@@ -2979,20 +3033,25 @@ def parse_stream_story(raw_text, allowed_speakers=None, partial=False,
             m = _LINE_TAG_RE.match(line)
             if m:
                 code, who, body = m.group(1), (m.group(2) or '').strip(), m.group(3).strip()
+                kind = 'narration' if code == 'N' else ('action' if code == 'A' else 'dialogue')
+                speaker = '' if code == 'N' else who
                 if not body:
+                    pending_header = (kind, speaker)
                     continue
-                if code == 'N':
-                    raw_messages.append({'kind': 'narration', 'speaker': '', 'text': body})
-                elif code == 'A':
-                    raw_messages.append({'kind': 'action', 'speaker': who, 'text': body})
-                elif code == 'D':
-                    raw_messages.append({'kind': 'dialogue', 'speaker': who, 'text': body})
+                pending_header = None
+                raw_messages.append({'kind': kind, 'speaker': speaker, 'text': body})
                 continue
             bm = _BARE_NARRATION_RE.match(line)
             if bm:
                 body = bm.group(1).strip()
                 if body:
+                    pending_header = None
                     raw_messages.append({'kind': 'narration', 'speaker': '', 'text': body})
+                continue
+            if pending_header is not None:
+                p_kind, p_speaker = pending_header
+                pending_header = None
+                raw_messages.append({'kind': p_kind, 'speaker': p_speaker, 'text': line})
                 continue
             if raw_messages:
                 # Continuation line attaches to the active node safely.
@@ -3135,7 +3194,8 @@ def guardrail_check(root, location, cast, messages, memory_text='', *,
             kind = m.get('kind')
             speaker = m.get('speaker', '')
             text = m.get('text', '')
-            hit = _WILL_SECRET_RE.search(text)
+            check_text = strip_dialogue_subtext(text) if kind == 'dialogue' else text
+            hit = _WILL_SECRET_RE.search(check_text)
             if not hit:
                 continue
             if kind == 'dialogue':

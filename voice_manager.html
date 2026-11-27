@@ -1809,31 +1809,17 @@
         custom: '自定义（逐角色独立设置）'
     };
 
-    let studioVisualCatalog = {};
-    let studioVisualCatalogLoaded = false;
-    const studioVisualCatalogPromise = fetch('/api/story/visuals')
-        .then(r => r.ok ? r.json() : null)
-        .then(d => {
-            if (d && d.portraits && typeof d.portraits === 'object') studioVisualCatalog = d.portraits;
-        })
-        .catch(() => {})
-        .finally(() => { studioVisualCatalogLoaded = true; });
+    const STUDIO_AVATAR_FALLBACKS = {
+        '沈知韫': ['/txt文件/image/沈知韫/默认.webp', '/txt文件/image/沈知韫/居家.webp', '/txt文件/image/沈知韫/商务.webp'],
+        '苏婉青': ['/txt文件/image/苏婉青/默认.webp', '/txt文件/image/苏婉青/居家.webp', '/txt文件/image/苏婉青/外出.webp'],
+        '徐念薇': ['/txt文件/image/徐念薇/默认.webp', '/txt文件/image/徐念薇/居家.webp', '/txt文件/image/徐念薇/工作室.webp'],
+        '徐志北': ['/txt文件/image/徐志北/默认.webp'],
+    };
 
-    async function handleStudioAvatarError(img, char, isPager) {
+    function handleStudioAvatarError(img, char, isPager) {
         if (!img || !img.isConnected) return;
-        if (!studioVisualCatalogLoaded) {
-            try { await studioVisualCatalogPromise; } catch (_) {}
-            if (!img.isConnected) return;
-        }
         const step = Number(img.dataset.fbStep || '0');
-        const info = studioVisualCatalog && studioVisualCatalog[char];
-        const fallbacks = [];
-        if (info && info.card) fallbacks.push(info.card);
-        if (info && info.outfits) {
-            for (const url of Object.values(info.outfits)) {
-                if (url && !fallbacks.includes(url)) fallbacks.push(url);
-            }
-        }
+        const fallbacks = STUDIO_AVATAR_FALLBACKS[char] || [];
         const currentSrc = img.getAttribute('src') || '';
         const nextUrl = fallbacks.find((u, idx) => idx >= step && u !== currentSrc);
         if (nextUrl) {

@@ -54,11 +54,22 @@ function StoryTheaterScreen(ctx) {
     }
 
     function reload() {
+        const prevEndpoint = live.current.endpoint;
         update({
             error: '',
             loading: true,
             progress: 0,
             reloadNonce: (live.current.reloadNonce || 0) + 1,
+        });
+        void loadEndpoint().then(() => {
+            if (live.current.endpoint !== prevEndpoint) {
+                update({
+                    error: '',
+                    loading: true,
+                    progress: 0,
+                    reloadNonce: (live.current.reloadNonce || 0) + 1,
+                });
+            }
         });
     }
 

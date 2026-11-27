@@ -441,23 +441,6 @@ def recent_rows_tail(store, files=None, *, limit=24):
     return rows, older_paths
 
 
-def recent_rows(store, files=None):
-    """Merge local .round-runtime/interaction archive with self-contained 存档/近期演播.json."""
-    by_seq = {}
-    _, _, recent = save_store.load_bundle(store.root, files)
-    for item in recent.get('segments') or []:
-        if isinstance(item, dict) and isinstance(item.get('sequence'), int) and item['sequence'] >= 1:
-            by_seq[item['sequence']] = (None, copy.deepcopy(item))
-    for p in records(store):
-        try:
-            seq = int(p.stem)
-            row = rr.load_request(p.read_text(encoding='utf-8'))
-            by_seq[seq] = (p, row)
-        except Exception:
-            continue
-    return [by_seq[seq] for seq in sorted(by_seq)]
-
-
 def parse_public_vigilance(memory_text, save_state=None):
     """Parse 【监视状态】 for frontend display: exposes position, vigilance, discovery, reason, stage & sensitivity; STRICTLY hides 发现几率."""
     pos_m = re.search(r'^徐承邺位置：([^\n]+)', memory_text or '', re.M)
@@ -1129,7 +1112,7 @@ def settle(store, body, files, sequence, request_id):
                                **({'speaker': m['speaker']} if m['kind'] == 'dialogue' else {}), 'text': m['text']}
                               for m in body['messages']]
         after['data.json'] = rr._json(data)
-        # Keep P2 save_state.json / 四层记忆.json runtime & hashes synced atomically.
+        # Keep P3 save_state.json / memory_store.json runtime & hashes synced atomically.
         # For non-charged pure chat without state mutation, keep legacy .txt byte-identical.
         mutated_world = bool(charged or op or cost.get('status') == 'active')
         st_bundle, layers_bundle, _ = save_store.load_bundle(stage, after, sync_txt_drift=bool(op and not charged))
@@ -1789,6 +1772,17 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
         envelope['instruction'] += ' 必须同时返回resolution并逐项遵循resolution_policy：普通付费action即使只澄清或未发生移动也必须交完整conditions对象，字段名称不改；SYSTEM才允许无条件。已预检的operation_context.requested直接对应玩家原文与登记别名，不再猜地点。只分类和提供依据，不计算成本/最终面板；免费休息为SYSTEM且实际休息推进，睡眠有正文起止，不以短休冒充整夜。判档/事件/事实/时间只按当前资料；不能把人物系统数值或玩家私有记忆写成NPC知情。'
     last_seq = int(all_rows[-1][1].get('sequence', 0)) if all_rows else 0
     recent_seqs = [meta[1] for meta, _ in recent]
+    bundle_state_scope, _, _ = save_store.load_bundle(story.root, files)
+    all_unlocked_scope = [str(x).strip() for x in ((bundle_state_scope.get('mechanics') or {}).get('secrets_unlocked') or ()) if str(x).strip()]
+    sec_reg_scope = sc.load_secret_guard_registry(story.root)
+    cast_set_scope = set(effective['cast'])
+    active_unlocked_scope = sorted({
+        str(sec.get('unlock_key') or '').strip()
+        for sec in (sec_reg_scope.get('secrets') or {}).values()
+        if isinstance(sec, dict)
+        and str(sec.get('unlock_key') or '').strip() in all_unlocked_scope
+        and (sec.get('owner') in cast_set_scope or bool(set(sec.get('co_holders') or ()) & cast_set_scope))
+    })
     return {'protocol': 3, 'interaction_protocol': 3 if charged else 2, 'entry_mode': MODE, 'audit': sources,
             'packet': {**envelope['packet'], 'sha256': packet_sha},
             'v2_packet_meta': v2_packet_meta,
@@ -1799,7 +1793,7 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
             'references': refs, 'last_committed_sequence': last_seq, 'recent_sequences': recent_seqs,
             'archive_index': archive_index, 'memory_index': memory_index, 'omitted_archive': omitted_archive,
             'selection': selected, 'previous_validation_error':previous_error,
-            'interaction_scope': rr._digest(rr._json([effective['location'], effective['cast']])),
+            'interaction_scope': rr._digest(rr._json([effective['location'], effective['cast'], active_unlocked_scope])),
             'cost_preview': preview_cost,
             'delivered_echo_ids': delivered_echo_ids,
             'director_roll': director_roll,
@@ -2009,11 +2003,12 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
     pflags_now = sc.compute_zone1_persona_flags(effective_state, memory_text)
     if (not is_fresh) and isinstance(raw_synced_flags, dict) and 'vig' in raw_synced_flags and 'intl' in raw_synced_flags:
         synced_stage = raw_synced_flags.get('char_stage')
+        synced_sec = raw_synced_flags.get('unlocked_secrets')
         zone1_flags = {
             'vig': bool(raw_synced_flags.get('vig')),
             'intl': bool(raw_synced_flags.get('intl')),
             'char_stage': dict(synced_stage) if isinstance(synced_stage, dict) else pflags_now['char_stage'],
-            'unlocked_secrets': list(pflags_now['unlocked_secrets']),
+            'unlocked_secrets': [str(x).strip() for x in synced_sec if str(x).strip()] if isinstance(synced_sec, list) else list(pflags_now['unlocked_secrets']),
         }
     else:
         zone1_flags = {
@@ -2496,9 +2491,35 @@ _FOREGROUND_NON_RETRYABLE_TAGS = (
     '旁白不能携带说话人',
     '旁白不带说话人',
     'message.text',
+    'decision.prompt',
+    'decision.option.text',
     '消息类型无效',
     '剧情须为非空节点数组',
 )
+
+
+def _effective_guardrail_secrets(bundle_state, settlement_or_result=None, context=None):
+    """Merge persisted secrets_unlocked with same-turn intel reveal, personal secret unlock, or director beat."""
+    base = [str(x).strip() for x in ((bundle_state.get('mechanics') or {}).get('secrets_unlocked') or ()) if str(x).strip()]
+    extra = []
+    res_obj = None
+    if isinstance(settlement_or_result, dict):
+        res_obj = settlement_or_result.get('resolution') if isinstance(settlement_or_result.get('resolution'), dict) else None
+    if isinstance(res_obj, dict):
+        iu = res_obj.get('intel_used')
+        if isinstance(iu, dict) and str(iu.get('id') or '').strip():
+            extra.append(str(iu.get('id')).strip())
+        ss_obj = res_obj.get('scene_state')
+        if isinstance(ss_obj, dict) and isinstance(ss_obj.get('unlock_secrets'), list):
+            for x in ss_obj['unlock_secrets']:
+                if isinstance(x, str) and x.strip() and not x.strip().startswith('INTEL-'):
+                    extra.append(x.strip())
+    droll = (context or {}).get('director_roll') if isinstance(context, dict) else None
+    if isinstance(droll, dict):
+        bid = str(droll.get('beat_id') or ((droll.get('beat') or {}).get('id') if isinstance(droll.get('beat'), dict) else '') or '').strip()
+        if bid in ('BEAT-T2-STUDIO-PAINTING-QUESTION', 'BEAT-T2-EXHIBITION-CALL'):
+            extra.append('SECRET-XNW-PAINTING')
+    return list(dict.fromkeys([*base, *extra]))
 
 
 def is_settlement_retryable_error(msg):
@@ -2582,7 +2603,11 @@ def save_stage1_checkpoint(story, key, job, context, checkpoint):
                 candidate_locs.insert(0, dest)
         protagonist_style = load_story_prefs(story.root)['protagonist_style']
         bundle_state, _, _ = save_store.load_bundle(story.root, files)
-        secrets_unlocked = list((bundle_state.get('mechanics') or {}).get('secrets_unlocked', []))
+        held_intel_ids = list((sp.parse_intel_block(mem_text) or {}).get('held') or ())
+        secrets_unlocked = list(dict.fromkeys([
+            *_effective_guardrail_secrets(bundle_state, checkpoint.get('settlement'), context),
+            *held_intel_ids,
+        ]))
         parsed_fg = None
         for loc in candidate_locs:
             allowed_cast = scene_cast(presence, mem_text, loc)
@@ -2748,7 +2773,7 @@ def normalize_dual_stage(story, context, result):
     if resolved_decision is None:
         # Enforce redline guardrails on foreground prose BEFORE allowing any fallback_decision recovery.
         bundle_state, _, _ = save_store.load_bundle(story.root, files)
-        secrets_unlocked = list((bundle_state.get('mechanics') or {}).get('secrets_unlocked', []))
+        secrets_unlocked = _effective_guardrail_secrets(bundle_state, settlement, context)
         sc.guardrail_check(
             story.root, location, allowed_cast, fg['messages'],
             memory_text=mem_text, secrets_unlocked=secrets_unlocked,
@@ -2811,11 +2836,7 @@ def assemble(story, key, job, result, context, audit):
         eff_loc = op['destination']
     eff_cast = scene_cast(presence, mem_text, eff_loc)
     bundle_state, _, _ = save_store.load_bundle(story.root, files)
-    secrets_unlocked = list((bundle_state.get('mechanics') or {}).get('secrets_unlocked', []))
-    res_obj = result.get('resolution') if isinstance(result.get('resolution'), dict) else {}
-    intel_used = res_obj.get('intel_used') if isinstance(res_obj.get('intel_used'), dict) else None
-    intel_used_id = str(intel_used.get('id') or '').strip() if intel_used else ''
-    effective_unlocked = list(dict.fromkeys([*secrets_unlocked, *([intel_used_id] if intel_used_id else [])]))
+    effective_unlocked = _effective_guardrail_secrets(bundle_state, result, context)
     protagonist_style = load_story_prefs(story.root)['protagonist_style']
     intimate_active = bool((bundle_state.get('intimate') or {}).get('scene_active'))
     guard = sc.guardrail_check(

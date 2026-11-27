@@ -8,7 +8,7 @@ let busy = null;
 let lastError = '';
 let monitorTimer = null, monitorBusy = false, starting = null;
 let controlSupported = null, sessionReady = false;
-const PLUGIN_VERSION = '2.3.2';
+const PLUGIN_VERSION = '2.3.3';
 const SETTINGS_ROUTE = 'toolpkg:local.story.operit_bridge:ui:settings';
 const THEATER_ROUTE = 'toolpkg:local.story.operit_bridge:ui:theater';
 const BRIDGE_PARTICIPANT_ID = 'model:chat';
@@ -802,19 +802,70 @@ const STREAM_PROMPT_RE = /^\s*(?:[-*•>]\s*)*(?:#{1,6}\s*)?(?:\*\*)?(?:PROMPT|�
 const STREAM_OPT_RE = /^\s*(?:[-*•>]\s*)*(?:#{1,6}\s*)?(?:\*\*)?(?:(?:选项\s*)?([ABC])|[\[【(（]\s*([ABC])\s*[\]】)）])(?:\*\*)?(?:\s*\[MOVE[:：][^\]]+\])?(?:\s*(?:[·•\-—（(\[][^\n:：.、)）]{1,24}))?\s*[:：.、)）\s]\s*\S/i;
 const STREAM_LEADING_ASCII_FISH_RE = /^\s*(?:\[[a-zA-Z0-9_,\s;:'-]{1,180}\]\s*)+/;
 const STREAM_LEADING_VOICE_TAGS_RE = /^((?:\[[^\]\r\n]{1,180}\]\s*)*)([\s\S]*)$/;
+const STREAM_ANY_VOICE_BRACKET_RE = /\[[^\]\r\n]{1,180}\]\s*/g;
+const STREAM_ANY_XML_TAG_RE = /<(\/?)([a-zA-Z][a-zA-Z0-9_-]{1,24})(?:\s+[^>\r\n]{1,64})?>/g;
+const STREAM_VALID_DRAMA3_XML = new Set([
+    'whisper', 'emphasis', 'soft', 'fast', 'slow', 'stress', 'forceful',
+    'chinese', 'english', 'japanese', 'korean', 'cantonese', 'french', 'german', 'spanish',
+]);
+const STREAM_FULLWIDTH_TAG_RE = /［(N|A|D)(?:[:：]([^］\r\n]{1,24}))?］/g;
+const STREAM_FULLWIDTH_MOVE_RE = /［MOVE[:：]\s*([^］\r\n]+?)\s*］/gi;
+const STREAM_MARKDOWN_FENCE_RE = /```[a-zA-Z0-9_-]*[ \t]*\r?\n([\s\S]*?)\r?\n?```/g;
 const STREAM_OUTER_QUOTES_RE = /^(?:“([^“”]+)”|"([^"]+)"|「([^「」]+)」|『([^『』]+)』)\s*$/;
 const STREAM_MIXED_ACTION_DIALOGUE_RE = /^([^“"「『\r\n]{2,180}?)([，,、；;\s]*(?:(?:低声|轻声|冷声|沉声|柔声|淡淡|缓声|随口|开口|抬眼|垂眸|侧头|转头)?(?:说道|问道|答道|应道|反问|叮嘱|交代|开口|道|说|问|答))?\s*[：:，,])\s*(?:“([^”]+)”|"([^"]+)"|「([^」]+)」|『([^』]+)』)\s*$/;
+
+function stripAllVoiceAndXmlJs(text) {
+    return String(text || '').replace(STREAM_ANY_VOICE_BRACKET_RE, '').replace(STREAM_ANY_XML_TAG_RE, '').trim();
+}
+
+function stripUnknownXmlJs(text) {
+    return String(text || '').replace(STREAM_ANY_XML_TAG_RE, (raw, _slash, name) => {
+        if (STREAM_VALID_DRAMA3_XML.has(String(name || '').toLowerCase()) && !/\s/.test(raw)) return raw;
+        return '';
+    });
+}
+
+function normalizeFullwidthScriptTagsJs(text) {
+    return String(text || '')
+        .replace(STREAM_FULLWIDTH_TAG_RE, (_m, code, who) => (who !== undefined ? `[${code}:${who.trim()}]` : `[${code}]`))
+        .replace(STREAM_FULLWIDTH_MOVE_RE, (_m, dest) => `[MOVE:${dest.trim()}]`);
+}
+
+function unwrapStreamFenceJs(text) {
+    const src = String(text || '');
+    if (!src.includes('```')) return src;
+    STREAM_MARKDOWN_FENCE_RE.lastIndex = 0;
+    let m;
+    while ((m = STREAM_MARKDOWN_FENCE_RE.exec(src)) !== null) {
+        const inner = (m[1] || '').trim();
+        if (inner.split(/\r?\n/).some((ln) => STREAM_TAG_RE.test(ln.trim()))) {
+            if (!STREAM_DECISION_SPLIT_RE.test(inner) && !STREAM_INLINE_DECISION_RE.test(inner)) {
+                const tail = src.slice(m.index + m[0].length);
+                let dmIdx = tail.search(STREAM_DECISION_SPLIT_RE);
+                if (dmIdx < 0) dmIdx = tail.search(STREAM_INLINE_DECISION_RE);
+                if (dmIdx >= 0) return inner + '\n' + tail.slice(dmIdx).trim();
+            }
+            return inner;
+        }
+    }
+    return src.replace(/^\s*```[a-zA-Z0-9_-]*\r?\n/, '').replace(/\r?\n?```\s*$/, '');
+}
 
 function normalizeStreamNodeJs(kind, speaker, rawBody) {
     let text = String(rawBody || '').trim();
     if (!text) return [];
-    if (kind === 'narration') return [{ kind: 'narration', speaker: '', text }];
+    if (kind === 'narration') {
+        const cleaned = stripAllVoiceAndXmlJs(text) || text;
+        return [{ kind: 'narration', speaker: '', text: cleaned }];
+    }
     if (kind === 'action') {
-        const cleaned = text.replace(STREAM_LEADING_ASCII_FISH_RE, '').trim() || text;
+        const cleaned = stripAllVoiceAndXmlJs(text) || text;
         return [{ kind: 'action', speaker, text: cleaned }];
     }
     if (speaker === '徐志北') {
-        text = text.replace(STREAM_LEADING_ASCII_FISH_RE, '').trim() || text;
+        text = stripAllVoiceAndXmlJs(text) || text;
+    } else {
+        text = stripUnknownXmlJs(text).trim() || text;
     }
     const tm = text.match(STREAM_LEADING_VOICE_TAGS_RE);
     const leadingTags = tm && tm[1] ? tm[1].trim() : '';
@@ -835,7 +886,7 @@ function normalizeStreamNodeJs(kind, speaker, rawBody) {
         const isThirdPerson = actRaw.startsWith('她') || actRaw.startsWith('他') || (speaker && actRaw.startsWith(speaker)) || hasColonOrVerb;
         const startsFirstSecond = /^(?:我|你|您|咱们|我们|你们)(?:们|[，,。、\s]|$)/.test(actRaw);
         if (speechRaw && isThirdPerson && !startsFirstSecond && !/^[｛{\[]/.test(actRaw)) {
-            let actClean = actRaw.replace(/[，,、；;：:\s]+$/, '');
+            let actClean = stripAllVoiceAndXmlJs(actRaw).replace(/[，,、；;：:\s]+$/, '');
             if (actClean && !/[。！？!?…]$/.test(actClean)) actClean += '。';
             const iqm = speechRaw.match(STREAM_OUTER_QUOTES_RE);
             if (iqm) speechRaw = (iqm[1] || iqm[2] || iqm[3] || iqm[4] || speechRaw).trim();
@@ -885,7 +936,7 @@ function detectUnmarkedDecisionTailJs(lines) {
 
 function parseStreamMessages(rawText, allowedSpeakers = null, complete = false, allowPlayerDialogue = false) {
     if (typeof rawText !== 'string' || !rawText) return [];
-    let src = rawText.replace(/^\s*```[a-zA-Z0-9_-]*\r?\n/, '').replace(/\r?\n?```\s*$/, '');
+    let src = unwrapStreamFenceJs(normalizeFullwidthScriptTagsJs(rawText.trim()));
     let decIdx = src.search(STREAM_DECISION_SPLIT_RE);
     if (decIdx < 0) decIdx = src.search(STREAM_INLINE_DECISION_RE);
     let body = decIdx >= 0 ? src.slice(0, decIdx) : src;
@@ -898,6 +949,7 @@ function parseStreamMessages(rawText, allowedSpeakers = null, complete = false, 
     }
     const allow = Array.isArray(allowedSpeakers) ? new Set(allowedSpeakers) : null;
     const rawMessages = [];
+    let pendingHeader = null;
     for (const rawLine of lines) {
         const trimmed = rawLine.trim();
         if (!trimmed || trimmed === '```' || STREAM_BARE_DIVIDER_RE.test(trimmed)) continue;
@@ -909,20 +961,29 @@ function parseStreamMessages(rawText, allowedSpeakers = null, complete = false, 
             const m = line.match(STREAM_TAG_RE);
             if (m) {
                 const code = m[1], speaker = (m[2] || '').trim(), text = m[3].trim();
-                if (!text || text.length > 4000) continue;
-                if (code === 'N') {
-                    rawMessages.push({ kind: 'narration', speaker: '', text });
-                } else if (code === 'A') {
-                    rawMessages.push({ kind: 'action', speaker, text });
-                } else if (code === 'D') {
-                    rawMessages.push({ kind: 'dialogue', speaker, text });
+                const kind = code === 'N' ? 'narration' : (code === 'A' ? 'action' : 'dialogue');
+                const who = code === 'N' ? '' : speaker;
+                if (!text) {
+                    pendingHeader = { kind, speaker: who };
+                    continue;
                 }
+                if (text.length > 4000) continue;
+                pendingHeader = null;
+                rawMessages.push({ kind, speaker: who, text });
                 continue;
             }
             const bm = line.match(STREAM_BARE_NARRATION_RE);
             if (bm) {
                 const text = bm[1].trim();
-                if (text && text.length <= 4000) rawMessages.push({ kind: 'narration', speaker: '', text });
+                if (text && text.length <= 4000) {
+                    pendingHeader = null;
+                    rawMessages.push({ kind: 'narration', speaker: '', text });
+                }
+                continue;
+            }
+            if (pendingHeader) {
+                if (line.length <= 4000) rawMessages.push({ kind: pendingHeader.kind, speaker: pendingHeader.speaker, text: line });
+                pendingHeader = null;
                 continue;
             }
             if (rawMessages.length) {
@@ -1384,9 +1445,11 @@ async function executeSessionV2(config, task, model, session) {
                     await rememberRejection(config, res && res.task);
                     const tailHook = buildTailHook(finalPreviewMsgs);
                     if (res && res.task && res.task.status === 'committed') {
-                        const actualSeq = (res.receipt && Number.isSafeInteger(res.receipt.state_version))
-                            ? res.receipt.state_version
-                            : ((res.task && Number.isSafeInteger(res.task.result_sequence)) ? res.task.result_sequence : nextCommittedSeq);
+                        const actualSeq = (res.task && res.task.receipt && Number.isSafeInteger(res.task.receipt.state_version))
+                            ? res.task.receipt.state_version
+                            : ((res.receipt && Number.isSafeInteger(res.receipt.state_version))
+                                ? res.receipt.state_version
+                                : ((res.task && Number.isSafeInteger(res.task.result_sequence)) ? res.task.result_sequence : nextCommittedSeq));
                         config.liveSession = applyCommittedSessionMeta({ ...config.liveSession,
                             turnCount: ((config.liveSession && config.liveSession.turnCount) || 0) + 1,
                             lastCommittedSeq: actualSeq,
@@ -1485,8 +1548,11 @@ async function executeSessionV2(config, task, model, session) {
                 repair_keys: [], tools, delivery: delivered };
             const timing = { generation_ms: passes.reduce((sum, item) => sum + Math.max(0, item.completed_at - item.started_at), 0),
                 preflight_ms: 0, generation_passes: passes.length };
+            let parsedSingle = null;
+            try { parsedSingle = JSON.parse(final.text); } catch (_) {}
+            const singleTailHook = buildTailHook(parsedSingle && Array.isArray(parsedSingle.messages) ? parsedSingle.messages : []);
             return { lease: task.lease, text: final.text, conversation_audit: audit, timing,
-                __meta: { isV2: true, nextCommittedSeq, sessionMeta: material.session_meta || null } };
+                __meta: { isV2: true, nextCommittedSeq, ...(singleTailHook ? { tailHook: singleTailHook } : {}), sessionMeta: material.session_meta || null } };
         }
         throw new Error('单阶段v2流程未取得结果');
     } catch (error) {
@@ -2113,9 +2179,14 @@ async function deliver(config, token) {
         await rememberRejection(config, result.task);
         if (pending.entry_mode === 'live_interaction' && pending.meta && pending.meta.isV2) {
             if (result && result.task && result.task.status === 'committed') {
+                const actualSeq = (result.task && result.task.receipt && Number.isSafeInteger(result.task.receipt.state_version))
+                    ? result.task.receipt.state_version
+                    : ((result.receipt && Number.isSafeInteger(result.receipt.state_version))
+                        ? result.receipt.state_version
+                        : (pending.meta.nextCommittedSeq || ((config.liveSession && config.liveSession.lastCommittedSeq) || 0) + 1));
                 config.liveSession = applyCommittedSessionMeta({ ...config.liveSession,
                     turnCount: ((config.liveSession && config.liveSession.turnCount) || 0) + 1,
-                    lastCommittedSeq: pending.meta.nextCommittedSeq || ((config.liveSession && config.liveSession.lastCommittedSeq) || 0) + 1,
+                    lastCommittedSeq: actualSeq,
                     lastTailHook: pending.meta.tailHook || (config.liveSession && config.liveSession.lastTailHook) || '',
                     dirty: false }, pending.meta.sessionMeta);
             } else if (config.liveSession) {

@@ -2866,6 +2866,21 @@ def resolution(root,files,body):
     elif sleep['start'] is not None or sleep['evidence']!='':
         raise rr.RoundError('无睡眠不应携带伪起点或依据')
     if sleep['kind']=='overnight':
+        raw_start=sleep['start']
+        if isinstance(raw_start,str) and re.fullmatch(r'(?:[01]\d|2[0-3]):[0-5]\d',raw_start.strip()):
+            sh=int(raw_start.strip()[:2])
+            end_day=int(clock['day'])
+            end_h=int(clock['time'][:2])
+            if runtime['clock']:
+                base_day=int(runtime['clock']['day'])
+                cand={'day':base_day,'time':raw_start.strip()}
+                if minute(cand)<start:
+                    cand={'day':base_day+1,'time':raw_start.strip()}
+                raw_start=cand
+            else:
+                inferred_day=max(1,end_day-1) if sh>end_h else end_day
+                raw_start={'day':inferred_day,'time':raw_start.strip()}
+            sleep['start']=raw_start
         begun=minute(sleep['start'])
         if ((start is not None and begun<start) or begun>=end or end-begun<360
                 or (begun//1440>=end//1440 and int(sleep['start']['time'][:2])>=6)
@@ -3450,6 +3465,16 @@ def apply_staged(store,engine,stage,body,files,parsed):
     moved_now=bool(isinstance(op_now_all,dict) and op_now_all.get('code')=='move_player')
     if isinstance(scene_state,dict) and 'present_actors' in scene_state and isinstance(scene_state['present_actors'],list):
         present_actors=[a for a in scene_state['present_actors'] if a in active_cast]
+        if not present_actors and active_cast:
+            # 防护：若 Stage 2 误填 ["徐志北"] 被过滤为空，但本幕正文确有在场女主对白/动作，自动恢复实际参与角色
+            spoken_cast=[
+                str(m.get('speaker') or '').strip()
+                for m in (body.get('messages') or [])
+                if isinstance(m,dict) and m.get('kind') in ('dialogue','action')
+                and str(m.get('speaker') or '').strip() in active_cast
+            ]
+            if spoken_cast:
+                present_actors=list(dict.fromkeys(spoken_cast))
     elif (not moved_now) and intl_pre.get('present_actors'):
         present_actors=[a for a in intl_pre['present_actors'] if a in active_cast]
         if not present_actors and active_cast:
@@ -3589,11 +3614,19 @@ def apply_staged(store,engine,stage,body,files,parsed):
             if intel_state['leverage_armed']==iid:
                 intel_state['leverage_armed']=''
             intel_dirty=True
-            # 亮牌揭穿苏婉青眼线身份（INTEL-002）同步写入本档 secrets_unlocked
-            if iid=='INTEL-002':
+            # 按隐秘守卫注册表通用持久化解锁（覆盖 INTEL-001/002/003 等全部关联暗线）
+            import story_compiler as sc
+            sec_reg = sc.load_secret_guard_registry(store.root)
+            reg_unlock_keys = {
+                str(sec.get('unlock_key') or '').strip()
+                for sec in (sec_reg.get('secrets') or {}).values()
+                if isinstance(sec, dict) and str(sec.get('unlock_key') or '').strip()
+            }
+            if iid in reg_unlock_keys:
                 st_s,ly_s,_=save_store.load_bundle(stage,sync_txt_drift=True)
-                if iid not in st_s['mechanics']['secrets_unlocked']:
-                    st_s['mechanics']['secrets_unlocked'].append(iid)
+                sec_list=st_s.setdefault('mechanics',{}).setdefault('secrets_unlocked',[])
+                if iid not in sec_list:
+                    sec_list.append(iid)
                     save_store.save_bundle(stage,st_s,ly_s)
             intel_consumed={'id':iid,'name':icfg['name'],'target':itarget,'effect_summary':icfg['effect_summary']}
         # 3. 统一结算任务完成与新任务挂载（保留未领 pending_items 队列）
@@ -3909,6 +3942,38 @@ def apply_staged(store,engine,stage,body,files,parsed):
             pre_values=before_values,
             engine=engine,
         )
+        # S03_XU_PAINTING (SECRET-XNW-PAINTING) 双通道自然解锁：
+        # 通道A：导演世界变故命中 BEAT-T2-STUDIO-PAINTING-QUESTION 或 BEAT-T2-EXHIBITION-CALL 确定性解锁；
+        # 通道B：Stage 2 scene_state.unlock_secrets 申请非 INTEL-* 个人心防暗线，经在场角色+地点/好感+正文实证核验后持久化。
+        sec_list_final=st_final.setdefault('mechanics',{}).setdefault('secrets_unlocked',[])
+        droll_audit=(body.get('audit') or {}).get('director_roll') if isinstance(body.get('audit'),dict) else None
+        if isinstance(droll_audit,dict):
+            d_beat_id=str(droll_audit.get('beat_id') or ((droll_audit.get('beat') or {}).get('id') if isinstance(droll_audit.get('beat'),dict) else '') or '').strip()
+            if d_beat_id in ('BEAT-T2-STUDIO-PAINTING-QUESTION','BEAT-T2-EXHIBITION-CALL') and 'SECRET-XNW-PAINTING' not in sec_list_final:
+                sec_list_final.append('SECRET-XNW-PAINTING')
+        if kind=='action' and isinstance(scene_state,dict) and scene_state.get('unlock_secrets'):
+            import story_compiler as sc
+            sec_reg_b=sc.load_secret_guard_registry(store.root)
+            key_to_sec={
+                str(s.get('unlock_key') or '').strip(): s
+                for s in (sec_reg_b.get('secrets') or {}).values()
+                if isinstance(s,dict) and str(s.get('unlock_key') or '').strip()
+            }
+            for ukey in scene_state['unlock_secrets']:
+                if not ukey or ukey.startswith('INTEL-') or ukey in sec_list_final:
+                    continue
+                smeta=key_to_sec.get(ukey)
+                if not smeta:
+                    continue
+                owner=str(smeta.get('owner') or '').strip()
+                owner_here=(owner in present_actors) or (owner in active_cast)
+                if ukey=='SECRET-XNW-PAINTING':
+                    xnw_aff=int(((st_final.get('panels') or {}).get('徐念薇') or {}).get('好感',0))
+                    has_clue=bool(re.search(r'旧画|蒙布|画框|画布|画展|赞助|画中人',prose_joined))
+                    if owner_here and (player_loc_now=='工作室' or xnw_aff>=70) and has_clue:
+                        sec_list_final.append(ukey)
+                elif owner_here and prose_joined:
+                    sec_list_final.append(ukey)
         # 纯 JSON 三轨结构化记忆落盘（携带后端权威房间级 scene_known_by 与 K01 硬守卫）
         mem_payload=parsed.get('memory_payload') or {'fact':str((value.get('memory') or {}).get('fact') or ''),'anchor_ops':[],'chronicle_digest':None,'tags':[]}
         cur_sub_loc=str(((st_final.get('intimate') or {}).get('sub_location')) or '')
@@ -4056,7 +4121,7 @@ def create(service,body,retry_key=None,resume_stage2=False):
                 result={'messages':[{'kind':'narration','speaker':'','text':text}],'decision':decision,'operation':command,'handoff':'',
                         'checks':{'intent':'玩家只使用已登记恢复道具。','knowledge':'恢复信息仅供玩家。','action':'使用明确ID的实际道具。','pace':'系统恢复结束，仍由玩家选择下一步。'},
                         'resolution':{'category':'SYSTEM','basis':'纯道具系统操作','clock':{**clock,'basis':'纯道具使用不推进剧情时间'},
-                                      'events':[],'memory':{'fact':'','transfers':{}},'conditions':None,'sleep':{'kind':'none','start':None,'evidence':''},'task':None,'items':[]}}
+                                      'events':[],'memory':{'fact':'','anchor_ops':[],'chronicle_digest':''},'conditions':None,'sleep':{'kind':'none','start':None,'evidence':''},'task':None,'items':[]}}
                 audit={'required_reads_verified':True,'origin':'player_action','reservation':current['reservation'],'checks':result['checks']}
                 payload={'schema_version':3,'entry_mode':ir.MODE,'request_id':key,'base_revision':current['working_revision'],'input':action,
                          'selection':selected,'audit':audit,**{k:result[k] for k in ('messages','decision','operation','handoff','resolution')}}

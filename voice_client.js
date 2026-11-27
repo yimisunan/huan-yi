@@ -98,7 +98,7 @@
     async function checkedResponse(response) {
         if (response.ok) return response;
         let message = '服务请求失败，请稍后重试。';
-        try { const data = await response.json(); if (data.error) message = data.error; } catch (_) {}
+        try { const data = await response.json(); if (data.error || data.msg) message = data.error || data.msg; } catch (_) {}
         const error = new Error(message);
         error.status = response.status;
         throw error;

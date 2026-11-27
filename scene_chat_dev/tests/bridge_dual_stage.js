@@ -557,6 +557,43 @@ async function run() {
         vig: false, intl: false, char_stage: { 苏婉青: 'stage1' }, unlocked_secrets: ['INTEL-002'],
     });
     console.log('PASS v2.3.1 subtext-stripped tailHook and char_stage/unlocked_secrets session_meta preservation');
+
+    // 15. v2.3.3: actualSeq reads res.task.receipt.state_version AND parseStreamMessages matches Python hardening.
+    const hSeq = createHarness({
+        fgText: '好的，以下为本段演播：\n```text\n［N］ [sigh] 暖灯微暗。\n［A：沈知韫］ <whisper>她指尖轻叩桌面。</whisper>\n［D：沈知韫］\n<stress>志北</stress>，<hallucinated>过来</hallucinated>坐。\n[D:徐志北] [轻笑] <whisper>这就来。</whisper>\n```\n以上是本段内容。\n---DECISION---\nPROMPT: 下一步？\nA: 坐下喝茶。\nB: 轻握她的手。\nC: 谈公事。\n',
+    });
+    hSeq.model = model;
+    hSeq.task = {
+        request_id: 'rseq1', lease: 'LSEQ1', entry_mode: 'live_interaction', save_epoch: 'ep1',
+        interaction_scope: '徐家主宅|沈知韫|', service_epoch: 'srv1',
+        reading_preflight: 1, live_reading_revision: 2, action_contract_revision: 1,
+        material_delivery_revision: 1, material_delivery_v2: 1, dual_stage_protocol: 1,
+    };
+    const origSeqHttp = hSeq.http;
+    hSeq.http = async (urlPath, body) => {
+        const resp = await origSeqHttp(urlPath, body);
+        if (urlPath.endsWith('/result')) {
+            return { task: { request_id: 'rseq1', status: 'committed', receipt: { state_version: 42 } } };
+        }
+        return resp;
+    };
+    vm.runInContext('http = box_http;', Object.assign(hSeq, { box_http: hSeq.http }));
+    hSeq.session = await vm.runInContext('liveSession(config, model, task)', hSeq);
+    await vm.runInContext('executeSession(config, task, model, session)', hSeq);
+    assert.equal(hSeq.config.liveSession.lastCommittedSeq, 42, 'actualSeq must extract res.task.receipt.state_version');
+    const parsedMsgs = hSeq.state.streamPushes[hSeq.state.streamPushes.length - 1].messages;
+    assert.equal(parsedMsgs.length, 4, 'Must parse fenced full-width & newline-header stream lines into 4 messages');
+    assert.equal(parsedMsgs[0].kind, 'narration');
+    assert.ok(!parsedMsgs[0].text.includes('[sigh]'), '[N] must strip voice tags');
+    assert.equal(parsedMsgs[1].kind, 'action');
+    assert.ok(!parsedMsgs[1].text.includes('<whisper>'), '[A] must strip XML voice tags');
+    assert.equal(parsedMsgs[2].kind, 'dialogue');
+    assert.equal(parsedMsgs[2].speaker, '沈知韫');
+    assert.ok(parsedMsgs[2].text.includes('<stress>志北</stress>'), 'Allowed Drama 3 XML <stress> must be preserved');
+    assert.ok(!parsedMsgs[2].text.includes('<hallucinated>'), 'Unknown XML tags must be stripped');
+    assert.equal(parsedMsgs[3].speaker, '徐志北');
+    assert.ok(!parsedMsgs[3].text.includes('[轻笑]') && !parsedMsgs[3].text.includes('<whisper>'), '[D:徐志北] must strip all voice/XML tags');
+    console.log('PASS v2.3.3 task.receipt.state_version actualSeq and Python-parity stream parser hardening');
 }
 
 run().catch(e => { console.error(e); process.exitCode = 1; });

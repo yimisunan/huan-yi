@@ -38,7 +38,7 @@ REQUIRED_BROWSE = ('txt文件', 'txt文件/知识库', '存档')
 class _EventHub:
     """In-memory pub/sub for instant worker Long-Polling and browser SSE notifications."""
 
-    def __init__(self, max_events=96):
+    def __init__(self, max_events=256):
         self._cond = threading.Condition()
         self._max_events = max_events
         self.seq = 0
@@ -69,6 +69,9 @@ class _EventHub:
     def wait_client(self, since_seq, timeout=15.0):
         deadline = time.monotonic() + max(0.2, min(float(timeout), 20.0))
         with self._cond:
+            # Handle server restart (client cursor ahead of in-memory seq) or ring-buffer gap immediately.
+            if since_seq > self.seq or (self._events and since_seq > 0 and since_seq < self._events[0][0] - 1):
+                return [(self.seq, 'resync', {'seq': self.seq})], self.seq
             while self.seq <= since_seq:
                 remaining = deadline - time.monotonic()
                 if remaining <= 0:
@@ -2355,7 +2358,7 @@ class StoryService:
                 pub = {'task': self._public(current)}
             self._clear_preview(key)
             if committed_msgs:
-                self._trigger_tts_prewarm(committed_msgs, dedup_prefix=key)
+                self._trigger_tts_prewarm(committed_msgs, dedup_prefix=key, stage='committed')
             self.hub.publish('committed' if current['status'] == 'committed' else 'task_state',
                              {'request_id': key, 'status': current['status']})
             return pub
@@ -2404,10 +2407,13 @@ class StoryService:
             pub = {'task': self._public(current)}
         self._clear_preview(key)
         if committed_msgs:
-            self._trigger_tts_prewarm(committed_msgs, dedup_prefix=key)
+            self._trigger_tts_prewarm(committed_msgs, dedup_prefix=key, stage='committed')
         self.hub.publish('committed' if current['status'] == 'committed' else 'task_state',
                          {'request_id': key, 'status': current['status']})
         return pub
+
+
+_ERROR_LOG_LOCK = threading.Lock()
 
 
 def register_story_routes(app, root, *, tts_prewarmer=None):
@@ -2465,15 +2471,16 @@ def register_story_routes(app, root, *, tts_prewarmer=None):
         stamp = time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())
         tb = ''.join(traceback.format_exception(type(orig), orig, orig.__traceback__))
         entry = f'[{stamp}] {request.method} {request.path}\n{tb}\n'
-        try:
-            log_path.parent.mkdir(parents=True, exist_ok=True)
-            if log_path.is_file() and log_path.stat().st_size > 262144:
-                tail = log_path.read_bytes()[-131072:]
-                log_path.write_bytes(tail)
-            with log_path.open('a', encoding='utf-8') as out:
-                out.write(entry)
-        except OSError:
-            pass
+        with _ERROR_LOG_LOCK:
+            try:
+                log_path.parent.mkdir(parents=True, exist_ok=True)
+                if log_path.is_file() and log_path.stat().st_size > 262144:
+                    tail = log_path.read_bytes()[-131072:]
+                    log_path.write_bytes(tail)
+                with log_path.open('a', encoding='utf-8') as out:
+                    out.write(entry)
+            except OSError:
+                pass
         return orig
 
     @app.errorhandler(500)
@@ -2536,15 +2543,26 @@ def register_story_routes(app, root, *, tts_prewarmer=None):
 
     @app.get('/api/story/stream')
     def story_sse_stream():
+        req_epoch = (request.args.get('epoch') or '').strip()
         try:
             start_seq = int(request.args.get('since', service.hub.seq))
         except (TypeError, ValueError):
             start_seq = service.hub.seq
+        cur_seq = service.hub.seq
+        need_resync = False
+        if (req_epoch and req_epoch != service.service_epoch) or start_seq > cur_seq:
+            start_seq = cur_seq
+            need_resync = True
+        elif start_seq > 0 and service.hub._events and start_seq < service.hub._events[0][0] - 1:
+            start_seq = cur_seq
+            need_resync = True
 
         @stream_with_context
         def generate():
             seq = start_seq
-            yield f'event: ready\ndata: {json.dumps({"seq": seq}, ensure_ascii=False)}\n\n'
+            yield f'event: ready\ndata: {json.dumps({"seq": seq, "service_epoch": service.service_epoch}, ensure_ascii=False)}\n\n'
+            if need_resync:
+                yield f'event: resync\ndata: {json.dumps({"seq": seq, "service_epoch": service.service_epoch}, ensure_ascii=False)}\n\n'
             try:
                 while True:
                     missed, seq = service.hub.wait_client(seq, timeout=15.0)

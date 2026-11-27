@@ -1,6 +1,8 @@
 # 故事桥接
 
-当前源码维护入口为本目录的 `main.js`、`ui/settings.ui.js`、`ui/theater.ui.js`、`tools.js` 和 `manifest.json`；插件 ID 为 `local.story.operit_bridge`，当前版本 **2.3.2**，API 2.0.0。根目录运行 `python scene_chat_dev/build.py` 构建到 `scene_chat_dev/artifacts/`，再在 Operit 同 ID 导入才会更新已安装插件。
+当前源码维护入口为本目录的 `main.js`、`ui/settings.ui.js`、`ui/theater.ui.js`、`tools.js` 和 `manifest.json`；插件 ID 为 `local.story.operit_bridge`，当前版本 **2.3.3**，API 2.0.0。根目录运行 `python scene_chat_dev/build.py` 构建到 `scene_chat_dev/artifacts/`，再在 Operit 同 ID 导入才会更新已安装插件。
+
+**v2.3.3 全量体检收口加固**：修复提交回执 `actualSeq` 读取 `res.task.receipt.state_version` 恢复同窗 Zone 2 省流；Stage 1 JS 清洗与后端 Python 完全对齐（旁白/动作/主角剥离全量声学与 Drama 3 XML 标签、支持换行标签头与全角括号/围栏清洗）；内嵌剧场 `reload()` 自动重读最新地址；`tools.js` 清理废弃参数声明。
 
 **v2.3.2 Drama 3 声演导演词同步**：`STREAM_LEADING_ASCII_FISH_RE` 与 `STREAM_LEADING_VOICE_TAGS_RE` 标签长度上限由 `80` 放宽至 `180`（并兼容英文撇号/分号），与本地引擎精炼英文/双语导演词及句中转折规范 100% 对齐。
 

@@ -40,8 +40,8 @@ SYSTEM_LOG完整模板见`txt文件/提示词.md`；本文件只规定注入调�
   check/apply的文件参数写“-”时，从标准输入读取。CLI成功退出码0、失败1；输出为JSON的ok/result或ok/error/code。
 
 【prepare】返回schema_version、base_revision、current_round、memory_layers、summary_sources与snapshot。
-  - base_revision是核心事实文件的SHA-256组合版本：全局记忆库.txt、徐志北道具图鉴.txt、save_state.json、四层记忆.json、data.json。
-  - current_round由记忆层最新回合计算；空档从1开始，唯一序幕锚点【1】（四层记忆.json prologue_active=true 或旧序幕隐藏标记）可由正式第1回合接替。
+  - base_revision是核心事实文件的SHA-256组合版本：全局记忆库.txt、徐志北道具图鉴.txt、save_state.json、memory_store.json、data.json。
+  - current_round由记忆层最新回合计算；空档从1开始，唯一序幕锚点【1】（memory_store.json prologue_active=true 或旧序幕隐藏标记）可由正式第1回合接替。
   - summary_sources列出需要压缩的真实旧条目；不由AI重新猜测来源范围。
   - snapshot是持有同一进程锁期间读取的事实文件文本快照。
 
