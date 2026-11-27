@@ -121,10 +121,20 @@ _OPT_TRAILING_MOVE_RE = re.compile(r'\s*\[(?i:MOVE)[:：]\s*([^\]]+?)\s*\]\s*[�
 _DEFAULT_DECISION_PROMPT = '此刻，你准备怎么回应？'
 _INTIMATE_TURN_RE = re.compile(
     r'强吻|亲吻|舌吻|拥吻|轻吻|热吻|吻(?:上|住|下|向|过|了|进|着|落|她|在)|抚摸|爱抚|轻揉|揉捏|按摩|按揉|摩挲|轻抚|抚过|贴近|凑近|抱紧|搂住|揽住|贴住|靠在怀里|压倒|推倒|扑倒|抱上床|抱进卧室|上床|'
-    r'脱衣|脱掉|褪下|掀起裙|解开衣|解开扣|扯开|撕破|撩起|衣领|领口|肩带|睡裙|睡衣|内衣|内裤|底裤|丝袜|黑丝|偷藏|私藏|嗅闻|脚踝|玉足|美足|足背|足弓|脚尖|脚趾|手腕|指尖|锁骨|后颈|腰线|胸线|36D|大腿内侧|腿间|乳房|乳尖|酥胸|丰臀|私处|下身|小穴|穴口|'
+    r'脱衣|脱掉|褪下|掀起裙|解开衣|解开扣|扯开|撕破|撩起|衣领|领口|肩带|睡裙|睡衣|内衣|内裤|底裤|丝袜|黑丝|偷藏|私藏|嗅闻|脚踝|玉足|美足|足背|足弓|脚尖|脚趾|手腕|指尖|锁骨|后颈|腰线|胸线|36D|大腿内侧|腿间|'
+    r'胸部|胸口|胸前|双乳|乳房|乳尖|乳头|奶头|乳晕|奶子|大奶|酥胸|丰臀|屁股|臀部|肉臀|翘臀|胴体|私处|下身|小穴|穴口|骚逼|嫩逼|花穴|阴蒂|阴唇|鸡巴|肉棒|龟头|阳具|阴茎|大屌|卵蛋|淫水|爱液|'
     r'体香|沐浴露|耳垂|耳畔|耳边|精油|催情|桃露|香薰|眼罩|滚轮|润滑|束缚|项圈|丝带|摄像头|针孔|偷拍|监听|'
-    r'足交|乳交|手交|素股|胸推|口交|颜射|射精|潮吹|舔|吮|咬|啃|捏|掐|揉|磨|蹭|跨坐|压在身下|按在墙上|把玩|掰开|'
-    r'挺入|抽插|顶入|撞击|调教|侍奉|跪下含|含住|指奸|后入|骑乘|内射|外射|吞精|自慰|自渎|换衣|洗澡|沐浴|走光|湿身|高潮|性爱|做爱|情欲|亲密接触'
+    r'足交|乳交|手交|素股|胸推|口交|颜射|射精|潮吹|舔|吮|咬|啃|捏|掐|揉|摸胸|揉胸|抓奶|捏奶|磨|蹭|跨坐|压在身下|按在墙上|把玩|掰开|'
+    r'挺入|抽插|顶入|顶进|插进|捅|操|肏|干她|撸|撞击|调教|侍奉|跪下含|含住|指奸|后入|骑乘|内射|外射|吞精|自慰|自渎|换衣|洗澡|沐浴|走光|湿身|高潮|性爱|做爱|情欲|亲密接触|'
+    r'(?:感受|摸|揉|捏|抓|贴|搂|抱|压|蹭|吻|舔|抚|触)[^\n。！？]{0,6}(?:身体|身子|胸|乳|奶|腰|臀|腿|温度|曲线|触感|软)'
+)
+_PLAYER_BODY_SENSORY_RE = re.compile(
+    r'感受[^\n。！？]{0,6}(?:身|胸|乳|奶|腰|臀|腿|温度|曲线|触感|软)|'
+    r'(?:摸|揉|捏|抓|掐|托|捧|贴|搂|抱|压|吻|舔|吮|咬|蹭|操|肏|插|顶|捅|撸)[^\n。！？]{0,8}'
+    r'(?:身|胸|乳|奶|腰|臀|屁股|腿|脚|足|手|颈|肩|背|锁骨|耳|唇|穴|逼|鸡巴|肉棒|龟头|丝袜|睡裙|内衣)'
+)
+_PLAYER_ACTION_EMBODIMENT_RE = re.compile(
+    r'伸手|抬手|俯身|弯腰|走近|靠近|凑近|贴近|坐下|起身|转身|递|倒|接过|拉住|握住|扶|抱|搂|揽|摸|揉|捏|抓|贴|吻|亲|舔|压|推|按|抽|插|顶|操|肏|感受|脱|解开|撩起|掀开|放|拿|递给|塞进|扣住|捏住|托住'
 )
 
 _WILL_SECRET_RE = re.compile(
@@ -1403,8 +1413,8 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
         if mode == 'dual_stream_v2':
             if style == 'faithful':
                 protagonist_rule = (
-                    '   - 主角具身在场（忠实演绎）：用 [A:徐志北] / [N] 自然承接玩家本轮行动，允许输出 1～3 句贴合原意图的简短 [D:徐志北] 口语（建议≤40字、默认静音可在语音设置开启主角配音，正文禁任何声学/XML标签）；'
-                    '称呼人物须严格沿用玩家本轮原输入称谓（不把母亲/姐姐/嫂子擅自改叫名字），括号内无声/眼神示意不擅自改写为喊话；若玩家输入已有直接引语则保留原意，不代增新决定、新承诺、烈度升级或未授权反派滤镜。\n'
+                    '   - 主角具身在场（忠实演绎·行动必演）：开场先以 [A:徐志北]/[N] 将玩家本轮行动与身体感知自然演进画面（动作轨迹+接触部位具体触感与主角体感，禁跳过动作直接切NPC），允许输出 1～3 句贴合原意图的简短 [D:徐志北] 口语（≤40字、默认静音可在语音设置开启配音，禁任何声学/XML标签）；'
+                    '称呼沿用玩家原输入称谓（不擅自直呼母亲/姐姐/嫂子名字），括号无声示意不改写喊话，不代增新决定、承诺、烈度升级或未授权反派滤镜。\n'
                 )
                 action_line_rule = (
                     '   [A:角色姓名] 归属明确的具体动作（在场人物或徐志北；禁任何声学/XML标签；高羞耻身体露馅时可用 ｛表面端庄｜本能破绽｝）\n'
@@ -1414,7 +1424,7 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
                 )
             else:
                 protagonist_rule = (
-                    '   - 主角具身在场（仅动作感官）：严禁输出 [D:徐志北]，以 [A:徐志北] / [N] 自然呈现动作、间接追问与体感，不把主角写成隐身摄像机。\n'
+                    '   - 主角具身在场（仅动作感官·行动必演）：严禁输出 [D:徐志北]；开场先以 [A:徐志北]/[N] 将玩家本轮行动、间接追问与身体接触第一手触感自然演进画面，禁跳过主角动作写成隐身摄像机。\n'
                 )
                 action_line_rule = (
                     '   [A:角色姓名] 归属明确的具体动作（在场人物或徐志北；玩家提问亦用 [A:徐志北]/[N] 间接表达，严禁 [D:徐志北]；禁任何声学/XML标签；高羞耻身体露馅可用 ｛表面端庄｜本能破绽｝）\n'
@@ -2313,10 +2323,29 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
             '当前同地有两位以上女主在场，可按当前关系与防线自然提供暗触试探、避开视线、醋意周旋或高堕落共谋的选项（严守宿主主权，绝不强推）。'
             if len(heroines_here) >= 2 else ''
         )
-        acting_anchor = (
-            '演法锚点：先让在场人物活出各自手头事、未散余绪与彼此间的真实空气，允许斜向回应、合理误判与分寸摩擦，再自然承接主角行动。'
-            if cast else ''
-        )
+        sel_text_now = selected.get('text', '') if isinstance(selected, dict) else ''
+        action_blob = f"{text or ''}\n{sel_text_now or ''}"
+        body_sensory_now = bool(_PLAYER_BODY_SENSORY_RE.search(action_blob))
+        action_embodiment_now = bool(body_sensory_now or _PLAYER_ACTION_EMBODIMENT_RE.search(action_blob))
+        if cast:
+            if body_sensory_now or intimate_active_now:
+                acting_anchor = (
+                    '演法锚点：开场先将player_input自然演成[A:徐志北]/[N]具体动作与第一手触感'
+                    '（触及身体部位须直写部位实名、重量、软弹、温湿度与主角体感，性器官与性行为用直白粗俗口语词禁委婉），'
+                    '再接入在场人物带着各自余绪与分寸的实时反应。'
+                )
+            elif action_embodiment_now:
+                acting_anchor = (
+                    '演法锚点：开场先将player_input自然演成[A:徐志北]/[N]具体动作与现场触感（禁跳过主角动作直接切NPC），'
+                    '再接入在场人物带着各自手头事、未散余绪与分寸摩擦的实时回应。'
+                )
+            else:
+                acting_anchor = (
+                    '演法锚点：先将player_input自然落进画面与徐志北的动作/话锋，同时让在场人物活出各自手头事、'
+                    '未散余绪与分寸摩擦实时回应（允许斜向回应与合理误判），切忌把主角写成后台指令工具人。'
+                )
+        else:
+            acting_anchor = ''
         if intimate_active_now:
             tier_c = intl_now.get('active_costs') or sp.COSTS
             decision_clause = (
@@ -2340,9 +2369,13 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
                     + lateral_hint + acting_anchor + decision_clause
                 )
         else:
-            # Zone 0 already freezes line-tag syntax; Turn 2+ only carries compact speaker lock + active dynamic cues.
+            # Zone 0 already freezes line-tag syntax; Turn 2+ carries compact embodiment + speaker lock + dynamic cues.
             protag_cue = '允≤3句简短[D:徐志北](零标签)；' if style == 'faithful' else '禁[D:徐志北]；'
-            dyn_format = (protag_cue + lateral_hint + decision_clause).strip()
+            if body_sensory_now or intimate_active_now:
+                embody_cue = '开场先将player_input演成[A:徐志北]/[N]具身动作与部位实名触感（性描写用直白粗俗口语词禁委婉），再接NPC实时反应；'
+            else:
+                embody_cue = '先将player_input自然演成[A:徐志北]/[N]动作与体感再接NPC反应；'
+            dyn_format = (embody_cue + protag_cue + lateral_hint + decision_clause).strip()
             if dyn_format:
                 delta['output_format'] = dyn_format
 

@@ -760,6 +760,87 @@ class NarrativeOverhaulTests(unittest.TestCase):
         # C烈度_中度 at aff=50 normally drops -4, halved to -2 by 意外撞破_私密自渎
         self.assertEqual(st_m_after['panels']['苏婉青']['好感'], 48)
 
+    def test_protagonist_embodiment_and_explicit_register_pipeline(self):
+        # 1. Zone 0 stays strictly under 9,200 chars and includes protagonist action-first embodiment
+        z0 = sc.build_zone0_global(self.tmp, mode='dual_stream_v2', protagonist_style='faithful')
+        self.assertLess(len(z0), 9200, f'Zone 0 exceeded budget: {len(z0)}')
+        self.assertIn('行动必演', z0)
+        self.assertIn('具体部位实名与第一手触感', z0)
+
+        # 2. Colloquial body/explicit inputs trigger _needs_intimate_turn & inject intimate_craft_guide in Zone 2
+        for sample in (
+            '我伸手抱住她，慢慢感受她的身体和胸部',
+            '掌心揉上她饱满的奶子',
+            '把发烫的鸡巴抵在小穴口慢慢操进去',
+            '龟头磨蹭着湿透的骚逼',
+        ):
+            self.assertTrue(
+                sc._needs_intimate_turn(sample),
+                f'_needs_intimate_turn must trigger for colloquial input: {sample}',
+            )
+
+        import injection_core as engine
+        import save_store
+        st, _, _ = save_store.load_bundle(self.tmp, sync_txt_drift=False)
+        mem_txt = (self.tmp / '存档/全局记忆库.txt').read_text(encoding='utf-8')
+        state_stub = {
+            'location': '市中心顶层公寓',
+            'cast': ['苏婉青'],
+            'panels': [f'[{k}] 好感 {v.get("好感", 50)} | 羞耻 {v.get("羞耻", 95)} | 欲望 {v.get("欲望", 10)} | 堕落 {v.get("堕落", 0)}' for k, v in st['panels'].items() if k in save_store.HEROINES],
+            'items': [],
+            'tasks': {},
+            'intimate': st.get('intimate') or {},
+            'presence': st.get('presence') or {},
+            'npc_mind': st.get('npc_mind') or {},
+            'progression': {'runtime': st.get('runtime') or {}},
+        }
+        proj = {'text': '【L1】公寓客厅', 'current': None, 'index': [], 'transfers': {}, 'limits': {'round_chars': 600}}
+
+        # Turn 1 (fresh) with body sensation input -> loads intimate_craft_guide + protagonist-first acting_anchor
+        d1 = json.loads(sc.build_user_delta(
+            self.tmp, state_stub, proj, history=[], new_history_only=[],
+            text='我贴近抱住她，掌心顺着腰滑上去感受她的身体和胸部',
+            selected=None, resolved_op=None, intent_evidence=None,
+            preview_cost={'before': 100, 'reserved': 10},
+            runtime={'clock': {'day': 1, 'time': '21:10'}, 'memory_round': 1, 'phase': 'ready'},
+            memory_text=mem_txt, include_full_anchor=True, mode='dual_stream_v2',
+            zone1_flags={'vig': False, 'intl': False},
+        ))
+        self.assertIn('intimate_craft_guide', d1)
+        for explicit_tok in ('鸡巴', '肉棒', '龟头', '小穴', '骚逼', '奶子', '乳房', '操'):
+            self.assertIn(explicit_tok, d1['intimate_craft_guide'])
+        self.assertIn('开场先将player_input自然演成[A:徐志北]/[N]', d1['output_format'])
+        self.assertNotIn('先让在场人物活出各自手头事', d1['output_format'])
+
+        # Turn 2 (incremental) retains compact embodiment cue + explicit colloquial reminder
+        d2 = json.loads(sc.build_user_delta(
+            self.tmp, state_stub, proj, history=[], new_history_only=[],
+            text='我揉着她的奶子把肉棒顶进小穴里',
+            selected=None, resolved_op=None, intent_evidence=None,
+            preview_cost={'before': 90, 'reserved': 15},
+            runtime={'clock': {'day': 1, 'time': '21:18'}, 'memory_round': 1, 'phase': 'ready'},
+            memory_text=mem_txt, include_full_anchor=False, mode='dual_stream_v2',
+            zone1_flags={'vig': False, 'intl': True},
+        ))
+        self.assertIn('开场先将player_input演成[A:徐志北]/[N]具身动作与部位实名触感', d2['output_format'])
+        self.assertIn('直白粗俗口语词禁委婉', d2['output_format'])
+
+        # 3. Backend _BODY_ACT_PATTERNS recognizes explicit colloquial prose for body_dev fallback
+        events = {'shame_events': {'苏婉青': [engine._event_tag('SHAME_01')]}, 'ds_events': {}}
+        acts_chest_core = engine.infer_body_acts_from_prose(
+            '他掌心用力揉捏她沉甸甸的奶子，随后挺腰让发烫的龟头顶开湿透的小穴狠狠操进去。',
+            events,
+        )
+        self.assertIn('chest', acts_chest_core.get('苏婉青', []))
+        self.assertIn('core', acts_chest_core.get('苏婉青', []))
+
+        acts_oral_hand = engine.infer_body_acts_from_prose(
+            '她手掌握住发烫的肉棒缓缓撸动，低头含住龟头轻轻舔弄。',
+            {'shame_events': {'沈知韫': [engine._event_tag('SHAME_02')]}, 'ds_events': {}},
+        )
+        self.assertIn('oral', acts_oral_hand.get('沈知韫', []))
+        self.assertIn('hand', acts_oral_hand.get('沈知韫', []))
+
 
 if __name__ == '__main__':
     unittest.main()
