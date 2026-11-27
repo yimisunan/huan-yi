@@ -561,8 +561,9 @@ class StoryCompilerTests(unittest.TestCase):
             runtime={'clock': {'day': 1, 'time': '12:15'}, 'memory_round': 1, 'phase': 'ready'},
             memory_text=self.memory_text, include_full_anchor=True, mode='dual_stream_v2',
         ))
-        self.assertIn('items', full_delta)
-        self.assertNotIn('held_items', full_delta)
+        self.assertIn('held_items', full_delta)
+        self.assertNotIn('items', full_delta)
+        self.assertEqual(full_delta['held_items'][0]['desc'], '精油')
         self.assertEqual(full_delta.get('delivered_gifts_to_cast'), [{'name': '手工红茶礼盒', 'recipient': '沈知韫'}])
 
         inc_delta = json.loads(sc.build_user_delta(

@@ -1047,7 +1047,10 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
 
         char_buffs = buff_map.get(name, [])
         if char_buffs:
-            b_desc = '、'.join(f'{b["name"]}(剩{b["turns"]}轮:{b["effect"]})' for b in char_buffs)
+            b_desc = '、'.join(
+                f'{b["name"]}(剩{b["turns"]}轮:{_strip_buff_math_jargon(b["effect"]) or b["effect"]})'
+                for b in char_buffs
+            )
             flags.append('生效持久化状态：' + b_desc)
 
         if desire >= 85:
@@ -1224,11 +1227,15 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
     ks_list = [k for k in (intl.get('keepsakes') or []) if isinstance(k, dict) and k.get('name')]
     if ks_list:
         here_ks = [k for k in ks_list if k.get('owner') in cast] or ks_list[:3]
-        ks_txt = '、'.join(
-            f"{k.get('id', '')}·{k.get('owner', '')}的{k.get('name', '')}"
-            f"[{save_store.KEEPSAKE_CONDITION_LABELS.get(k.get('condition', ''), '余香')}/{'失主已知' if k.get('owner_aware') else '失主未觉'}]"
-            for k in here_ks[:4]
-        )
+        ks_parts = []
+        for k in here_ks[:4]:
+            m_lbl = save_store.KEEPSAKE_METHOD_LABELS.get(k.get('method', ''), '私密留存')
+            c_lbl = save_store.KEEPSAKE_CONDITION_LABELS.get(k.get('condition', ''), '余香')
+            a_lbl = '失主已知' if k.get('owner_aware') else '失主未觉'
+            d_txt = str(k.get('desc') or '').strip()[:36]
+            tail = f'·{d_txt}' if d_txt else ''
+            ks_parts.append(f"{k.get('id', '')}·{k.get('owner', '')}的{k.get('name', '')}[{m_lbl}/{c_lbl}/{a_lbl}{tail}]")
+        ks_txt = '、'.join(ks_parts)
         notes.append(f'宿主私密珍藏（随身暗藏，未主动出示前严禁失主凭空撞破；若偷藏且失主在场可自然流露一丝丢件微惑）：{ks_txt}。')
 
     # 远程监控对象态势（inspect_deployed 激活时透传远程地点女主真实生理/余韵/衣着）
@@ -1573,6 +1580,157 @@ def _short_hash(obj):
     return hashlib.sha256(raw).hexdigest()[:12]
 
 
+_EMPTY_LIST_HASH = _short_hash([])
+_ITEM_GENERIC_STOPWORDS = frozenset({
+    '道具', '物品', '东西', '礼盒', '礼物', '组合', '套装', '配件', '器具', '装置',
+    '设备', '随身', '定制', '私密', '高定', '精品', '手工', '超薄', '微型', '隐蔽',
+    '临时', '永久', '消耗', '日常', '居家', '专用', '专属', '催化', '滴剂',
+})
+_ITEM_SUFFIX_STRIP_RE = re.compile(r'(?:礼盒|套装|组合|盒|瓶|袋|包|件)$')
+_BUFF_MATH_JARGON_RE = re.compile(
+    r'[（(][^）)]*(?:惩罚减半|掉好感减半|不衰减|穿透)[^）)]*[）)]'
+    r'|[，,、；;]?\s*(?:且|并)?\s*(?:轻中度越界(?:好感惩罚|掉好感)减半|视觉(?:刺激不衰减|羞耻穿透))'
+)
+
+
+def _strip_buff_math_jargon(text):
+    s = str(text or '').strip()
+    if not s:
+        return ''
+    s = _BUFF_MATH_JARGON_RE.sub('', s)
+    s = re.sub(r'[，,、；;]{2,}', '，', s)
+    s = re.sub(r'^[，,、；;且并\s]+|[，,、；;且并\s]+$', '', s)
+    return s
+
+
+def humanize_item_effect(raw_eff):
+    """Translate backend system_effect tokens into clean in-world narrative text without raw formulas or scoring jargon."""
+    s = str(raw_eff or '').strip()
+    if not s:
+        return ''
+    if s.startswith('host_stamina:'):
+        return '提振宿主精神、缓和疲惫'
+    if s.startswith('buff:'):
+        parts = s.split(':', 3)
+        if len(parts) == 4:
+            bname = parts[1].strip()
+            bturns = parts[2].strip()
+            bdesc = _strip_buff_math_jargon(parts[3].strip()) or '感官与氛围升温'
+            return f'持续{bturns}轮「{bname}」：{bdesc}'
+        return _strip_buff_math_jargon(s)
+    if s == 'deploy_device:camera':
+        return '隐蔽广角实时画面回传'
+    if s == 'deploy_device:audio':
+        return '隐蔽声控实时拾音监听'
+    if s == 'deploy_device:aroma':
+        return '隐蔽室内扩香与氛围感知'
+    return _strip_buff_math_jargon(s)
+
+
+def _usage_mode_cn(mode, giftable=False, item_type=''):
+    m = str(mode or '').strip()
+    if m == 'consumable_host':
+        return '宿主自用提神(消耗品，不可赠人)'
+    if m == 'consumable_target':
+        return '对在场人或室内使用(消耗品，用1减1)'
+    if m == 'reusable_tool':
+        return '随身工具(可反复使用不消耗)'
+    if m == 'deployable_device':
+        return '可暗中部署于室内(可远程回看/原址回收)'
+    if m == 'gift' or giftable:
+        return '可赠予在场人物'
+    if '消耗品' in str(item_type or ''):
+        return '消耗品(用1减1)'
+    return '随身持有物品'
+
+
+def _deployed_risk_label(risk_val):
+    try:
+        r = int(risk_val or 0)
+    except (TypeError, ValueError):
+        r = 0
+    if r >= 45:
+        return '高危极易被察觉'
+    if r >= 15:
+        return '已有一定暴露隐患'
+    return ''
+
+
+def _extract_item_core_tokens(name):
+    raw = str(name or '').strip()
+    if not raw:
+        return set()
+    tokens = {raw}
+    for m in re.finditer(r'《([^》]{2,20})》', raw):
+        tokens.add(m.group(1).strip())
+    base = re.sub(r'[（(][^）)]*[）)]', '', raw)
+    base = re.sub(r'《[^》]*》', '', base).strip()
+    if len(base) >= 2:
+        tokens.add(base)
+    for part in re.split(r'[与和及·、/\s]+', base):
+        p = part.strip()
+        if len(p) < 2:
+            continue
+        tokens.add(p)
+        p_core = _ITEM_SUFFIX_STRIP_RE.sub('', p).strip()
+        if len(p_core) >= 2:
+            tokens.add(p_core)
+        for src in (p, p_core):
+            if len(src) >= 4:
+                tokens.add(src[-4:])
+                tokens.add(src[-3:])
+            if len(src) >= 2:
+                tokens.add(src[-2:])
+    return {t for t in tokens if len(t) >= 2 and t not in _ITEM_GENERIC_STOPWORDS}
+
+
+def match_item_in_text(text, item, pool=None):
+    """Return True when text explicitly names item (exact id/name or unambiguous unique core noun within pool)."""
+    txt = str(text or '')
+    if not txt or not isinstance(item, dict):
+        return False
+    iid = str(item.get('id') or '').strip()
+    name = str(item.get('name') or '').strip()
+    if (iid and iid in txt) or (name and name in txt):
+        return True
+    my_tokens = _extract_item_core_tokens(name)
+    hit_tokens = [t for t in my_tokens if t in txt]
+    if not hit_tokens:
+        return False
+    candidates = [x for x in (pool or ()) if isinstance(x, dict) and x.get('name')]
+    if len(candidates) <= 1:
+        return True
+    my_id = iid or name
+    for tok in sorted(hit_tokens, key=len, reverse=True):
+        owners = []
+        for other in candidates:
+            oid = str(other.get('id') or '') or str(other.get('name') or '')
+            if tok in _extract_item_core_tokens(other.get('name', '')):
+                owners.append(oid)
+        if len(set(owners)) == 1 and owners[0] == my_id:
+            return True
+    return False
+
+
+def find_mentioned_items(text, items):
+    """Return subset of items clearly mentioned in text (exact or unambiguous core noun)."""
+    if not text or not items:
+        return []
+    pool = [it for it in items if isinstance(it, dict) and it.get('name')]
+    return [it for it in pool if match_item_in_text(text, it, pool)]
+
+
+def _emit_diff_list(delta, unchanged_blocks, key, value, cur_hash, prev_hash, can_diff):
+    """Emit list on change, add to unchanged_blocks when identical, and explicitly emit [] when transitioning non-empty -> empty."""
+    if value:
+        if can_diff and prev_hash == cur_hash:
+            unchanged_blocks.append(key)
+        else:
+            delta[key] = value
+    elif can_diff and prev_hash and prev_hash != _EMPTY_LIST_HASH:
+        delta[key] = []
+
+
 def _apply_anchor_history_mode(history, mode='balanced', soft_budget=6000):
     """Apply cross-window history anchor mode: 'balanced' keeps last 2 turns 100% verbatim + up to 2 prior turns within soft_budget."""
     rows = list(history or ())
@@ -1789,33 +1947,74 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
             f'近两幕已用过[{" / ".join(recent_cliches)}]，本幕请换用全新的日常动作或生活杂务细节，勿重复同一小动作。'
         )
 
-    held_compact = [{
-        'id': i['id'],
-        'name': i['name'],
-        'qty': i['quantity'],
-        'usage_mode': i.get('usage_mode', ''),
-        'status': (i.get('fields') or {}).get('当前状态', ''),
-        'remaining_turns': i.get('remaining_turns'),
-        'desc': ((i.get('fields') or {}).get('描述', '') or '')[:64],
-        'effect': ((i.get('fields') or {}).get('系统效果', '') or '')[:60],
-        'source': ((i.get('fields') or {}).get('备注', '') or '')[:60],
-    } for i in (state.get('items') or [])]
+    held_view = []
+    for i in (state.get('items') or []):
+        if not isinstance(i, dict) or not i.get('name'):
+            continue
+        f = i.get('fields') or {}
+        mode_raw = i.get('usage_mode') or f.get('使用模式', '')
+        giftable = bool(i.get('giftable', f.get('可赠予', '是') != '否'))
+        desc_clean = str(f.get('描述') or i.get('desc') or i.get('description') or '').strip()[:160]
+        eff_human = humanize_item_effect(f.get('系统效果') or i.get('system_effect') or '')
+        row = {
+            'id': i['id'],
+            'name': i['name'],
+            'qty': i.get('quantity', 1),
+            'use_way': _usage_mode_cn(mode_raw, giftable, f.get('类型', '')),
+            'desc': desc_clean,
+        }
+        if eff_human:
+            row['effect'] = eff_human
+        if i.get('remaining_turns') is not None:
+            row['remaining_turns'] = i['remaining_turns']
+        held_view.append(row)
+
     deployed_all = state.get('deployed_items') or []
-    deployed_here = [{
-        'id': d['id'], 'name': d['name'], 'spot': d.get('spot') or '隐蔽角落',
-        'hidden': bool(d.get('hidden', True)), 'effect': d.get('system_effect', ''),
-    } for d in deployed_all if d.get('location') == location]
-    deployed_remote = [{
-        'id': d['id'], 'name': d['name'], 'location': d.get('location', ''),
-        'spot': d.get('spot') or '隐蔽角落', 'effect': d.get('system_effect', ''),
-    } for d in deployed_all if d.get('location') and d.get('location') != location]
+    deployed_here = []
+    deployed_remote = []
+    for d in deployed_all:
+        if not isinstance(d, dict) or not d.get('name'):
+            continue
+        cap = humanize_item_effect(d.get('system_effect', ''))
+        d_desc = str(d.get('desc') or d.get('description') or '').strip()[:96]
+        r_lbl = _deployed_risk_label(d.get('detected_risk'))
+        if d.get('location') == location:
+            entry = {
+                'id': d['id'], 'name': d['name'], 'spot': d.get('spot') or d.get('sub_spot') or '隐蔽角落',
+                'hidden': bool(d.get('hidden', True)),
+            }
+            if cap:
+                entry['capability'] = cap
+            if d_desc:
+                entry['desc'] = d_desc
+            if r_lbl:
+                entry['risk'] = r_lbl
+            deployed_here.append(entry)
+        elif d.get('location'):
+            entry = {
+                'id': d['id'], 'name': d['name'], 'location': d.get('location', ''),
+                'spot': d.get('spot') or '隐蔽角落',
+            }
+            if cap:
+                entry['capability'] = cap
+            if d_desc:
+                entry['desc'] = d_desc
+            if r_lbl:
+                entry['risk'] = r_lbl
+            deployed_remote.append(entry)
+
     cast_set = set(cast or [])
     delivered_to_cast = [
-        {'name': d['name'], 'recipient': d.get('recipient', '')}
+        {
+            'name': d['name'],
+            'recipient': d.get('target') or d.get('recipient') or '',
+            **({'desc': str(d.get('desc') or '').strip()[:48]} if str(d.get('desc') or '').strip() else {}),
+        }
         for d in (state.get('delivered_items') or [])
-        if isinstance(d, dict) and d.get('name') and d.get('recipient') in cast_set
+        if isinstance(d, dict) and d.get('name')
+        and (d.get('target') or d.get('recipient') or '') in cast_set
     ][-6:]
-    items_hash = _short_hash(held_compact)
+    items_hash = _short_hash(held_view)
     dep_here_hash = _short_hash(deployed_here)
     dep_remote_hash = _short_hash(deployed_remote)
     gifts_hash = _short_hash(delivered_to_cast)
@@ -1833,11 +2032,10 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
         session_delta_out['newly_injected_guides'] = newly_injected_guides
         session_delta_out['state_hashes'] = cur_state_hashes
 
-    if delivered_to_cast:
-        if can_diff_blocks and prev_state_hashes.get('gifts') == gifts_hash:
-            unchanged_blocks.append('delivered_gifts_to_cast')
-        else:
-            delta['delivered_gifts_to_cast'] = delivered_to_cast
+    _emit_diff_list(
+        delta, unchanged_blocks, 'delivered_gifts_to_cast', delivered_to_cast,
+        gifts_hash, (prev_state_hashes or {}).get('gifts') if can_diff_blocks else None, can_diff_blocks,
+    )
 
     if isinstance(memory_view, dict):
         scoped_block = {}
@@ -1862,7 +2060,7 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
         if not isinstance(memory_view, dict):
             raw_mem = projection['text']
             delta['player_private_memory'] = raw_mem if is_single else _strip_active_task_from_memory(raw_mem)
-        delta['items'] = state.get('items', [])
+        delta['held_items'] = held_view
         if deployed_here:
             delta['deployed_items_here'] = deployed_here
         if deployed_remote:
@@ -1903,22 +2101,33 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
                     break
             if recalled_entries:
                 delta['recalled_memories'] = recalled_entries
-        delta['items_count'] = len(state.get('items', []))
-        if held_compact:
-            if can_diff_blocks and prev_state_hashes.get('items') == items_hash:
-                unchanged_blocks.append('held_items')
-            else:
-                delta['held_items'] = held_compact
-        if deployed_here:
-            if can_diff_blocks and prev_state_hashes.get('dep_here') == dep_here_hash:
-                unchanged_blocks.append('deployed_items_here')
-            else:
-                delta['deployed_items_here'] = deployed_here
-        if deployed_remote:
-            if can_diff_blocks and prev_state_hashes.get('dep_remote') == dep_remote_hash:
-                unchanged_blocks.append('deployed_items_remote')
-            else:
-                delta['deployed_items_remote'] = deployed_remote
+        delta['items_count'] = len(held_view)
+        _emit_diff_list(
+            delta, unchanged_blocks, 'held_items', held_view,
+            items_hash, (prev_state_hashes or {}).get('items') if can_diff_blocks else None, can_diff_blocks,
+        )
+        _emit_diff_list(
+            delta, unchanged_blocks, 'deployed_items_here', deployed_here,
+            dep_here_hash, (prev_state_hashes or {}).get('dep_here') if can_diff_blocks else None, can_diff_blocks,
+        )
+        _emit_diff_list(
+            delta, unchanged_blocks, 'deployed_items_remote', deployed_remote,
+            dep_remote_hash, (prev_state_hashes or {}).get('dep_remote') if can_diff_blocks else None, can_diff_blocks,
+        )
+        # On-demand mention recall: if player free-text references an item whose list was diff-omitted,
+        # re-surface just that item card so long sessions never suffer item amnesia.
+        if text:
+            omitted_pool = []
+            if 'held_items' in unchanged_blocks:
+                omitted_pool.extend({**x, 'status': '背包持有'} for x in held_view)
+            if 'deployed_items_here' in unchanged_blocks:
+                omitted_pool.extend({**x, 'status': '已部署(当前现场)'} for x in deployed_here)
+            if 'deployed_items_remote' in unchanged_blocks:
+                omitted_pool.extend({**x, 'status': '已部署(远程)'} for x in deployed_remote)
+            if omitted_pool:
+                recalled_items = find_mentioned_items(text, omitted_pool)[:3]
+                if recalled_items:
+                    delta['mentioned_items'] = recalled_items
         if is_single:
             delta['tasks'] = state.get('tasks')
         if new_history_only:
@@ -1976,10 +2185,11 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
             'rule': (
                 f'玩家本轮以【商城定制】显式向深渊天平系统商城请求定制进货（当前已解锁最高阶：{cur_grade}）。'
                 '此过程仅在徐志北脑海私密闪现，在场NPC绝对听不见、看不见且绝不察觉，现实动作与对话照常流畅衔接。'
-                '请穿插1～2句简短[N]私密内心系统提示，紧密贴合当前局面、人物与玩家诉求（策略/社交/官能/私密穿搭/隐秘装备均不设限），'
+                '请穿插1～2句简短[N]私密内心系统提示，紧密贴合当前局面、人物与玩家诉求（策略/社交/官能/私密穿搭/隐秘装备题材均自由不设限），'
                 '推出1～3件不与existing_names重名的新道具，明确标出【品级T1~T4】、【道具名】、具体用途与参考积分：'
                 'T1寻常小物(10~30分,开局即用)、T2进阶利器(32~60分,轻中度官能/公关/工具)、T3稀缺重器(65~120分,监控/深控/核心筹码)、T4深渊禁品(150~260分,高危强催化/终阶筹码)；'
-                '建议优先含1件当前可买实用款，若玩家索要超阶/强效道具也照常上架但标T3/T4由程序锁门待后期解锁；仅作上架展示，本幕不得直接凭空塞进主角手里，且任何道具只做筹码助力不一键跳过剧情。'
+                '【道具不是修改器铁律】严禁设计直接增减属性的道具（如直接加好感/减羞耻/加堕落/加魅力/加商业嗅觉/加积分/回体力精力/清警惕），仅可设计间接/辅助效果（营造氛围、感官放大、话题破冰、降低防备与越界缓和、隐秘情报或监控筹码）来帮助玩家靠互动赢得推进；'
+                '建议优先含1件当前可买实用款，超阶/强效道具也照常上架但标T3/T4由程序锁门待后期解锁；仅作上架展示，本幕不得直接凭空塞进主角手里。'
             ),
         }
 
@@ -2158,7 +2368,7 @@ def _compact_items_for_settlement(items, text, operation_context):
             continue
         iid = str(it.get('id') or '')
         iname = str(it.get('name') or '')
-        if (iname and iname in haystack) or (iid and iid in haystack):
+        if (iname and iname in haystack) or (iid and iid in haystack) or match_item_in_text(text, it, items):
             out.append(it)
         else:
             out.append({
@@ -2169,6 +2379,59 @@ def _compact_items_for_settlement(items, text, operation_context):
                 'status': (it.get('fields') or {}).get('当前状态', ''),
             })
     return out
+
+
+def _build_free_text_item_hint(text, state, operation_context, preview_cost):
+    """Build on-demand Stage 2 hint when player free-text mentions owned/deployed items without explicit UI operation."""
+    if not text or (preview_cost or {}).get('kind') != 'action':
+        return None
+    if isinstance(operation_context, dict) and operation_context.get('requested'):
+        return None
+    cur_loc = str((state or {}).get('location') or '')
+    active_all = [it for it in ((state or {}).get('items') or ()) if isinstance(it, dict) and it.get('name')]
+    deployed_all = [d for d in ((state or {}).get('deployed_items') or ()) if isinstance(d, dict) and d.get('name')]
+    matched_active = [
+        it for it in find_mentioned_items(text, active_all)
+        if it.get('usage_mode') != 'consumable_host'
+        and not str(((it.get('fields') or {}).get('系统效果') or it.get('system_effect') or '')).startswith('host_stamina:')
+    ]
+    matched_deployed = find_mentioned_items(text, deployed_all)
+    if not matched_deployed and len(deployed_all) == 1 and re.search(r'远程|监控|画面|针孔|摄像头|录音|监听|窃听|回看|回听', text):
+        matched_deployed = list(deployed_all)
+    local_devs = [d for d in deployed_all if d.get('location') == cur_loc]
+    if not matched_deployed and len(local_devs) == 1 and re.search(r'拆除|回收|拆下|拆掉|收回来|取回|拿回', text):
+        matched_deployed = list(local_devs)
+    if not matched_active and not matched_deployed:
+        return None
+    cands = []
+    for it in matched_active[:3]:
+        f = it.get('fields') or {}
+        giftable = bool(it.get('giftable', f.get('可赠予', '是') != '否'))
+        umode = it.get('usage_mode') or f.get('使用模式', '')
+        ops = []
+        if umode == 'deployable_device':
+            ops.append('deploy_item{"code":"deploy_item","item_id":"' + it['id'] + '","spot":"点位","hidden":true}')
+        else:
+            ops.append('use_item{"code":"use_item","item_id":"' + it['id'] + '","target":"在场角色或室内氛围"}')
+        if giftable:
+            ops.append('transfer_item{"code":"transfer_item","item_id":"' + it['id'] + '","recipient":"在场角色","quantity":1}')
+        cands.append({
+            'id': it['id'], 'name': it['name'], 'qty': it.get('quantity', 1),
+            'usage_mode': umode, 'giftable': giftable, 'allowed_ops': ops,
+        })
+    for d in matched_deployed[:2]:
+        ops = ['inspect_deployed{"code":"inspect_deployed","item_id":"' + d['id'] + '"}']
+        if d.get('location') == cur_loc:
+            ops.append('retrieve_item{"code":"retrieve_item","item_id":"' + d['id'] + '"}')
+        cands.append({
+            'id': d['id'], 'name': d['name'], 'status': '已部署',
+            'location': d.get('location', ''), 'spot': d.get('spot', ''),
+            'allowed_ops': ops,
+        })
+    return {
+        'candidates': cands,
+        'rule': '玩家原文提及上述道具且未预挂载operation：仅当本幕正文确实实际使用/部署/赠予/回收/远程查看了其中某1件时，按allowed_ops补发合法operation（口头提及未实际动用则operation写""）。',
+    }
 
 
 def _format_anchors_compact_lossless(anchors):
@@ -2241,7 +2504,7 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
             '{"op":"add","kind":"promise|milestone|secret|clue|relationship","importance":1到5,"text":"<=100字","private_host":false} / '
             '{"op":"update","id":"A-号","text":"<=100字"} / {"op":"resolve","id":"A-号","note":"<=40字"}；'
             'chronicle_digest通常写""；仅当context含chronicle_archive_request时，将所列8幕浓缩为{"public":"<=260字公共纪要","views":{"角色名":"<=140字私密线"}}（禁将私密混入public或泄K01绝密）。\n'
-            '7. operation：若context.operation_context.requested非空且现场未拒绝，原样返回该对象；若现场拒绝或未满足条件，operation写""并在handoff说明原因。\n'
+            '7. operation：若context.operation_context.requested非空且现场未拒绝，原样返回该对象（拒执行写""并在handoff说明）；若requested为空但含free_text_item_hint且正文确已动用所列道具，可按hint补发合法operation。\n'
             '8. checks：intent/knowledge/action/pace 四条具体单行事实依据，禁用“已读取/通过/同上”。\n'
             '9. quality_flags：数组，无问题写[]；若违背括号显形、擅加反派滤镜、越界代打或选项同质化（记"option_stagnation"）简要列出；'
             '明显人设OOC对照context.persona_anchors记"persona_ooc:<角色名>:<≤24字原因>"（仅内敛变直白话痨/大段自剖/清冷长篇吐槽等严重偏离，轻微起伏勿报）；'
@@ -2365,10 +2628,14 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
             'rule': '请将以上最旧8幕浓缩写入 resolution.memory.chronicle_digest={"public":"<=260字公共纪要","views":{"角色名":"<=140字私密线(可选)"}}，严禁混写二人私密事件至public。',
         }} if archive_batch else {}),
     }
+    free_text_hint = _build_free_text_item_hint(text, state, operation_context, preview_cost)
+    if free_text_hint:
+        user_context['free_text_item_hint'] = free_text_hint
     shop_custom_query = sp.detect_shop_custom_request(text) if (preview_cost or {}).get('kind') == 'action' else None
     if shop_custom_query:
         user_context['shop_custom_requested'] = True
         user_context['shop_custom_query'] = shop_custom_query
+        user_context['shop_custom_rule'] = '道具非修改器：严禁直接增减属性/好感/羞耻/堕落/魅力/嗅觉/体力/精力/积分/经验/警惕，仅限间接辅助；不合规项不摘录。'
     return {
         'system_prompt': system_prompt,
         'system_sha256': _digest_text(system_prompt),

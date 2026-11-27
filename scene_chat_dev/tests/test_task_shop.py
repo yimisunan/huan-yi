@@ -518,10 +518,11 @@ class TaskAndShopTests(unittest.TestCase):
         self.assertNotIn('当前委托', delta.get('qualitative_state', ''))
         self.assertIn('milestone_echo', mat['zone0_global'])
 
-        # Cross-window continuity: fresh-session items keep full desc & source remark; milestone_echo delivered
-        self.assertTrue(delta['items'])
-        self.assertTrue(delta['items'][0]['fields'].get('描述'))
-        self.assertIn('系统商城兑换（SHOP-001）', delta['items'][0]['fields'].get('备注', ''))
+        # Cross-window continuity: fresh-session held_items keep human-readable desc/use_way/effect without shop/points leakage; milestone_echo delivered
+        self.assertTrue(delta.get('held_items'))
+        self.assertTrue(delta['held_items'][0].get('desc'))
+        self.assertTrue(delta['held_items'][0].get('use_way'))
+        self.assertNotIn('系统商城兑换', json.dumps(delta['held_items'], ensure_ascii=False))
         self.assertIn('milestone_echo', delta)
         self.assertTrue(any(e['kind'] == 'shop_redeemed' for e in delta['milestone_echo']['events']))
 
@@ -547,7 +548,7 @@ class TaskAndShopTests(unittest.TestCase):
         mem_after_commit = (self.root / rr.FILES[0]).read_text(encoding='utf-8')
         self.assertEqual(sp.parse_shop_echo_block(mem_after_commit)['echoes'], [])
 
-        # Next turn (incremental delta): NO milestone_echo, and held_items keeps compact desc & source
+        # Next turn (incremental delta): NO milestone_echo, and held_items keeps human-readable desc & use_way
         self.service.create(self._make_req('A'))
         task3 = self.service.claim()['task']
         mat2 = self.service.material(task3['request_id'], {
@@ -566,7 +567,8 @@ class TaskAndShopTests(unittest.TestCase):
         self.assertEqual(delta2['anchor'], 'incremental_delta')
         self.assertTrue(delta2.get('held_items'))
         self.assertTrue(delta2['held_items'][0].get('desc'))
-        self.assertIn('系统商城兑换（SHOP-001）', delta2['held_items'][0].get('source', ''))
+        self.assertTrue(delta2['held_items'][0].get('use_way'))
+        self.assertNotIn('系统商城兑换', json.dumps(delta2['held_items'], ensure_ascii=False))
 
     # 7. HTTP route & security header boundaries
     def test_http_shop_and_claim_routes_enforce_client_header_and_origin(self):

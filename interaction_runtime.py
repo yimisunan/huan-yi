@@ -802,6 +802,37 @@ def travel_intent(root, text):
             'matched_text':match[1]+match[2],'destination_text':match[2],'input':text}
 
 
+_RECIPIENT_ALIASES = {
+    '沈知韫': ('沈知韫', '知韫', '妈', '妈妈', '母亲', '伯母'),
+    '苏婉青': ('苏婉青', '婉青', '嫂子', '大嫂'),
+    '徐念薇': ('徐念薇', '念薇', '念薇姐', '姐姐', '姐'),
+    '徐承邺': ('徐承邺', '承邺', '大哥', '哥'),
+}
+humanize_item_effect = sc.humanize_item_effect
+match_item_in_text = sc.match_item_in_text
+find_mentioned_items = sc.find_mentioned_items
+
+
+def _recipient_mentioned_in_text(text, who, cast_here):
+    txt = str(text or '')
+    if not txt or not who:
+        return False
+    if who in txt:
+        return True
+    aliases = _RECIPIENT_ALIASES.get(who, (who,))
+    if any(a in txt for a in aliases):
+        # Verify no other in-scene person shares this alias
+        other_hits = [
+            c for c in (cast_here or ())
+            if c != who and any(a in txt for a in _RECIPIENT_ALIASES.get(c, (c,)))
+        ]
+        if not other_hits:
+            return True
+    if len(cast_here or ()) == 1 and cast_here[0] == who and re.search(r'送她|递给她|给她|交给她|赠予她|递过去', txt):
+        return True
+    return False
+
+
 def operation(root, files, proposed, text='', explicit=False):
     """Validate player travel, transfer, item usage, device deployment, retrieval, inspection, and keepsake actions."""
     if proposed is None:
@@ -850,7 +881,8 @@ def operation(root, files, proposed, text='', explicit=False):
             raise rr.RoundError('该道具不属于玩家可交付库存')
         item_name = re.search(r'【道具名称】：([^\n]+)', found['block']).group(1).strip()
         bundle_state, _, _ = save_store.load_bundle(root, files)
-        rec = next((it for it in bundle_state['items'].get('active', []) if it.get('id') == proposed['item_id']), None)
+        active_list = bundle_state['items'].get('active', [])
+        rec = next((it for it in active_list if it.get('id') == proposed['item_id']), None)
         non_giftable = (fields.get('可赠予') == '否') or (isinstance(rec, dict) and rec.get('giftable') is False)
         if not non_giftable:
             shop_cat = sp.load_shop_catalog(root, optional=True)
@@ -865,8 +897,10 @@ def operation(root, files, proposed, text='', explicit=False):
             rr._integer(proposed['quantity'], 'transfer_item.quantity', 1)
             if proposed['quantity'] > qty:
                 raise rr.RoundError('交付数量超过当前库存')
-        if not explicit and (who not in text or not re.search(r'交给|送给|递给|赠给|送出', text)
-                             or item_name not in text
+        item_stub = rec if isinstance(rec, dict) else {'id': proposed['item_id'], 'name': item_name}
+        if not explicit and (not _recipient_mentioned_in_text(text, who, cast_here)
+                             or not re.search(r'交给|送给|递给|赠给|赠予|送出|递过去|送她|给她', text)
+                             or not match_item_in_text(text, item_stub, active_list)
                              or (qty > 1 and proposed.get('quantity') is None and not re.search(r'整组|全部|所有', text))):
             raise rr.RoundError('交付缺少玩家明确接收人依据')
         return copy.deepcopy(proposed)
@@ -875,15 +909,16 @@ def operation(root, files, proposed, text='', explicit=False):
         if not isinstance(proposed['item_id'], str) or not re.fullmatch(r'ITEM-\d+', proposed['item_id']):
             raise rr.RoundError('道具编号无效')
         bundle_state, _, _ = save_store.load_bundle(root, files)
-        rec = next((it for it in bundle_state['items'].get('active', []) if it.get('id') == proposed['item_id']), None)
+        active_list = bundle_state['items'].get('active', [])
+        rec = next((it for it in active_list if it.get('id') == proposed['item_id']), None)
         if rec is None or rec.get('status') != '仓库中' or int(rec.get('quantity', 0)) < 1:
             raise rr.RoundError('该活跃道具不存在或不可使用')
         if rec.get('usage_mode') == 'consumable_host' or str(rec.get('system_effect', '')).startswith('host_stamina:'):
             raise rr.RoundError('宿主体力恢复道具请通过免费恢复入口使用')
         target = str(proposed.get('target') or '').strip()
-        if target and target not in ('室内', '当前场景', '全员') and target not in cast_here:
+        if target and target not in ('室内', '室内氛围', '当前场景', '全员') and target not in cast_here:
             raise rr.RoundError('道具作用目标必须实际在场')
-        if not explicit and rec['name'] not in text:
+        if not explicit and not match_item_in_text(text, rec, active_list):
             raise rr.RoundError('使用道具缺少玩家原文依据')
         out = {'code': 'use_item', 'item_id': proposed['item_id']}
         if target:
@@ -894,7 +929,8 @@ def operation(root, files, proposed, text='', explicit=False):
         if not isinstance(proposed['item_id'], str) or not re.fullmatch(r'ITEM-\d+', proposed['item_id']):
             raise rr.RoundError('装置编号无效')
         bundle_state, _, _ = save_store.load_bundle(root, files)
-        rec = next((it for it in bundle_state['items'].get('active', []) if it.get('id') == proposed['item_id']), None)
+        active_list = bundle_state['items'].get('active', [])
+        rec = next((it for it in active_list if it.get('id') == proposed['item_id']), None)
         if rec is None or rec.get('status') != '仓库中' or int(rec.get('quantity', 0)) < 1:
             raise rr.RoundError('待部署装置不存在或不可用')
         if rec.get('usage_mode') != 'deployable_device' and not str(rec.get('system_effect', '')).startswith('deploy_device:'):
@@ -905,7 +941,7 @@ def operation(root, files, proposed, text='', explicit=False):
         hidden = proposed.get('hidden', True)
         if type(hidden) is not bool:
             raise rr.RoundError('隐蔽部署标记须为布尔值')
-        if not explicit and rec['name'] not in text:
+        if not explicit and not match_item_in_text(text, rec, active_list):
             raise rr.RoundError('部署装置缺少玩家原文依据')
         return {'code': 'deploy_item', 'item_id': proposed['item_id'], 'spot': spot, 'hidden': hidden}
     if code == 'retrieve_item':
@@ -913,20 +949,31 @@ def operation(root, files, proposed, text='', explicit=False):
         if not isinstance(proposed['item_id'], str) or not re.fullmatch(r'ITEM-\d+', proposed['item_id']):
             raise rr.RoundError('已部署装置编号无效')
         bundle_state, _, _ = save_store.load_bundle(root, files)
-        dev = next((it for it in bundle_state['items'].get('deployed', []) if it.get('id') == proposed['item_id']), None)
+        deployed_list = bundle_state['items'].get('deployed', [])
+        dev = next((it for it in deployed_list if it.get('id') == proposed['item_id']), None)
         if dev is None:
             raise rr.RoundError('未找到该已部署装置')
         if dev.get('location') != player_place:
             raise rr.RoundError(f"须先回到装置所在地点（{dev.get('location')}）才能拆除回收")
+        if not explicit:
+            local_devs = [d for d in deployed_list if d.get('location') == player_place]
+            has_verb = bool(re.search(r'拆除|回收|拆下|拆掉|收回来|取回|拿回|摘下|取下', text or ''))
+            if not match_item_in_text(text, dev, local_devs) and not (has_verb and len(local_devs) == 1):
+                raise rr.RoundError('回收装置缺少玩家原文依据')
         return {'code': 'retrieve_item', 'item_id': proposed['item_id']}
     if code == 'inspect_deployed':
         rr._keys(proposed, {'code', 'item_id'}, 'inspect_deployed', {'code', 'item_id'})
         if not isinstance(proposed['item_id'], str) or not re.fullmatch(r'ITEM-\d+', proposed['item_id']):
             raise rr.RoundError('已部署装置编号无效')
         bundle_state, _, _ = save_store.load_bundle(root, files)
-        dev = next((it for it in bundle_state['items'].get('deployed', []) if it.get('id') == proposed['item_id']), None)
+        deployed_list = bundle_state['items'].get('deployed', [])
+        dev = next((it for it in deployed_list if it.get('id') == proposed['item_id']), None)
         if dev is None:
             raise rr.RoundError('未找到可远程查看的已部署装置')
+        if not explicit:
+            has_inspect = bool(re.search(r'远程|监控|画面|针孔|摄像头|录音|监听|窃听|回看|回听|查看.*装置|看一眼.*画面', text or ''))
+            if not match_item_in_text(text, dev, deployed_list) and not (has_inspect and len(deployed_list) == 1):
+                raise rr.RoundError('远程查看装置缺少玩家原文依据')
         return {'code': 'inspect_deployed', 'item_id': proposed['item_id']}
     if code == 'keepsake_action':
         rr._keys(proposed, {'code', 'keepsake_id', 'action_type'}, 'keepsake_action', {'code', 'keepsake_id', 'action_type'})
@@ -1372,10 +1419,36 @@ def _describe_operation_context(resolved, state, bundle_state, mem_text):
         dev = next((it for it in deployed_list if it.get('id') == resolved.get('item_id')), None)
         if not dev:
             return None
+        desc_short = str(dev.get('desc') or '').strip()[:80]
         return {
             'kind': 'retrieve_item',
-            'device': {'id': dev['id'], 'name': dev['name'], 'location': dev.get('location', ''), 'spot': dev.get('spot', '')},
-            'instruction': f"玩家在【{dev.get('location', '')} · {dev.get('spot') or '原位'}】将先前部署的「{dev['name']}」悄然拆除收回随身。",
+            'device': {
+                'id': dev['id'], 'name': dev['name'], 'location': dev.get('location', ''),
+                'spot': dev.get('spot', ''), 'desc': desc_short,
+            },
+            'instruction': (
+                f"玩家在【{dev.get('location', '')} · {dev.get('spot') or '原位'}】将先前部署的「{dev['name']}」"
+                + (f"（{desc_short}）" if desc_short else "")
+                + "悄然拆除收回随身。"
+            ),
+        }
+    if code == 'use_recovery_item':
+        item = next((it for it in active_list if it.get('id') == resolved.get('item_id')), None)
+        if not item:
+            return None
+        cur_qty = max(1, int(item.get('quantity', 1) or 1))
+        after_qty = max(0, cur_qty - 1)
+        qty_note = '最后1份用尽' if after_qty == 0 else f'消耗1份，用后余{after_qty}份'
+        desc_txt = str(item.get('desc') or '').strip()[:120]
+        return {
+            'kind': 'use_recovery_item',
+            'item': {'id': item['id'], 'name': item['name'], 'desc': desc_txt},
+            'quantity_after': after_qty,
+            'instruction': (
+                f"玩家原地顺手服用/使用了随身提神物品「{item['name']}」（{desc_txt}；{qty_note}）以缓和疲惫、提振精神。"
+                "请以1～2句简短日常感官动作（口感、清凉/苦香、呼吸微定）自然带过；"
+                "严禁推进游戏时间、严禁凭空推进新剧情或触发数值跳步。"
+            ),
         }
     if code == 'use_item':
         item = next((it for it in active_list if it.get('id') == resolved.get('item_id')), None)
@@ -1383,16 +1456,27 @@ def _describe_operation_context(resolved, state, bundle_state, mem_text):
             return None
         target = resolved.get('target') or '当前场景'
         eff = str(item.get('system_effect') or '')
+        eff_human = humanize_item_effect(eff)
+        umode = str(item.get('usage_mode') or '')
+        is_reusable = (umode == 'reusable_tool')
+        cur_qty = max(1, int(item.get('quantity', 1) or 1))
+        if is_reusable:
+            use_boundary = '随身永久工具，用后保留'
+        elif cur_qty <= 1:
+            use_boundary = '消耗品，本次最后1份用尽'
+        else:
+            use_boundary = f'消耗品，消耗1份，用后余{cur_qty - 1}份'
+        desc_txt = str(item.get('desc') or '').strip()[:140]
         return {
             'kind': 'use_item',
             'item': {
-                'id': item['id'], 'name': item['name'], 'usage_mode': item.get('usage_mode', ''),
-                'desc': item.get('desc', ''), 'system_effect': eff,
+                'id': item['id'], 'name': item['name'], 'usage_mode': umode,
+                'desc': desc_txt, 'effect': eff_human, 'consumption': use_boundary,
             },
             'target': target,
             'instruction': (
-                f"玩家在本轮行动中正式动用随身道具「{item['name']}」（目标：{target}；质感：{item.get('desc', '')[:90]}）。"
-                + (f"该道具触发持续效果【{eff}】，请落实触感、气味、温热/潮红等生理微距描写。" if eff.startswith('buff:') else "请将道具实物触感与用法自然融入本幕互动。")
+                f"玩家在本轮行动中正式动用随身道具「{item['name']}」（目标：{target}；{use_boundary}；质感与用法：{desc_txt}）。"
+                + (f"该道具触发【{eff_human}】，请将触感、气味、温热/潮红与神态松动自然融入本幕互动（禁直呼机制或数值词）。" if eff_human else "请将道具实物触感与用法自然融入本幕互动。")
             ),
         }
     if code == 'transfer_item':
@@ -2759,9 +2843,9 @@ def assemble(story, key, job, result, context, audit):
     if charged:
         if not job.get('reservation') or job['reservation']['status']!='held':raise rr.ConflictError('预扣已结束，拒绝旧结果')
         accepted_audit['reservation'] = copy.deepcopy(job['reservation'])
+    accepted_audit['requested_operation'] = copy.deepcopy(context['command'])
     if context['command']:
         accepted_audit['origin'] = 'player_action'
-        accepted_audit['requested_operation'] = copy.deepcopy(context['command'])
     return {'schema_version': 3 if charged else 2, 'entry_mode': MODE, 'request_id': key,
             **({'resolution':result['resolution']} if charged else {}),
             'base_revision': job.get('working_revision', job['base_revision']), 'input': job['action'],

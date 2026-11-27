@@ -43,8 +43,21 @@ VALID_SYSTEM_EFFECT_RE = re.compile(
 SHOP_FORBIDDEN_DURATION_RE = re.compile(
     r'(?:延长|冻结|缩短|设定|暂停|修改|刷新|重置|清除).{0,6}(?:持续时间|状态时间|时效|倒计时|冷却|体液锁定|BUFF)'
 )
+_STAT_ATTR_PAT = (
+    r'(?:属性|面板|数值|好感(?:度)?|羞耻(?:度)?|堕落(?:度)?|欲望(?:值)?|高潮(?:值|进度)?'
+    r'|体力|精力|耐力|魅力|商业嗅觉|嗅觉|积分|经验(?:值)?|警惕(?:值|度)?)'
+)
 SHOP_FORBIDDEN_DYN_RE = re.compile(
-    r'extend_duration|host_stamina|永久修改(?:属性|好感|堕落|羞耻|体力|精力|魅力)|直接(?:清零|拉满|锁死)(?:羞耻|好感|堕落|警惕|欲望|体力|精力)'
+    r'extend_duration|host_stamina'
+    + r'|永久修改' + _STAT_ATTR_PAT
+    + r'|(?:直接|立即|立刻|瞬间|一键|自动|必定|强制|无条件|永久|凭空|固定)\s*'
+      r'(?:增加|提升|提高|加|涨|拉高|降低|减少|扣减|扣除|削减|清零|归零|拉满|加满|回满|回复|恢复|锁死|修改|改写|覆写|抹除|消除|刷取|暴涨).{0,6}' + _STAT_ATTR_PAT
+    + r'|(?:清零|归零|拉满|加满|回满|回复|恢复|锁死|覆写|抹除|刷取|暴涨).{0,4}' + _STAT_ATTR_PAT
+    + r'|(?:使用|服用|佩戴|携带|赠予|送出|饮用|涂抹|触发)后.{0,6}(?:即可|便可|就会|立刻|立即|直接)?(?:增加|提升|提高|涨|降低|减少|扣减|回复|恢复|清零|拉满|修改).{0,6}' + _STAT_ATTR_PAT
+    + r'|' + _STAT_ATTR_PAT + r'\s*(?:直接|立即|立刻|瞬间|固定|自动|额外)?\s*[+＋\-－]\s*\d+'
+    + r'|[+＋\-－]\s*\d+\s*(?:点|分|%)?' + _STAT_ATTR_PAT
+    + r'|(?:增加|提升|提高|加|涨|拉高|降低|减少|扣减|扣除|回复|恢复|刷|送)\s*\d+\s*(?:点|分|%)?' + _STAT_ATTR_PAT
+    + r'|' + _STAT_ATTR_PAT + r'(?:药水|神丹|丹药|药丸|修改器|增幅器|清零器|直充|加点卡)'
 )
 SHOP_CUSTOM_TAG_RE = re.compile(
     r'[【\[]\s*(?:商城定制|定制道具|商城进货|SHOP_CUSTOM|SHOP)\s*(?:[：:]([^】\]]*))?[】\]]',
@@ -563,7 +576,7 @@ def validate_dynamic_shop_items(raw_payload, existing_names, next_seq, *, query=
         raw_eff = _clean_single_line(entry.get('system_effect') or '')
         combined_text = f'{name} {desc} {raw_eff}'
         if SHOP_FORBIDDEN_DURATION_RE.search(combined_text) or SHOP_FORBIDDEN_DYN_RE.search(combined_text):
-            rejected.append(f'{name}:触碰防崩与防作弊底线（禁止篡改时效或直接覆写面板数值）')
+            rejected.append(f'{name}:触碰防崩与非修改器底线（自定义道具仅可间接辅助，严禁直接增减属性数值或篡改时效）')
             continue
         usage_mode = str(entry.get('usage_mode') or '').strip()
         if usage_mode not in ('gift', 'consumable_target', 'reusable_tool', 'deployable_device'):
