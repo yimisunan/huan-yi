@@ -718,7 +718,8 @@ html[data-theme="ivory"] .msg[data-speaker="徐念薇"] { --char-accent: #42728d
 .speaking-wave i:nth-child(2) { animation-delay: 0.16s; }
 .speaking-wave i:nth-child(3) { animation-delay: 0.32s; }
 
-.msg-replay-btn {
+.msg-replay-btn,
+.msg-retake-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -731,15 +732,27 @@ html[data-theme="ivory"] .msg[data-speaker="徐念薇"] { --char-accent: #42728d
   color: var(--muted);
   opacity: 0.58;
   flex: none;
+  transition: color 0.18s ease, opacity 0.18s ease, background 0.18s ease, transform 0.24s ease;
+}
+.msg-retake-btn {
+  margin-left: 0;
+  opacity: 0.5;
 }
 .msg-replay-btn:hover,
 .msg-replay-btn:active,
-.msg.is-speaking .msg-replay-btn {
+.msg.is-speaking .msg-replay-btn,
+.msg-retake-btn:hover,
+.msg-retake-btn:active {
   color: var(--gold-bright);
   opacity: 1;
   background: var(--gold-soft);
 }
-.msg-replay-btn svg { width: 13px; height: 13px; }
+.msg-retake-btn:hover svg,
+.msg-retake-btn:active svg {
+  transform: rotate(-45deg);
+}
+.msg-replay-btn svg,
+.msg-retake-btn svg { width: 13px; height: 13px; transition: transform 0.24s ease; }
 .msg.is-speaking > .text {
   border-color: var(--line-strong);
   box-shadow: 0 4px 20px rgba(216, 180, 118, 0.14);
@@ -3616,6 +3629,21 @@ html[data-theme="ivory"] .bracket-chip.is-intel {
   background: rgba(155, 192, 214, 0.14);
   border-color: rgba(155, 192, 214, 0.34);
 }
+.voice-mood-tag[data-mood="sharp"] {
+  color: #b4d8f2;
+  background: rgba(124, 178, 216, 0.16);
+  border-color: rgba(124, 178, 216, 0.42);
+}
+.voice-mood-tag[data-mood="playful"] {
+  color: #f4d694;
+  background: rgba(232, 192, 108, 0.16);
+  border-color: rgba(232, 192, 108, 0.4);
+}
+.voice-mood-tag[data-mood="flustered"] {
+  color: #f2be9c;
+  background: rgba(226, 158, 118, 0.16);
+  border-color: rgba(226, 158, 118, 0.4);
+}
 html[data-theme="ivory"] .voice-mood-tag {
   color: #7c5624;
   background: rgba(180, 134, 68, 0.12);
@@ -3626,6 +3654,21 @@ html[data-theme="ivory"] .voice-mood-tag[data-mood="catch"] {
   color: #9b3f30;
   background: rgba(186, 92, 76, 0.11);
   border-color: rgba(186, 92, 76, 0.3);
+}
+html[data-theme="ivory"] .voice-mood-tag[data-mood="sharp"] {
+  color: #2f5b7c;
+  background: rgba(74, 128, 168, 0.11);
+  border-color: rgba(74, 128, 168, 0.32);
+}
+html[data-theme="ivory"] .voice-mood-tag[data-mood="playful"] {
+  color: #8a5e18;
+  background: rgba(196, 146, 54, 0.12);
+  border-color: rgba(196, 146, 54, 0.32);
+}
+html[data-theme="ivory"] .voice-mood-tag[data-mood="flustered"] {
+  color: #984e24;
+  background: rgba(194, 112, 66, 0.11);
+  border-color: rgba(194, 112, 66, 0.32);
 }
 
 @keyframes fx-text-tremble {
@@ -3657,9 +3700,16 @@ html[data-theme="ivory"] .voice-mood-tag[data-mood="catch"] {
   opacity: 0.9;
   letter-spacing: 0.03em;
 }
-.npc-prose-body.fx-restrained {
+.npc-prose-body.fx-restrained,
+.npc-prose-body.fx-sharp {
   letter-spacing: 0.015em;
   font-weight: 450;
+}
+.npc-prose-body.fx-playful {
+  letter-spacing: 0.01em;
+}
+.npc-prose-body.fx-flustered {
+  letter-spacing: 0.02em;
 }
 
 /* 9.2 Sensory Micro-Anchors, Phonetic Moan Glow & Dual-Layer Subtext Ruby */

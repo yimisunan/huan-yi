@@ -1349,7 +1349,7 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
                     '   [A:角色姓名] 归属明确的具体动作（在场人物或徐志北；禁任何声学/XML标签；高羞耻身体露馅时可用 ｛表面端庄｜本能破绽｝）\n'
                 )
                 dialogue_line_rule = (
-                    '   [D:角色姓名] 纯开口台词（仅限在场cast或≤3句忠实 [D:徐志北]；禁场外对白、禁外层引号“...”及第三人称动作旁白；三女主可按 narrative.dialogue_tts 使用中文/英文导演提示 [...]、句内呼吸 [break]/[sigh] 与词级标签 <whisper>/<soft>/<emphasis>/<slow>/<forceful>，及必要 ｛表层｜潜台词｝）\n'
+                    '   [D:角色姓名] 纯开口台词（仅限在场cast或≤3句忠实 [D:徐志北]；禁场外对白、禁外层引号“...”及第三人称动作旁白；三女主按 narrative.dialogue_tts 使用精炼英文/双语导演提示 [...]、句中情绪转折、原生点标签 [pause]/[sigh]/[small laugh] 与词级标签 <whisper>/<soft>/<emphasis>/<slow>/<fast>/<forceful>，及必要 ｛表层｜潜台词｝）\n'
                 )
             else:
                 protagonist_rule = (
@@ -1359,7 +1359,7 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
                     '   [A:角色姓名] 归属明确的具体动作（在场人物或徐志北；玩家提问亦用 [A:徐志北]/[N] 间接表达，严禁 [D:徐志北]；禁任何声学/XML标签；高羞耻身体露馅可用 ｛表面端庄｜本能破绽｝）\n'
                 )
                 dialogue_line_rule = (
-                    '   [D:角色姓名] 纯开口台词（严格限在场cast，严禁 [D:徐志北] 或场外对白；禁外层引号“...”及第三人称动作旁白；三女主可按 narrative.dialogue_tts 使用导演提示 [...]、句内停顿与词级标签 <whisper>/<soft>/<emphasis>/<slow>/<forceful>，及必要 ｛表层｜潜台词｝）\n'
+                    '   [D:角色姓名] 纯开口台词（严格限在场cast，严禁 [D:徐志北] 或场外对白；禁外层引号“...”及第三人称动作旁白；三女主按 narrative.dialogue_tts 使用精炼英文/双语导演提示 [...]、句中转折、原生 [pause]/[sigh] 与词级标签 <whisper>/<soft>/<emphasis>/<slow>/<fast>/<forceful>，及必要 ｛表层｜潜台词｝）\n'
                 )
             protocol = (
                 '【前台演播协议 · 文字沉浸流式剧场（dual_stream_v2）】\n'
@@ -1376,7 +1376,7 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
                 + dialogue_line_rule +
                 '   格式示意（仅示语法，禁照抄内容）：\n'
                 '   [A:沈知韫] 她把对账单往桌角一推，纸边撞到茶碟轻轻一响。\n'
-                '   [D:沈知韫] [低声克制，语速微缓] 这么晚还没睡？<soft>手怎么这么凉。</soft>\n'
+                '   [D:沈知韫] [tired sigh, warm yet guarded] 这么晚还没睡？[pause] [softening slightly] <soft>手怎么这么凉。</soft>\n'
                 '   段末三轴抉择块（正文结束另起完整单行 ---DECISION---，三条选项须实质互异）：\n'
                 '   ---DECISION---\n'
                 '   PROMPT: 点明本幕刚浮现的具体变数或两难（≤300字，禁空话）\n'
@@ -2479,9 +2479,9 @@ def strip_preview_decision_leak(text):
 
 
 _OPT_STOP_CONT_RE = re.compile(r'^\s*(?:#{1,6}\s|【|[（(]?\s*(?:注|说明|备注)\s*[:：]|```)')
-_LEADING_ASCII_FISH_RE = re.compile(r'^\s*(?:\[[a-zA-Z0-9_,\s-]{1,80}\]\s*)+')
-_LEADING_VOICE_TAGS_RE = re.compile(r'^((?:\[[^\]\r\n]{1,80}\]\s*)*)(.*)$', re.S)
-_ANY_VOICE_BRACKET_RE = re.compile(r'\[[^\]\r\n]{1,80}\]\s*')
+_LEADING_ASCII_FISH_RE = re.compile(r"^\s*(?:\[[a-zA-Z0-9_,\s;:'-]{1,180}\]\s*)+")
+_LEADING_VOICE_TAGS_RE = re.compile(r'^((?:\[[^\]\r\n]{1,180}\]\s*)*)(.*)$', re.S)
+_ANY_VOICE_BRACKET_RE = re.compile(r'\[[^\]\r\n]{1,180}\]\s*')
 _DRAMA3_XML_STRIP_RE = re.compile(
     r'</?(?:whisper|emphasis|soft|fast|slow|stress|forceful|chinese|english|japanese|korean|cantonese|french|german|spanish)>',
     re.I,

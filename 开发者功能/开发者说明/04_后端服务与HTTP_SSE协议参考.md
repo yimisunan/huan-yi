@@ -31,14 +31,14 @@
 
 ### 1.2 语音与配置 `/api/*` 安全边界（[`语音运行.py`](../../语音运行.py)）
 
-对非 `/api/story/*` 的语音与配置路由（`/api/fish_key`、`/api/voice_tier`、`/api/config`、`/api/voice_repo`、`/api/tts`、`/api/voices`、`/api/edge_voices`、`/api/fish_wallet`）统一施加 `@app.before_request` 防护：
+对非 `/api/story/*` 的语音与配置路由（`/api/fish_key`、`/api/voice_tier`、`/api/voice_routing`、`/api/voice_design`、`/api/config`、`/api/voice_repo`、`/api/tts`、`/api/voices`、`/api/edge_voices`、`/api/fish_wallet`）统一施加 `@app.before_request` 防护：
 
 | 检查项 | 规则 | 失败状态码 |
 |---|---|---|
 | Loopback 主机限制 | `request.host` 主机名必在 `{'127.0.0.1', 'localhost', '::1'}` | `403` |
 | 同源防 CSRF | 若含 `Origin` 或 `Referer` 头必须匹配 `request.host_url.rstrip('/')`；拒绝 `Sec-Fetch-Site ∈ {'cross-site', 'same-site'}` | `403` |
-| 写接口显式客户端头 | 非 `GET`/`HEAD`/`OPTIONS` 的变更接口（`POST/DELETE /api/fish_key`、`POST /api/voice_tier`、`POST /api/config`、`POST/PATCH/DELETE /api/voice_repo`、`POST /api/tts/prefetch`）强制要求 `X-Voice-Client: 1` | `403` |
-| 密钥绝不回显与脱敏日志 | `/api/fish_key` 仅返回掩码指纹与来源（`cache`/`env`/`none`）；上游报错日志自动脱敏所有 `sk-` / Bearer 令牌；`/api/tts` 入口统一剥离 `｛表层台词｜真实潜台词｝` 仅朗读表层台词 | — |
+| 写接口显式客户端头 | 非 `GET`/`HEAD`/`OPTIONS` 的变更接口（`POST/DELETE /api/fish_key`、`POST /api/voice_tier`、`POST /api/voice_routing`、`POST /api/voice_design`、`POST /api/config`、`POST/PATCH/DELETE /api/voice_repo`、`POST /api/tts/prefetch`）强制要求 `X-Voice-Client: 1` | `403` |
+| 密钥绝不回显与潜台词分层处理 | `/api/fish_key` 仅返回掩码指纹与来源（`cache`/`env`/`none`）；上游报错日志自动脱敏所有 `sk-` / Bearer 令牌；`/api/tts` 对 `drama-3` 自动将 `｛表层｜潜台词｝` 右侧转为 `[...; hiding: ...]` 导演指令（仅朗读表层），对 `s2.1-pro*` / `edge` 严格剥离潜台词仅读表层 | — |
 
 ---
 
@@ -65,7 +65,7 @@
 ### 2.4 纯内存 `_stream_preview`、付费语音预热门禁与 `allow_settlement_retry` 协议
 - **纯内存预览与分级语音预热（[`stream_chunk()`](../../story_service.py) & [`_trigger_tts_prewarm()`](../../story_service.py)）**：
   - 仅在任务为 `live_interaction` 且处于 `generating`、持有合法租约时接受 `POST /api/story/worker/<key>/stream`。
-  - 要求单调 `revision >= 0`（旧帧忽略）、`stage ∈ {'thinking', 'streaming', 'settling'}`，并按 `context['cast']` 过滤非法说话人与超长句（≤4000 字传输防呆）；流式到达触发 `_trigger_tts_prewarm(..., stage=stage)`：默认免费档 `voice_tier: "free"` 保持 100% 原样（`streaming`/`settling` 均预热前 3 句），切换付费档时自动启用保护门禁（客户端静音跳过、跳过 `streaming` 待 `settling` 再预热且限前 2 句）。
+  - 要求单调 `revision >= 0`（旧帧忽略）、`stage ∈ {'thinking', 'streaming', 'settling'}`，并按 `context['cast']` 过滤非法说话人与超长句（≤4000 字传输防呆）；流式到达触发 `_trigger_tts_prewarm(..., stage=stage)`：默认免费档 `voice_tier: "free"` 保持 100% 原样（`streaming`/`settling` 均预热前 3 句），切换付费档时自动启用保护门禁（客户端静音跳过、跳过 `streaming` 待 `settling` 再预热且限前 2 句），并同构附带 `context_hint`（相邻同角色动作兜底）、`voice_script`（若存在）与张力 `expressive_boost`。
   - 数据仅存 `self._stream_preview` 内存字典，**绝不写入 `tasks.json` 或 `RoundStore`**；在 `new_game`、`claim`、租约超时、失败、取消或 `_finish()` 结束时立即 `_clear_preview()`。
 - **后台结算原地重试协议（[`result()`](../../story_service.py)）**：
   - 双阶段第 1、2 次提交携带 `allow_settlement_retry: true` 与 `dual_stage_version: 1`；服务端先经 `_sanitize_settlement_mechanical_noise()` 清洗无歧义机械噪声，再试运行 `ir.assemble()` 与 `ir.validate()`。
@@ -73,9 +73,9 @@
 
 ---
 
-## 3. 全量 HTTP API 路由参考（共 68 个路由装饰器）
+## 3. 全量 HTTP API 路由参考（共 69 个路由装饰器）
 
-### 3.1 入口页面、静态白名单与语音路由（`语音运行.py`，16 装饰器 / 14 路径）
+### 3.1 入口页面、静态白名单与语音路由（`语音运行.py`，17 装饰器 / 15 路径）
 
 | 方法 | 路径 | 处理器 | 请求参数 / Body | 响应与说明 |
 |---|---|---|---|---|
@@ -84,8 +84,9 @@
 | `GET` | `/<path:filename>` | `public_file` | 路径参数 | 严格白名单：放行 8 个根/存档文件（页面/脚本/样式/`data.json` 返回 `no-cache`）、`txt文件/image/` 下合法图片及 `txt文件/audio/` 下合法音频（`Cache-Control: public, max-age=86400`）；拒绝 `..` 与隐藏路径（`404`） |
 | `GET` | `/api/audio_assets` | `audio_assets_api` | — | 零配置扫描 `txt文件/audio/ambient/`，返回可用本地背景音景映射 |
 | `GET`/`POST`/`DELETE` | `/api/fish_key` | `fish_key_api` | `POST`: `{api_key}`（须 `X-Voice-Client: 1`） | 查询/保存/清空受保护本地 Fish API Key 缓存 `.cache/fish_api_key.json`（`0600` 原子写入）；仅返 `{configured, source, masked}`，绝不回显明文 |
-| `POST` | `/api/voice_tier` | `set_voice_tier` | `{tier: "free"|"pro"|"drama"}`（须 `X-Voice-Client: 1`） | 一键切换三女主音质分档（`free → s2.1-pro-free` / `pro → s2.1-pro` / `drama → drama-3`），`FREE_DEFAULT_ROLES`（`旁白/动作/徐志北`）保持免费档，原子写回 `voice_config.json` |
+| `POST` | `/api/voice_tier` | `set_voice_tier` | `{tier: "free"|"pro"|"drama"}`（须 `X-Voice-Client: 1`） | 一键切换三女主音质分档并自动套用 `DRAMA3_ROLE_PROFILES`（`drama`）或 `S2_ROLE_PROFILES`（`free`/`pro`），`FREE_DEFAULT_ROLES`（`旁白/动作/徐志北`）保持免费档，原子写回 `voice_config.json` |
 | `POST` | `/api/voice_routing` | `set_voice_routing` | `{protagonist_voice_enabled?, action_voice_mode?, action_voice_scope?}`（须 `X-Voice-Client: 1`） | 原子更新 `__settings__` 中的主角语音开关（默认 `false`）及旁白/动作分声道路由（`follow_narrator`/`separate`/`muted`、`all`/`heroines`） |
+| `POST` | `/api/voice_design` | `voice_design_api` | `{description, text, language?, count?(2..4), temperature?}`（须 `X-Voice-Client: 1`） | 代理 Fish Audio `POST /v1/voice-design`（`model: voice-design-1`），返回清洗后的 `{status, count, candidates}` 供 `/admin`「✦ 母带工坊」试听与下载克隆 |
 | `GET` | `/api/config` | `get_config` | — | 返回规范化后的 `voice_config.json`；文件损坏返 `503` |
 | `POST` | `/api/config` | `save_config` | JSON 配置对象（须 `X-Voice-Client: 1`） | 校验、清空 `emotion`、原子覆写 `voice_config.json`；现有文件损坏返 `409` |
 | `GET` | `/api/voices` | `get_voices` | `?search=` / `?title=` (≤80字) | 拉取 Fish 私有+公开音色列表（私有优先去重）与可用 `tts_models` |
@@ -95,8 +96,8 @@
 | `POST` | `/api/voice_repo` | `add_voice_repo` | `{id, name?, note?}`（须 `X-Voice-Client: 1`） | 规范化并新增收藏音色（重复返 `409`） |
 | `PATCH` | `/api/voice_repo` | `update_voice_repo` | `{id, name?, note?}`（须 `X-Voice-Client: 1`） | 更新指定收藏音色的名称与备注（未找到返 `404`） |
 | `DELETE` | `/api/voice_repo` | `delete_voice_repo` | `?id=...`（须 `X-Voice-Client: 1`） | 删除指定收藏音色 |
-| `GET`/`POST` | `/api/tts` | `tts_api` | `text`(1–12000), `voice`, `speaker?`, `emotion?`, `tts_model?`, `speed_scale?`, `expressive_boost?`, `stream?` | 剥离 `【】*`；仅 Fish 注入音素，非 `drama-3` 智能降级 XML 标签并抽取中文导演句英文控制词，支持生理韵律微调；Singleflight + 内存/磁盘 LRU + 4 并发槽 |
-| `POST` | `/api/tts/prefetch` | `tts_prefetch_api` | `{items: [{text, voice, speaker?, speed_scale?, expressive_boost?}]}`（须 `X-Voice-Client: 1`） | 批量向后预热接下来 3 句台词，闲置槽位并发 2，100ms 快速超时放弃 |
+| `GET`/`POST` | `/api/tts` | `tts_api` | `text`(1–12000), `voice_script?`, `voice`, `speaker?`, `emotion?`, `tts_model?`, `context_hint?`, `speed_scale?`, `expressive_boost?`, `retake?`, `raw_params?`, `stream?` | 剥离 `【】*`；`drama-3` 启用潜台词自动导演（`hiding:`）、无标签 `context_hint` 兜底与精简高动态参数载荷（省略无用 S2 参数、默认关 `quality-guard`），非 `drama-3` 执行 `[pause]→[break]`、XML 与反义词安全中文降级；`retake: true` 绕过并原子覆写内存/磁盘 LRU（返 `X-TTS-Retake: 1`）；Singleflight + 4 并发槽 |
+| `POST` | `/api/tts/prefetch` | `tts_prefetch_api` | `{items: [{text, voice_script?, voice, speaker?, context_hint?, speed_scale?, expressive_boost?}]}`（须 `X-Voice-Client: 1`） | 批量向后预热接下来 3 句台词（与 `/api/tts` 共享同一 `_prepare_tts_job` 缓存键），闲置槽位并发 2，100ms 快速超时放弃 |
 
 ### 3.2 正式互动、档案室、确定性交易、任务、流式推送与桥接路由（`story_service.py`，35 个路由）
 

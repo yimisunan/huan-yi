@@ -200,34 +200,63 @@ async function run() {
     assert.ok(!mainHtml.includes('id="commitDialog"'), 'legacy #commitDialog modal must be removed');
     assert.ok(mainHtml.includes('id="inkCommitDock"'), '#inkCommitDock container must exist inside #stream');
 
-    // Verify free-form Chinese Drama 3 director cues are hidden from dialogue display (zero screen leak)
+    // Verify free-form English & Chinese Drama 3 director cues (up to 180 chars) are hidden from dialogue display (zero screen leak)
     const classifyFn = storySource.match(/function classifyVoiceTag\([\s\S]*?\n  \}/)[0];
     const zhReBlock = storySource.match(/const ZH_VOICE_TAG_TOKEN_RE = [\s\S]*?function isFishBracketTag\([\s\S]*?\n  \}/)[0];
     vm.runInContext(classifyFn + '\n' + zhReBlock, storyCtx);
     assert.equal(storyCtx.isFishBracketTag('像在强忍眼泪，却努力笑着', 'dialogue'), true);
     assert.equal(storyCtx.isFishBracketTag('声音发沉，带着点冷淡的提醒', 'dialogue'), true);
+    assert.equal(
+        storyCtx.isFishBracketTag('icy boardroom control, clipped pacing, holding back a sharp sigh before dropping her voice into an intimate warning', 'dialogue'),
+        true
+    );
     assert.equal(storyCtx.isFishBracketTag('MOVE:公司', 'dialogue'), false);
     assert.equal(storyCtx.isFishBracketTag('ITEM-001', 'dialogue'), false);
     assert.equal(storyCtx.classifyVoiceTag('压着倦意，声音微冷')?.mood, 'exhausted');
     assert.equal(storyCtx.classifyVoiceTag('轻哂，语速放慢半拍')?.mood, 'restrained');
+    assert.equal(storyCtx.classifyVoiceTag('sharp, biting sarcasm')?.mood, 'sharp');
+    assert.equal(storyCtx.classifyVoiceTag('warm playful, light chuckle')?.mood, 'playful');
+    assert.equal(storyCtx.classifyVoiceTag('flustered, stammering nervously')?.mood, 'flustered');
 
-    // Verify audioCache model-keying + invalidation on tier switch + Scheme A/B confirmation hooks
+    // Verify audioCache model-keying + invalidation on tier switch + Scheme A/B confirmation hooks + Drama 3 retake & subtext forwarding
     assert.match(storySource, /function clearAudioCache\(\)[\s\S]*?audioCache\.clear\(\)/);
     assert.match(storySource, /function invalidateVoiceConfig\(\)[\s\S]*?clearAudioCache\(\)/);
-    assert.match(storySource, /function audioCacheKey\(id,\s*who,\s*cfg,\s*settings,\s*prosodyMod\s*=\s*null\)/);
+    assert.match(storySource, /function audioCacheKey\(id,\s*who,\s*cfg,\s*settings,\s*prosodyMod\s*=\s*null,\s*contextHint\s*=\s*''\)/);
+    assert.match(storySource, /function findAdjacentActionHint\(messages,\s*index,\s*speaker\)/);
+    assert.match(storySource, /msg-retake-btn/);
     assert.match(storySource, /voice-d3-pill/);
     assert.match(storySource, /confirmMode:\s*'inline'/);
     assert.match(storySource, /function bindChoiceGesture\(b,\s*opt\)/);
     assert.match(storySource, /function stageInkCommit\(/);
     assert.match(storySource, /function recallInkCommit\(/);
 
-    // Verify local ambient soundscape, Audio Ducking & physiological prosody hooks
+    // Verify VoiceClient extras (context_hint, retake, raw_params, voice_script), designVoice API & voice_manager studio tools
     assert.equal(typeof csrfCtx.client.getAudioAssets, 'function', 'VoiceClient.getAudioAssets must be exported');
-    const prosPayload = csrfCtx.client.buildPayload('测试', { voice: 'fish:abc', speed: 1.0 }, {}, '', '沈知韫', { speed_scale: 0.90, expressive_boost: 0.06 });
-    assert.equal(prosPayload.speed_scale, 0.9);
-    assert.equal(prosPayload.expressive_boost, 0.06);
+    assert.equal(typeof csrfCtx.client.designVoice, 'function', 'VoiceClient.designVoice must be exported');
+    const prosPayload = csrfCtx.client.buildPayload(
+        '测试', { voice: 'fish:abc', speed: 1.0 }, {}, '', '沈知韫',
+        { speed_scale: 0.95, expressive_boost: 0.08 },
+        { context_hint: '她轻轻合上文件', retake: true, raw_params: true, voice_script: '[sharp] 测试' }
+    );
+    assert.equal(prosPayload.speed_scale, 0.95);
+    assert.equal(prosPayload.expressive_boost, 0.08);
+    assert.equal(prosPayload.context_hint, '她轻轻合上文件');
+    assert.equal(prosPayload.retake, true);
+    assert.equal(prosPayload.raw_params, true);
+    assert.equal(prosPayload.voice_script, '[sharp] 测试');
     const calmPayload = csrfCtx.client.buildPayload('测试', { voice: 'fish:abc', speed: 1.0 }, {}, '', '沈知韫', null);
     assert.equal(calmPayload.speed_scale, undefined);
+    await csrfCtx.client.designVoice({ description: 'Warm female voice', text: '试音脚本测试', count: 3 });
+    assert.ok(
+        sentHeaders.some(r => r.url === '/api/voice_design' && r.method === 'POST' && r.headers['X-Voice-Client'] === '1'),
+        'designVoice must POST /api/voice_design with X-Voice-Client header'
+    );
+    assert.match(managerSource, /AB_BENCHMARK_SCRIPTS/);
+    assert.match(managerSource, /VOICE_DESIGN_TEMPLATES/);
+    assert.match(managerSource, /function renderAbPanelHtml\(/);
+    assert.match(managerSource, /function runAbCompare\(/);
+    assert.match(managerSource, /function renderVoiceDesignPanelHtml\(/);
+    assert.match(managerSource, /function runVoiceDesign\(/);
     assert.match(storySource, /ambientAudio:\s*true/);
     assert.match(storySource, /function syncAmbientSoundscape\(\)/);
     assert.match(storySource, /function duckAmbient\(speakingNow\)/);

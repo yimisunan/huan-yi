@@ -261,52 +261,52 @@ OPENING_LINES = {
     'zhiyun_friday_study': (
         '沈知韫',
         '她合上红签简报，摘下无框眼镜轻按眉心，桌下半挂在脚尖的露趾拖鞋滑落在地毯边，白皙脚背与纤细脚踝露在暖灯下。',
-        '[低声克制，带着点倦意] 这么晚还没睡？外头冷气大，顺手把门带上，过来陪妈坐会儿。',
+        '[tired sigh, slightly amused] 这么晚还没睡？[pause] [warm, softening] 外头冷气大，顺手把门带上，过来陪妈坐会儿。',
     ),
     'nianwei_saturday_studio': (
         '徐念薇',
         '她停下翻检速写本的手，冷白指节合拢封面压住边角，顺手把脚边画稿袋往椅下收了半寸，指尖沾着一点未擦净的炭灰。',
-        '[清冷平淡，声音压轻] 还没睡？别踩到地上的画稿，这么晚下来有事直说。',
+        '[cool, brusque, clipped] 还没睡？别踩到地上的画稿，[pause] [guarded, matter-of-fact] 这么晚下来有事直说。',
     ),
     'wanqing_apartment_night': (
         '苏婉青',
         '她俯身把茶几上那杯温水往徐志北手边轻推一寸，浅黄吊带领口随动作微微垂松，指尖撤回时顺手把桌边那张采买便签收进杂志边，耳根透出一抹浅粉。',
-        '[声音轻柔，略微拘谨] 这么晚还跑一趟，先坐吧。承邺这周在外地忙，屋里怪冷清的……<soft>要我替你换杯热茶吗？</soft>',
+        '[warm, slightly flustered] 这么晚还跑一趟，先坐吧。[pause] [quieter, a hint of loneliness] 承邺这周在外地忙，屋里怪冷清的，<soft>要我替你换杯热茶吗？</soft>',
     ),
     'wanqing_friday_visit': (
         '苏婉青',
         '听见脚步声她回过身，下意识抬起偏凉的手指理了理滑落的白开衫肩线，领口下被 36D 撑开的抽褶随呼吸轻动，笑意客气又藏着几分局促。',
-        '[声音轻柔，带点客套分寸] 志北，今天也在家呀。我按规矩过来看看妈，顺便带了些她爱吃的点心。',
+        '[bright polite smile, lightly surprised] 志北，今天也在家呀？[small laugh] [gentle, careful poise] 我按规矩过来看看妈，顺便带了些她爱吃的点心。',
     ),
     'zhiyun_sunday_noon': (
         '沈知韫',
         '她扫过一圈餐桌，目光在苏婉青手边的伴手礼和念薇握杯的手指间掠过，自己拉开主位座椅，脚下露趾拖鞋轻蹭过地毯边沿。',
-        '[沉稳从容] 都到齐了，先落座吧。厨房那边还要一会儿，志北坐妈手边。',
+        '[composed, executive warmth] 都到齐了，先落座吧。[pause] [lighter, casually commanding] 厨房那边还要一会儿，志北坐妈手边。',
     ),
     'zhiyun_rain_balcony': (
         '沈知韫',
         '听见身后脚步声，她没有立刻回头，只微微侧身让开玻璃门内侧避风的位置，晚风吹起薄纱衣摆贴合腰线，盘发下白皙后颈映着灰蓝雨天光影。',
-        '[低声克制，语速微缓] 雨刚歇，风里还带着潮气。怎么这个点上来找我？',
+        '[cool, looking out at the rain] 雨刚歇，风里还带着潮气。[pause] [turning slightly, wry curiosity] 怎么这个点上来找我？',
     ),
     'nianwei_sunday_evening_studio': (
         '徐念薇',
         '她把最后两支画笔插进瓷筒，冷白指腹蹭掉腕骨旁一星蓝灰颜料，拢紧肩头薄毯，隔着长桌淡淡望了过来。',
-        '[清冷克制，字句干净] 门没锁，进来就行。晚饭前我还要收完这些习作，帮我递一下纸巾？',
+        '[dry, crisp, unbothered] 门没锁，进来就行。[pause] [slightly softer, practical] 晚饭前我还要收完这些习作，帮我递一下纸巾？',
     ),
     'wanqing_apartment_morning': (
         '苏婉青',
         '她按停低鸣的咖啡机，微微俯身把滚烫的骨瓷杯挪到岛台边，碎花睡裙胸前饱满弧度近在咫尺，余光扫了一眼暗下的手机屏幕。',
-        '[声音轻柔，带着几分试探] 早餐再等几分钟就好。你难得上午过来，先喝杯黑咖啡，还是我给你兑点热牛奶？',
+        '[warm, lightly playful] 早餐再等几分钟就好。[pause] [gentle, testing] 你难得上午过来，先喝杯黑咖啡，还是我给你兑点热牛奶？',
     ),
     'nianwei_rain_studio': (
         '徐念薇',
         '她拧紧颜料盖搁进木盘，偏头看了一眼徐志北滴水的雨伞，转身把墙角蒙布滑开一角的大画框重新扯平压实。',
-        '[声音平淡，带着一丝意外] 下这么大雨怎么跑这儿来了？<soft>伞搁门后那只铁桶里，别把颜料弄湿了。</soft>',
+        '[surprised, coolly guarded] 下这么大雨怎么跑这儿来了？[pause] [voice softens slightly] <soft>伞搁门后那只铁桶里，别把颜料弄湿了。</soft>',
     ),
     'zhiyun_late_office': (
         '沈知韫',
         '她合上并购风控红签夹，把桌上冷掉的咖啡往旁边一推，桌下黑丝脚尖顺势重新勾回细跟后空鞋，抬眼时掌权者的冷锐柔和了半分。',
-        '[低声克制，带着难得的松弛] 这层早就没人了，怎么还专程跑一趟？<soft>先搁茶几上，坐下歇口气。</soft>',
+        '[amused disbelief, wry exhale] 这层早就没人了，怎么还专程跑一趟？[pause] [warm, unwinding] <soft>先搁茶几上，坐下歇口气。</soft>',
     ),
 }
 

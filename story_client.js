@@ -318,6 +318,7 @@
       scroll:  'M6 4h11a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7a3 3 0 0 1-3-3V6a2 2 0 0 1 2-2Zm3 4h6m-6 4h6m-6 4h4',
       gift:    'M4 10h16v10H4V10Zm-1-3h18v3H3V7Zm9 0v13m0-13c-1.5-3-5-3-5-1s3.5 1 5 1Zm0 0c1.5-3 5-3 5-1s-3.5 1-5 1Z',
       volume:  'M11 5 6 9H3v6h3l5 4V5Zm4.5 3.5a5 5 0 0 1 0 7',
+      retake:  'M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5',
       close:   'M6 6 18 18M18 6 6 18',
       scales:  'M12 4v15M8 19h8M5 9h14M5 9 3.5 14h3L5 9Zm14 0-1.5 5h3L19 9Z',
       shop:    'M4 9.5 5.5 4h13L20 9.5M4 9.5h16M4 9.5v1.5a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0V9.5M6 14v6h12v-6'
@@ -1459,7 +1460,7 @@
       if (!m || !m.text) continue;
       const prefix = m.speaker ? (m.speaker + '：') : '旁白：';
       const clean = String(m.text)
-        .replace(/\[[^\]]{1,80}\]/g, '')
+        .replace(/\[[^\]]{1,180}\]/g, '')
         .replace(/[｛{]([^｜|}\r\n]+)[｜|][^｝}\r\n]+[｝}]/g, '$1')
         .trim();
       if (clean) return prefix + clean;
@@ -2675,6 +2676,36 @@
     }
   }
 
+  const VOICE_PEAK_TAG_RE = /<whisper>|\[(?:[^\]\r\n]*(?:shaky|trembl|crack|chok|sob|breathless|pant|plead|gasp|破音|哽咽|哭腔|发颤|喘息|抽气)[^\]\r\n]*)\]/i;
+  const VOICE_TENSION_TAG_RE = /<whisper>|<soft>|<forceful>|<fast>|[｛{][^｜|}\r\n]+[｜|][^｝}\r\n]+[｝}]|\[(?:[^\]\r\n]*(?:sharp|cutting|sarcas|deadpan|amused|playful|fluster|caught off guard|cover up|defensive|shaky|trembl|crack|husky|whisper|breathless|pant|chok|sob|plead|dangerously|voice drops|耳语|气音|气声|喘|颤|沙哑|发紧|发虚|发涩|破音|冷锋|嘲讽|慌乱|打岔|哽咽)[^\]\r\n]*)\]/i;
+
+  function findAdjacentActionHint(messages, index, speaker) {
+    if (!Array.isArray(messages) || !speaker || index <= 0) return '';
+    for (let j = index - 1; j >= Math.max(0, index - 2); j--) {
+      const prev = messages[j];
+      if (!prev || typeof prev !== 'object') continue;
+      const pKind = prev.kind;
+      const pWho = String(prev.speaker || '').trim();
+      if (pKind === 'action' && pWho === speaker) {
+        const cleaned = String(prev.text || '')
+          .replace(/[｛{]([^｜|}\r\n]+)[｜|][^｝}\r\n]+[｝}]/g, '$1')
+          .replace(/\[[^\]\r\n]{1,180}\]/g, '')
+          .replace(/<\/?[a-zA-Z0-9_-]{1,24}>/g, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        return cleaned.slice(0, 32);
+      }
+      if (pKind === 'dialogue' || (pKind === 'action' && pWho && pWho !== speaker)) break;
+    }
+    return '';
+  }
+
+  function withContextHint(m, messages, index) {
+    if (!m || m.kind !== 'dialogue' || !VOICED_SPEAKERS.has(m.speaker) || m.context_hint) return m;
+    const hint = findAdjacentActionHint(messages, index, m.speaker);
+    return hint ? { ...m, context_hint: hint } : m;
+  }
+
   function computeProsodyMod(m, who) {
     if (!m || m.kind !== 'dialogue' || !VOICED_SPEAKERS.has(who)) return null;
     const w = snapshot?.world;
@@ -2684,16 +2715,17 @@
     const orgasm = stats['高潮']?.num ?? 0;
     const stam = stats['体力']?.num ?? 100;
     const intimateBeat = Number(w?.intimate?.session_beats || 0);
-    const txt = String(m.text || '');
-    const hasIntimateTag = /<whisper>|<soft>|\[(?:[^\]\r\n]*(?:耳语|气音|气声|喘|颤|沙哑|发紧|发虚|低哑|whisper|pant|breathless|trembl)[^\]\r\n]*)\]/i.test(txt);
-    if (orgasm >= 70 || stam <= 15) {
-      return { speed_scale: 0.90, expressive_boost: 0.06 };
+    const txt = String(m.voice_script || m.text || '');
+    const hasPeakTag = VOICE_PEAK_TAG_RE.test(txt);
+    const hasTensionTag = hasPeakTag || VOICE_TENSION_TAG_RE.test(txt);
+    if (stam <= 15) {
+      return { speed_scale: 0.95, expressive_boost: 0.08 };
     }
-    if (desire >= 85 || hasIntimateTag) {
-      return { speed_scale: 0.93, expressive_boost: 0.04 };
+    if (orgasm >= 70 || desire >= 85 || hasPeakTag) {
+      return { expressive_boost: 0.08 };
     }
-    if (intimateBeat >= 1) {
-      return { speed_scale: 0.95, expressive_boost: 0.02 };
+    if (intimateBeat >= 1 || hasTensionTag) {
+      return { expressive_boost: 0.04 };
     }
     return null;
   }
@@ -2808,11 +2840,14 @@
     return String(cfg?.tts_model || (FREE_DEFAULT_VOICE_ROLES.has(who) ? 's2.1-pro-free' : (settings?.fish_tts_model || 's2.1-pro-free'))).trim() || 's2.1-pro-free';
   }
 
-  function audioCacheKey(id, who, cfg, settings, prosodyMod = null) {
+  function audioCacheKey(id, who, cfg, settings, prosodyMod = null, contextHint = '') {
     const voiceTag = String(cfg?.voice || '');
     let key = id + '|' + who + '|' + voiceTag + '|' + resolveVoiceModelKey(who, cfg, settings);
     if (prosodyMod && (prosodyMod.speed_scale || prosodyMod.expressive_boost)) {
       key += '|p:' + (prosodyMod.speed_scale || 1) + ':' + (prosodyMod.expressive_boost || 0);
+    }
+    if (contextHint) {
+      key += '|ctx:' + String(contextHint).slice(0, 24);
     }
     return key;
   }
@@ -2896,11 +2931,15 @@
         const cfg = resolveEffectiveVoiceCfg(who, config);
         if (!cfg) return;
         const prosodyMod = computeProsodyMod(m, who);
-        const cacheKey = audioCacheKey(id, who, cfg, config.__settings__ || {}, prosodyMod);
+        const contextHint = String(m.context_hint || '');
+        const cacheKey = audioCacheKey(id, who, cfg, config.__settings__ || {}, prosodyMod, contextHint);
         const existing = audioCache.get(cacheKey);
         if (existing && urls.has(existing)) return;
         if (!String(cfg.voice).startsWith('edge:') && !(await ensureFishKeyReady())) return;
-        const payload = VoiceClient.buildPayload(stripSubtextForTts(m.text), cfg, config.__settings__ || {}, '', who, prosodyMod);
+        const extra = {};
+        if (contextHint) extra.context_hint = contextHint;
+        if (m.voice_script) extra.voice_script = m.voice_script;
+        const payload = VoiceClient.buildPayload(m.voice_script || m.text, cfg, config.__settings__ || {}, '', who, prosodyMod, extra);
         const blob = await VoiceClient.requestAudio(payload, { channel: 'prefetch', maxBytes: 16 * 1024 * 1024 });
         if (!cache.voice || document.hidden) return;
         const blobUrl = urls.add(blob);
@@ -2917,7 +2956,7 @@
       const voiced = [];
       let needsFish = false;
       for (let i = Math.max(0, startIndex); i < messages.length && voiced.length < 3; i++) {
-        const m = messages[i];
+        const m = withContextHint(messages[i], messages, i);
         const who = resolveVoiceSpeaker(m, config);
         if (!who) continue;
         const effCfg = resolveEffectiveVoiceCfg(who, config);
@@ -2933,8 +2972,10 @@
       if (!ready.length) return;
       if (typeof VoiceClient.prefetchBatch === 'function') {
         void VoiceClient.prefetchBatch(ready.map(v => ({
-          text: stripSubtextForTts(v.m.text),
+          text: v.m.voice_script || v.m.text,
           speaker: v.who,
+          ...(v.m.context_hint ? { context_hint: v.m.context_hint } : {}),
+          ...(v.m.voice_script ? { voice_script: v.m.voice_script } : {}),
           ...(v.prosodyMod || {})
         })));
       }
@@ -2956,9 +2997,9 @@
     syncAmbientSoundscape();
   }
 
-  async function speak(m, id) {
+  async function speak(m, id, opts = {}) {
     stopVoice();
-    if (!m || m.isPlayerInput || !String(m.text || '').trim()) {
+    if (!m || m.isPlayerInput || !String(m.voice_script || m.text || '').trim()) {
       audioMessage = null;
       audioStatus = '';
       controls();
@@ -2971,13 +3012,14 @@
       controls();
       return;
     }
+    const isRetake = opts && opts.retake === true;
     audioMessage = { m, id };
     if (!cache.voice || !gesture) {
       controls();
       return;
     }
     const serial = audioSerial;
-    audioStatus = '合成语音中…';
+    audioStatus = isRetake ? '重演语音中…' : '合成语音中…';
     controls();
     const bindEnded = () => {
       $('audio').onended = () => {
@@ -3009,7 +3051,11 @@
       const modelKey = resolveVoiceModelKey(who, cfg, config.__settings__ || {});
       const isD3 = modelKey === 'drama-3';
       const prosodyMod = computeProsodyMod(m, who);
-      const cacheKey = audioCacheKey(id, who, cfg, config.__settings__ || {}, prosodyMod);
+      const contextHint = String(m.context_hint || '');
+      const cacheKey = audioCacheKey(id, who, cfg, config.__settings__ || {}, prosodyMod, contextHint);
+      if (isRetake) {
+        audioCache.delete(cacheKey);
+      }
       const playBuffered = async payload => {
         const blob = await VoiceClient.requestAudio(payload, { channel: 'live', maxBytes: 16 * 1024 * 1024 });
         if (serial !== audioSerial || !cache.voice || document.hidden) return;
@@ -3023,10 +3069,10 @@
         if (serial !== audioSerial) return;
         isSpeaking = true;
         speakingMessageId = id;
-        audioStatus = isD3 ? 'D3 朗读中' : '朗读中';
+        audioStatus = isRetake ? (isD3 ? 'D3 重演朗读中' : '重演朗读中') : (isD3 ? 'D3 朗读中' : '朗读中');
         updateSpeakingUI();
       };
-      const cachedUrl = audioCache.get(cacheKey);
+      const cachedUrl = isRetake ? null : audioCache.get(cacheKey);
       if (cachedUrl && urls.has(cachedUrl)) {
         if (serial !== audioSerial || !cache.voice || document.hidden) return;
         urls.pin(cachedUrl);
@@ -3048,48 +3094,56 @@
           controls();
           return;
         }
-        const payload = VoiceClient.buildPayload(stripSubtextForTts(m.text), cfg, config.__settings__ || {}, '', who, prosodyMod);
-        let streamStarted = false;
-        const stream = await VoiceClient.requestStream(payload, {
-          channel: 'live',
-          onReady: () => {
-            if (serial !== audioSerial) return;
-            streamStarted = true;
-            isSpeaking = true;
-            speakingMessageId = id;
-            audioStatus = isD3 ? 'D3 流式朗读中' : '流式朗读中';
-            updateSpeakingUI();
-            controls();
-          }
-        });
-        if (stream) {
-          if (serial !== audioSerial || !cache.voice || document.hidden) {
-            stream.dispose();
-            return;
-          }
-          activeStream = stream;
-          $('audio').src = stream.url;
-          bindEnded();
-          try {
-            await Promise.all([$('audio').play(), stream.done]);
-            if (serial === audioSerial && !streamStarted && !$('audio').paused) {
+        const extra = {};
+        if (contextHint) extra.context_hint = contextHint;
+        if (m.voice_script) extra.voice_script = m.voice_script;
+        if (isRetake) extra.retake = true;
+        const payload = VoiceClient.buildPayload(m.voice_script || m.text, cfg, config.__settings__ || {}, '', who, prosodyMod, extra);
+        if (isRetake) {
+          await playBuffered(payload);
+        } else {
+          let streamStarted = false;
+          const stream = await VoiceClient.requestStream(payload, {
+            channel: 'live',
+            onReady: () => {
+              if (serial !== audioSerial) return;
+              streamStarted = true;
               isSpeaking = true;
               speakingMessageId = id;
-              audioStatus = isD3 ? 'D3 朗读中' : '朗读中';
+              audioStatus = isD3 ? 'D3 流式朗读中' : '流式朗读中';
               updateSpeakingUI();
+              controls();
             }
-          } catch (streamErr) {
-            if (serial !== audioSerial) return;
-            if (activeStream === stream) { stream.dispose(); activeStream = null; }
-            const noRetryStatus = streamErr?.status >= 400 && streamErr?.status < 600;
-            if (!streamStarted && !noRetryStatus && streamErr?.name !== 'AbortError' && streamErr?.name !== 'NotAllowedError') {
-              await playBuffered(payload);
-            } else {
-              throw streamErr;
+          });
+          if (stream) {
+            if (serial !== audioSerial || !cache.voice || document.hidden) {
+              stream.dispose();
+              return;
             }
+            activeStream = stream;
+            $('audio').src = stream.url;
+            bindEnded();
+            try {
+              await Promise.all([$('audio').play(), stream.done]);
+              if (serial === audioSerial && !streamStarted && !$('audio').paused) {
+                isSpeaking = true;
+                speakingMessageId = id;
+                audioStatus = isD3 ? 'D3 朗读中' : '朗读中';
+                updateSpeakingUI();
+              }
+            } catch (streamErr) {
+              if (serial !== audioSerial) return;
+              if (activeStream === stream) { stream.dispose(); activeStream = null; }
+              const noRetryStatus = streamErr?.status >= 400 && streamErr?.status < 600;
+              if (!streamStarted && !noRetryStatus && streamErr?.name !== 'AbortError' && streamErr?.name !== 'NotAllowedError') {
+                await playBuffered(payload);
+              } else {
+                throw streamErr;
+              }
+            }
+          } else {
+            await playBuffered(payload);
           }
-        } else {
-          await playBuffered(payload);
         }
       }
     } catch (e) {
@@ -3105,25 +3159,34 @@
 
   function isWhisperLine(rawText) {
     const s = String(rawText || '');
-    return /\[(?:[^\]]*(?:\b(?:whisper|softly|breathy|murmur|sigh|hushed|intimate|trembling)\b|低声|耳语|轻声|气音|压低声音|声音放轻|贴耳)[^\]]*)\]/i.test(s)
+    return /\[(?:[^\]]*(?:\b(?:whisper|softly|breathy|murmur|sigh|hushed|intimate|trembling|pleading|faint)\b|低声|耳语|轻声|气音|压低声音|声音放轻|贴耳)[^\]]*)\]/i.test(s)
       || /<(?:whisper|soft)>/i.test(s);
   }
 
   function classifyVoiceTag(rawTag) {
     const t = String(rawTag || '').toLowerCase();
-    if (/trembl|shaky|quiver|voice\s+breaks|颤|抖|破音|发涩/.test(t)) {
+    if (/trembl|shaky|quiver|voice\s+breaks|crack|stinging|颤|抖|破音|发涩/.test(t)) {
       return { cls: 'fx-tremble', label: '声线微颤', mood: 'tremble' };
     }
-    if (/exhaust|sobbing|weak|faint|dazed|out\s+of\s+breath|失力|虚弱|余韵|泣|哽咽|疲惫|倦意/.test(t)) {
+    if (/exhaust|sobbing|weak|faint|dazed|out\s+of\s+breath|loneliness|失力|虚弱|余韵|泣|哽咽|疲惫|倦意/.test(t)) {
       return { cls: 'fx-exhausted', label: '失力余韵', mood: 'exhausted' };
     }
-    if (/catch|choke|gasp|inhale|pant|hold(?:ing)?\s+back|short\s+breath|屏息|抽气|急促|喘|发紧|发虚|发干/.test(t)) {
+    if (/caught\s+off\s+guard|fluster|rush|defensive|cover\s+up|evasive|forcing\s+a.*smile|polite\s+deflection|心虚|慌乱|打岔|强笑|掩饰|窘迫/.test(t)) {
+      return { cls: 'fx-flustered', label: '慌乱掩饰', mood: 'flustered' };
+    }
+    if (/sharp|cutting|sarcas|deadpan|mocking|scoff|dangerously|voice\s+drops|brusque|clipped|冷锋|嘲讽|犀利|锋利/.test(t)) {
+      return { cls: 'fx-sharp', label: '锋芒冷刺', mood: 'sharp' };
+    }
+    if (/playful|teas|small\s+laugh|chuckle|amused|warm.*smile|bright\s+polite|俏皮|轻笑|打趣|轻快/.test(t)) {
+      return { cls: 'fx-playful', label: '轻快俏皮', mood: 'playful' };
+    }
+    if (/catch|choke|gasp|inhale|pant|hold(?:ing)?\s+back|short\s+breath|breathless|tight|屏息|抽气|急促|喘|发紧|发虚|发干/.test(t)) {
       return { cls: 'fx-catch', label: '呼吸急顿', mood: 'catch' };
     }
-    if (/whisper|breathy|softly|murmur|hushed|intimate|sigh|耳语|气音|低语|轻声|轻柔|声音放轻|叹息|轻叹|轻哄/.test(t)) {
+    if (/whisper|breathy|softly|soften|murmur|hushed|intimate|sigh|plead|husky|耳语|气音|低语|轻声|轻柔|声音放轻|叹息|轻叹|轻哄/.test(t)) {
       return { cls: 'fx-whisper', label: '微距气音', mood: 'whisper' };
     }
-    if (/calm|executive|cold|restrained|firm|low\s+voice|composed|克制|冷冽|沉稳|压低|微冷|冷硬|冷淡|轻哂|放慢|强忍|压着|发沉/.test(t)) {
+    if (/calm|executive|cold|restrained|firm|low\s+voice|composed|cool|guarded|measured|testing|unbothered|克制|冷冽|沉稳|压低|微冷|冷硬|冷淡|轻哂|放慢|强忍|压着|发沉/.test(t)) {
       return { cls: 'fx-restrained', label: '冷冽克制', mood: 'restrained' };
     }
     return null;
@@ -3158,15 +3221,15 @@
     }
   }
 
-  const ZH_VOICE_TAG_TOKEN_RE = /^(?:轻声|低声|耳语|气音|停顿|长停顿|短停顿|停顿半拍|微颤|颤抖|轻颤|声颤|克制|疲惫|倦怠|冷冽|冷淡|沉稳|平静|平淡|叹息|轻叹|低叹|叹气|抽气|倒吸一口气|屏息|急促|喘息|喘气|微喘|轻喘|喘|沙哑|微哑|柔声|低语|压低|压低声音|哽咽|泣声|哭腔|含泪|虚弱|失力|余韵|轻笑|冷笑|低笑|笑声|微笑|慌乱|紧张|窘迫|羞耻|羞涩|试探|挑眉|疑惑|缓声|放慢|语速放慢|迟疑|犹豫|沉默|顿了顿|顿了一下|温柔|冷笑一声|微怒|压抑|强忍|隐忍|娇喘|呢喃|喃喃|敷衍|轻哂|微冷|冷硬|发紧|发沉|发干|发虚|发涩|[a-zA-Z][a-zA-Z0-9_\s-]{0,36})$/;
+  const ZH_VOICE_TAG_TOKEN_RE = /^(?:轻声|低声|耳语|气音|停顿|长停顿|短停顿|停顿半拍|微颤|颤抖|轻颤|声颤|克制|疲惫|倦怠|冷冽|冷淡|沉稳|平静|平淡|叹息|轻叹|低叹|叹气|抽气|倒吸一口气|屏息|急促|喘息|喘气|微喘|轻喘|喘|沙哑|微哑|柔声|低语|压低|压低声音|哽咽|泣声|哭腔|含泪|虚弱|失力|余韵|轻笑|冷笑|低笑|笑声|微笑|慌乱|紧张|窘迫|羞耻|羞涩|试探|挑眉|疑惑|缓声|放慢|语速放慢|迟疑|犹豫|沉默|顿了顿|顿了一下|温柔|冷笑一声|微怒|压抑|强忍|隐忍|娇喘|呢喃|喃喃|敷衍|轻哂|微冷|冷硬|发紧|发沉|发干|发虚|发涩|[a-zA-Z][a-zA-Z0-9_\s;:'-]{0,48})$/;
   const NON_VOICE_BRACKET_RE = /^(?:N|[AD]\s*[:：].*|MOVE\s*[:：].*|ITEM-\d+|INTEL-\d+|CLK_[A-Z0-9_]+)$/i;
 
   function isFishBracketTag(inner, kind = '') {
     const trimmed = String(inner || '').trim();
-    if (!trimmed || trimmed.length > 80 || /[\r\n\[\]]/.test(trimmed)) return false;
+    if (!trimmed || trimmed.length > 180 || /[\r\n\[\]]/.test(trimmed)) return false;
     if (NON_VOICE_BRACKET_RE.test(trimmed)) return false;
     if (kind === 'dialogue') return true;
-    if (/^[a-zA-Z][a-zA-Z0-9_,\s-]{0,79}$/.test(trimmed)) return true;
+    if (/^[a-zA-Z][a-zA-Z0-9_,\s;:'-]{0,179}$/.test(trimmed)) return true;
     if (classifyVoiceTag(trimmed)) return true;
     const parts = trimmed.split(/[,，、;/\s]+/).map(s => s.trim()).filter(Boolean);
     return parts.length > 0 && parts.every(p => ZH_VOICE_TAG_TOKEN_RE.test(p));
@@ -3199,7 +3262,7 @@
     }
 
     const cleaned = raw
-      .replace(/\[([^\]\r\n]{1,80})\]/g, (full, inner) => (isFishBracketTag(inner, kind) ? '' : full))
+      .replace(/\[([^\]\r\n]{1,180})\]/g, (full, inner) => (isFishBracketTag(inner, kind) ? '' : full))
       .replace(/<\/?(?:whisper|emphasis|soft|fast|slow|stress|forceful|chinese|english|japanese|korean|cantonese|french|german|spanish)>/gi, '')
       .replace(/<\|phoneme_start\|>[^<\r\n]{1,40}<\|phoneme_end\|>/g, '')
       .replace(/<\|[^|\r\n]+\|>/g, '')
@@ -3452,6 +3515,13 @@
       if (!opts.isPlayerInput && (kind === 'dialogue' || kind === 'action')) {
         const actions = node('span', 'msg-head-actions');
         if (resolveVoiceSpeaker({ kind, speaker, text, isPlayerInput: opts.isPlayerInput })) {
+          const voiceMsg = {
+            kind,
+            speaker,
+            text,
+            ...(opts.contextHint ? { context_hint: opts.contextHint } : {}),
+            ...(opts.voiceScript ? { voice_script: opts.voiceScript } : {})
+          };
           const replay = node('button', 'msg-replay-btn');
           replay.type = 'button';
           replay.setAttribute('aria-label', '重听本句语音');
@@ -3465,9 +3535,28 @@
             cache.voice = true;
             save();
             if (wasMuted) syncVoicePlaybackPref(true);
-            void speak({ kind, speaker, text }, id);
+            void speak(voiceMsg, id);
           };
           actions.append(replay);
+          if (!opts.isPreview && kind === 'dialogue' && VOICED_SPEAKERS.has(speaker)) {
+            const retake = node('button', 'msg-retake-btn');
+            retake.type = 'button';
+            retake.setAttribute('aria-label', '换一版演法');
+            retake.title = '换一版演法（重演并覆盖缓存）';
+            retake.append(icon('retake', 'chip-svg'));
+            retake.onclick = e => {
+              e.stopPropagation();
+              haptic(10);
+              unlock();
+              const wasMuted = !cache.voice;
+              cache.voice = true;
+              save();
+              if (wasMuted) syncVoicePlaybackPref(true);
+              toast('正在为' + speaker + '换一版演法…');
+              void speak(voiceMsg, id, { retake: true });
+            };
+            actions.append(retake);
+          }
         }
 
         if (!isPlayer && kind === 'dialogue' && !opts.inHistory) {
@@ -3716,7 +3805,10 @@
         }
 
         const showNarrationMark = m.kind !== 'narration' ? true : prevKind !== 'narration';
-        pushNode(entry(m.kind, m.speaker, m.text, t.id + ':' + i, { showNarrationMark, inHistory, isHistoricTurn }));
+        const contextHint = m.kind === 'dialogue' ? findAdjacentActionHint(t.messages, i, m.speaker) : '';
+        pushNode(entry(m.kind, m.speaker, m.text, t.id + ':' + i, {
+          showNarrationMark, inHistory, isHistoricTurn, contextHint, voiceScript: m.voice_script || ''
+        }));
         prevKind = m.kind;
       });
       if (filter === 'all' && !inHistory && isLastTurn) {
@@ -3763,8 +3855,9 @@
         const previewTag = isLast
           ? (streamPreview.stage === 'settling_retry' ? '校准中' : streamPreview.stage === 'settling' ? '结算中' : '流式预览')
           : '';
+        const contextHint = m.kind === 'dialogue' ? findAdjacentActionHint(streamPreview.messages, i, m.speaker) : '';
         out.push(entry(m.kind, m.speaker, m.text, 'preview:' + reqId + ':' + i, {
-          showNarrationMark, isPreview: true, previewTag, inHistory
+          showNarrationMark, isPreview: true, previewTag, inHistory, contextHint, voiceScript: m.voice_script || ''
         }));
         prevKind = m.kind;
       });
@@ -7762,7 +7855,7 @@
     if (!audioMessage && fresh.playback?.revealed) {
       const turn = history.find(t => t.id === fresh.playback.segment_id);
       const i = fresh.playback.revealed - 1;
-      if (turn?.messages[i]) audioMessage = { m: turn.messages[i], id: turn.id + ':' + i };
+      if (turn?.messages[i]) audioMessage = { m: withContextHint(turn.messages[i], turn.messages, i), id: turn.id + ':' + i };
     }
     if (prevSegmentId && fresh.playback?.segment_id && fresh.playback.segment_id !== prevSegmentId) {
       const settledTurn = history.find(t => t.id === fresh.playback.segment_id);
@@ -7785,7 +7878,7 @@
       const committedTurn = history.find(t => t.id === fresh.playback.segment_id);
       const revIdx = Math.max(0, (fresh.playback.revealed || 1) - 1);
       if (committedTurn?.messages?.[revIdx]) {
-        void speak(committedTurn.messages[revIdx], committedTurn.id + ':' + revIdx);
+        void speak(withContextHint(committedTurn.messages[revIdx], committedTurn.messages, revIdx), committedTurn.id + ':' + revIdx);
         schedulePrefetchWindow(committedTurn.messages, committedTurn.id, revIdx + 1);
       }
     }
@@ -7860,7 +7953,7 @@
         latest();
         const idx = streamPreview.revealed - 1;
         const m = streamPreview.messages[idx];
-        if (m) void speak(m, 'preview:' + streamPreview.request_id + ':' + idx);
+        if (m) void speak(withContextHint(m, streamPreview.messages, idx), 'preview:' + streamPreview.request_id + ':' + idx);
         schedulePrefetchWindow(streamPreview.messages, 'preview:' + streamPreview.request_id, idx + 1);
       }
       return;
@@ -7883,7 +7976,7 @@
       latest();
       if (!completed) {
         const turn = current(), m = turn?.messages[revealed - 1];
-        if (m) void speak(m, turn.id + ':' + (revealed - 1));
+        if (m) void speak(withContextHint(m, turn.messages, revealed - 1), turn.id + ':' + (revealed - 1));
         if (turn?.messages) schedulePrefetchWindow(turn.messages, turn.id, revealed);
       }
     } catch (e) {

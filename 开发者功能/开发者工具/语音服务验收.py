@@ -221,10 +221,11 @@ class VoiceServiceChecks(unittest.TestCase):
             return b'fake-mp3-audio'
 
         with patch.object(module, '_fish_audio', side_effect=fake_fish_audio):
-            # 1. Drama 3 keeps Chinese director brief + paired XML tags, omits repetition_penalty,
-            #    raises chunk_length>=280 & normal latency & expressive temperature, and returns X-Fish-Model header.
+            # 1. Drama 3 keeps director brief + paired XML tags, omits S2-only/no-op params
+            #    (chunk_length, min_chunk_length, condition_on_previous_chunks, early_stop_threshold, repetition_penalty),
+            #    defaults quality-guard OFF, lifts legacy <0.80/<0.82 to >=0.92/>=0.88, and returns X-Fish-Model header.
             r_d3 = self.client.post('/api/tts', json={
-                'text': '[强压着倦意，声音稳而微冷] 账得<slow>先算清楚</slow>。[break] <whisper>别声张。</whisper>',
+                'text': '[icy authority, restrained] 账得<slow>先算清楚</slow>。[pause] <whisper>别声张。</whisper>',
                 'voice': 'fish:test',
                 'tts_model': 'drama-3',
                 'temperature': 0.58,
@@ -236,18 +237,36 @@ class VoiceServiceChecks(unittest.TestCase):
             self.assertEqual(r_d3.headers.get('X-Fish-Model'), 'drama-3')
             m_d3, p_d3 = captured[-1]
             self.assertEqual(m_d3, 'drama-3')
-            self.assertIn('[强压着倦意，声音稳而微冷]', p_d3['text'])
+            self.assertIn('[icy authority, restrained]', p_d3['text'])
             self.assertIn('<slow>先算清楚</slow>', p_d3['text'])
             self.assertIn('<whisper>别声张。</whisper>', p_d3['text'])
-            self.assertNotIn('repetition_penalty', p_d3)
-            self.assertGreaterEqual(p_d3['chunk_length'], 280)
+            for omitted in ('chunk_length', 'min_chunk_length', 'condition_on_previous_chunks',
+                            'early_stop_threshold', 'repetition_penalty', 'features'):
+                self.assertNotIn(omitted, p_d3)
             self.assertEqual(p_d3['latency'], 'normal')
-            self.assertGreaterEqual(p_d3['temperature'], 0.70)
-            self.assertGreaterEqual(p_d3['top_p'], 0.76)
+            self.assertGreaterEqual(p_d3['temperature'], 0.92)
+            self.assertGreaterEqual(p_d3['top_p'], 0.88)
 
-            # 2. Non-Drama-3 (s2.1-pro-free) degrades XML tags to S2 English tags and maps Chinese short aliases & director sentences.
+            # 1b. raw_params=True preserves legacy low temperature/top_p for A/B blind testing.
+            r_raw = self.client.post('/api/tts', json={
+                'text': '[低声克制] 旧参数对照组。',
+                'voice': 'fish:test',
+                'tts_model': 'drama-3',
+                'temperature': 0.68,
+                'top_p': 0.75,
+                'quality_guard': True,
+                'raw_params': True,
+            })
+            self.assertEqual(r_raw.status_code, 200)
+            _, p_raw = captured[-1]
+            self.assertEqual(p_raw['temperature'], 0.68)
+            self.assertEqual(p_raw['top_p'], 0.75)
+            self.assertEqual(p_raw.get('features'), ['quality-guard'])
+
+            # 2. Non-Drama-3 (s2.1-pro-free) degrades [pause]->[break], XML->S2 tags, maps Chinese aliases,
+            #    passes English cues through untouched, and prevents antonym collision on 克制不住.
             r_s2 = self.client.post('/api/tts', json={
-                'text': '[低声, 微颤] 别再问了，<whisper>回房睡吧。</whisper>',
+                'text': '[低声, 微颤] 别再问了。[pause] <whisper>回房睡吧。</whisper>',
                 'voice': 'fish:test',
                 'tts_model': 's2.1-pro-free',
             })
@@ -257,42 +276,147 @@ class VoiceServiceChecks(unittest.TestCase):
             self.assertEqual(m_s2, 's2.1-pro-free')
             self.assertNotIn('<whisper>', p_s2['text'])
             self.assertNotIn('</whisper>', p_s2['text'])
+            self.assertIn('[break]', p_s2['text'])
             self.assertIn('[low restrained voice, voice trembling]', p_s2['text'])
             self.assertIn('[whispering] 回房睡吧。', p_s2['text'])
 
-            # 2b. Free-form Chinese director sentence on S2.1 maps cleanly to English control tags without leaking CJK brackets.
-            r_s2_cn = self.client.post('/api/tts', json={
-                'text': '[声音压得很低，带着点羞耻的轻颤] 别让人听见……<soft>先松手。</soft>',
+            # 2b. English cue passthrough + antonym-safe Chinese mapping on S2.1.
+            r_s2_antonym = self.client.post('/api/tts', json={
+                'text': '[sharp, amused] 你觉得呢？[声音发涩破音，克制不住低下来] 别碰我！',
                 'voice': 'fish:test',
                 'tts_model': 's2.1-pro-free',
             })
-            self.assertEqual(r_s2_cn.status_code, 200)
-            _, p_s2_cn = captured[-1]
-            self.assertNotIn('声音压得很低', p_s2_cn['text'])
-            self.assertIn('voice trembling', p_s2_cn['text'])
-            self.assertIn('low restrained voice', p_s2_cn['text'])
-            self.assertIn('[soft tone] 先松手。', p_s2_cn['text'])
+            self.assertEqual(r_s2_antonym.status_code, 200)
+            _, p_s2_ant = captured[-1]
+            self.assertIn('[sharp, amused]', p_s2_ant['text'])
+            self.assertNotIn('low restrained voice', p_s2_ant['text'])
+            self.assertIn('voice cracking', p_s2_ant['text'])
 
-            # 2c. Physiological prosody modulation adjusts speed & temperature/top_p and isolates cache keys.
+            # 2c. Physiological prosody modulation adjusts temperature/top_p up to 1.00/0.95 without forcing slowdown.
             r_pros = self.client.post('/api/tts', json={
                 'text': '慢一点，别这么急。',
                 'voice': 'fish:test',
                 'tts_model': 'drama-3',
                 'speed': 1.0,
-                'temperature': 0.72,
-                'top_p': 0.78,
-                'speed_scale': 0.90,
-                'expressive_boost': 0.06,
+                'temperature': 0.94,
+                'top_p': 0.90,
+                'speed_scale': 0.95,
+                'expressive_boost': 0.08,
             })
             self.assertEqual(r_pros.status_code, 200)
             _, p_pros = captured[-1]
-            self.assertEqual(p_pros['prosody']['speed'], 0.9)
-            self.assertGreaterEqual(p_pros['temperature'], 0.84)
+            self.assertEqual(p_pros['prosody']['speed'], 0.95)
+            self.assertEqual(p_pros['temperature'], 1.0)
+            self.assertEqual(p_pros['top_p'], 0.95)
 
-        # 3. VOICE_TIERS['drama'] routes all 3 heroines to drama-3 while keeping narrator free.
+        # 3. VOICE_TIERS['drama'] routes all 3 heroines to drama-3 while keeping narrator free,
+        #    and DRAMA3_ROLE_PROFILES / S2_ROLE_PROFILES differentiate all 3 heroines.
         self.assertEqual(module.VOICE_TIERS['drama']['heroine_model'], 'drama-3')
         self.assertEqual(module.VOICE_TIERS['drama']['narrator_model'], 's2.1-pro-free')
         self.assertEqual(set(module.VOICED_HEROINES), {'沈知韫', '苏婉青', '徐念薇'})
+        self.assertEqual(module.DRAMA3_ROLE_PROFILES['苏婉青']['temperature'], 0.98)
+        self.assertEqual(module.DRAMA3_ROLE_PROFILES['徐念薇']['speed'], 1.02)
+        self.assertFalse(module.DRAMA3_ROLE_PROFILES['沈知韫']['quality_guard'])
+
+    def test_drama3_subtext_context_hint_retake_and_voice_design(self):
+        captured = []
+        counter = {'n': 0}
+        def fake_fish_audio(payload, tts_model, on_chunk=None, api_key=None):
+            counter['n'] += 1
+            captured.append((tts_model, dict(payload)))
+            return f'ID3-take-{counter["n"]}'.encode('utf-8')
+
+        with patch.object(module, '_fish_audio', side_effect=fake_fish_audio):
+            # 1. Subtext auto-directing: Drama 3 merges '; hiding: ...' into existing leading tag or prepends [hiding: ...]; S2 speaks surface only.
+            line_sub = '[composed] ｛没事，只是有点累｜手心都在发凉，怕他再追问｝。'
+            r_d3 = self.client.post('/api/tts', json={'text': line_sub, 'voice': 'fish:test', 'tts_model': 'drama-3'})
+            self.assertEqual(r_d3.status_code, 200)
+            _, p_d3 = captured[-1]
+            self.assertIn('[composed; hiding: 手心都在发凉，怕他再追问]', p_d3['text'])
+            self.assertIn('没事，只是有点累', p_d3['text'])
+            self.assertNotIn('｛', p_d3['text'])
+
+            r_d3_bare = self.client.post('/api/tts', json={
+                'text': '｛没事，不用担心｜其实紧张极了｝。',
+                'voice': 'fish:test',
+                'tts_model': 'drama-3',
+            })
+            self.assertEqual(r_d3_bare.status_code, 200)
+            self.assertIn('[hiding: 其实紧张极了]', captured[-1][1]['text'])
+
+            r_s2 = self.client.post('/api/tts', json={'text': line_sub, 'voice': 'fish:test', 'tts_model': 's2.1-pro-free'})
+            self.assertEqual(r_s2.status_code, 200)
+            _, p_s2 = captured[-1]
+            self.assertNotIn('手心都在发凉', p_s2['text'])
+            self.assertIn('没事，只是有点累', p_s2['text'])
+
+            # 2. context_hint applies ONLY to untagged Drama 3 lines; ignored when line already has [...].
+            r_ctx_plain = self.client.post('/api/tts', json={
+                'text': '把文件放下。',
+                'voice': 'fish:test',
+                'tts_model': 'drama-3',
+                'context_hint': '她指节发白，合上文件夹',
+            })
+            self.assertEqual(r_ctx_plain.status_code, 200)
+            self.assertTrue(captured[-1][1]['text'].startswith('[acting cue: 她指节发白，合上文件夹] '))
+
+            r_ctx_tagged = self.client.post('/api/tts', json={
+                'text': '[cool irony] 把文件放下。',
+                'voice': 'fish:test',
+                'tts_model': 'drama-3',
+                'context_hint': '她指节发白，合上文件夹',
+            })
+            self.assertEqual(r_ctx_tagged.status_code, 200)
+            self.assertNotIn('acting cue:', captured[-1][1]['text'])
+
+            # 3. retake=True bypasses & overwrites memory + disk cache cleanly with X-TTS-Retake header.
+            req_take = {'text': '[warm teasing] 重录测试台词。', 'voice': 'fish:test', 'tts_model': 'drama-3'}
+            t1 = self.client.post('/api/tts', json=req_take)
+            t1_cached = self.client.post('/api/tts', json=req_take)
+            self.assertEqual(t1.data, t1_cached.data)
+            t2 = self.client.post('/api/tts', json={**req_take, 'retake': True})
+            self.assertEqual(t2.status_code, 200)
+            self.assertEqual(t2.headers.get('X-TTS-Retake'), '1')
+            self.assertNotEqual(t2.data, t1.data)
+            # Clear memory cache -> disk cache must return new take t2.data
+            with module.TTS_STATE_LOCK:
+                module.TTS_CACHE.clear()
+                module.TTS_CACHE_BYTES = 0
+            t2_disk = self.client.post('/api/tts', json=req_take)
+            self.assertEqual(t2_disk.data, t2.data)
+
+        # 4. POST /api/voice_design enforces X-Voice-Client CSRF, validates inputs, and proxies model=voice-design-1.
+        self.assertEqual(
+            self.client.post('/api/voice_design', json={'description': 'warm female', 'text': '你好世界试音'}).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.post('/api/voice_design', headers={'X-Voice-Client': '1'}, json={'description': 'a', 'text': 'b'}).status_code,
+            400,
+        )
+        design_calls = []
+        class FakeDesignResp:
+            status_code = 200
+            def json(self):
+                return {'candidates': [
+                    {'id': 'c0', 'index': 0, 'audio_base64': 'UklGRg==', 'sample_rate': 44100, 'duration_ms': 4200},
+                    {'id': 'c1', 'index': 1, 'audio_base64': 'UklGRh==', 'sample_rate': 44100, 'duration_ms': 4500},
+                ]}
+        def fake_post(url, json=None, headers=None, timeout=None):
+            design_calls.append((url, json, headers, timeout))
+            return FakeDesignResp()
+        with patch.object(module, '_fish_http_post', side_effect=fake_post):
+            vd = self.client.post(
+                '/api/voice_design',
+                headers={'X-Voice-Client': '1'},
+                json={'description': 'Composed 38yo Chinese female CEO with dry warmth', 'text': '把合同拿进来，放在桌上。', 'count': 3},
+            )
+        self.assertEqual(vd.status_code, 200)
+        vd_body = vd.get_json()
+        self.assertEqual(vd_body['count'], 2)
+        self.assertTrue(design_calls[0][0].endswith('/v1/voice-design'))
+        self.assertEqual(design_calls[0][2]['model'], 'voice-design-1')
+        self.assertEqual(design_calls[0][1]['count'], 3)
 
     def test_local_ambient_audio_assets(self):
         # Isolate BASE_DIR to temp workspace with txt文件/audio/ambient/
@@ -345,12 +469,14 @@ class VoiceServiceChecks(unittest.TestCase):
             'action_voice_scope': 'heroines',
         })
 
-        # 2. /api/voice_tier keeps 旁白 / 动作 / 徐志北 on s2.1-pro-free across pro & drama tiers
+        # 2. /api/voice_tier keeps 旁白 / 动作 / 徐志北 on s2.1-pro-free and applies DRAMA3_ROLE_PROFILES to 3 heroines
         tier_res = self.client.post('/api/voice_tier', headers={'X-Voice-Client': '1'}, json={'tier': 'drama'})
         self.assertEqual(tier_res.status_code, 200)
         tcfg = tier_res.get_json()['config']
         for h in ('沈知韫', '苏婉青', '徐念薇'):
             self.assertEqual(tcfg[h]['tts_model'], 'drama-3')
+            self.assertEqual(tcfg[h]['temperature'], module.DRAMA3_ROLE_PROFILES[h]['temperature'])
+            self.assertEqual(tcfg[h]['quality_guard'], False)
         for r in ('旁白', '动作', '徐志北'):
             self.assertEqual(tcfg[r]['tts_model'], 's2.1-pro-free')
 
@@ -383,7 +509,7 @@ class VoiceServiceChecks(unittest.TestCase):
             self.assertEqual(mock_edge.call_args.args[2], '+0%')
             self.assertEqual(mock_edge.call_args.args[4], '-10%')
 
-        # 5. StoryService._trigger_tts_prewarm matches voice_config routing & heroine whisper prosodyMod
+        # 5. StoryService._trigger_tts_prewarm matches voice_config routing, tension expressive_boost (no speed crush), & context_hint
         import story_service as ss
         warmed = []
         svc = ss.StoryService.__new__(ss.StoryService)
@@ -404,16 +530,21 @@ class VoiceServiceChecks(unittest.TestCase):
         }
         (self.directory / 'voice_config.json').write_text(json.dumps(vcfg_for_svc, ensure_ascii=False), encoding='utf-8')
         svc._trigger_tts_prewarm([
-            {'kind': 'action', 'speaker': '徐志北', 'text': '你把温水推过去。'},
-            {'kind': 'dialogue', 'speaker': '徐志北', 'text': '妈，趁热喝。'},
+            {'kind': 'action', 'speaker': '沈知韫', 'text': '她放下钢笔，指尖轻敲桌面。'},
             {'kind': 'dialogue', 'speaker': '沈知韫', 'text': '<whisper>别声张。</whisper>'},
+            {'kind': 'dialogue', 'speaker': '徐志北', 'text': '妈，趁热喝。'},
         ], dedup_prefix='test-warm')
         self.assertEqual(len(warmed), 3)
         self.assertEqual(warmed[0]['speaker'], '动作')
-        self.assertEqual(warmed[1]['speaker'], '徐志北')
-        self.assertEqual(warmed[2]['speaker'], '沈知韫')
-        self.assertEqual(warmed[2]['speed_scale'], 0.93)
-        self.assertEqual(warmed[2]['expressive_boost'], 0.04)
+        self.assertEqual(warmed[1]['speaker'], '沈知韫')
+        self.assertNotIn('speed_scale', warmed[1])
+        self.assertEqual(warmed[1]['expressive_boost'], 0.08)
+        self.assertEqual(warmed[1].get('context_hint'), '她放下钢笔，指尖轻敲桌面。')
+        self.assertEqual(warmed[2]['speaker'], '徐志北')
+        # Moderate tension cue gets 0.04 boost without speed_scale; exhaustion (stam <= 15) is the sole path lowering speed_scale to 0.95
+        self.assertEqual(svc._compute_prewarm_prosody('[sharp, dry] 坐下。', '沈知韫', {}), {'expressive_boost': 0.04})
+        exhausted = svc._compute_prewarm_prosody('别碰了。', '沈知韫', {'panels': {'沈知韫': {'体力': 12}}})
+        self.assertEqual(exhausted, {'speed_scale': 0.95, 'expressive_boost': 0.08})
 
 
 if __name__ == '__main__':

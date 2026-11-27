@@ -8,7 +8,7 @@ let busy = null;
 let lastError = '';
 let monitorTimer = null, monitorBusy = false, starting = null;
 let controlSupported = null, sessionReady = false;
-const PLUGIN_VERSION = '2.3.1';
+const PLUGIN_VERSION = '2.3.2';
 const SETTINGS_ROUTE = 'toolpkg:local.story.operit_bridge:ui:settings';
 const THEATER_ROUTE = 'toolpkg:local.story.operit_bridge:ui:theater';
 const BRIDGE_PARTICIPANT_ID = 'model:chat';
@@ -800,8 +800,8 @@ const STREAM_INLINE_DECISION_RE = /\s*(?:\*\*)?[-—–=]{2,}\s*DECISION\s*[-—
 const STREAM_BARE_DIVIDER_RE = /^\s*[-—–=*_]{3,}\s*$/;
 const STREAM_PROMPT_RE = /^\s*(?:[-*•>]\s*)*(?:#{1,6}\s*)?(?:\*\*)?(?:PROMPT|提示|抉择提示|段末提示|当前局面|局面提示|抉择)(?:\*\*)?\s*[:：]/i;
 const STREAM_OPT_RE = /^\s*(?:[-*•>]\s*)*(?:#{1,6}\s*)?(?:\*\*)?(?:(?:选项\s*)?([ABC])|[\[【(（]\s*([ABC])\s*[\]】)）])(?:\*\*)?(?:\s*\[MOVE[:：][^\]]+\])?(?:\s*(?:[·•\-—（(\[][^\n:：.、)）]{1,24}))?\s*[:：.、)）\s]\s*\S/i;
-const STREAM_LEADING_ASCII_FISH_RE = /^\s*(?:\[[a-zA-Z0-9_,\s-]{1,80}\]\s*)+/;
-const STREAM_LEADING_VOICE_TAGS_RE = /^((?:\[[^\]\r\n]{1,80}\]\s*)*)([\s\S]*)$/;
+const STREAM_LEADING_ASCII_FISH_RE = /^\s*(?:\[[a-zA-Z0-9_,\s;:'-]{1,180}\]\s*)+/;
+const STREAM_LEADING_VOICE_TAGS_RE = /^((?:\[[^\]\r\n]{1,180}\]\s*)*)([\s\S]*)$/;
 const STREAM_OUTER_QUOTES_RE = /^(?:“([^“”]+)”|"([^"]+)"|「([^「」]+)」|『([^『』]+)』)\s*$/;
 const STREAM_MIXED_ACTION_DIALOGUE_RE = /^([^“"「『\r\n]{2,180}?)([，,、；;\s]*(?:(?:低声|轻声|冷声|沉声|柔声|淡淡|缓声|随口|开口|抬眼|垂眸|侧头|转头)?(?:说道|问道|答道|应道|反问|叮嘱|交代|开口|道|说|问|答))?\s*[：:，,])\s*(?:“([^”]+)”|"([^"]+)"|「([^」]+)」|『([^』]+)』)\s*$/;
 

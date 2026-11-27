@@ -68,7 +68,7 @@
             pronunciation_dictionary_version: cleanToken(cfg.pronunciation_dictionary_version, /^[A-Za-z0-9._:-]{1,64}$/, 64)
         };
     }
-    function buildPayload(text, cfg = {}, settings = {}, emotion = '', speaker = '', prosodyMod = null) {
+    function buildPayload(text, cfg = {}, settings = {}, emotion = '', speaker = '', prosodyMod = null, extra = null) {
         const voice = cfg.voice || 'fish:';
         const body = { text, voice, emotion };
         if (speaker) body.speaker = String(speaker);
@@ -81,6 +81,16 @@
                 if (Math.abs(sc - 1) >= 0.005) body.speed_scale = +sc.toFixed(2);
                 const eb = number(prosodyMod.expressive_boost, 0, 0, 0.12);
                 if (eb >= 0.01) body.expressive_boost = +eb.toFixed(2);
+            }
+            if (extra && typeof extra === 'object') {
+                if (typeof extra.context_hint === 'string' && extra.context_hint.trim()) {
+                    body.context_hint = extra.context_hint.trim().slice(0, 60);
+                }
+                if (typeof extra.voice_script === 'string' && extra.voice_script.trim()) {
+                    body.voice_script = extra.voice_script.trim();
+                }
+                if (extra.retake === true) body.retake = true;
+                if (extra.raw_params === true) body.raw_params = true;
             }
         }
         return body;
@@ -277,6 +287,12 @@
             };
             if (it.speed_scale !== undefined) row.speed_scale = it.speed_scale;
             if (it.expressive_boost !== undefined) row.expressive_boost = it.expressive_boost;
+            if (typeof it.context_hint === 'string' && it.context_hint.trim()) {
+                row.context_hint = it.context_hint.trim().slice(0, 60);
+            }
+            if (typeof it.voice_script === 'string' && it.voice_script.trim()) {
+                row.voice_script = it.voice_script.trim();
+            }
             return row;
         });
         if (!clean.length) return Promise.resolve({ scheduled: 0 });
@@ -295,7 +311,22 @@
         }, 10000);
     }
 
+    function designVoice(params = {}) {
+        const payload = {
+            description: String(params.description || '').trim(),
+            text: String(params.text || '').trim(),
+            language: String(params.language || 'zh').trim() || 'zh',
+            count: Math.max(2, Math.min(4, Math.round(number(params.count, 3, 2, 4)))),
+            temperature: +number(params.temperature, 0.9, 0.3, 1.0).toFixed(2)
+        };
+        return requestJson('/api/voice_design', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }, TTS_TIMEOUT_MS);
+    }
+
     global.VoiceClient = Object.freeze({ TTS_TIMEOUT_MS, fishDefaults, normalizeFish, buildPayload,
         requestJson, requestAudio, requestStream, prefetchBatch, cancel, cancelAll, AudioUrlStore,
-        getFishKeyStatus, saveFishKey, clearFishKey, setVoiceTier, setVoiceRouting, getAudioAssets });
+        getFishKeyStatus, saveFishKey, clearFishKey, setVoiceTier, setVoiceRouting, getAudioAssets, designVoice });
 })(typeof window === 'undefined' ? globalThis : window);

@@ -1,6 +1,8 @@
 # 故事桥接
 
-当前源码维护入口为本目录的 `main.js`、`ui/settings.ui.js`、`ui/theater.ui.js`、`tools.js` 和 `manifest.json`；插件 ID 为 `local.story.operit_bridge`，当前版本 **2.3.1**，API 2.0.0。根目录运行 `python scene_chat_dev/build.py` 构建到 `scene_chat_dev/artifacts/`，再在 Operit 同 ID 导入才会更新已安装插件。
+当前源码维护入口为本目录的 `main.js`、`ui/settings.ui.js`、`ui/theater.ui.js`、`tools.js` 和 `manifest.json`；插件 ID 为 `local.story.operit_bridge`，当前版本 **2.3.2**，API 2.0.0。根目录运行 `python scene_chat_dev/build.py` 构建到 `scene_chat_dev/artifacts/`，再在 Operit 同 ID 导入才会更新已安装插件。
+
+**v2.3.2 Drama 3 声演导演词同步**：`STREAM_LEADING_ASCII_FISH_RE` 与 `STREAM_LEADING_VOICE_TAGS_RE` 标签长度上限由 `80` 放宽至 `180`（并兼容英文撇号/分号），与本地引擎精炼英文/双语导演词及句中转折规范 100% 对齐。
 
 **v2.3.1 人设稳态与暗线隔离联动适配**：`buildTailHook()` 清洗对白中未说出口的 `｜潜台词` 防止跨窗钩子泄漏；`applyCommittedSessionMeta()` 完整透传 `zone1_flags` 中的 `char_stage` 与 `unlocked_secrets` 会话冻结桶；服务端进入 `awaiting_review` 沉浸裁决态时静默执行 `markLiveDirty` 确保「重演本幕」走 100% 干净新会话。
 

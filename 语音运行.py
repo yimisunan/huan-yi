@@ -126,6 +126,34 @@ VOICE_TIERS = {
         "label": "旗舰导演档（三女主 Drama 3 高消费 · 旁白/动作/主角免费）",
     },
 }
+DRAMA3_ROLE_PROFILES = {
+    "沈知韫": {
+        "temperature": 0.94, "top_p": 0.90, "speed": 1.00, "volume": 0.0,
+        "normalize_loudness": False, "quality_guard": False, "latency": "normal",
+    },
+    "苏婉青": {
+        "temperature": 0.98, "top_p": 0.93, "speed": 1.00, "volume": 0.0,
+        "normalize_loudness": False, "quality_guard": False, "latency": "normal",
+    },
+    "徐念薇": {
+        "temperature": 0.92, "top_p": 0.88, "speed": 1.02, "volume": 0.0,
+        "normalize_loudness": False, "quality_guard": False, "latency": "normal",
+    },
+}
+S2_ROLE_PROFILES = {
+    "沈知韫": {
+        "temperature": 0.80, "top_p": 0.84, "speed": 0.99, "volume": 0.0,
+        "normalize_loudness": False, "quality_guard": True, "latency": "normal",
+    },
+    "苏婉青": {
+        "temperature": 0.84, "top_p": 0.87, "speed": 0.99, "volume": 0.0,
+        "normalize_loudness": False, "quality_guard": True, "latency": "normal",
+    },
+    "徐念薇": {
+        "temperature": 0.78, "top_p": 0.82, "speed": 1.01, "volume": 0.0,
+        "normalize_loudness": False, "quality_guard": True, "latency": "normal",
+    },
+}
 FISH_DEFAULT_VOICE_ID = ""
 FISH_AUDIO_FORMATS = {
     "mp3": {"mime": "audio/mpeg", "ext": "mp3", "default_rate": 44100, "rates": (32000, 44100)},
@@ -163,6 +191,7 @@ _VOICE_MUTATING_PATHS = frozenset({
     '/api/voice_routing',
     '/api/voice_repo',
     '/api/tts/prefetch',
+    '/api/voice_design',
 })
 _DRAMA3_XML_RE = re.compile(
     r'</?(?:whisper|emphasis|soft|fast|slow|stress|forceful|chinese|english|japanese|korean|cantonese|french|german|spanish)>',
@@ -170,11 +199,13 @@ _DRAMA3_XML_RE = re.compile(
 )
 _PHONEME_SPAN_RE = re.compile(r'<\|phoneme_start\|>[^<]{1,40}<\|phoneme_end\|>')
 _PHONEME_TOKEN_RE = re.compile(r'<\|[^|]{1,40}\|>')
-_PHONEME_SPLIT_RE = re.compile(r'(\[[^\]\r\n]{1,80}\]|<\|phoneme_start\|>[^<]{1,40}<\|phoneme_end\|>|<[^>]{1,40}>)')
+_PHONEME_SPLIT_RE = re.compile(r'(\[[^\]\r\n]{1,180}\]|<\|phoneme_start\|>[^<]{1,40}<\|phoneme_end\|>|<[^>]{1,40}>)')
 _PHONEME_CACHE = {'mtime': None, 'pattern': None, 'mapping': {}}
 
 
 _SUBTEXT_RUBY_RE = re.compile(r'[｛{]([^｜|}\r\n]+)[｜|][^｝}\r\n]+[｝}]')
+_SUBTEXT_PAIR_RE = re.compile(r'[｛{]([^｜|}\r\n]+)[｜|]([^｝}\r\n]+)[｝}]')
+_LEADING_BRACKET_RE = re.compile(r'^\s*\[([^\]\r\n]{1,180})\]\s*')
 
 
 @app.before_request
@@ -321,7 +352,7 @@ def _apply_fish_phonemes(text):
 
 def _strip_edge_voice_markup(text):
     """Edge 链路彻底剥离方括号标签、完整音素注音区间与 Drama 3 词级/语言标签。"""
-    cleaned = re.sub(r'\[[^\]]{1,80}\]\s*', '', text)
+    cleaned = re.sub(r'\[[^\]]{1,180}\]\s*', '', text)
     cleaned = _PHONEME_SPAN_RE.sub('', cleaned)
     cleaned = _PHONEME_TOKEN_RE.sub('', cleaned)
     cleaned = _DRAMA3_XML_RE.sub('', cleaned)
@@ -333,27 +364,81 @@ def _strip_drama3_markup(text):
     return _DRAMA3_XML_RE.sub('', text).strip()
 
 
+def _clean_inline_cue(raw, max_len=18):
+    s = re.sub(r'[\[\]\r\n{}｛｝<>「」『』""\'\'【】*]+', ' ', str(raw or ''))
+    s = re.sub(r'\s+', ' ', s).strip(' ，,、。；;：:')
+    if len(s) > max_len:
+        s = s[:max_len].rstrip(' ，,、。；;：:')
+    return s
+
+
+def _extract_subtext_for_drama3(raw_text):
+    """Drama 3 专属：将 ｛表层台词｜真实潜台词｝ 转为表层正文 + 句首轻量潜台词导演注脚。"""
+    s = str(raw_text or '')
+    matches = list(_SUBTEXT_PAIR_RE.finditer(s))
+    if not matches:
+        return s, False
+    subtext_cue = ''
+    for m in matches:
+        cand = _clean_inline_cue(m.group(2), max_len=18)
+        if cand:
+            subtext_cue = cand
+            break
+    surface_only = _SUBTEXT_PAIR_RE.sub(r'\1', s).strip()
+    if not subtext_cue or not surface_only:
+        return surface_only, False
+    lead = _LEADING_BRACKET_RE.match(surface_only)
+    if lead:
+        existing = lead.group(1).strip()
+        rest = surface_only[lead.end():].lstrip()
+        if 'hiding:' not in existing.lower() and len(existing) + len(subtext_cue) + 12 <= 165:
+            return f'[{existing}; hiding: {subtext_cue}] {rest}'.strip(), True
+        return surface_only, True
+    return f'[hiding: {subtext_cue}] {surface_only}', True
+
+
+def _apply_context_hint_for_drama3(text, context_hint):
+    """Drama 3 专属：仅当台词本身不含任何 [...] 导演词时，用紧邻同角色 [A] 动作作为轻演播兜底。"""
+    s = str(text or '').strip()
+    if not s or not context_hint:
+        return s
+    if _BRACKET_TAG_RE.search(s):
+        return s
+    cue = _clean_inline_cue(context_hint, max_len=32)
+    if not cue:
+        return s
+    return f'[acting cue: {cue}] {s}'
+
+
 _DRAMA3_TO_S2_TAG_PAIRS = (
     (re.compile(r'<whisper>(.*?)</whisper>', flags=re.I | re.S), 'whispering'),
     (re.compile(r'<soft>(.*?)</soft>', flags=re.I | re.S), 'soft tone'),
     (re.compile(r'<slow>(.*?)</slow>', flags=re.I | re.S), 'slowly'),
     (re.compile(r'<fast>(.*?)</fast>', flags=re.I | re.S), 'speaking fast'),
+    (re.compile(r'<forceful>(.*?)</forceful>', flags=re.I | re.S), 'firm tone'),
+)
+_D3_PAUSE_TO_S2_RE = (
+    (re.compile(r'\[\s*long[\s_-]+pause\s*\]', flags=re.I), '[long-break]'),
+    (re.compile(r'\[\s*pause\s*\]', flags=re.I), '[break]'),
 )
 
 
 def _degrade_drama3_for_s2(text):
-    """将 Drama 3 配对 XML 演技标签无损降级为 S2.1/S2 原生可识别的英文控制标签，保留耳语/轻声/慢速质感。"""
-    if not text or '<' not in text:
+    """将 Drama 3 配对 XML 与 [pause] 点标签无损降级为 S2.1/S2 原生可识别的英文控制标签。"""
+    if not text or ('<' not in text and '[' not in text):
         return text
     out = text
-    for pattern, s2_tag in _DRAMA3_TO_S2_TAG_PAIRS:
-        def _convert(match, tag=s2_tag):
-            inner = (match.group(1) or '').strip()
-            if not inner:
-                return ''
-            return f'[{tag}] {inner}'
-        out = pattern.sub(_convert, out)
-    out = _DRAMA3_XML_RE.sub('', out)
+    for pat, repl in _D3_PAUSE_TO_S2_RE:
+        out = pat.sub(repl, out)
+    if '<' in out:
+        for pattern, s2_tag in _DRAMA3_TO_S2_TAG_PAIRS:
+            def _convert(match, tag=s2_tag):
+                inner = (match.group(1) or '').strip()
+                if not inner:
+                    return ''
+                return f'[{tag}] {inner}'
+            out = pattern.sub(_convert, out)
+        out = _DRAMA3_XML_RE.sub('', out)
     # 折叠紧邻重复的同类控制标签（如 [whispering] [whispering]）
     out = re.sub(r'(\[[^\]\r\n]{1,40}\])\s*\1', r'\1', out)
     return out.strip()
@@ -416,29 +501,38 @@ _S2_CN_TAG_ALIAS_MAP = {
     '敷衍': 'polite dismissive tone',
     '放慢': 'slowly',
     '语速放慢': 'slowly',
+    '俏皮': 'playful light tone',
+    '锋利': 'sharp cutting tone',
+    '慌乱': 'flustered hurried tone',
 }
 _S2_CN_KEYWORD_RULES = (
+    # 高张力 / 失控 / 否定词必须优先于“克制/压低”，避免“克制不住”被反义误杀成 low restrained voice
+    (re.compile(r'克制不住|压不住|绷不住|忍不住|快绷不住|守不住'), 'barely holding back'),
+    (re.compile(r'破音|发涩|嗓子发紧|音色发紧'), 'voice cracking'),
+    (re.compile(r'哽咽|哭腔|含泪|抽泣|泣声|委屈|鼻音'), 'choked up'),
     (re.compile(r'耳语|气音|气声|贴耳|凑近耳'), 'whispering'),
     (re.compile(r'喘|呼吸急|急促|换气|气息乱'), 'breathless panting'),
     (re.compile(r'颤|发抖|发虚|发软|打颤'), 'voice trembling'),
+    (re.compile(r'慌乱|心虚|打岔|掩饰|搪塞|手忙脚乱'), 'flustered, hurried'),
+    (re.compile(r'锋利|冷锋|嘲讽|犀利|反讽|挑衅'), 'sharp, cutting'),
+    (re.compile(r'俏皮|轻快|打趣|坏笑'), 'playful, light tone'),
     (re.compile(r'沙哑|微哑|低哑|发紧|发哑|哑着'), 'husky low voice'),
-    (re.compile(r'强忍|咬唇|憋着|忍着|压着'), 'restrained breathy tone'),
-    (re.compile(r'压低|压得.{0,2}低|低声|声音.{0,2}低|压轻|克制|沉稳|从容|稳住'), 'low restrained voice'),
+    (re.compile(r'强忍|咬唇|憋着|忍着|压着(?!不住)'), 'restrained breathy tone'),
+    (re.compile(r'压低(?!不住)|压得.{0,2}低|低声|声音.{0,2}低|压轻|克制(?!不住)|沉稳|从容|稳住'), 'low restrained voice'),
     (re.compile(r'轻柔|温柔|轻哄|放软|松弛|软绵|轻声|呢喃'), 'soft gentle voice'),
     (re.compile(r'倦|疲惫|累|慵懒|困倦'), 'tired soft voice'),
     (re.compile(r'冷淡|冷冽|微冷|冷锐|清冷|平淡|疏离'), 'cool detached tone'),
     (re.compile(r'羞|窘|拘谨|局促|慌|害羞|难为情|试探'), 'shy hesitant tone'),
     (re.compile(r'笑|轻哂|嗤|揶揄'), 'small laugh'),
     (re.compile(r'叹|轻叹'), 'sighing softly'),
-    (re.compile(r'哽咽|哭|委屈|鼻音'), 'choked up'),
     (re.compile(r'微缓|放慢|语速慢|慢下来'), 'slowly'),
 )
 _CJK_RE = re.compile(r'[\u4e00-\u9fff]')
-_BRACKET_TAG_RE = re.compile(r'\[([^\]\r\n]{1,80})\]')
+_BRACKET_TAG_RE = re.compile(r'\[([^\]\r\n]{1,180})\]')
 
 
 def _normalize_s2_chinese_aliases(text):
-    """仅对非 drama-3（S2.1/S2）：短别名精准映射 + 自然中文导演句智能抽取英文控制词（避免 S2 漏读或忽略）。"""
+    """仅对非 drama-3（S2.1/S2）：英文导演词原样直通，中英混用保留英文段并智能转换中文段。"""
     if not text or '[' not in text:
         return text
 
@@ -446,20 +540,31 @@ def _normalize_s2_chinese_aliases(text):
         inner = match.group(1).strip()
         if not inner:
             return match.group(0)
-        parts = [p.strip() for p in re.split(r'[,，、]+', inner) if p.strip()]
-        if parts and all(p in _S2_CN_TAG_ALIAS_MAP for p in parts):
-            return '[' + ', '.join(_S2_CN_TAG_ALIAS_MAP[p] for p in parts) + ']'
-        if _CJK_RE.search(inner):
-            mapped = []
-            for pat, tag in _S2_CN_KEYWORD_RULES:
-                if pat.search(inner) and tag not in mapped:
+        if not _CJK_RE.search(inner):
+            return match.group(0)
+        segments = [p.strip() for p in re.split(r'[,，、;；]+', inner) if p.strip()]
+        if segments and all(p in _S2_CN_TAG_ALIAS_MAP for p in segments):
+            return '[' + ', '.join(_S2_CN_TAG_ALIAS_MAP[p] for p in segments) + ']'
+        mapped = []
+        for seg in segments:
+            if not _CJK_RE.search(seg):
+                if seg not in mapped:
+                    mapped.append(seg)
+            elif seg in _S2_CN_TAG_ALIAS_MAP:
+                tag = _S2_CN_TAG_ALIAS_MAP[seg]
+                if tag not in mapped:
                     mapped.append(tag)
-                    if len(mapped) >= 3:
-                        break
-            if mapped:
-                return '[' + ', '.join(mapped) + ']'
-            return ''
-        return match.group(0)
+            else:
+                for pat, tag in _S2_CN_KEYWORD_RULES:
+                    if pat.search(seg) and tag not in mapped:
+                        mapped.append(tag)
+                        if len(mapped) >= 3:
+                            break
+            if len(mapped) >= 3:
+                break
+        if mapped:
+            return '[' + ', '.join(mapped[:3]) + ']'
+        return ''
 
     out = _BRACKET_TAG_RE.sub(_repl, text)
     return re.sub(r'\s{2,}', ' ', out).strip()
@@ -1204,46 +1309,65 @@ def _fish_reference_id(voice_id):
     return FISH_DEFAULT_VOICE_ID
 
 
-def _build_fish_payload(text, voice_id, cfg=None, tts_model=None, *, expressive_boost=0.0):
-    """Fish Audio /v1/tts：构建完整官方 v1 参数载荷（兼容 s2.1-pro / s2.1-pro-free / drama-3 / s2-pro）。"""
-    fish_cfg = _normalize_fish_cfg(cfg or {})
+def _build_fish_payload(text, voice_id, cfg=None, tts_model=None, *, expressive_boost=0.0, raw_params=False):
+    """Fish Audio /v1/tts：构建完整官方 v1 参数载荷（兼容 drama-3 / s2.1-pro / s2.1-pro-free / s2-pro）。"""
+    raw_cfg = cfg if isinstance(cfg, dict) else {}
+    fish_cfg = _normalize_fish_cfg(raw_cfg)
     fmt = fish_cfg["format"]
-    model = str(tts_model or (cfg or {}).get("tts_model") or FISH_TTS_MODEL).strip()
-    payload = {
-        "text": text,
-        "format": fmt,
-        "sample_rate": fish_cfg["sample_rate"],
-        "latency": fish_cfg["latency"],
-        "normalize": fish_cfg["normalize"],
-        "temperature": fish_cfg["temperature"],
-        "top_p": fish_cfg["top_p"],
-        "chunk_length": fish_cfg["chunk_length"],
-        "min_chunk_length": fish_cfg["min_chunk_length"],
-        "condition_on_previous_chunks": fish_cfg["condition_on_previous_chunks"],
-        "max_new_tokens": fish_cfg["max_new_tokens"],
-        "early_stop_threshold": fish_cfg["early_stop_threshold"],
-    }
-    if model not in ("s2.1-pro", "s2.1-pro-free", "drama-3"):
-        payload["repetition_penalty"] = fish_cfg["repetition_penalty"]
-    if model == "drama-3":
-        payload["chunk_length"] = max(int(payload["chunk_length"]), 280)
-        if payload["latency"] == "balanced":
-            payload["latency"] = "normal"
-        if 0.45 <= float(payload["temperature"]) < 0.74:
-            payload["temperature"] = round(min(0.82, float(payload["temperature"]) + 0.12), 2)
-        if 0.55 <= float(payload["top_p"]) < 0.78:
-            payload["top_p"] = round(min(0.86, float(payload["top_p"]) + 0.08), 2)
+    model = str(tts_model or raw_cfg.get("tts_model") or FISH_TTS_MODEL).strip()
     boost = _clamp_float(expressive_boost, 0.0, 0.0, 0.12)
-    if boost >= 0.01:
-        payload["temperature"] = round(min(0.88, float(payload["temperature"]) + boost), 2)
-        payload["top_p"] = round(min(0.90, float(payload["top_p"]) + boost * 0.65), 2)
+    if model == "drama-3":
+        # Drama 3 官方推荐 temp=0.90~1.00, top_p=0.88~0.95；chunk_length / repetition_penalty 等参数对 Drama 3 无效。
+        temp = float(fish_cfg["temperature"])
+        top_p = float(fish_cfg["top_p"])
+        if not raw_params:
+            if temp < 0.80:
+                temp = 0.92
+            if top_p < 0.82:
+                top_p = 0.88
+        if boost >= 0.01:
+            temp = min(1.00, temp + boost)
+            top_p = min(0.95, top_p + boost * 0.65)
+        payload = {
+            "text": text,
+            "format": fmt,
+            "sample_rate": fish_cfg["sample_rate"],
+            "latency": "normal" if fish_cfg["latency"] == "balanced" else fish_cfg["latency"],
+            "normalize": fish_cfg["normalize"],
+            "temperature": round(temp, 2),
+            "top_p": round(top_p, 2),
+            "max_new_tokens": fish_cfg["max_new_tokens"],
+        }
+        # 戏剧表演默认关闭 quality-guard 以保留耳语/破音/笑声；仅当调用方显式开启时附加
+        use_guard = bool(fish_cfg["quality_guard"]) if "quality_guard" in raw_cfg else False
+    else:
+        payload = {
+            "text": text,
+            "format": fmt,
+            "sample_rate": fish_cfg["sample_rate"],
+            "latency": fish_cfg["latency"],
+            "normalize": fish_cfg["normalize"],
+            "temperature": fish_cfg["temperature"],
+            "top_p": fish_cfg["top_p"],
+            "chunk_length": fish_cfg["chunk_length"],
+            "min_chunk_length": fish_cfg["min_chunk_length"],
+            "condition_on_previous_chunks": fish_cfg["condition_on_previous_chunks"],
+            "max_new_tokens": fish_cfg["max_new_tokens"],
+            "early_stop_threshold": fish_cfg["early_stop_threshold"],
+        }
+        if model not in ("s2.1-pro", "s2.1-pro-free"):
+            payload["repetition_penalty"] = fish_cfg["repetition_penalty"]
+        if boost >= 0.01:
+            payload["temperature"] = round(min(0.92, float(payload["temperature"]) + boost), 2)
+            payload["top_p"] = round(min(0.90, float(payload["top_p"]) + boost * 0.65), 2)
+        use_guard = bool(fish_cfg["quality_guard"])
     if fmt == "mp3":
         payload["mp3_bitrate"] = fish_cfg["mp3_bitrate"]
     elif fmt == "opus":
         payload["opus_bitrate"] = fish_cfg["opus_bitrate"]
     if fish_cfg["language"]:
         payload["language"] = fish_cfg["language"]
-    if fish_cfg["quality_guard"]:
+    if use_guard:
         payload["features"] = ["quality-guard"]
     if fish_cfg["pronunciation_dictionary_id"]:
         dict_ref = {"id": fish_cfg["pronunciation_dictionary_id"]}
@@ -1483,12 +1607,13 @@ def fish_key_api():
 
 @app.route('/api/voice_tier', methods=['POST'])
 def voice_tier_api():
-    """一键切换三档语音品质：free(全免费推荐) / pro(三女主S2.1 Pro) / drama(三女主Drama 3高消费)。"""
+    """一键切换三档语音品质：free(全免费推荐) / pro(三女主S2.1 Pro) / drama(三女主Drama 3高消费)，并联动切换模型级声学画像。"""
     payload = request.get_json(silent=True) or {}
     tier = str(payload.get('tier') or '').strip().lower() if isinstance(payload, dict) else ''
     if tier not in VOICE_TIERS:
         return jsonify({'error': '不支持的语音档位，仅允许 free / pro / drama。'}), 400
     spec = VOICE_TIERS[tier]
+    role_profiles = DRAMA3_ROLE_PROFILES if spec['heroine_model'] == 'drama-3' else S2_ROLE_PROFILES
     try:
         cfg = _load_config()
         cfg.setdefault('__settings__', {})
@@ -1497,6 +1622,9 @@ def voice_tier_api():
         for heroine in VOICED_HEROINES:
             if isinstance(cfg.get(heroine), dict) and not _is_edge_voice(cfg[heroine].get('voice', '')):
                 cfg[heroine]['tts_model'] = spec['heroine_model']
+                prof = role_profiles.get(heroine)
+                if prof:
+                    cfg[heroine].update(prof)
         for role_name in FREE_DEFAULT_ROLES:
             if isinstance(cfg.get(role_name), dict) and not _is_edge_voice(cfg[role_name].get('voice', '')):
                 cfg[role_name]['tts_model'] = spec['narrator_model']
@@ -1513,6 +1641,93 @@ def voice_tier_api():
         return jsonify({'error': str(exc)}), 409
     except (ValueError, OSError) as exc:
         return jsonify({'error': f'档位切换失败：{exc}'}), 503
+
+
+@app.route('/api/voice_design', methods=['POST'])
+def voice_design_api():
+    """代理 Fish Audio 官方 POST /v1/voice-design（model: voice-design-1），用于 /admin 角色母带工坊生成多组高动态候选 WAV。"""
+    api_key, _ = _resolve_fish_api_key()
+    if not api_key:
+        return jsonify({'error': '尚未配置 Fish Audio 密钥，请在「系统设置」或「声学工坊」填入保存。'}), 503
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({'error': '请求体必须是 JSON 对象。'}), 400
+    description = str(data.get('description') or '').strip()
+    text = str(data.get('text') or '').strip()
+    if len(description) < 5 or len(description) > 500:
+        return jsonify({'error': '音色描述需在 5～500 字之间。'}), 400
+    if len(text) < 5 or len(text) > 300:
+        return jsonify({'error': '试音脚本需在 5～300 字之间。'}), 400
+    language = str(data.get('language') or 'zh').strip()
+    if not re.fullmatch(r'[A-Za-z0-9_-]{2,16}', language):
+        language = 'zh'
+    try:
+        count = max(2, min(4, int(data.get('count', 3))))
+    except (TypeError, ValueError):
+        count = 3
+    temperature = round(_clamp_float(data.get('temperature'), 0.9, 0.3, 1.0), 2)
+    req_body = {
+        'description': description,
+        'text': text,
+        'language': language,
+        'count': count,
+        'temperature': temperature,
+    }
+    headers = {
+        'Authorization': f'Bearer {api_key}',
+        'model': 'voice-design-1',
+        'Content-Type': 'application/json',
+    }
+    try:
+        resp = _fish_http_post(
+            f'{FISH_BASE_URL}/v1/voice-design',
+            json=req_body,
+            headers=headers,
+            timeout=60,
+        )
+        if resp.status_code != 200:
+            status = resp.status_code
+            if status == 429:
+                _record_fish_429()
+            msg = 'Voice Design 生成失败，请稍后重试。'
+            if status in (401, 403):
+                msg = 'Fish Audio 密钥无效或无 Voice Design 权限。'
+            elif status in (402, 429):
+                msg = 'Fish Audio 额度不足或请求过于频繁，请稍后重试。'
+            return jsonify({'error': msg}), (429 if status == 429 else 502)
+        raw = resp.json()
+        _record_fish_ok()
+    except requests.Timeout:
+        return jsonify({'error': 'Voice Design 生成超时，请稍后重试。'}), 504
+    except (requests.RequestException, ValueError):
+        return jsonify({'error': '连接 Fish Audio Voice Design 服务失败。'}), 502
+
+    raw_cands = raw.get('candidates') if isinstance(raw, dict) else None
+    if not isinstance(raw_cands, list) or not raw_cands:
+        return jsonify({'error': 'Voice Design 未返回有效候选音频。'}), 502
+    cleaned = []
+    for idx, item in enumerate(raw_cands[:4]):
+        if not isinstance(item, dict):
+            continue
+        b64 = str(item.get('audio_base64') or '').strip()
+        if not b64:
+            continue
+        cleaned.append({
+            'id': str(item.get('id') or f'cand_{idx}'),
+            'index': int(item.get('index', idx)) if isinstance(item.get('index'), int) else idx,
+            'audio_base64': b64,
+            'sample_rate': int(item.get('sample_rate') or 44100),
+            'duration_ms': int(item.get('duration_ms') or 0),
+            'text': str(item.get('text') or text),
+            'language': str(item.get('language') or language),
+        })
+    if not cleaned:
+        return jsonify({'error': 'Voice Design 候选音频解码为空。'}), 502
+    return jsonify({
+        'status': 'success',
+        'candidates': cleaned,
+        'count': len(cleaned),
+    })
 
 
 @app.route('/api/voice_routing', methods=['POST'])
@@ -1774,24 +1989,25 @@ def _is_tts_cached(key):
     return bool(path and os.path.isfile(path))
 
 
-def _cached_tts(key, producer, *, slot_timeout=4):
-    """相同文本、模型和参数共用生成任务；内存 + 磁盘双层 LRU 缓存，只缓存成功音频。"""
+def _cached_tts(key, producer, *, slot_timeout=4, force_refresh=False):
+    """相同文本、模型和参数共用生成任务；内存 + 磁盘双层 LRU 缓存，只缓存成功音频。支持 force_refresh（重演覆盖缓存）。"""
     global TTS_CACHE_BYTES
+    inflight_key = f'retake:{key}:{uuid.uuid4().hex}' if force_refresh else key
     with TTS_STATE_LOCK:
         now = time.monotonic()
         for old_key, (created, audio) in list(TTS_CACHE.items()):
             if now - created > TEMP_AUDIO_MAX_AGE_SECONDS:
                 TTS_CACHE_BYTES -= len(audio)
                 del TTS_CACHE[old_key]
-        if key in TTS_CACHE:
+        if not force_refresh and key in TTS_CACHE:
             created, audio = TTS_CACHE.pop(key)
             TTS_CACHE[key] = (created, audio)
             return audio
-        job = TTS_INFLIGHT.get(key)
+        job = None if force_refresh else TTS_INFLIGHT.get(key)
         owner = job is None
         if owner:
             job = {'event': threading.Event(), 'audio': None, 'error': None}
-            TTS_INFLIGHT[key] = job
+            TTS_INFLIGHT[inflight_key] = job
     if not owner:
         if not job['event'].wait(TTS_WAIT_SECONDS):
             raise TtsError('语音仍在生成，请稍后重试。', 504)
@@ -1800,17 +2016,21 @@ def _cached_tts(key, producer, *, slot_timeout=4):
         return job['audio']
     acquired = False
     try:
-        disk_audio = _read_disk_tts_cache(key)
-        if disk_audio:
-            job['audio'] = disk_audio
-            with TTS_STATE_LOCK:
-                if len(disk_audio) <= TTS_CACHE_MAX_BYTES:
-                    TTS_CACHE[key] = (time.monotonic(), disk_audio)
-                    TTS_CACHE_BYTES += len(disk_audio)
-                    while TTS_CACHE and (len(TTS_CACHE) > TTS_CACHE_MAX_ENTRIES or TTS_CACHE_BYTES > TTS_CACHE_MAX_BYTES):
-                        _, (_, old_audio) = TTS_CACHE.popitem(last=False)
-                        TTS_CACHE_BYTES -= len(old_audio)
-            return disk_audio
+        if not force_refresh:
+            disk_audio = _read_disk_tts_cache(key)
+            if disk_audio:
+                job['audio'] = disk_audio
+                with TTS_STATE_LOCK:
+                    if len(disk_audio) <= TTS_CACHE_MAX_BYTES:
+                        if key in TTS_CACHE:
+                            _, prev_audio = TTS_CACHE.pop(key)
+                            TTS_CACHE_BYTES -= len(prev_audio)
+                        TTS_CACHE[key] = (time.monotonic(), disk_audio)
+                        TTS_CACHE_BYTES += len(disk_audio)
+                        while TTS_CACHE and (len(TTS_CACHE) > TTS_CACHE_MAX_ENTRIES or TTS_CACHE_BYTES > TTS_CACHE_MAX_BYTES):
+                            _, (_, old_audio) = TTS_CACHE.popitem(last=False)
+                            TTS_CACHE_BYTES -= len(old_audio)
+                return disk_audio
         acquired = TTS_SLOTS.acquire(timeout=slot_timeout)
         if not acquired:
             raise TtsError('正在处理其他语音，请稍后重试。', 429)
@@ -1820,6 +2040,9 @@ def _cached_tts(key, producer, *, slot_timeout=4):
         job['audio'] = audio
         with TTS_STATE_LOCK:
             if len(audio) <= TTS_CACHE_MAX_BYTES:
+                if key in TTS_CACHE:
+                    _, prev_audio = TTS_CACHE.pop(key)
+                    TTS_CACHE_BYTES -= len(prev_audio)
                 TTS_CACHE[key] = (time.monotonic(), audio)
                 TTS_CACHE_BYTES += len(audio)
                 while TTS_CACHE and (len(TTS_CACHE) > TTS_CACHE_MAX_ENTRIES or TTS_CACHE_BYTES > TTS_CACHE_MAX_BYTES):
@@ -1835,7 +2058,7 @@ def _cached_tts(key, producer, *, slot_timeout=4):
             TTS_SLOTS.release()
         with TTS_STATE_LOCK:
             job['event'].set()
-            TTS_INFLIGHT.pop(key, None)
+            TTS_INFLIGHT.pop(inflight_key, None)
 
 
 def _edge_audio(text, voice_id, rate, pitch, volume):
@@ -1903,7 +2126,7 @@ def _fish_audio(payload, tts_model, on_chunk=None, api_key=None):
         raise TtsError('语音服务连接失败，请检查网络后重试。', 502) from exc
 
 
-def _stream_cached_tts(key, factory, mimetype='audio/mpeg', extra_headers=None):
+def _stream_cached_tts(key, factory, mimetype='audio/mpeg', extra_headers=None, *, force_refresh=False):
     """复用现有缓存及请求去重；单客户端提前取消不再毒化同 key 的并发等待者与缓存。"""
     messages = queue.Queue(maxsize=8)
     stopped = threading.Event()
@@ -1924,7 +2147,7 @@ def _stream_cached_tts(key, factory, mimetype='audio/mpeg', extra_headers=None):
                 emit('audio', data)
                 sent = True
         try:
-            audio = _cached_tts(key, lambda: factory(chunk))
+            audio = _cached_tts(key, lambda: factory(chunk), force_refresh=force_refresh)
             if not sent and not stopped.is_set():
                 emit('audio', audio)
             if not stopped.is_set():
@@ -1974,11 +2197,11 @@ def _stream_cached_tts(key, factory, mimetype='audio/mpeg', extra_headers=None):
 
 def _prepare_tts_job(data):
     """统一构建 /api/tts 与后台预热任务的规范化载荷与 SHA-256 缓存键，确保 100% 命中。"""
-    raw_text = _SUBTEXT_RUBY_RE.sub(r'\1', str((data or {}).get('text') or ''))
-    text = raw_text.strip().replace('【', '').replace('】', '').replace('*', '')
-    if len(text) > TTS_MAX_TEXT_LENGTH:
+    src_text = str((data or {}).get('voice_script') or (data or {}).get('text') or '')
+    raw_input = src_text.strip().replace('【', '').replace('】', '').replace('*', '')
+    if len(raw_input) > TTS_MAX_TEXT_LENGTH:
         raise TtsError(f'文本超过 {TTS_MAX_TEXT_LENGTH} 字符上限', 413)
-    if not text:
+    if not raw_input:
         raise TtsError('请提供需要朗读的文本。', 400)
     speaker = str((data or {}).get('speaker') or '').strip()
     raw_voice = str((data or {}).get('voice') or '').strip()
@@ -2001,10 +2224,11 @@ def _prepare_tts_job(data):
     audio_ext = 'mp3'
     stream_factory = None
     resolved_tts_model = 'edge'
+    payload = None
     if model_name == 'edge':
         if voice_id in EDGE_UNAVAILABLE_HINTS or not voice_id:
             voice_id = EDGE_DEFAULT_VOICE
-        text = _strip_edge_voice_markup(text)
+        text = _strip_edge_voice_markup(_SUBTEXT_RUBY_RE.sub(r'\1', raw_input))
         if not text:
             raise TtsError('没有可朗读的文本。', 400)
         if inherited_narrator_edge and not _is_edge_voice(matched_voice):
@@ -2031,15 +2255,20 @@ def _prepare_tts_job(data):
             base_spd = _clamp_float(runtime_cfg.get('speed'), FISH_DEFAULT_STYLE['speed'], 0.5, 2.0)
             runtime_cfg['speed'] = round(_clamp_float(base_spd * speed_scale, base_spd, 0.5, 2.0), 2)
         expressive_boost = _clamp_float((data or {}).get('expressive_boost'), 0.0, 0.0, 0.12)
+        raw_params = _normalize_bool((data or {}).get('raw_params'), False)
         tts_model = _normalize_fish_tts_model(
             (data or {}).get('tts_model') or matched.get('tts_model') or _get_current_fish_tts_model()
         )
         resolved_tts_model = tts_model
-        if tts_model != 'drama-3':
+        if tts_model == 'drama-3':
+            text, _ = _extract_subtext_for_drama3(raw_input)
+            text = _apply_context_hint_for_drama3(text, (data or {}).get('context_hint'))
+        else:
+            text = _SUBTEXT_RUBY_RE.sub(r'\1', raw_input).strip()
             text = _degrade_drama3_for_s2(text)
             text = _normalize_s2_chinese_aliases(text)
         emotion = str((data or {}).get('emotion') or '').strip()
-        existing_tags = len(re.findall(r'\[[^\]\r\n]{1,80}\]', text))
+        existing_tags = len(re.findall(r'\[[^\]\r\n]{1,180}\]', text))
         if emotion and len(emotion) <= 48 and existing_tags < 2:
             allow_emotion = (
                 bool(re.fullmatch(r'[\u4e00-\u9fffA-Za-z0-9 ，,、_-]+', emotion))
@@ -2052,7 +2281,8 @@ def _prepare_tts_job(data):
         if not text.strip():
             raise TtsError('没有可朗读的文本。', 400)
         payload = _build_fish_payload(
-            text, voice_id, runtime_cfg, tts_model=tts_model, expressive_boost=expressive_boost
+            text, voice_id, runtime_cfg, tts_model=tts_model,
+            expressive_boost=expressive_boost, raw_params=raw_params
         )
         fmt_meta = FISH_AUDIO_FORMATS.get(payload.get('format', 'mp3'), FISH_AUDIO_FORMATS['mp3'])
         audio_mime = fmt_meta['mime']
@@ -2069,6 +2299,7 @@ def _prepare_tts_job(data):
         'audio_ext': audio_ext,
         'producer': producer,
         'stream_factory': stream_factory,
+        'payload': payload,
     }
 
 
@@ -2133,13 +2364,21 @@ def tts_api():
     data = _request_tts_data()
     try:
         job = _prepare_tts_job(data)
+        retake = (request.method == 'POST') and _normalize_bool(data.get('retake'), False)
         model_hdr = {'X-Fish-Model': job['tts_model']}
+        if retake:
+            model_hdr['X-TTS-Retake'] = '1'
         if job['model_name'] != 'edge' and data.get('stream') is True and job['stream_factory'] is not None:
-            return _stream_cached_tts(job['key'], job['stream_factory'], mimetype=job['audio_mime'], extra_headers=model_hdr)
-        audio = _cached_tts(job['key'], job['producer'])
+            return _stream_cached_tts(
+                job['key'], job['stream_factory'],
+                mimetype=job['audio_mime'], extra_headers=model_hdr, force_refresh=retake
+            )
+        audio = _cached_tts(job['key'], job['producer'], force_refresh=retake)
         response = send_file(io.BytesIO(audio), mimetype=job['audio_mime'], download_name=f"tts.{job['audio_ext']}")
         response.headers['Cache-Control'] = 'no-store'
         response.headers['X-Fish-Model'] = job['tts_model']
+        if retake:
+            response.headers['X-TTS-Retake'] = '1'
         return response
     except ConfigError as exc:
         return jsonify({'error': str(exc)}), 503

@@ -317,7 +317,7 @@ function StoryBridgeSettingsScreen(ctx) {
                 UI.Text({ text: '新建干净会话', fontSize: 13 })),
             UI.TextButton({ key: 'btn-refresh', height: 36, text: '刷新模型列表', enabled, onClick: () => runAction({ action: 'ui_snapshot', forceRefresh: true }, '已刷新模型与状态', true) }),
         ]));
-        cards.push(section('status-card', '故事桥接 · v' + (snap.version || '2.3.1'), 'Tune', [badge(statusLabel, statusTone)], statusChildren));
+        cards.push(section('status-card', '故事桥接 · v' + (snap.version || '2.3.2'), 'Tune', [badge(statusLabel, statusTone)], statusChildren));
 
         // Build option lists from live catalog
         const modelOptions = models.map(m => ({

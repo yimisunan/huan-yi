@@ -1372,6 +1372,93 @@
     }
     .voice-chip-wrap .voice-chip { border: 0; background: transparent; }
 
+    /* A/B Contrast Tester & Voice Design Studio */
+    .ab-script-box {
+      padding: 9px 11px;
+      border-radius: 10px;
+      border: 1px solid var(--line);
+      background: var(--surface);
+      font-size: 12px;
+      line-height: 1.55;
+      color: var(--ink-soft);
+      margin-bottom: 10px;
+      word-break: break-word;
+    }
+    .ab-script-box strong {
+      display: block;
+      font-size: 11px;
+      color: var(--gold-bright);
+      margin-bottom: 3px;
+      letter-spacing: 0.3px;
+    }
+    .ab-btn-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+    .ab-btn {
+      min-height: 40px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      border: 1px solid var(--line-strong);
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 12.5px;
+      font-weight: 700;
+      cursor: pointer;
+      text-align: center;
+      transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease;
+    }
+    .ab-btn small {
+      display: block;
+      font-size: 10.5px;
+      font-weight: 500;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .ab-btn:hover { border-color: var(--gold); }
+    .ab-btn.is-drama {
+      border-color: rgba(216, 180, 118, 0.52);
+      background: var(--gold-soft);
+      color: var(--gold-bright);
+    }
+    .design-notice {
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(216, 180, 118, 0.34);
+      background: var(--gold-soft);
+      color: var(--ink-soft);
+      font-size: 12px;
+      line-height: 1.55;
+      margin-bottom: 12px;
+    }
+    .design-cand-list {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+    .design-cand-card {
+      padding: 11px 13px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      display: grid;
+      gap: 8px;
+    }
+    .design-cand-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      flex-wrap: wrap;
+      font-size: 12.5px;
+      color: var(--ink);
+    }
+    .design-cand-card audio {
+      width: 100%;
+      height: 36px;
+    }
+
     @media (max-width: 820px) {
       .key-drawer-grid { grid-template-columns: 1fr; }
       .studio-toolbar { padding: 8px 10px; }
@@ -1515,9 +1602,9 @@
     ];
 
     const MODEL_NOTES = {
-        "s2.1-pro": "官方生产主力（$15/M字节）：支持自由 [自然语言] 标签与多角色对话，支持响度归一化开关与中文注音；注意官方注明 repetition_penalty 在 S2.1 上不生效。",
+        "s2.1-pro": "官方生产主力（$15/M字节）：原生直认英文 [自然语言] 标签与中文注音；注意官方注明 repetition_penalty 在 S2.1 上不生效。",
         "s2.1-pro-free": "同质免费开发档（$0）：与 S2.1 Pro 同等音质与标签能力，适合旁白或日常游玩零成本使用（无 TTFA 延迟保障）。",
-        "drama-3": "最新导演级模型：可用中/英文自然语言执导表演、插入停顿与气声，并支持 <whisper> <soft> <emphasis> <slow> <fast> <stress> <forceful> 局部词语标签。",
+        "drama-3": "35B 导演级旗舰：官方推荐 temp 0.90–1.00 / top_p 0.88–0.95 / speed 1.00 / 关 quality-guard；原生支持精炼英文/双语导演词、句中转折、[pause]、7 种词级 XML 与潜台词自动演播。",
         "s2-pro": "上一代开源 S2 模型：支持 [bracket] 标签与多角色对话，可作音色听感对照。"
     };
 
@@ -1538,27 +1625,28 @@
 
     const emotions = [
         { id: "", name: "正常原声（正式推演默认）" },
-        { id: "low restrained voice", name: "沉稳克制 [low restrained voice] · 仅试听" },
-        { id: "soft timid voice", name: "娇柔轻声 [soft timid voice] · 仅试听" },
-        { id: "cool restrained voice", name: "清冷内敛 [cool restrained voice] · 仅试听" },
+        { id: "sharp, amused disbelief", name: "冷锋微哂 [sharp, amused disbelief] · 仅试听" },
+        { id: "warm, lightly playful", name: "温软俏皮 [warm, lightly playful] · 仅试听" },
+        { id: "caught off guard, rushing to cover up", name: "心虚打岔 [caught off guard] · 仅试听" },
+        { id: "dry, deadpan sarcasm", name: "清冷拆台 [dry, deadpan sarcasm] · 仅试听" },
         { id: "whispering", name: "贴耳低语 [whispering] · 仅试听" },
-        { id: "sighing", name: "轻沉叹息 [sighing] · 仅试听" },
-        { id: "chuckling", name: "轻声微哂 [chuckling] · 仅试听" },
-        { id: "gasping", name: "微惊抽气 [gasping] · 仅试听" },
-        { id: "nervous", name: "紧张心虚 [nervous] · 仅试听" },
-        { id: "guilty", name: "愧疚压抑 [guilty] · 仅试听" },
-        { id: "sobbing", name: "低声啜泣 [sobbing] · 仅试听" },
-        { id: "angry", name: "压怒冷声 [angry] · 仅试听" }
+        { id: "tired sigh, warm", name: "疲惫轻叹 [tired sigh, warm] · 仅试听" },
+        { id: "shaky breath, barely holding back", name: "微颤压抑 [shaky breath] · 仅试听" },
+        { id: "breathless, husky", name: "失守低哑 [breathless, husky] · 仅试听" },
+        { id: "soft sobbing", name: "低声啜泣 [soft sobbing] · 仅试听" }
     ];
 
     const QUICK_CUES = [
-        { label: "[低语]", insert: "[whispering] ", kind: "s2" },
-        { label: "[叹息]", insert: "[sighing] ", kind: "s2" },
-        { label: "[短停顿]", insert: " [break] ", kind: "s2" },
-        { label: "[屏息]", insert: "[breath catches] ", kind: "s2" },
-        { label: "Drama<whisper>", insert: "<whisper>这里压低声音</whisper>", kind: "drama" },
-        { label: "Drama<emphasis>", insert: "<emphasis>重读词语</emphasis>", kind: "drama" },
-        { label: "Drama<slow>", insert: "<slow>放慢语速</slow>", kind: "drama" },
+        { label: "[pause]", insert: " [pause] ", kind: "drama" },
+        { label: "[sigh]", insert: "[sigh] ", kind: "drama" },
+        { label: "[small laugh]", insert: "[small laugh] ", kind: "drama" },
+        { label: "[shaky breath]", insert: "[shaky breath] ", kind: "drama" },
+        { label: "<whisper>", insert: "<whisper>贴耳压低说</whisper>", kind: "drama" },
+        { label: "<soft>", insert: "<soft>放轻放软</soft>", kind: "drama" },
+        { label: "<emphasis>", insert: "<emphasis>重读这里</emphasis>", kind: "drama" },
+        { label: "<fast>", insert: "<fast>急促抢白</fast>", kind: "drama" },
+        { label: "<slow>", insert: "<slow>放慢强调</slow>", kind: "drama" },
+        { label: "潜台词｛｜｝", insert: "｛没事，快递短信｜其实心虚得手发凉｝", kind: "drama" },
         { label: "注音:韫(yùn)", insert: "<|phoneme_start|>yun4<|phoneme_end|>", kind: "phoneme" },
         { label: "注音:邺(yè)", insert: "<|phoneme_start|>ye4<|phoneme_end|>", kind: "phoneme" }
     ];
@@ -1566,27 +1654,100 @@
     const fishDefaults = VoiceClient.fishDefaults;
 
     const fishPresets = {
-        balanced: { name: "均衡叙事", speed: 1.0, volume: 0, normalize_loudness: true, temperature: 0.72, top_p: 0.75, latency: "normal", chunk_length: 220, min_chunk_length: 40, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 128, sample_rate: 44100 },
-        zhiyun: { name: "沈知韫 · 沉稳掌权", speed: 0.96, volume: 0, normalize_loudness: true, temperature: 0.62, top_p: 0.72, latency: "normal", chunk_length: 240, min_chunk_length: 45, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 192, sample_rate: 44100 },
-        wanqing: { name: "苏婉青 · 娇柔贴耳", speed: 0.93, volume: -1.0, normalize_loudness: false, temperature: 0.68, top_p: 0.76, latency: "normal", chunk_length: 190, min_chunk_length: 30, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 192, sample_rate: 44100 },
-        nianwei: { name: "徐念薇 · 清冷克制", speed: 0.97, volume: 0, normalize_loudness: true, temperature: 0.58, top_p: 0.68, latency: "normal", chunk_length: 220, min_chunk_length: 40, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 128, sample_rate: 44100 },
-        narrator_free: { name: "旁白 · 免费电影腔", tts_model: "s2.1-pro-free", speed: 0.94, volume: 0, normalize_loudness: true, temperature: 0.58, top_p: 0.66, latency: "balanced", chunk_length: 260, min_chunk_length: 55, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 128, sample_rate: 44100 },
-        action_crisp: { name: "动作 · 轻快克制", tts_model: "s2.1-pro-free", speed: 1.03, volume: -1.5, normalize_loudness: true, temperature: 0.64, top_p: 0.72, latency: "balanced", chunk_length: 220, min_chunk_length: 40, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 128, sample_rate: 44100 },
-        zhibei: { name: "徐志北 · 沉稳男声", tts_model: "s2.1-pro-free", speed: 0.98, volume: 0, normalize_loudness: true, temperature: 0.60, top_p: 0.70, latency: "balanced", chunk_length: 200, min_chunk_length: 35, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 128, sample_rate: 44100 },
-        drama3_cinematic: { name: "Drama 3 · 导演演绎", tts_model: "drama-3", speed: 0.98, volume: 0, normalize_loudness: false, temperature: 0.74, top_p: 0.78, latency: "normal", chunk_length: 240, min_chunk_length: 40, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 192, sample_rate: 44100, quality_guard: true }
+        drama3_cinematic: { name: "Drama 3 · 满血戏感", tts_model: "drama-3", speed: 1.00, volume: 0, normalize_loudness: false, temperature: 0.96, top_p: 0.91, latency: "normal", chunk_length: 240, min_chunk_length: 40, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 192, sample_rate: 44100, quality_guard: false },
+        zhiyun: { name: "沈知韫 · D3 掌权反差", tts_model: "drama-3", speed: 1.00, volume: 0, normalize_loudness: false, temperature: 0.94, top_p: 0.90, latency: "normal", chunk_length: 240, min_chunk_length: 45, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 192, sample_rate: 44100, quality_guard: false },
+        wanqing: { name: "苏婉青 · D3 灵动气声", tts_model: "drama-3", speed: 1.00, volume: 0, normalize_loudness: false, temperature: 0.98, top_p: 0.93, latency: "normal", chunk_length: 190, min_chunk_length: 30, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 192, sample_rate: 44100, quality_guard: false },
+        nianwei: { name: "徐念薇 · D3 清脆冷刺", tts_model: "drama-3", speed: 1.02, volume: 0, normalize_loudness: false, temperature: 0.92, top_p: 0.88, latency: "normal", chunk_length: 220, min_chunk_length: 40, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 128, sample_rate: 44100, quality_guard: false },
+        balanced: { name: "S2.1 均衡对话", tts_model: "s2.1-pro-free", speed: 1.00, volume: 0, normalize_loudness: false, temperature: 0.80, top_p: 0.84, latency: "normal", chunk_length: 220, min_chunk_length: 40, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 128, sample_rate: 44100, quality_guard: true },
+        narrator_free: { name: "旁白 · 免费电影腔", tts_model: "s2.1-pro-free", speed: 0.94, volume: 0, normalize_loudness: true, temperature: 0.58, top_p: 0.66, latency: "balanced", chunk_length: 260, min_chunk_length: 55, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 128, sample_rate: 44100, quality_guard: true },
+        action_crisp: { name: "动作 · 轻快克制", tts_model: "s2.1-pro-free", speed: 1.03, volume: -1.5, normalize_loudness: true, temperature: 0.64, top_p: 0.72, latency: "balanced", chunk_length: 220, min_chunk_length: 40, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 128, sample_rate: 44100, quality_guard: true },
+        zhibei: { name: "徐志北 · 沉稳男声", tts_model: "s2.1-pro-free", speed: 0.98, volume: 0, normalize_loudness: true, temperature: 0.60, top_p: 0.70, latency: "balanced", chunk_length: 200, min_chunk_length: 35, condition_on_previous_chunks: true, normalize: true, language: "zh-CN", format: "mp3", mp3_bitrate: 128, sample_rate: 44100, quality_guard: true }
     };
 
     const testEmotions = {};
 
     const sampleTexts = {
-        "沈知韫": "这件事先不急着定论。坐下来把热茶喝了，剩下的我来处理。",
-        "徐念薇": "画布还没干，别靠太近。有话直接说就好。",
-        "苏婉青": "刚煮好的咖啡，还是温水？下午我还要回主宅看婆婆，上午陪我说说话也好。",
+        "沈知韫": "[sharp, amused disbelief] 估值差两成还敢签对赌？[pause] [voice drops, dangerously calm] <slow>今晚重写，别让我说第二遍。</slow>",
+        "徐念薇": "[cool, brusque, looking away] 颜料没干，别靠画架。[pause] [voice softens reluctantly, quieter] 创可贴在抽屉里，<soft>手别沾冷水。</soft>",
+        "苏婉青": "[caught off guard, rushing to cover up] <fast>｛没、没什么，就快递让我签收｜其实是被大哥催问动静心虚得手发凉｝</fast> [pause] [forcing a gentle polite smile] <soft>水凉了，我去给你换杯热的？</soft>",
         "旁白": "窗外细雨未停，落地灯在木质桌面投下一圈暖光。客厅安静下来，茶雾沿着杯沿慢慢往上浮。",
         "动作": "她把对账单往桌角一推，纸边撞到茶碟轻轻一响，抬眼看向门口。",
         "徐志北": "刚巧路过书房，顺手替你带杯温水。这份对账单，现在方便看吗？",
-        "default": "这是一段语音测试。请听音色、停顿与气口是否自然。"
+        "default": "[warm, natural] 这是一段语音测试。[pause] [softening slightly] 请听音色、停顿与情绪转折是否自然。"
     };
+
+    const AB_BENCHMARK_SCRIPTS = {
+        "沈知韫": [
+            {
+                title: "1. 商战冷锋 → 骤然沉压",
+                legacy: "[低声克制，语速沉稳] 估值差两成还敢签对赌？今晚重写，别让我说第二遍。",
+                drama: "[sharp, cutting, amused disbelief] 估值差两成还敢签对赌？[pause] [voice drops, dangerously calm] <slow>今晚重写，别让我说第二遍。</slow>"
+            },
+            {
+                title: "2. 深夜疲惫 → 轻哂卸防",
+                legacy: "[低声克制，带着点倦意] 外头冷气大，门带上。坐下帮妈揉两下肩，今天这帮人吵得我头疼。",
+                drama: "[tired sigh, warm yet guarded] 外头冷气大，门带上。[pause] [softening slightly, wry chuckle] 坐下帮妈揉两下肩，今天这帮人吵得我头疼。"
+            },
+            {
+                title: "3. 强撑体面 → 私密发紧",
+                legacy: "[声音发紧，强撑体面] 门外还有人，别胡闹。只此一次，手收回去。",
+                drama: "[tense, hushed warning] 门外还有人，别胡闹。[shaky breath] [breathless, husky] <whisper>只此一次……手收回去。</whisper>"
+            }
+        ],
+        "苏婉青": [
+            {
+                title: "1. 心虚抢白 → 潜台词礼貌岔开",
+                legacy: "[声音轻柔，略微拘谨] 没、没什么，快递让我签收。水凉了，我去给你换杯热的？",
+                drama: "[caught off guard, rushing to cover up] <fast>｛没、没什么，快递让我签收｜其实是被承邺催问消息心虚得发慌｝</fast> [pause] [forcing a gentle polite smile] <soft>水凉了，我去给你换杯热的？</soft>"
+            },
+            {
+                title: "2. 安心轻快 → 俏皮轻笑",
+                legacy: "[声音轻柔，带点客套分寸] 刚出炉的栗子糕，妈不爱太甜，这盒特意留给你垫肚子的。",
+                drama: "[warm, lightly playful, small smile] 刚出炉的栗子糕，妈不爱太甜——[small laugh] 这盒特意留给你垫肚子的。"
+            },
+            {
+                title: "3. 强忍眼泪 → 贴耳微颤",
+                legacy: "[声音轻柔，略微拘谨] 药就擦到这儿吧。你把它擦干净，盒子搁下，别的话，明早再说。",
+                drama: "[quiet, eyes stinging, trying to sound steady] 药就擦到这儿吧。[pause] [shaky breath, voice barely holding] <whisper>你把它擦干净，盒子搁下……别的话，明早再说。</whisper>"
+            }
+        ],
+        "徐念薇": [
+            {
+                title: "1. 嘴硬冷拒 → 别扭放软",
+                legacy: "[清冷平淡，字句干净] 颜料没干，别靠画架。创可贴在抽屉里，手别沾冷水。",
+                drama: "[cool, brusque, looking away] 颜料没干，别靠画架。[pause] [voice softens reluctantly, quieter] 创可贴在抽屉里，<soft>手别沾冷水。</soft>"
+            },
+            {
+                title: "2. 犀利拆台 → 冷幽默重音",
+                legacy: "[清冷平淡，声音压轻] 大哥一提南城嗓门就高八度，没听出他心虚？",
+                drama: "[dry, deadpan sarcasm] 大哥一提南城嗓门就高八度，[pause] <emphasis>没听出他心虚？</emphasis>"
+            },
+            {
+                title: "3. 猝然恼羞 → 倔强破防",
+                legacy: "[清冷克制，字句干净] 谁让你靠这么近的？松手，画布要蹭花了。",
+                drama: "[flustered, defensive, slightly faster] <fast>谁让你靠这么近的？</fast> [shaky breath] [voice tight, barely holding back] 松手……<soft>画布要蹭花了。</soft>"
+            }
+        ]
+    };
+
+    const VOICE_DESIGN_TEMPLATES = {
+        "沈知韫": {
+            description: "38-year-old wealthy Chinese businesswoman and chairwoman, rich warm alto voice, crisp articulate Mandarin, naturally authoritative yet capable of intimate husky warmth and subtle amused scoffing, wide dynamic range between commanding boardroom sharpness and tired late-night softness, studio-clean close mic.",
+            text: "估值差两成还敢签对赌？今晚重写，别让我说第二遍。……行了，门带上，坐下帮妈揉两下肩，今天这帮人吵得我头疼。"
+        },
+        "苏婉青": {
+            description: "25-year-old gentle refined Chinese young woman, silky warm mezzo-soprano with natural breathy nuance, graceful and slightly shy yet playfully bright when relaxed, wide emotional range from light teasing laughter to flustered hurried deflection and delicate close-mic whisper, no childish anime tone.",
+            text: "刚出炉的栗子糕，这盒特意留给你垫肚子的。啊、没没什么，就快递让我签收……水凉了，要不我去给你换杯热的？"
+        },
+        "徐念薇": {
+            description: "20-year-old cool composed Chinese art student, clear crisp alto-mezzo voice, clean clipped delivery with sharp dry sarcasm and subtle reluctant warmth underneath, distinct contrast between brusque deadpan edges and shaky guarded vulnerability, zero sugary anime pitch.",
+            text: "大哥一提南城嗓门就高八度，没听出他心虚？……颜料没干，站远点别挡光。创可贴在抽屉里，手别沾冷水。"
+        }
+    };
+
+    const abSelectedIndex = { "沈知韫": 0, "苏婉青": 0, "徐念薇": 0 };
+    const designState = {};
+    const designAudioStore = new VoiceClient.AudioUrlStore(24, 32 * 1024 * 1024);
 
     function applyStudioTheme(theme) {
         try {
@@ -1734,7 +1895,7 @@
     }
 
     function setStudioTab(tab) {
-        activeStudioTab = ['voice', 'favorites', 'params'].includes(tab) ? tab : 'voice';
+        activeStudioTab = ['voice', 'favorites', 'params', 'design'].includes(tab) ? tab : 'voice';
         updateRepoCountBadge();
         renderEditor();
     }
@@ -2106,7 +2267,7 @@
             const isFree = currentFishTtsModel === 's2.1-pro-free';
             const curFaved = !inheritsNarrator && currentSpeaker && isVoiceFavorited(currentSpeaker);
             const curDisplayName = inheritsNarrator ? '自动继承「旁白」音色' : voiceDisplayName(currentSpeaker);
-            const tabKey = ['voice', 'favorites', 'params'].includes(activeStudioTab) ? activeStudioTab : 'voice';
+            const tabKey = ['voice', 'favorites', 'params', 'design'].includes(activeStudioTab) ? activeStudioTab : 'voice';
 
             const modelHtml = fishTtsModels.map(m =>
                 `<option value="${escapeHtml(m.id)}" ${currentFishTtsModel === m.id ? 'selected' : ''}>${escapeHtml(m.name)}</option>`
@@ -2176,7 +2337,7 @@
                         </section>
 
                         <section class="tool-panel">
-                            <div class="panel-title">导演试听台 <span>试听标签不写入配置</span></div>
+                            <div class="panel-title">导演试听台 <span>支持潜台词｛表层｜潜台词｝直测</span></div>
                             <div class="form-group">
                                 <label>试听文本</label>
                                 <textarea id="test-text-${attrChar}" rows="5">${escapeHtml(sampleTexts[character] || sampleTexts["default"])}</textarea>
@@ -2189,7 +2350,7 @@
                                         <select onchange="setTestEmotion('${jsChar}', this.value)">${emotionHtml}</select>
                                     </div>
                                     <div class="form-group" style="margin-bottom:0;">
-                                        <label>一键插入标签（S2.1 / Drama 3 / 注音）</label>
+                                        <label>一键插入标签（Drama 3 / S2.1 / 潜台词 / 注音）</label>
                                         <div class="cue-bar">${cueButtons}</div>
                                     </div>
                                 </div>
@@ -2198,11 +2359,14 @@
                                 <button class="btn-test" data-test-char="${attrChar}" onclick="testVoice('${jsChar}')">试听与生成</button>
                                 <a id="download-link-${attrChar}" class="download-btn">下载音频</a>
                             </div>
+                            ${renderAbPanelHtml(character)}
                         </section>
                     </div>
                 `;
             } else if (tabKey === 'favorites') {
                 bodyPanelHtml = renderFavoritesPanelHtml(character, currentSpeaker, false, inheritsNarrator);
+            } else if (tabKey === 'design') {
+                bodyPanelHtml = renderVoiceDesignPanelHtml(character);
             } else {
                 const fmtSummary = `${fishCfg.format.toUpperCase()} · ${(fishCfg.sample_rate / 1000).toFixed(fishCfg.sample_rate % 1000 ? 1 : 0)}kHz · ${fishCfg.language || '自动'}`;
                 const sampleSummary = `temp ${fishCfg.temperature.toFixed(2)} · top_p ${fishCfg.top_p.toFixed(2)} · ${fishCfg.latency}`;
@@ -2223,9 +2387,9 @@
                                     <input type="checkbox" ${fishCfg.normalize_loudness ? 'checked' : ''} onchange="updateFishBool('${jsChar}', 'normalize_loudness', this.checked, true)">
                                     <div><strong>响度归一化 normalize_loudness</strong><span>默认开启使各句音量平稳；<strong>关闭</strong>后可保留低语/气声的真实轻柔动态。</span></div>
                                 </label>
-                                <label class="toggle-card">
-                                    <input type="checkbox" ${fishCfg.condition_on_previous_chunks ? 'checked' : ''} onchange="updateFishBool('${jsChar}', 'condition_on_previous_chunks', this.checked, false)">
-                                    <div><strong>跨分块声线延续</strong><span>长台词跨分块保持音色与语调连贯。</span></div>
+                                <label class="toggle-card" style="${isDrama3 ? 'opacity:0.55;' : ''}">
+                                    <input type="checkbox" ${fishCfg.condition_on_previous_chunks ? 'checked' : ''} ${isDrama3 ? 'disabled' : ''} onchange="updateFishBool('${jsChar}', 'condition_on_previous_chunks', this.checked, false)">
+                                    <div><strong>跨分块声线延续 ${isDrama3 ? '<span class="warn-chip">Drama 3 自动托管</span>' : ''}</strong><span>${isDrama3 ? 'Drama 3 后端自动省略此项。' : '长台词跨分块保持音色与语调连贯。'}</span></div>
                                 </label>
                             </div>
                         </div>
@@ -2234,10 +2398,10 @@
                             <summary><span>2. 表现力、采样与响应延迟</span><span class="param-fold-sum-val">${escapeHtml(sampleSummary)} ▾</span></summary>
                             <div class="param-fold-body">
                                 <div class="param-grid">
-                                    <div class="slider-row"><div class="slider-header"><span>表现力 temperature</span><span class="slider-val" id="fish-temperature-val-${attrChar}">${fishCfg.temperature.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.01" value="${fishCfg.temperature}" oninput="updateFishParam('${jsChar}', 'temperature', this.value, 'fish-temperature-val-${jsChar}', 2)"><small class="param-help">默认 0.70；越低越稳，越高起伏越大。</small></div>
-                                    <div class="slider-row"><div class="slider-header"><span>核采样 top_p</span><span class="slider-val" id="fish-top-p-val-${attrChar}">${fishCfg.top_p.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.01" value="${fishCfg.top_p}" oninput="updateFishParam('${jsChar}', 'top_p', this.value, 'fish-top-p-val-${jsChar}', 2)"><small class="param-help">默认 0.70；过低（如 &lt;0.2）容易声音发呆。</small></div>
-                                    <div class="slider-row"><div class="slider-header"><span>分块长度 chunk_length</span><span class="slider-val" id="fish-chunk-val-${attrChar}">${fishCfg.chunk_length}</span></div><input type="range" min="100" max="300" step="10" value="${fishCfg.chunk_length}" oninput="updateFishParam('${jsChar}', 'chunk_length', this.value, 'fish-chunk-val-${jsChar}', 0)"><small class="param-help">100–300；小块出声快，大块语境连贯。</small></div>
-                                    <div class="slider-row"><div class="slider-header"><span>最小分块 min_chunk_length</span><span class="slider-val" id="fish-min-chunk-val-${attrChar}">${fishCfg.min_chunk_length}</span></div><input type="range" min="0" max="100" step="5" value="${fishCfg.min_chunk_length}" oninput="updateFishParam('${jsChar}', 'min_chunk_length', this.value, 'fish-min-chunk-val-${jsChar}', 0)"><small class="param-help">末段短句最小阈值，不超过分块长度。</small></div>
+                                    <div class="slider-row"><div class="slider-header"><span>表现力 temperature</span><span class="slider-val" id="fish-temperature-val-${attrChar}">${fishCfg.temperature.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.01" value="${fishCfg.temperature}" oninput="updateFishParam('${jsChar}', 'temperature', this.value, 'fish-temperature-val-${jsChar}', 2)"><small class="param-help">${isDrama3 ? 'Drama 3 官方推荐 0.90–1.00；过低会变平发呆。' : 'S2.1 推荐 0.78–0.88；越低越稳，越高起伏越大。'}</small></div>
+                                    <div class="slider-row"><div class="slider-header"><span>核采样 top_p</span><span class="slider-val" id="fish-top-p-val-${attrChar}">${fishCfg.top_p.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.01" value="${fishCfg.top_p}" oninput="updateFishParam('${jsChar}', 'top_p', this.value, 'fish-top-p-val-${jsChar}', 2)"><small class="param-help">${isDrama3 ? 'Drama 3 官方推荐 0.88–0.95。' : 'S2.1 推荐 0.80–0.88；过低容易声音发呆。'}</small></div>
+                                    <div class="slider-row" style="${isDrama3 ? 'opacity:0.55;' : ''}"><div class="slider-header"><span>分块长度 chunk_length ${isDrama3 ? '<span class="warn-chip">Drama 3 已忽略</span>' : ''}</span><span class="slider-val" id="fish-chunk-val-${attrChar}">${fishCfg.chunk_length}</span></div><input type="range" min="100" max="300" step="10" value="${fishCfg.chunk_length}" ${isDrama3 ? 'disabled' : ''} oninput="updateFishParam('${jsChar}', 'chunk_length', this.value, 'fish-chunk-val-${jsChar}', 0)"><small class="param-help">${isDrama3 ? 'Drama 3 内部自动切块，发包时已省略。' : '100–300；小块出声快，大块语境连贯。'}</small></div>
+                                    <div class="slider-row" style="${isDrama3 ? 'opacity:0.55;' : ''}"><div class="slider-header"><span>最小分块 min_chunk_length ${isDrama3 ? '<span class="warn-chip">Drama 3 已忽略</span>' : ''}</span><span class="slider-val" id="fish-min-chunk-val-${attrChar}">${fishCfg.min_chunk_length}</span></div><input type="range" min="0" max="100" step="5" value="${fishCfg.min_chunk_length}" ${isDrama3 ? 'disabled' : ''} oninput="updateFishParam('${jsChar}', 'min_chunk_length', this.value, 'fish-min-chunk-val-${jsChar}', 0)"><small class="param-help">${isDrama3 ? 'Drama 3 发包时已自动省略。' : '末段短句最小阈值，不超过分块长度。'}</small></div>
                                 </div>
                                 <div class="form-group" style="margin-top:12px;margin-bottom:0;">
                                     <label>延迟与稳定模式 latency</label>
@@ -2292,7 +2456,7 @@
                             <div class="param-fold-body">
                                 <div class="param-grid">
                                     <div class="slider-row"><div class="slider-header"><span>单块最大帧数 max_new_tokens</span><span class="slider-val" id="fish-tokens-val-${attrChar}">${fishCfg.max_new_tokens}</span></div><input type="range" min="256" max="4096" step="128" value="${fishCfg.max_new_tokens}" oninput="updateFishParam('${jsChar}', 'max_new_tokens', this.value, 'fish-tokens-val-${jsChar}', 0)"><small class="param-help">默认 1024；长情绪戏或慢语速被截断时可调高。</small></div>
-                                    <div class="slider-row"><div class="slider-header"><span>早停阈值 early_stop_threshold</span><span class="slider-val" id="fish-early-val-${attrChar}">${fishCfg.early_stop_threshold.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.05" value="${fishCfg.early_stop_threshold}" oninput="updateFishParam('${jsChar}', 'early_stop_threshold', this.value, 'fish-early-val-${jsChar}', 2)"><small class="param-help">默认 1.00；一般无需调低。</small></div>
+                                    <div class="slider-row" style="${isDrama3 ? 'opacity:0.55;' : ''}"><div class="slider-header"><span>早停阈值 early_stop_threshold ${isDrama3 ? '<span class="warn-chip">Drama 3 已忽略</span>' : ''}</span><span class="slider-val" id="fish-early-val-${attrChar}">${fishCfg.early_stop_threshold.toFixed(2)}</span></div><input type="range" min="0" max="1" step="0.05" value="${fishCfg.early_stop_threshold}" ${isDrama3 ? 'disabled' : ''} oninput="updateFishParam('${jsChar}', 'early_stop_threshold', this.value, 'fish-early-val-${jsChar}', 2)"><small class="param-help">${isDrama3 ? 'Drama 3 后端发包已自动省略。' : '默认 1.00；一般无需调低。'}</small></div>
                                     <div class="slider-row" style="${repIgnored ? 'opacity:0.55;' : ''}">
                                         <div class="slider-header">
                                             <span>重复抑制 repetition_penalty ${repIgnored ? '<span class="warn-chip">S2.1 / Drama 3 已忽略</span>' : ''}</span>
@@ -2303,7 +2467,7 @@
                                     </div>
                                     <label class="toggle-card" style="align-self:start;">
                                         <input type="checkbox" ${fishCfg.quality_guard ? 'checked' : ''} onchange="updateFishBool('${jsChar}', 'quality_guard', this.checked, false)">
-                                        <div><strong>质量守卫 quality-guard</strong><span>自动拦截异常破音/吞字。</span></div>
+                                        <div><strong>质量守卫 quality-guard</strong><span>${isDrama3 ? '戏剧表演<strong>建议关闭</strong>，避免把气声、哽咽和轻笑磨平。' : '自动拦截异常破音/吞字（S2.1 推荐开启）。'}</span></div>
                                     </label>
                                 </div>
                                 <div class="param-grid" style="margin-top:12px;">
@@ -2348,6 +2512,7 @@
                     <button type="button" class="studio-tab ${tabKey === 'voice' ? 'is-active' : ''}" role="tab" aria-selected="${tabKey === 'voice'}" onclick="setStudioTab('voice')">音色与试听</button>
                     <button type="button" class="studio-tab ${tabKey === 'favorites' ? 'is-active' : ''}" role="tab" aria-selected="${tabKey === 'favorites'}" onclick="setStudioTab('favorites')">★ 收藏夹 (${repoItems.length})</button>
                     <button type="button" class="studio-tab ${tabKey === 'params' ? 'is-active' : ''}" role="tab" aria-selected="${tabKey === 'params'}" onclick="setStudioTab('params')">参数微调</button>
+                    <button type="button" class="studio-tab ${tabKey === 'design' ? 'is-active' : ''}" role="tab" aria-selected="${tabKey === 'design'}" onclick="setStudioTab('design')">✦ 母带工坊</button>
                 </div>
                 ${bodyPanelHtml}
             `;
@@ -3022,6 +3187,236 @@
         renderEditor();
     }
 
+    function renderAbPanelHtml(character) {
+        const list = AB_BENCHMARK_SCRIPTS[character];
+        if (!Array.isArray(list) || !list.length) return '';
+        const attrChar = escapeHtml(character);
+        const jsChar = escapeJsStr(character);
+        const idx = Math.max(0, Math.min(list.length - 1, Number(abSelectedIndex[character] || 0)));
+        const item = list[idx];
+        const opts = list.map((s, i) => `<option value="${i}" ${i === idx ? 'selected' : ''}>${escapeHtml(s.title)}</option>`).join('');
+        return `
+            <details class="param-fold" style="margin-top:12px;">
+                <summary><span>高反差 A/B 对比试听（验效 / 母带体检）</span><span class="param-fold-sum-val">同音色直出对比 ▾</span></summary>
+                <div class="param-fold-body">
+                    <div class="form-group">
+                        <label>选择「${attrChar}」高反差试金石脚本</label>
+                        <select onchange="selectAbScript('${jsChar}', Number(this.value))">${opts}</select>
+                    </div>
+                    <div class="ab-script-box">
+                        <strong>A · 旧保守平调（temp 0.70 / top_p 0.76 / speed 0.93 / +3dB / quality-guard 开）</strong>
+                        ${escapeHtml(item.legacy)}
+                    </div>
+                    <div class="ab-script-box">
+                        <strong>B · Drama 3 满血戏感（temp 0.96 / top_p 0.91 / speed 1.00 / 0dB / 关守卫 + 句中转折/潜台词）</strong>
+                        ${escapeHtml(item.drama)}
+                    </div>
+                    <div class="ab-btn-row">
+                        <button type="button" class="ab-btn" onclick="runAbCompare('${jsChar}', 'legacy')">▶ 试听 A 组<small>旧保守平调基线</small></button>
+                        <button type="button" class="ab-btn is-drama" onclick="runAbCompare('${jsChar}', 'drama')">▶ 试听 B 组<small>Drama 3 满血戏感</small></button>
+                    </div>
+                    <div class="hint" style="margin-top:8px;">若同一把音色在 B 组满血参数下仍偏朗读平调，说明当前参考母带动态天花板偏低，可切到「✦ 母带工坊」生成高动态候选母带。</div>
+                </div>
+            </details>
+        `;
+    }
+
+    function selectAbScript(char, idx) {
+        abSelectedIndex[char] = Math.max(0, Number(idx) || 0);
+        renderEditor();
+    }
+
+    async function runAbCompare(char, mode) {
+        if (!configReady) return;
+        const list = AB_BENCHMARK_SCRIPTS[char];
+        if (!Array.isArray(list) || !list.length) return;
+        const idx = Math.max(0, Math.min(list.length - 1, Number(abSelectedIndex[char] || 0)));
+        const item = list[idx];
+        const baseCfg = { ...(configData[char] || {}) };
+        if (isEdgeChar(char, baseCfg)) {
+            setTesterStatus('A/B 对比仅适用于 Fish Audio 音色，请先切回 Fish 音色。');
+            return;
+        }
+        const isLegacy = mode === 'legacy';
+        const overrideCfg = isLegacy
+            ? { ...baseCfg, tts_model: 'drama-3', temperature: 0.70, top_p: 0.76, speed: 0.93, volume: 3.0, normalize_loudness: false, quality_guard: true, latency: 'normal' }
+            : { ...baseCfg, tts_model: 'drama-3', temperature: 0.96, top_p: 0.91, speed: char === '徐念薇' ? 1.02 : 1.00, volume: 0.0, normalize_loudness: false, quality_guard: false, latency: 'normal' };
+        const text = isLegacy ? item.legacy : item.drama;
+        const sequence = ++previewSequence;
+        previewPending = true;
+        revealStudioPlayer();
+        setTesterStatus(`正在合成 ${char} · ${isLegacy ? 'A 组旧保守平调' : 'B 组 Drama 3 满血戏感'}…`);
+        const payload = VoiceClient.buildPayload(
+            text, overrideCfg, configData.__settings__ || {}, '', char, null,
+            { retake: true, raw_params: isLegacy }
+        );
+        try {
+            const blob = await VoiceClient.requestAudio(payload, { channel: 'preview' });
+            if (sequence !== previewSequence) return;
+            const audio = document.getElementById('tester-audio');
+            audio.pause(); audio.removeAttribute('src'); audio.load();
+            previewAudioUrls.clear();
+            activeTestObjectUrl = previewAudioUrls.add(blob);
+            activePreviewCharacter = char;
+            activePreviewExt = payload.format || 'mp3';
+            audio.src = activeTestObjectUrl;
+            setTesterStatus(`${char} · ${isLegacy ? 'A 组（旧平调）' : 'B 组（Drama 3 满血）'}已就绪（${Math.ceil(blob.size / 1024)} KB）`);
+            try { await audio.play(); }
+            catch (_) { setTesterStatus('A/B 对比音频已生成，点底部播放器收听。'); }
+        } catch (error) {
+            if (sequence !== previewSequence) return;
+            setTesterStatus(error.name === 'AbortError' ? '已取消语音等待。' : `A/B 生成失败：${error.message}`);
+        } finally {
+            if (sequence === previewSequence) previewPending = false;
+        }
+    }
+
+    function getDesignStateFor(char) {
+        if (!designState[char]) {
+            const tpl = VOICE_DESIGN_TEMPLATES[char] || {
+                description: "Natural expressive Mandarin Chinese speaker, clear articulation, wide emotional dynamic range from relaxed warmth to quiet tension, studio-clean close mic.",
+                text: sampleTexts[char] || sampleTexts.default
+            };
+            designState[char] = {
+                description: tpl.description,
+                text: tpl.text,
+                count: 3,
+                temperature: 0.90,
+                pending: false,
+                error: '',
+                candidates: []
+            };
+        }
+        return designState[char];
+    }
+
+    function base64ToWavBlob(b64) {
+        const clean = String(b64 || '').replace(/^data:audio\/[^;]+;base64,/, '');
+        const bin = atob(clean);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return new Blob([bytes], { type: 'audio/wav' });
+    }
+
+    function resetVoiceDesignTemplate(char) {
+        const tpl = VOICE_DESIGN_TEMPLATES[char];
+        if (!tpl) return;
+        const st = getDesignStateFor(char);
+        st.description = tpl.description;
+        st.text = tpl.text;
+        editorDrafts.delete('design-desc-' + char);
+        editorDrafts.delete('design-text-' + char);
+        renderEditor();
+    }
+
+    async function runVoiceDesign(char) {
+        const st = getDesignStateFor(char);
+        if (st.pending) return;
+        const descEl = document.getElementById('design-desc-' + char);
+        const textEl = document.getElementById('design-text-' + char);
+        const countEl = document.getElementById('design-count-' + char);
+        const tempEl = document.getElementById('design-temp-' + char);
+        st.description = (descEl ? descEl.value : st.description).trim();
+        st.text = (textEl ? textEl.value : st.text).trim();
+        st.count = Math.max(2, Math.min(4, Number(countEl ? countEl.value : st.count) || 3));
+        st.temperature = Math.max(0.3, Math.min(1.0, Number(tempEl ? tempEl.value : st.temperature) || 0.90));
+        if (st.description.length < 5 || st.text.length < 5) {
+            st.error = '请填写不少于 5 字的音色描述与试音脚本。';
+            renderEditor();
+            return;
+        }
+        st.pending = true;
+        st.error = '';
+        renderEditor();
+        setManagerStatus(`正在调用 Fish Voice Design 为「${char}」生成 ${st.count} 条候选母带…`);
+        try {
+            const res = await VoiceClient.designVoice({
+                description: st.description,
+                text: st.text,
+                language: 'zh',
+                count: st.count,
+                temperature: st.temperature
+            });
+            const list = Array.isArray(res.candidates) ? res.candidates : [];
+            st.candidates = list.map((c, i) => {
+                const blob = base64ToWavBlob(c.audio_base64);
+                const url = designAudioStore.add(blob);
+                return {
+                    id: c.id || ('cand_' + i),
+                    index: typeof c.index === 'number' ? c.index : i,
+                    url,
+                    sizeKb: Math.max(1, Math.ceil(blob.size / 1024)),
+                    durationSec: c.duration_ms ? (c.duration_ms / 1000).toFixed(1) : '',
+                    sampleRate: c.sample_rate || 44100
+                };
+            });
+            setManagerStatus(`已为「${char}」生成 ${st.candidates.length} 条候选母带，可直接试听并下载 WAV。`);
+        } catch (err) {
+            st.error = err.message || 'Voice Design 生成失败';
+            setManagerStatus(`母带生成失败：${st.error}`, true);
+        } finally {
+            st.pending = false;
+            renderEditor();
+        }
+    }
+
+    function renderVoiceDesignPanelHtml(character) {
+        const attrChar = escapeHtml(character);
+        const jsChar = escapeJsStr(character);
+        const st = getDesignStateFor(character);
+        const hasPreset = Boolean(VOICE_DESIGN_TEMPLATES[character]);
+        const candHtml = st.candidates.length
+            ? `<div class="design-cand-list">${st.candidates.map((c, idx) => `
+                <article class="design-cand-card">
+                    <div class="design-cand-head">
+                        <strong>候选母带 #${idx + 1}</strong>
+                        <small style="color:var(--muted);">${c.durationSec ? (c.durationSec + 's · ') : ''}${Math.round(c.sampleRate / 1000)}kHz WAV · ${c.sizeKb} KB</small>
+                        <a class="mini-act-btn is-primary" href="${c.url}" download="${attrChar}_母带_${idx + 1}.wav" style="text-decoration:none;">⬇ 下载 WAV</a>
+                    </div>
+                    <audio controls preload="metadata" src="${c.url}"></audio>
+                </article>
+            `).join('')}</div>`
+            : `<div class="fav-empty">尚未生成「${attrChar}」的候选母带。点击上方「✦ 生成候选母带」后将在此逐条试听并下载无损 WAV。</div>`;
+
+        return `
+            <section class="tool-panel wide">
+                <div class="panel-title">✦ Voice Design 角色母带工坊 <span>Fish voice-design-1</span></div>
+                <div class="design-notice">
+                    <strong>按次计费提示与使用流程：</strong>本页仅在你手动点击「✦ 生成候选母带」时调用 Fish Audio 官方 <code>POST /v1/voice-design</code>，日常游玩零调用、零额外费用。<br>
+                    下载最贴合人设的 <strong>1～3 条多情绪无损 WAV</strong> 后，上传至 Fish Audio 官网创建专属私有克隆模型，再把新的 <code>reference_id</code> 粘贴到「音色与试听 / 收藏夹」即可彻底打穿参考母带动态天花板。
+                </div>
+                <div class="form-group">
+                    <label>角色音色描述（建议英文精细描述年龄、音域、吐字质感与动态跨度）</label>
+                    <textarea id="design-desc-${attrChar}" rows="4">${escapeHtml(st.description)}</textarea>
+                </div>
+                <div class="form-group">
+                    <label>宽动态试音脚本（建议含锋芒/轻笑/轻声两段情绪反差）</label>
+                    <textarea id="design-text-${attrChar}" rows="3">${escapeHtml(st.text)}</textarea>
+                </div>
+                <div class="param-grid">
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>单次生成候选条数（2～4）</label>
+                        <select id="design-count-${attrChar}">
+                            <option value="2" ${st.count === 2 ? 'selected' : ''}>2 条候选</option>
+                            <option value="3" ${st.count === 3 ? 'selected' : ''}>3 条候选（推荐）</option>
+                            <option value="4" ${st.count === 4 ? 'selected' : ''}>4 条候选</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:0;">
+                        <label>多样性 temperature（0.3–1.0）</label>
+                        <input type="number" id="design-temp-${attrChar}" min="0.3" max="1.0" step="0.05" value="${st.temperature.toFixed(2)}">
+                    </div>
+                </div>
+                ${st.error ? `<div class="hint" style="color:var(--danger);margin-top:8px;">${escapeHtml(st.error)}</div>` : ''}
+                <div class="btn-group" style="margin-top:12px;">
+                    <button type="button" class="btn-test" ${st.pending ? 'disabled' : ''} onclick="runVoiceDesign('${jsChar}')">${st.pending ? '生成候选母带中…' : '✦ 生成候选母带（按次计费）'}</button>
+                    ${hasPreset ? `<button type="button" class="secondary-action" onclick="resetVoiceDesignTemplate('${jsChar}')">恢复「${attrChar}」推荐模板</button>` : ''}
+                </div>
+                ${candHtml}
+            </section>
+        `;
+    }
+
     function setTesterStatus(message) {
         const status = document.getElementById('tester-status');
         if (status) status.textContent = message;
@@ -3042,7 +3437,7 @@
         const textArea = document.getElementById('test-text-' + char);
         const draftText = editorDrafts.get('test-text-' + char);
         let text = textArea ? textArea.value.trim() : ((draftText && draftText.trim()) || sampleTexts[char] || sampleTexts.default);
-        text = text.replace(/[｛{]([^｜|}\r\n]+)[｜|]([^｝}\r\n]+)[｝}]/g, '$1').replace(/[\(（【].*?[\)）】]|\*.*?\*/g, '').trim();
+        text = text.replace(/[\(（【].*?[\)）】]|\*.*?\*/g, '').trim();
         if (!text) { setTesterStatus('请输入需要试听的文本。'); return; }
         const button = Array.from(document.querySelectorAll('button.btn-test[data-test-char]')).find(b => b.dataset.testChar === char) || null;
         if (previewPending) {

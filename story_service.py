@@ -92,10 +92,18 @@ class StoryService:
         self._tts_prewarmer = tts_prewarmer
         self._prewarmed_keys = set()
 
-    _PREWARM_INTIMATE_TAG_RE = re.compile(
-        r'<whisper>|<soft>|\[(?:[^\]\r\n]*(?:耳语|气音|气声|喘|颤|沙哑|发紧|发虚|低哑|whisper|pant|breathless|trembl)[^\]\r\n]*)\]',
+    _PREWARM_PEAK_TAG_RE = re.compile(
+        r'<whisper>|\[(?:[^\]\r\n]*(?:shaky|trembl|crack|chok|sob|breathless|pant|plead|gasp|破音|哽咽|哭腔|发颤|喘息|抽气)[^\]\r\n]*)\]',
         re.I,
     )
+    _PREWARM_TENSION_TAG_RE = re.compile(
+        r'<whisper>|<soft>|<forceful>|<fast>|[｛{][^｜|}\r\n]+[｜|][^｝}\r\n]+[｝}]|'
+        r'\[(?:[^\]\r\n]*(?:sharp|cutting|sarcas|deadpan|amused|playful|fluster|caught off guard|cover up|defensive|shaky|trembl|crack|husky|whisper|breathless|pant|chok|sob|plead|dangerously|voice drops|耳语|气音|气声|喘|颤|沙哑|发紧|发虚|发涩|破音|冷锋|嘲讽|慌乱|打岔|哽咽)[^\]\r\n]*)\]',
+        re.I,
+    )
+    _PREWARM_STRIP_BRACKET_RE = re.compile(r'\[[^\]\r\n]{1,180}\]')
+    _PREWARM_STRIP_XML_RE = re.compile(r'</?[a-zA-Z0-9_-]{1,24}>')
+    _PREWARM_SUBTEXT_RE = re.compile(r'[｛{]([^｜|}\r\n]+)[｜|][^｝}\r\n]+[｝}]')
 
     @staticmethod
     def _has_usable_voice_slot(slot_cfg):
@@ -103,6 +111,27 @@ class StoryService:
             return False
         v = str(slot_cfg.get('voice') or '').strip()
         return (v.startswith('edge:') and len(v) > 5) or (v.startswith('fish:') and len(v) > 5)
+
+    @classmethod
+    def _find_adjacent_action_hint(cls, messages, index, speaker):
+        if not speaker or index <= 0:
+            return ''
+        for j in range(index - 1, max(-1, index - 3), -1):
+            prev = messages[j]
+            if not isinstance(prev, dict):
+                continue
+            p_kind = prev.get('kind')
+            p_who = (prev.get('speaker') or '').strip()
+            if p_kind == 'action' and p_who == speaker:
+                raw = str(prev.get('text') or '')
+                cleaned = cls._PREWARM_SUBTEXT_RE.sub(r'\1', raw)
+                cleaned = cls._PREWARM_STRIP_BRACKET_RE.sub('', cleaned)
+                cleaned = cls._PREWARM_STRIP_XML_RE.sub('', cleaned)
+                cleaned = re.sub(r'\s+', ' ', cleaned).strip()
+                return cleaned[:32]
+            if p_kind == 'dialogue' or (p_kind == 'action' and p_who and p_who != speaker):
+                break
+        return ''
 
     def _compute_prewarm_prosody(self, text, who, state_bundle):
         if who not in ('沈知韫', '苏婉青', '徐念薇'):
@@ -124,13 +153,15 @@ class StoryService:
             stam = 100
         intl = (state_bundle or {}).get('intimate') if isinstance(state_bundle, dict) else {}
         intimate_beat = int((intl or {}).get('session_beats', 0) or 0) if isinstance(intl, dict) else 0
-        has_intimate_tag = bool(self._PREWARM_INTIMATE_TAG_RE.search(text or ''))
-        if orgasm >= 70 or stam <= 15:
-            return {'speed_scale': 0.90, 'expressive_boost': 0.06}
-        if desire >= 85 or has_intimate_tag:
-            return {'speed_scale': 0.93, 'expressive_boost': 0.04}
-        if intimate_beat >= 1:
-            return {'speed_scale': 0.95, 'expressive_boost': 0.02}
+        s = text or ''
+        has_peak_tag = bool(self._PREWARM_PEAK_TAG_RE.search(s))
+        has_tension_tag = has_peak_tag or bool(self._PREWARM_TENSION_TAG_RE.search(s))
+        if stam <= 15:
+            return {'speed_scale': 0.95, 'expressive_boost': 0.08}
+        if orgasm >= 70 or desire >= 85 or has_peak_tag:
+            return {'expressive_boost': 0.08}
+        if intimate_beat >= 1 or has_tension_tag:
+            return {'expressive_boost': 0.04}
         return {}
 
     def _trigger_tts_prewarm(self, messages, *, dedup_prefix='', stage='streaming'):
@@ -182,7 +213,8 @@ class StoryService:
                 continue
             kind = m.get('kind')
             speaker = m.get('speaker', '')
-            text = (m.get('text') or '').strip()
+            voice_script = (m.get('voice_script') or '').strip()
+            text = (voice_script or m.get('text') or '').strip()
             if not text:
                 continue
             if kind == 'narration':
@@ -208,7 +240,8 @@ class StoryService:
             else:
                 continue
             prosody = self._compute_prewarm_prosody(text, voice_who, state_bundle) if kind == 'dialogue' else {}
-            p_sig = f"{prosody.get('speed_scale', '')}:{prosody.get('expressive_boost', '')}"
+            ctx_hint = self._find_adjacent_action_hint(messages, idx, speaker) if (kind == 'dialogue' and voice_who in ('沈知韫', '苏婉青', '徐念薇')) else ''
+            p_sig = f"{prosody.get('speed_scale', '')}:{prosody.get('expressive_boost', '')}:{ctx_hint[:16]}"
             sig = f'{dedup_prefix}:{voice_cfg_rev}:{voice_who}:{p_sig}:{hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]}'
             with self._stream_lock:
                 if sig in self._prewarmed_keys:
@@ -217,6 +250,10 @@ class StoryService:
                     self._prewarmed_keys.clear()
                 self._prewarmed_keys.add(sig)
             item = {'speaker': voice_who, 'text': text}
+            if voice_script:
+                item['voice_script'] = voice_script
+            if ctx_hint:
+                item['context_hint'] = ctx_hint
             if prosody:
                 item.update(prosody)
             candidates.append(item)

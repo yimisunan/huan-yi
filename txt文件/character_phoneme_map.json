@@ -4,9 +4,7 @@
     "沈知韫": "沈知<|phoneme_start|>yun4<|phoneme_end|>",
     "知韫": "知<|phoneme_start|>yun4<|phoneme_end|>",
     "徐承邺": "徐承<|phoneme_start|>ye4<|phoneme_end|>",
-    "承邺": "承<|phoneme_start|>ye4<|phoneme_end|>",
-    "董事长": "董事<|phoneme_start|>zhang3<|phoneme_end|>",
-    "徐家主宅": "徐家主<|phoneme_start|>zhai2<|phoneme_end|>"
+    "承邺": "承<|phoneme_start|>ye4<|phoneme_end|>"
   },
   "context_sensitive_reference": {
     "行_行业银行": "<|phoneme_start|>hang2<|phoneme_end|>",
