@@ -321,7 +321,9 @@
       retake:  'M20 12a8 8 0 1 1-2.3-5.6M20 4v5h-5',
       close:   'M6 6 18 18M18 6 6 18',
       scales:  'M12 4v15M8 19h8M5 9h14M5 9 3.5 14h3L5 9Zm14 0-1.5 5h3L19 9Z',
-      shop:    'M4 9.5 5.5 4h13L20 9.5M4 9.5h16M4 9.5v1.5a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0V9.5M6 14v6h12v-6'
+      shop:    'M4 9.5 5.5 4h13L20 9.5M4 9.5h16M4 9.5v1.5a2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0 2.5 2.5 0 0 0 5 0V9.5M6 14v6h12v-6',
+      eye:     'M2 12s3.8-6 10-6 10 6 10 6-3.8 6-10 6-10-6-10-6Zm10-2.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z',
+      droplet: 'M12 3.2C9.5 7 6 10.6 6 14a6 6 0 1 0 12 0c0-3.4-3.5-7-6-10.8Z'
     };
     const path = svgEl('path', {
       d: paths[name] || paths.check,
@@ -3866,13 +3868,75 @@
   }
 
   function rewardIconFor(attr) {
-    if (attr === '好感') return { icon: 'heart', cls: 'is-heart' };
+    if (attr === '好感' || attr === '怀孕') return { icon: 'heart', cls: 'is-heart' };
     if (attr === '积分') return { icon: 'coin', cls: '' };
     if (attr === '经验值') return { icon: 'sparkle', cls: '' };
-    if (attr === '体力') return { icon: 'energy', cls: '' };
-    if (attr === '羞耻') return { icon: 'shield', cls: '' };
-    if (attr === '欲望' || attr === '堕落') return { icon: 'flame', cls: 'is-heart' };
+    if (attr === '魅力') return { icon: 'sparkle', cls: 'is-charm' };
+    if (attr === '商业嗅觉') return { icon: 'scales', cls: 'is-jade' };
+    if (attr === '体力' || attr === '亲密耐力') return { icon: 'energy', cls: 'is-jade' };
+    if (attr === '羞耻') return { icon: 'shield', cls: 'is-shield' };
+    if (attr === '欲望' || attr === '宿主欲望' || attr === '堕落') return { icon: 'flame', cls: 'is-heart' };
+    if (attr === '高潮' || attr === '内射') return { icon: 'droplet', cls: 'is-heart' };
+    if (attr === '警惕' || attr === '发现等级') return { icon: 'eye', cls: 'is-vigilance' };
+    if (typeof attr === 'string' && attr.endsWith('开发')) return { icon: 'flame', cls: 'is-charm' };
     return { icon: 'sparkle', cls: '' };
+  }
+
+  function rewardPillTone(c, baseCls) {
+    const attr = c?.attribute || '';
+    const d = Number(c?.delta || 0);
+    if (attr === '警惕' || attr === '发现等级') return d > 0 ? 'is-negative' : 'is-jade';
+    if (attr === '羞耻') return d < 0 ? 'is-shield' : '';
+    if (attr === '高潮') return (c.after === 0 && Number(c.before) >= 40) ? 'is-heart' : (d < 0 ? '' : 'is-heart');
+    if (attr === '怀孕') return 'is-heart';
+    return d < 0 ? 'is-negative' : baseCls;
+  }
+
+  function changeDisplayPriority(c) {
+    const attr = c?.attribute || '';
+    const isHost = c?.target === '系统宿主';
+    if (!isHost) {
+      if (attr === '怀孕') return 1;
+      if (attr === '好感') return 2;
+      if (attr === '羞耻') return 3;
+      if (attr === '欲望') return 4;
+      if (attr === '堕落') return 5;
+      if (attr === '高潮' || attr === '内射') return 6;
+      if (attr.endsWith('开发')) return 7;
+      if (attr === '体力') return 8;
+      if (attr === '警惕' || attr === '发现等级') return 9;
+      return 10;
+    }
+    if (attr === '警惕' || attr === '发现等级') return 11;
+    if (attr === '亲密耐力' || attr === '宿主欲望') return 12;
+    if (attr === '魅力' || attr === '商业嗅觉') return 13;
+    if (attr === '积分' || attr === '经验值') return 14;
+    return 15;
+  }
+
+  function appendChangePillContent(tag, c, mini) {
+    const who = c.target === '系统宿主' ? '' : c.target + ' ';
+    const attr = c.attribute || '';
+    if (attr === '怀孕') {
+      tag.append(node('span', '', who + (c.after === true ? '确诊怀孕' : '孕育状态变更')));
+      return;
+    }
+    const sign = Number(c.delta) > 0 ? '+' : '';
+    if (attr === '发现等级') {
+      if (mini) {
+        tag.append(node('span', '', who + '发现Lv.' + c.after));
+      } else {
+        tag.append(node('span', '', who + '发现 ' + sign + c.delta), node('span', 'pill-after', '→ Lv.' + c.after));
+      }
+      return;
+    }
+    const hasAfter = c.after !== undefined && c.after !== null && c.after !== '';
+    if (mini) {
+      tag.append(node('span', '', who + attr + ' ' + sign + c.delta + (hasAfter ? ('→' + c.after) : '')));
+    } else {
+      tag.append(node('span', '', who + attr + ' ' + sign + c.delta));
+      if (hasAfter) tag.append(node('span', 'pill-after', '→ ' + c.after));
+    }
   }
 
   let svgGradUid = 0;
@@ -3933,19 +3997,69 @@
     const isFolded = foldable && settlementFolded;
     const box = node('section', 'settlement-card game-settlement' + (s.phase === 'resting' ? ' resting' : s.sleep_completed ? ' rested' : '') + (isFolded ? '' : ' is-expanded'));
     const changes = s.changes || [];
-    const rewards = changes.filter(c => c.target !== '系统宿主' || c.attribute !== '体力');
+    const rewards = changes
+      .filter(c => c.target !== '系统宿主' || c.attribute !== '体力')
+      .slice()
+      .sort((a, b) => changeDisplayPriority(a) - changeDisplayPriority(b));
+    const stateNotes = Array.isArray(s.state_notes) ? s.state_notes : [];
+    const im = (s.intimate_meta && typeof s.intimate_meta === 'object') ? s.intimate_meta : {};
 
     const buildRewardPills = (cls, mini = false) => {
       const wrap = node('div', cls);
-      rewards.slice(0, mini ? 3 : 6).forEach((c, idx) => {
+      const list = mini ? rewards.slice(0, 3) : rewards;
+      list.forEach((c, idx) => {
         const meta = rewardIconFor(c.attribute);
-        const tag = node('span', 'reward-pill ' + (mini ? 'is-mini ' : '') + (c.delta < 0 ? 'is-negative' : meta.cls));
-        if (!mini) tag.style.animationDelay = (idx * 55) + 'ms';
-        const who = c.target === '系统宿主' ? '' : c.target + ' ';
-        tag.append(icon(meta.icon), node('span', '', who + c.attribute + ' ' + (c.delta > 0 ? '+' : '') + c.delta));
+        const tone = rewardPillTone(c, meta.cls);
+        const tag = node('span', 'reward-pill ' + (mini ? 'is-mini ' : '') + tone);
+        if (!mini) tag.style.animationDelay = (Math.min(idx, 10) * 45) + 'ms';
+        tag.append(icon(meta.icon));
+        appendChangePillContent(tag, c, mini);
         wrap.append(tag);
       });
+      if (mini && rewards.length > 3) {
+        wrap.append(node('span', 'reward-pill is-mini is-more', '+' + (rewards.length - 3) + '项'));
+      }
       return wrap;
+    };
+
+    const makeMilestonePills = () => {
+      const list = [];
+      if (im.synced_climax) {
+        const p = node('span', 'reward-pill is-heart');
+        p.append(icon('sparkle'), node('span', '', '同频绝顶 · 魅力+1'));
+        list.push(p);
+      }
+      const ksAdded = Array.isArray(im.keepsakes_added) ? im.keepsakes_added : [];
+      if (ksAdded.length) {
+        const btn = node('button', 'settlement-action-pill is-jade');
+        btn.type = 'button';
+        btn.append(icon('gift'), node('span', '', '新增珍藏 +' + ksAdded.length));
+        btn.onclick = () => openHub('bag');
+        list.push(btn);
+      }
+      for (const m of (Array.isArray(im.dev_milestones) ? im.dev_milestones : [])) {
+        if (!m || !m.heroine) continue;
+        const p = node('span', 'reward-pill is-charm');
+        p.append(icon('flame'), node('span', '', m.heroine + ' ' + (m.label || m.zone || '部位') + ' Lv.' + m.level));
+        list.push(p);
+      }
+      for (const n of stateNotes) {
+        if (n && n.kind === 'pregnancy_latent') {
+          const p = node('span', 'reward-pill is-heart');
+          p.append(icon('heart'), node('span', '', (n.target ? (n.target + ' ') : '') + '早孕潜伏'));
+          list.push(p);
+        } else if (n && n.kind === 'vigilance_pos') {
+          const p = node('span', 'reward-pill is-negative');
+          p.append(icon('eye'), node('span', '', n.text.replace(/^徐承邺行踪变化：/, '徐承邺 ')));
+          list.push(p);
+        }
+      }
+      if (im.stealth_alert) {
+        const p = node('span', 'reward-pill is-negative');
+        p.append(icon('eye'), node('span', '', '隔墙声响预警'));
+        list.push(p);
+      }
+      return list;
     };
 
     const ribbon = node('div', 'settlement-ribbon');
@@ -3957,7 +4071,10 @@
     const badgeText = s.kind === 'item' ? '道具恢复' : s.kind === 'rest' ? '免费休息' : '-' + s.net_cost + '⚡';
     left.append(mark, node('span', 'settlement-summary-title', shortTitle), node('span', 'settlement-badge', badgeText));
 
-    const hasPendingReward = !!s.task_after?.pending_item;
+    const pendingItems = Array.isArray(s.task_after?.pending_items)
+      ? s.task_after.pending_items.filter(Boolean)
+      : (s.task_after?.pending_item ? [s.task_after.pending_item] : []);
+    const hasPendingReward = pendingItems.length > 0;
     const shopAdded = Array.isArray(s.shop_added) ? s.shop_added : [];
     const makeTaskPills = (mini = false) => {
       const list = [];
@@ -3974,7 +4091,10 @@
       if (s.task_completed || hasPendingReward) {
         const btn = node('button', 'settlement-action-pill is-jade' + (mini ? ' is-mini' : ''));
         btn.type = 'button';
-        btn.append(icon('gift'), node('span', '', s.task_completed ? '委托达成 · 领奖' : '待领委托奖励'));
+        const pendLabel = s.task_completed
+          ? '委托达成 · 领奖'
+          : ('待领委托奖励' + (pendingItems.length > 1 ? (' ×' + pendingItems.length) : ''));
+        btn.append(icon('gift'), node('span', '', pendLabel));
         btn.onclick = () => openHub('bag');
         list.push(btn);
       }
@@ -4045,8 +4165,10 @@
     body.append(fees);
 
     const bodyTaskPills = makeTaskPills(false);
-    if (rewards.length || bodyTaskPills.length) {
+    const bodyMilestonePills = makeMilestonePills();
+    if (rewards.length || bodyMilestonePills.length || bodyTaskPills.length) {
       const listEl = buildRewardPills('reward-list', false);
+      for (const pill of bodyMilestonePills) listEl.append(pill);
       for (const pill of bodyTaskPills) listEl.append(pill);
       body.append(listEl);
     }
@@ -4063,14 +4185,47 @@
     const detail = node('details', 'settlement-details');
     detail.append(node('summary', '', '展开本次明细 ▾'));
     for (const c of changes) {
-      detail.append(node('p', '', c.target + ' · ' + c.attribute + ' ' + c.before + ' → ' + c.after + '（' + (c.delta > 0 ? '+' : '') + c.delta + '）'));
+      if (c.attribute === '怀孕') {
+        detail.append(node('p', 'is-milestone', '✦ ' + c.target + ' · 怀孕 ' + (c.before ? '已孕' : '未孕') + ' → ' + (c.after ? '确诊怀孕' : '未孕')));
+      } else {
+        detail.append(node('p', '', c.target + ' · ' + c.attribute + ' ' + c.before + ' → ' + c.after + '（' + (c.delta > 0 ? '+' : '') + c.delta + '）'));
+      }
+    }
+    const detailNotes = stateNotes.slice();
+    if (!Array.isArray(s.state_notes)) {
+      if (im.synced_climax) detailNotes.push({ level: 'milestone', text: '达成同频绝顶（主角额外魅力 +1）' });
+      for (const m of (Array.isArray(im.dev_milestones) ? im.dev_milestones : [])) {
+        if (m && m.heroine) detailNotes.push({ level: 'milestone', text: m.heroine + ' ' + (m.label || m.zone || '部位') + '开发突破 Lv.' + m.level });
+      }
+      for (const ks of (Array.isArray(im.keepsakes_added) ? im.keepsakes_added : [])) {
+        if (ks && ks.name) detailNotes.push({ level: 'milestone', text: '新增私密珍藏：' + (ks.owner ? (ks.owner + ' · ') : '') + '「' + ks.name + '」' });
+      }
+      if (Array.isArray(im.charm_penalty_reasons) && im.charm_penalty_reasons.length) {
+        detailNotes.push({ level: 'warn', text: '魅力折损原因：' + im.charm_penalty_reasons.join('、') });
+      }
+      if (im.stealth_alert) detailNotes.push({ level: 'warn', text: '隔墙/同席声响过高，附近人物产生警觉' });
+      for (const dev of (Array.isArray(im.high_risk_devices) ? im.high_risk_devices : [])) {
+        if (dev && dev.name) detailNotes.push({ level: 'warn', text: '装置暴露风险偏高：' + dev.name + '（风险 ' + (dev.detected_risk ?? 0) + '%）' });
+      }
+    }
+    for (const n of detailNotes) {
+      if (!n || !n.text) continue;
+      const lvl = n.level === 'warn' ? 'is-warn' : n.level === 'milestone' ? 'is-milestone' : '';
+      const prefix = n.level === 'warn' ? '⚠ ' : n.level === 'milestone' ? '✦ ' : '· ';
+      detail.append(node('p', lvl, prefix + n.text));
     }
     if (shopAdded.length) {
       detail.append(node('p', '', '商城定制上架：' + shopAdded.map(it => (it.grade ? ('[' + it.grade + '] ') : '') + '「' + it.name + '」(' + it.price + '分)').join('、')));
     }
+    if (Array.isArray(s.shop_rejected) && s.shop_rejected.length) {
+      const rejText = s.shop_rejected.map(r => (typeof r === 'string' ? r : (r.name ? (r.name + '：' + (r.reason || '')) : (r.reason || JSON.stringify(r))))).filter(Boolean).join('；');
+      if (rejText) detail.append(node('p', 'is-warn', '⚠ 商城定制拦截：' + rejText));
+    }
     if (s.items_changed && !s.item) detail.append(node('p', '', '行囊库存已按实际增量更新'));
     if (s.task_after?.current) detail.append(node('p', '', '委托：' + s.task_after.current.title + ' · ' + s.task_after.current.status));
-    if (s.task_after?.pending_item) detail.append(node('p', '', '待领奖励：' + s.task_after.pending_item));
+    if (pendingItems.length) {
+      detail.append(node('p', '', '待领奖励' + (pendingItems.length > 1 ? ('（共 ' + pendingItems.length + ' 件）') : '') + '：' + pendingItems.join('、')));
+    }
     if (Array.isArray(s.schedule_moves) && s.schedule_moves.length) {
       for (const mv of s.schedule_moves) {
         const who = mv.target || mv.name || '';
@@ -4088,8 +4243,17 @@
         : '';
       detail.append(node('p', '', '商业杠杆护盾：' + levName + '（越界掉好感减半 · 压制非目击警惕' + rem + '）'));
     }
-    if (Array.isArray(s.intel_consumed) && s.intel_consumed.length) {
-      detail.append(node('p', '', '消耗情报：' + s.intel_consumed.join('、')));
+    if (s.intel_consumed) {
+      const icList = Array.isArray(s.intel_consumed) ? s.intel_consumed : [s.intel_consumed];
+      const icParts = icList.map(it => {
+        if (!it) return '';
+        if (typeof it === 'string') return it;
+        const nm = it.name || it.id || '';
+        const tg = it.target ? ('（对象：' + it.target + '）') : '';
+        const ef = it.effect_summary ? (' · ' + it.effect_summary) : '';
+        return nm ? ('「' + nm + '」' + tg + ef) : '';
+      }).filter(Boolean);
+      if (icParts.length) detail.append(node('p', 'is-milestone', '✦ 消耗情报：' + icParts.join('；')));
     }
     if (s.clock) detail.append(node('p', '', '游戏时间：第' + s.clock.day + '天 ' + s.clock.time));
     if (s.events) {

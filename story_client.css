@@ -1124,8 +1124,19 @@ html[data-theme="ivory"] .game-settlement {
 }
 .reward-pill.is-mini { padding: 1px 6px; font-size: 10.5px; animation: none; }
 .reward-pill.is-heart { background: var(--rose-soft); border-color: rgba(223, 154, 139, 0.36); color: var(--rose); }
+.reward-pill.is-jade { background: var(--jade-soft); border-color: rgba(109, 181, 146, 0.38); color: var(--jade); }
+.reward-pill.is-shield { background: var(--gold-soft); border-color: var(--line-strong); color: var(--gold-bright); }
+.reward-pill.is-charm { background: rgba(216, 180, 118, 0.16); border-color: rgba(216, 180, 118, 0.44); color: var(--gold-bright); }
+.reward-pill.is-vigilance { background: var(--crimson-soft); border-color: rgba(208, 97, 97, 0.38); color: var(--crimson); }
 .reward-pill.is-negative { background: var(--crimson-soft); border-color: rgba(208, 97, 97, 0.36); color: var(--crimson); }
-.reward-pill .game-icon { width: 12px; height: 12px; }
+.reward-pill.is-more { background: rgba(255, 255, 255, 0.04); border-color: var(--line); color: var(--muted); }
+.reward-pill .pill-after {
+  margin-left: 1px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.92;
+}
+.reward-pill .game-icon { width: 12px; height: 12px; flex: none; }
 
 .settlement-action-pill {
   display: inline-flex;
@@ -1176,6 +1187,8 @@ html[data-theme="ivory"] .game-settlement {
 }
 .settlement-details summary::-webkit-details-marker { display: none; }
 .settlement-details p { margin: 3px 0; color: var(--ink-soft); white-space: pre-wrap; overflow-wrap: anywhere; }
+.settlement-details p.is-milestone { color: var(--gold-bright); }
+.settlement-details p.is-warn { color: var(--crimson); }
 
 #messages .game-settlement { margin: 14px 0; opacity: 0.92; padding: 10px 12px; }
 

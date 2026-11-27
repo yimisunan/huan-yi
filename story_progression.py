@@ -3149,6 +3149,258 @@ def panel_values(engine,text):
     return result
 
 
+_MICRO_NOTE_LABELS = {
+    'momentary_ease': '短暂缓和',
+    'confusion_debt': '局促与辩解余波',
+    'residual_tension': '高压余韵张力',
+}
+
+
+def collect_state_deltas(st_before, st_after, *, intimate_meta=None):
+    """Compare pre/post save_state for player-visible non-panel numeric deltas and auxiliary state notes.
+
+    Intentionally excludes hidden dark-box fields (npc_mind.resentment, last_shift_kind, vigilance 发现几率).
+    """
+    extra_changes = []
+    notes = []
+    sb = st_before if isinstance(st_before, dict) else {}
+    sa = st_after if isinstance(st_after, dict) else {}
+    ib = sb.get('intimate') if isinstance(sb.get('intimate'), dict) else {}
+    ia = sa.get('intimate') if isinstance(sa.get('intimate'), dict) else {}
+
+    # 1. Host intimate dual-pool (亲密耐力 / 宿主欲望)
+    hpb = ib.get('host_phys') if isinstance(ib.get('host_phys'), dict) else {}
+    hpa = ia.get('host_phys') if isinstance(ia.get('host_phys'), dict) else {}
+    for key, label, default_val in (('vigor', '亲密耐力', 100), ('desire', '宿主欲望', 0)):
+        old_v = int(hpb.get(key, default_val) if hpb.get(key) is not None else default_val)
+        new_v = int(hpa.get(key, default_val) if hpa.get(key) is not None else default_val)
+        if new_v != old_v:
+            extra_changes.append({
+                'target': '系统宿主',
+                'attribute': label,
+                'before': old_v,
+                'after': new_v,
+                'delta': new_v - old_v,
+            })
+
+    # 2. Heroine 5-zone body development (口舌/纤手/胸乳/玉足/深处开发)
+    bdb = ib.get('body_dev') if isinstance(ib.get('body_dev'), dict) else {}
+    bda = ia.get('body_dev') if isinstance(ia.get('body_dev'), dict) else {}
+    for hname in save_store.HEROINES:
+        hb = bdb.get(hname) if isinstance(bdb.get(hname), dict) else {}
+        ha = bda.get(hname) if isinstance(bda.get(hname), dict) else {}
+        for z in save_store.BODY_ZONES:
+            old_z = int(hb.get(z, 0) or 0)
+            new_z = int(ha.get(z, 0) or 0)
+            if new_z != old_z:
+                zlabel = save_store.BODY_ZONE_LABELS.get(z, z) + '开发'
+                extra_changes.append({
+                    'target': hname,
+                    'attribute': zlabel,
+                    'before': old_z,
+                    'after': new_z,
+                    'delta': new_z - old_z,
+                })
+
+    # 3. Vigilance matrix (警惕 & 发现等级 & 徐承邺行踪; strictly NO hidden 发现几率)
+    vb = sb.get('vigilance') if isinstance(sb.get('vigilance'), dict) else {}
+    va = sa.get('vigilance') if isinstance(sa.get('vigilance'), dict) else {}
+    vtb = vb.get('目标') if isinstance(vb.get('目标'), dict) else {}
+    vta = va.get('目标') if isinstance(va.get('目标'), dict) else {}
+    for tname in save_store.VIGILANCE_TARGETS:
+        tb = vtb.get(tname) if isinstance(vtb.get(tname), dict) else {}
+        ta = vta.get(tname) if isinstance(vta.get(tname), dict) else {}
+        old_vig = int(tb.get('警惕', 0) or 0)
+        new_vig = int(ta.get('警惕', 0) or 0)
+        if new_vig != old_vig:
+            extra_changes.append({
+                'target': tname,
+                'attribute': '警惕',
+                'before': old_vig,
+                'after': new_vig,
+                'delta': new_vig - old_vig,
+            })
+        old_disc = int(tb.get('发现', 0) or 0)
+        new_disc = int(ta.get('发现', 0) or 0)
+        if new_disc != old_disc:
+            extra_changes.append({
+                'target': tname,
+                'attribute': '发现等级',
+                'before': old_disc,
+                'after': new_disc,
+                'delta': new_disc - old_disc,
+            })
+    old_pos = str(vb.get('位置') or vb.get('徐承邺位置') or '').strip()
+    new_pos = str(va.get('位置') or va.get('徐承邺位置') or '').strip()
+    if old_pos and new_pos and old_pos != new_pos:
+        notes.append({
+            'kind': 'vigilance_pos',
+            'level': 'warn',
+            'text': f'徐承邺行踪变化：{old_pos} → {new_pos}',
+        })
+
+    # 4. Newly mounted or refreshed persistent BUFFs
+    bb = sb.get('buffs') if isinstance(sb.get('buffs'), dict) else {}
+    ba = sa.get('buffs') if isinstance(sa.get('buffs'), dict) else {}
+    for hname in save_store.HEROINES:
+        old_map = {
+            str(b.get('name') or ''): int(b.get('turns') or 0)
+            for b in (bb.get(hname) or []) if isinstance(b, dict) and b.get('name')
+        }
+        for b in (ba.get(hname) or []):
+            if not isinstance(b, dict) or not b.get('name'):
+                continue
+            bname = str(b['name'])
+            turns = int(b.get('turns') or 0)
+            if turns > 0 and (bname not in old_map or turns > old_map[bname]):
+                notes.append({
+                    'kind': 'buff',
+                    'level': 'info',
+                    'text': f'{hname} 生效状态：[{bname}]（剩 {turns} 回合）',
+                })
+
+    # 5. Newly entered latent pregnancy & masturbation trace
+    mb = sb.get('mechanics') if isinstance(sb.get('mechanics'), dict) else {}
+    ma = sa.get('mechanics') if isinstance(sa.get('mechanics'), dict) else {}
+    lb = mb.get('pregnancy_latent_until') if isinstance(mb.get('pregnancy_latent_until'), dict) else {}
+    la = ma.get('pregnancy_latent_until') if isinstance(ma.get('pregnancy_latent_until'), dict) else {}
+    mtb = mb.get('masturbation_trace') if isinstance(mb.get('masturbation_trace'), dict) else {}
+    mta = ma.get('masturbation_trace') if isinstance(ma.get('masturbation_trace'), dict) else {}
+    for hname in save_store.HEROINES:
+        old_due = int(lb.get(hname, 0) or 0)
+        new_due = int(la.get(hname, 0) or 0)
+        if old_due == 0 and new_due > 0:
+            notes.append({
+                'kind': 'pregnancy_latent',
+                'level': 'milestone',
+                'target': hname,
+                'text': f'{hname} 受孕暗骰命中：进入早孕着床潜伏期（预计第 {new_due} 天显影）',
+            })
+        old_mt = int(mtb.get(hname, 0) or 0)
+        new_mt = int(mta.get(hname, 0) or 0)
+        if new_mt > old_mt:
+            notes.append({
+                'kind': 'masturbation_trace',
+                'level': 'info',
+                'text': f'{hname} 留下暗中自渎余韵（{new_mt} 轮）',
+            })
+
+    # 6. Intimate milestones, keepsakes, stealth alerts, high-risk devices, charm penalty reasons
+    im = intimate_meta if isinstance(intimate_meta, dict) else {}
+    for m in (im.get('dev_milestones') or []):
+        if isinstance(m, dict) and m.get('heroine'):
+            z_lbl = m.get('label') or save_store.BODY_ZONE_LABELS.get(m.get('zone', ''), m.get('zone', ''))
+            notes.append({
+                'kind': 'dev_milestone',
+                'level': 'milestone',
+                'text': f"{m['heroine']} {z_lbl}开发突破 Lv.{m.get('level', 1)}",
+            })
+    if im.get('synced_climax'):
+        notes.append({
+            'kind': 'synced_climax',
+            'level': 'milestone',
+            'text': '达成同频绝顶（主角额外魅力 +1）',
+        })
+    for ks in (im.get('keepsakes_added') or []):
+        if isinstance(ks, dict) and ks.get('name'):
+            owner = ks.get('owner', '')
+            prefix = f'{owner} · ' if owner else ''
+            notes.append({
+                'kind': 'keepsake',
+                'level': 'milestone',
+                'text': f"新增私密珍藏：{prefix}「{ks['name']}」",
+            })
+    pen_reasons = [str(r) for r in (im.get('charm_penalty_reasons') or []) if str(r).strip()]
+    if pen_reasons:
+        notes.append({
+            'kind': 'charm_penalty',
+            'level': 'warn',
+            'text': '魅力折损原因：' + '、'.join(pen_reasons),
+        })
+    if im.get('stealth_alert'):
+        notes.append({
+            'kind': 'stealth_alert',
+            'level': 'warn',
+            'text': '隔墙/同席声响过高，附近人物产生警觉',
+        })
+    for dev in (im.get('high_risk_devices') or []):
+        if isinstance(dev, dict) and dev.get('name'):
+            loc_str = '·'.join(x for x in (dev.get('location'), dev.get('spot')) if x)
+            loc_part = f'{loc_str}，' if loc_str else ''
+            notes.append({
+                'kind': 'device_risk',
+                'level': 'warn',
+                'text': f"装置暴露风险偏高：{dev['name']}（{loc_part}风险 {int(dev.get('detected_risk') or 0)}%）",
+            })
+
+    # 7. Attire changes, newly added body traces, inter-heroine awareness upgrades
+    atb = ib.get('attire') if isinstance(ib.get('attire'), dict) else {}
+    ata = ia.get('attire') if isinstance(ia.get('attire'), dict) else {}
+    trb = ib.get('traces') if isinstance(ib.get('traces'), dict) else {}
+    tra = ia.get('traces') if isinstance(ia.get('traces'), dict) else {}
+    for hname in save_store.HEROINES:
+        old_as = str((atb.get(hname) or {}).get('state') or 'neat')
+        new_as = str((ata.get(hname) or {}).get('state') or 'neat')
+        if old_as != new_as:
+            notes.append({
+                'kind': 'attire',
+                'level': 'info',
+                'text': f"{hname} 衣着变化：{save_store.ATTIRE_LABELS.get(old_as, old_as)} → {save_store.ATTIRE_LABELS.get(new_as, new_as)}",
+            })
+        old_kinds = {str(t.get('kind') or '') for t in (trb.get(hname) or []) if isinstance(t, dict)}
+        for tr in (tra.get(hname) or []):
+            if isinstance(tr, dict) and tr.get('kind') and str(tr['kind']) not in old_kinds:
+                desc = str(tr.get('desc') or '').strip()
+                desc_part = f'（{desc}）' if desc else ''
+                notes.append({
+                    'kind': 'trace',
+                    'level': 'info',
+                    'text': f"{hname} 新增留痕：{tr['kind']}{desc_part}",
+                })
+    ihb = ib.get('inter_heroine') if isinstance(ib.get('inter_heroine'), dict) else {}
+    iha = ia.get('inter_heroine') if isinstance(ia.get('inter_heroine'), dict) else {}
+    for pair in save_store.INTER_HEROINE_PAIRS:
+        old_lv = int(ihb.get(pair, 0) or 0)
+        new_lv = int(iha.get(pair, 0) or 0)
+        if new_lv > old_lv:
+            notes.append({
+                'kind': 'inter_heroine',
+                'level': 'warn',
+                'text': f"女主暗流升阶：{pair} → {save_store.INTER_HEROINE_LABELS.get(new_lv, str(new_lv))}",
+            })
+
+    # 8. Unrelieved desire streak & newly activated micro-states
+    cb = sb.get('counters') if isinstance(sb.get('counters'), dict) else {}
+    ca = sa.get('counters') if isinstance(sa.get('counters'), dict) else {}
+    msb = sb.get('micro_states') if isinstance(sb.get('micro_states'), dict) else {}
+    msa = sa.get('micro_states') if isinstance(sa.get('micro_states'), dict) else {}
+    for hname in save_store.HEROINES:
+        uk = f'空耗_连续未纾解_{hname}'
+        old_u = int(cb.get(uk, 0) or 0)
+        new_u = int(ca.get(uk, 0) or 0)
+        if new_u > old_u:
+            notes.append({
+                'kind': 'unrelieved',
+                'level': 'info',
+                'text': f'{hname} 欲求积压：{old_u} → {new_u} 段',
+            })
+        old_ms = msb.get(hname) if isinstance(msb.get(hname), dict) else {}
+        new_ms = msa.get(hname) if isinstance(msa.get(hname), dict) else {}
+        lit = [
+            _MICRO_NOTE_LABELS[mk]
+            for mk in save_store.MICRO_STATES
+            if new_ms.get(mk) and not old_ms.get(mk)
+        ]
+        if lit:
+            notes.append({
+                'kind': 'micro_state',
+                'level': 'info',
+                'text': f"{hname} 触发微状态：{'、'.join(lit)}",
+            })
+
+    return extra_changes, notes
+
+
 def _inject_buff_no_tick(memory_text, target_buffs):
     """Mount item BUFFs onto memory_text without decrementing existing BUFF timers."""
     if not target_buffs or '【当前持久化状态与BUFF】' not in memory_text:
@@ -3190,6 +3442,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
     charm_gained_now=False;coy_chars=[]
     active_cast=parsed.get('active_cast') or []
     st_pre,ly_pre,_=save_store.load_bundle(stage)
+    st_pre_snap=copy.deepcopy(st_pre)
     prologue_active_pre=bool(ly_pre.get('prologue_active'))
     intl_pre=st_pre.get('intimate') or save_store.default_intimate()
     scene_state=parsed.get('scene_state')
@@ -3681,11 +3934,14 @@ def apply_staged(store,engine,stage,body,files,parsed):
     changes=[{'target':name,'attribute':attr,'before':old,'after':after_values[key],
               'delta':(1 if after_values[key] else -1) if isinstance(old,bool) else after_values[key]-old}
              for key,old in before_values.items() for name,attr in (key,) if key in after_values and after_values[key]!=old]
+    extra_changes,state_notes=collect_state_deltas(st_pre_snap,st_final,intimate_meta=intimate_meta)
+    changes.extend(extra_changes)
     receipt={'request_id':body['request_id'],'kind':kind,'reserved':parsed['cost']['total'],'refunded':parsed['refund'],
              'items_changed':(files[rr.FILES[1]] or b'')!=(stage/rr.FILES[1]).read_bytes(),
              'task_after':engine._parse_task_block(after_memory),
              'task_completed':task_completed,'task_issued':task_issued,
              'net_cost':parsed['net'],'stamina_before':parsed['cost']['before'],'stamina_after':final,'changes':changes,
+             'state_notes':state_notes,
              'events':events,'item':item_receipt,'clock':runtime['clock'],'weekday':weekday,
              'schedule_moves':schedule_moves,'leverage_triggered':leverage_triggered,'intel_consumed':intel_consumed,
              'memory_round':runtime['memory_round'],

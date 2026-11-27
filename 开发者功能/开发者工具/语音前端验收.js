@@ -292,12 +292,15 @@ async function run() {
     ]) {
         assert.ok(mainHtml.includes(`id="${id}"`), `main_template.html missing #${id}`);
     }
+    assert.match(storySource, /function appendChangePillContent\(/);
+    assert.match(storySource, /pill-after/);
     const cssSource = fs.readFileSync(path.join(root, 'story_client.css'), 'utf8');
     assert.equal((cssSource.match(/\{/g) || []).length, (cssSource.match(/\}/g) || []).length, 'story_client.css braces must be balanced');
     assert.match(cssSource, /\.msg\[data-defense="melted"\]/);
     assert.match(cssSource, /\.msg\[data-defense="guarded"\]/);
     assert.match(cssSource, /\.archive-dialog/);
     assert.match(cssSource, /\.audio-vol-slider/);
+    assert.match(cssSource, /\.reward-pill \.pill-after/);
 
     console.log('PASS story_client & main_template: 4-speaker allowlist, Drama 3 director tag hiding, cache invalidation, ambient soundscape/ducking/prosody, Scheme A+B confirm & v3 Archive Center');
     console.log('All frontend checks passed; external requests: 0');
