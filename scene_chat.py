@@ -33,6 +33,49 @@ def encode_packet(payload):
     return ('{\n' + ',\n'.join(fields) + '\n}').encode('utf-8')
 
 
+_ALIAS_CACHE_LOCK = threading.RLock()
+_ALIAS_CACHE = {}
+
+
+def _build_reference_aliases(root):
+    view_p = root / 'txt文件/关系称谓查询.jsonl'
+    src_p = root / 'txt文件/关系称谓库.json'
+    sig = None
+    try:
+        st_v, st_s = view_p.stat(), src_p.stat()
+        sig = (str(view_p.resolve()), st_v.st_mtime_ns, st_v.st_size, str(src_p.resolve()), st_s.st_mtime_ns, st_s.st_size)
+        with _ALIAS_CACHE_LOCK:
+            cached = _ALIAS_CACHE.get(sig)
+        if cached is not None:
+            return cached
+    except OSError:
+        sig = None
+    rows = [json.loads(line) for line in view_p.read_text(encoding='utf-8').splitlines()]
+    entities = json.loads(src_p.read_text(encoding='utf-8'))['entities']
+    aliases = {}
+    for name, entity in entities.items():
+        if entity.get('status') == 'active':
+            for alias in (name, entity.get('short', '')):
+                if len(alias) >= 2:
+                    aliases.setdefault(alias, set()).add(name)
+    for row in rows:
+        if row.get('speaker') != '徐志北':
+            continue
+        for occasion in row.get('occasions', {}).values():
+            for target in occasion.get('targets', []):
+                for candidate in target.get('address_candidates', []):
+                    alias = candidate['text']
+                    if candidate.get('kind') == 'kinship' and len(alias) >= 2:
+                        aliases.setdefault(alias, set()).add(target['listener'])
+    frozen = tuple((alias, next(iter(names))) for alias, names in aliases.items() if len(names) == 1)
+    if sig is not None:
+        with _ALIAS_CACHE_LOCK:
+            if len(_ALIAS_CACHE) >= 32:
+                _ALIAS_CACHE.pop(next(iter(_ALIAS_CACHE)), None)
+            _ALIAS_CACHE[sig] = frozen
+    return frozen
+
+
 class SceneService:
     def __init__(self, root, story):
         self.root = Path(root).resolve()
@@ -67,29 +110,13 @@ class SceneService:
         return digest(b''.join((str(p) + ':' + digest(p.read_bytes())).encode() for p in files))
 
     def references(self, text, history):
-        rows = [json.loads(line) for line in (self.root/'txt文件/关系称谓查询.jsonl').read_text().splitlines()]
-        entities = json.loads((self.root/'txt文件/关系称谓库.json').read_text())['entities']
-        aliases = {}
-        for name, entity in entities.items():
-            if entity.get('status') == 'active':
-                for alias in (name, entity.get('short', '')):
-                    if len(alias) >= 2:
-                        aliases.setdefault(alias, set()).add(name)
-        for row in rows:
-            if row.get('speaker') != '徐志北':
-                continue
-            for occasion in row.get('occasions', {}).values():
-                for target in occasion.get('targets', []):
-                    for candidate in target.get('address_candidates', []):
-                        alias = candidate['text']
-                        if candidate.get('kind') == 'kinship' and len(alias) >= 2:
-                            aliases.setdefault(alias, set()).add(target['listener'])
+        unique_aliases = _build_reference_aliases(self.root)
         # Carry only the last two player turns; model wording cannot trigger new dependencies.
         inputs = [turn['input'] for turn in history[-2:]] + [text]
         found = {}
-        for alias, names in aliases.items():
-            if len(names) == 1 and any(alias in value for value in inputs):
-                found.setdefault(next(iter(names)), []).append(alias)
+        for alias, name in unique_aliases:
+            if any(alias in value for value in inputs):
+                found.setdefault(name, []).append(alias)
         return [{'name': name, 'matched_aliases': sorted(set(hits)),
                  'basis': 'relationship_entities_and_player_address_candidates'} for name, hits in sorted(found.items())]
 

@@ -1059,7 +1059,8 @@ def record_memory_turn(mem_store, *, fact='', anchor_ops=None, chronicle_digest=
 
 
 def retrieve_memory_view(mem_store, *, query='', cast=(), present_actors=None,
-                         location='', max_chars=2400, incremental=False):
+                         location='', max_chars=2400, incremental=False,
+                         exclude_fingerprints=None):
     """Multi-factor zero-dependency retriever with deterministic epistemic partitioning by known_by."""
     ms = normalize_memory_store(mem_store)
     cast_list = [c for c in (cast or ()) if c in _VALID_MEMORY_ACTORS]
@@ -1164,17 +1165,24 @@ def retrieve_memory_view(mem_store, *, query='', cast=(), present_actors=None,
         candidates = [c for c in candidates if c['source'] == 'pending' or c['score'] >= 0.42]
         budget = min(budget, 1400)
 
+    excl_fps = {str(x) for x in exclude_fingerprints if isinstance(x, str) and x} if (incremental and exclude_fingerprints) else set()
     shared = []
     actor_private = {}
     host_private = []
     used = 0
     selected_ids = []
+    selected_fps = []
     ep_selected = 0
     ch_selected = 0
     max_eps = 4 if incremental else 8
     max_ch = 2 if incremental else 4
     for item in candidates:
         src = item['source']
+        fp = ''
+        if src != 'pending':
+            fp = f"{item['id']}:{hashlib.sha1(item['text'].encode('utf-8')).hexdigest()[:8]}"
+            if excl_fps and fp in excl_fps:
+                continue
         if src == 'episode' and ep_selected >= max_eps:
             continue
         if src in ('chronicle', 'chronicle_view') and ch_selected >= max_ch:
@@ -1191,21 +1199,28 @@ def retrieve_memory_view(mem_store, *, query='', cast=(), present_actors=None,
             host_private.append(item['text'])
         used += cost
         selected_ids.append(item['id'])
+        if fp:
+            selected_fps.append(fp)
         if src == 'episode':
             ep_selected += 1
         elif src in ('chronicle', 'chronicle_view'):
             ch_selected += 1
 
-    # Compact active anchor index for Stage 2 UPDATE/RESOLVE reference
+    # Lossless active anchor index for Stage 2 UPDATE/RESOLVE reference (preserves all high-importance & room anchors)
     anchors_for_stage2 = [
         {'id': a['id'], 'kind': a['kind'], 'day': a['day'], 'importance': a['importance'], 'text': a['text']}
-        for a in sorted(ms['anchors'], key=lambda x: (bool(set(x['entities']) & room_set), x['importance'], x['day']), reverse=True)[:18]
+        for a in sorted(
+            ms['anchors'],
+            key=lambda x: (x['importance'] >= 4 or bool(set(x['entities']) & room_set), bool(set(x['entities']) & room_set), x['importance'], x['day']),
+            reverse=True,
+        )[:MAX_ACTIVE_ANCHORS]
     ]
     return {
         'shared_scene_memory': shared,
         'actor_private_memory': actor_private,
         'host_private_memory': host_private,
         'selected_ids': selected_ids,
+        'selected_fingerprints': selected_fps,
         'used_chars': used,
         'pending_facts': list(pb.get('facts') or []),
         'active_anchors_index': anchors_for_stage2,

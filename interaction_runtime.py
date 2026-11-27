@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import re
 import secrets
+import threading
 import time
 import urllib.parse
 import round_runtime as rr
@@ -12,6 +13,27 @@ import save_store
 import story_reading as sr
 import story_progression as sp
 import story_compiler as sc
+
+_DIGEST_LOCK = threading.Lock()
+_DIGEST_CACHE = {}
+
+
+def _cached_digest(path):
+    """Return SHA-256 hex digest cached by (abs_path, mtime_ns, size) for fast audit manifest building."""
+    p = Path(path)
+    st = p.stat()
+    key = str(p)
+    sig = (st.st_mtime_ns, st.st_size)
+    with _DIGEST_LOCK:
+        hit = _DIGEST_CACHE.get(key)
+        if hit is not None and hit[0] == sig:
+            return hit[1]
+    digest = rr._digest(p.read_bytes())
+    with _DIGEST_LOCK:
+        if len(_DIGEST_CACHE) > 256:
+            _DIGEST_CACHE.clear()
+        _DIGEST_CACHE[key] = (sig, digest)
+    return digest
 
 MODE = 'live_interaction'
 CONFIG = 'txt文件/互动运行配置.json'
@@ -141,10 +163,12 @@ STORY_PREFS_PATH = '.round-runtime/story/prefs.json'
 
 
 def load_story_prefs(root):
-    """Load runtime story preferences (defaults: faithful protagonist, standard director pacing, custom rules off)."""
+    """Load runtime story preferences (defaults: faithful protagonist, standard director pacing, balanced anchor history, custom rules off)."""
     defaults = {
         'protagonist_style': 'faithful',
         'director_pacing': 'standard',
+        'anchor_history_mode': 'balanced',
+        'voice_playback_enabled': True,
         'custom_rules_enabled': False,
         'custom_rules_position': 'append',
         'custom_rules_text': '',
@@ -162,6 +186,8 @@ def load_story_prefs(root):
         return {
             'protagonist_style': sc.normalize_protagonist_style(raw.get('protagonist_style', 'faithful')),
             'director_pacing': sp.normalize_director_pacing(raw.get('director_pacing', 'standard')),
+            'anchor_history_mode': sc.normalize_anchor_history_mode(raw.get('anchor_history_mode', 'balanced')),
+            'voice_playback_enabled': bool(raw.get('voice_playback_enabled', True)),
             'custom_rules_enabled': bool(raw.get('custom_rules_enabled', False)),
             'custom_rules_position': sc.normalize_custom_rules_position(raw.get('custom_rules_position', 'append')),
             'custom_rules_text': sc.normalize_custom_rules_text(raw.get('custom_rules_text', '')),
@@ -178,7 +204,7 @@ def save_story_prefs(root, updates):
     if not isinstance(updates, dict):
         raise rr.RoundError('偏好设置须为对象')
     allowed_keys = {
-        'protagonist_style', 'director_pacing',
+        'protagonist_style', 'director_pacing', 'anchor_history_mode', 'voice_playback_enabled',
         'custom_rules_enabled', 'custom_rules_position', 'custom_rules_text',
         'settlement_custom_rules_enabled', 'settlement_custom_rules_position', 'settlement_custom_rules_text',
     }
@@ -194,6 +220,16 @@ def save_story_prefs(root, updates):
         if val not in sp.DIRECTOR_PACING_MODES:
             raise rr.RoundError('女主意外节奏须为 slow、standard 或 frequent')
         cur['director_pacing'] = val
+    if 'anchor_history_mode' in updates:
+        val = updates['anchor_history_mode']
+        if val not in sc.ANCHOR_HISTORY_MODES:
+            raise rr.RoundError('开窗回溯模式须为 balanced 或 full')
+        cur['anchor_history_mode'] = val
+    if 'voice_playback_enabled' in updates:
+        val = updates['voice_playback_enabled']
+        if type(val) is not bool:
+            raise rr.RoundError('语音播放开关须为布尔值')
+        cur['voice_playback_enabled'] = val
     for prefix, label in (
         ('custom_rules', '主模型自定义系统提示词'),
         ('settlement_custom_rules', '副模型自定义系统提示词'),
@@ -1369,7 +1405,7 @@ def _describe_operation_context(resolved, state, bundle_state, mem_text):
     return None
 
 
-def packet(story, prepared, key, text, command=None, previous_error='', selected=None, reservation=None):
+def packet(story, prepared, key, text, command=None, previous_error='', selected=None, reservation=None, *, lazy_live_txt=False):
     """Deterministic source extracts, scoped knowledge and original accepted messages."""
     from scene_chat import SceneService, encode_packet
     helper = SceneService(story.root, story)
@@ -1464,7 +1500,10 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
                 refs.append({'name': rc_name, 'matched_aliases': [], 'basis': 'remote_device_feed'})
     if not any(r['name'] == '徐志北' for r in refs):
         refs.append({'name': '徐志北', 'matched_aliases': [], 'basis': 'host_sovereignty'})
-    sources, characters, relationships = helper.sources(effective['cast'], refs)
+    if lazy_live_txt:
+        sources, characters, relationships = {}, [], []
+    else:
+        sources, characters, relationships = helper.sources(effective['cast'], refs)
     from relationship_query import RelationshipRegistry
     RelationshipRegistry(story.root).verify_view()
     shop_cat_rel = sp.shop_catalog_path(story.root)
@@ -1472,26 +1511,22 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
     director_cat_rel = str(sp.director_config(story.root).get('catalog') or sp.DIRECTOR_CATALOG_DEFAULT).strip()
     names = [RULE, CONFIG, 'txt文件/提示词.md', 'txt文件/一键注入指南.txt', 'txt文件/全局执行法典.md',
              'txt文件/故事检索索引.md', 'txt文件/知识库/世界观类.json', 'txt文件/知识库/叙事判断.json',
-             'txt文件/知识库/系统标签类.json', 'interaction_runtime.py', 'round_runtime.py', 'injection_core.py',
+             'txt文件/知识库/系统标签类.json', 'txt文件/知识库/角色类.json', 'txt文件/关系称谓库.json',
+             'interaction_runtime.py', 'round_runtime.py', 'injection_core.py',
              'relationship_query.py', *(['story_compiler.py'] if story.store._path('story_compiler.py').is_file() else []),
              *([shop_cat_rel] if story.store._path(shop_cat_rel).is_file() else []),
              *([intel_cat_rel] if story.store._path(intel_cat_rel).is_file() else []),
              *([director_cat_rel] if story.store._path(director_cat_rel).is_file() else []),
              *(['story_progression.py','txt文件/事件注册表.json'] if sp.enabled(story.root) else []), *rr.FILES]
-    sources.update({n: rr._digest(story.store._path(n).read_bytes()) for n in names if story.store._path(n).is_file()})
+    for n in names:
+        p_obj = story.store._path(n)
+        if p_obj.is_file():
+            sources[n] = _cached_digest(p_obj)
     for (p, _seq), _ in recent:
         if p is not None and p.is_file():
-            sources[str(p.relative_to(story.root))] = rr._digest(p.read_bytes())
+            sources[str(p.relative_to(story.root))] = _cached_digest(p)
     for path in required_history:
-        sources[path] = rr._digest(story.store._path(path).read_bytes())
-    relevant = []
-    for filename in ('世界观类', '叙事判断', '系统标签类'):
-        for entry in json.loads((story.root / ('txt文件/知识库/' + filename + '.json')).read_text(encoding='utf-8'))['data']['entries']:
-            if entry.get('enabled', True) is not True:
-                continue
-            content = entry['content']
-            if filename != '系统标签类' or any(k in content for k in ('※索引key※ sys.runtime_data', '※索引key※ sys.task', '※索引key※ sys.breakout')):
-                relevant.append({'source': 'txt文件/知识库/' + filename + '.json', 'body': content})
+        sources[path] = _cached_digest(story.store._path(path))
     memory = prepared['snapshot'][rr.FILES[0]]
     runtime=sp.state(story.root,files) if charged else {'memory_round':1,'last_closed':0,'phase':'ready'}
     projection=memory_context(story.root,memory,text,runtime,cast=effective['cast'],location=effective['location'])
@@ -1525,59 +1560,79 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
     memory_index=cache+'/memory-index.json'
     rr._atomic(story.store._path(memory_index),rr._json({'entries':projection['all_entries']}))
     sources[memory_index]=rr._digest(story.store._path(memory_index).read_bytes())
-    # Legacy memories lack machine-readable knowledge scopes; preserve as player-only continuity.
-    data = {'entry_mode': MODE, 'request_id': key, 'source_manifest': sources,
-            'rules': (story.root / RULE).read_text(encoding='utf-8'),
-            'sovereignty': (story.root / 'txt文件/全局执行法典.md').read_text(encoding='utf-8'),
-            'characters': characters, 'relationships': relationships, 'knowledge_rules': relevant,
-            'scenario': {'location': effective['location'], 'cast': effective['cast'],
-                         'present_actors': history_audience, 'presence': state['presence'],
-                         'remote_vitals_targets': remote_vitals_targets},
-            'operation_policy': {'locations': state['policy']['locations'],'location_aliases':location_aliases(story.root),
-                'templates': [
-                    {'code': 'move_player', 'destination': '登记地点'},
-                    {'code': 'transfer_item', 'item_id': 'ITEM-编号', 'recipient': '在场人物'},
-                    {'code': 'use_item', 'item_id': 'ITEM-编号', 'target': '在场人物或室内'},
-                    {'code': 'deploy_item', 'item_id': 'ITEM-编号', 'spot': '安装点位', 'hidden': True},
-                    {'code': 'retrieve_item', 'item_id': 'ITEM-编号'},
-                    {'code': 'inspect_deployed', 'item_id': 'ITEM-编号'},
-                    {'code': 'keepsake_action', 'keepsake_id': 'KS-编号', 'action_type': 'sniff_play|confront|use_intimate|return_secret'},
-                ]},
-            'player_private_state': {'memory': projection['text'], 'items': state['items'],
-                'deployed_items': state.get('deployed_items', []), 'tasks': state['tasks'],
-                'memory_context':{'selected':projection['selected'],'omitted_count':projection['omitted_count'],
-                    'index':projection['index'],'full_index':memory_index,'required_reads':projection['required'],'limits':limits,
-                    'rule':'仅含完整源条目的预算内视图，不代表其余事实消失；旧记忆为玩家私有，不能传播NPC未知秘密。需旧事实时据精确行号补读。'}},
-            **({'milestone_echo': {'events': [{'kind': e['kind'], 'summary': e['summary']} for e in pending_echoes],
-                'rule': '一次性特定时刻微回响：仅允许在自然间隙或收束处用1句氛围/感官/内心轻顿带过，禁直呼任务/委托/商城/积分/系统词，禁扭转玩家意图，禁泄露给NPC。'}} if pending_echoes else {}),
-            **({'surprise_directive': sp.format_surprise_directive(director_roll)} if sp.format_surprise_directive(director_roll) else {}),
-            'accepted_history': history, 'input': text, 'selection': selected,
-             'accounting': ({'reservation': {k:v for k,v in reservation.items() if k not in ('before_memory','before_save_state')},
-                  'runtime':sp.state(story.root,files),'instruction':'面板体力已预扣，原体力见quote.before；不据暂扣判断力竭。按resolution交实际事件与时间；程序决定最终不足5及强制休息。',
-                  'event_registry':rr._engine(story.root,story.root)._load_event_registry(),
-                  'memory_transfer_sources':{}} if charged else None),
-              'story_pacing': '依据当前人物、既有事务、矛盾及玩家意图推进连贯剧情，在真实抉择处交还；偶尔可短答，不固定一两句，不等整场结束，不按字数填充。',
-            'operation': {'requested': resolved,'input_evidence':intent,'source_location':state['location'],
-                **({'detail': op_detail} if op_detail else {}),
-                'rule': '玩家明确操作已预检；仅确认执行后的现场反应，不改参数。自由输入最多提议一个有原文依据的登记操作。'},
-            'resource_policy': state['policy']['resource'], 'cost_preview': preview_cost,
-            'history_archive': {'paths': omitted_archive[-limits['index_entries']:], 'omitted_count':len(omitted_archive),
-                'index':archive_index,'required_reads':required_history,
-                'rule': '需要旧记录时补读指定原文；更早路径从index取得。按input_known_by/messages_known_by分别核查，禁止扩散未知秘密。'},
-            'previous_validation_error': previous_error}
-    if charged:
-        data['accounting']['memory_transfer_sources'] = {
-            'current_round':runtime['last_closed'] if runtime['phase']=='resting' and runtime['last_closed'] else runtime['memory_round'],
-            'current_entry':projection['current'],'transfers':projection['transfers'],
-            'required_reads':projection['required'],
-            'rule':'仅记录有长期因果价值的新fact，重要承诺/关系转折用anchor_ops原子维护；仅在待归档情景批到达时提交chronicle_digest。'}
-        data['knowledge_rules'] = [{'source':'txt文件/知识库/'+name+'.json','body':e['content']}
-            for name in ('世界观类','叙事判断','系统标签类')
-            for e in json.loads((story.root/('txt文件/知识库/'+name+'.json')).read_text(encoding='utf-8'))['data']['entries']
-            if e.get('enabled', True) is True]
-    raw = encode_live_packet(data)
-    relative = sr.CACHE + '/' + hashlib.sha256(key.encode()).hexdigest()[:32] + '/live.txt'
-    rr._atomic(story.store._path(relative), raw)
+    scenario_meta = {'location': effective['location'], 'cast': effective['cast'],
+                     'present_actors': history_audience, 'presence': state['presence'],
+                     'remote_vitals_targets': remote_vitals_targets}
+    op_meta = {'requested': resolved, 'input_evidence': intent, 'source_location': state['location'],
+               **({'detail': op_detail} if op_detail else {})}
+    v2_packet_meta = {
+        'scenario': scenario_meta,
+        'operation': op_meta,
+        'accepted_history': history,
+        'input': text,
+        'selection': selected,
+        'cost_preview': preview_cost,
+        'previous_validation_error': previous_error,
+        'accounting': {'runtime': runtime} if charged else None,
+    }
+    relative = cache + '/live.txt'
+    if lazy_live_txt:
+        packet_env = {'path': relative, 'lazy': True, 'through_line': 0, 'read_ranges': []}
+        packet_sha = ''
+    else:
+        relevant = []
+        for filename in ('世界观类', '叙事判断', '系统标签类'):
+            for entry in sc._load_kb_entries(story.root, filename):
+                content = entry['content']
+                if charged or filename != '系统标签类' or any(k in content for k in ('※索引key※ sys.runtime_data', '※索引key※ sys.task', '※索引key※ sys.breakout')):
+                    relevant.append({'source': 'txt文件/知识库/' + filename + '.json', 'body': content})
+        # Legacy memories lack machine-readable knowledge scopes; preserve as player-only continuity.
+        data = {'entry_mode': MODE, 'request_id': key, 'source_manifest': sources,
+                'rules': (story.root / RULE).read_text(encoding='utf-8'),
+                'sovereignty': (story.root / 'txt文件/全局执行法典.md').read_text(encoding='utf-8'),
+                'characters': characters, 'relationships': relationships, 'knowledge_rules': relevant,
+                'scenario': scenario_meta,
+                'operation_policy': {'locations': state['policy']['locations'],'location_aliases':location_aliases(story.root),
+                    'templates': [
+                        {'code': 'move_player', 'destination': '登记地点'},
+                        {'code': 'transfer_item', 'item_id': 'ITEM-编号', 'recipient': '在场人物'},
+                        {'code': 'use_item', 'item_id': 'ITEM-编号', 'target': '在场人物或室内'},
+                        {'code': 'deploy_item', 'item_id': 'ITEM-编号', 'spot': '安装点位', 'hidden': True},
+                        {'code': 'retrieve_item', 'item_id': 'ITEM-编号'},
+                        {'code': 'inspect_deployed', 'item_id': 'ITEM-编号'},
+                        {'code': 'keepsake_action', 'keepsake_id': 'KS-编号', 'action_type': 'sniff_play|confront|use_intimate|return_secret'},
+                    ]},
+                'player_private_state': {'memory': projection['text'], 'items': state['items'],
+                    'deployed_items': state.get('deployed_items', []), 'tasks': state['tasks'],
+                    'memory_context':{'selected':projection['selected'],'omitted_count':projection['omitted_count'],
+                        'index':projection['index'],'full_index':memory_index,'required_reads':projection['required'],'limits':limits,
+                        'rule':'仅含完整源条目的预算内视图，不代表其余事实消失；旧记忆为玩家私有，不能传播NPC未知秘密。需旧事实时据精确行号补读。'}},
+                **({'milestone_echo': {'events': [{'kind': e['kind'], 'summary': e['summary']} for e in pending_echoes],
+                    'rule': '一次性特定时刻微回响：仅允许在自然间隙或收束处用1句氛围/感官/内心轻顿带过，禁直呼任务/委托/商城/积分/系统词，禁扭转玩家意图，禁泄露给NPC。'}} if pending_echoes else {}),
+                **({'surprise_directive': sp.format_surprise_directive(director_roll)} if sp.format_surprise_directive(director_roll) else {}),
+                'accepted_history': history, 'input': text, 'selection': selected,
+                 'accounting': ({'reservation': {k:v for k,v in reservation.items() if k not in ('before_memory','before_save_state')},
+                      'runtime':runtime,'instruction':'面板体力已预扣，原体力见quote.before；不据暂扣判断力竭。按resolution交实际事件与时间；程序决定最终不足5及强制休息。',
+                      'event_registry':rr._engine(story.root,story.root)._load_event_registry(),
+                      'memory_transfer_sources':{}} if charged else None),
+                  'story_pacing': '依据当前人物、既有事务、矛盾及玩家意图推进连贯剧情，在真实抉择处交还；偶尔可短答，不固定一两句，不等整场结束，不按字数填充。',
+                'operation': {**op_meta,
+                    'rule': '玩家明确操作已预检；仅确认执行后的现场反应，不改参数。自由输入最多提议一个有原文依据的登记操作。'},
+                'resource_policy': state['policy']['resource'], 'cost_preview': preview_cost,
+                'history_archive': {'paths': omitted_archive[-limits['index_entries']:], 'omitted_count':len(omitted_archive),
+                    'index':archive_index,'required_reads':required_history,
+                    'rule': '需要旧记录时补读指定原文；更早路径从index取得。按input_known_by/messages_known_by分别核查，禁止扩散未知秘密。'},
+                'previous_validation_error': previous_error}
+        if charged:
+            data['accounting']['memory_transfer_sources'] = {
+                'current_round':runtime['last_closed'] if runtime['phase']=='resting' and runtime['last_closed'] else runtime['memory_round'],
+                'current_entry':projection['current'],'transfers':projection['transfers'],
+                'required_reads':projection['required'],
+                'rule':'仅记录有长期因果价值的新fact，重要承诺/关系转折用anchor_ops原子维护；仅在待归档情景批到达时提交chronicle_digest。'}
+        raw = encode_live_packet(data)
+        rr._atomic(story.store._path(relative), raw)
+        packet_env = {'path': relative, 'through_line': len(raw.decode().splitlines()), 'read_ranges': packet_read_ranges(raw)}
+        packet_sha = rr._digest(raw)
     contract = {'messages': [{'kind': 'dialogue|action|narration', 'speaker': '在场人物或旁白空串', 'text': '本段剧情'}],
                  'decision': {'prompt': '本段真实抉择', 'options': [{'id': k, 'text': '当前可行的下一步行为'} for k in OPTION_NAMES]},
                 'operation': 'null或一个合法move_player/transfer_item/use_item/deploy_item/retrieve_item/inspect_deployed/keepsake_action对象；不填成本或任意状态patch',
@@ -1586,11 +1641,11 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
     intimate_mode_now = bool(eff_intl.get('scene_active'))
     if charged:
         contract['resolution'] = sp.contract(story.root,preview_cost['kind'], (selected or {}).get('option_id'), intimate_mode=intimate_mode_now)
-    envelope = {'entry_mode': MODE, 'packet': {'path': relative, 'through_line': len(raw.decode().splitlines()), 'read_ranges':packet_read_ranges(raw)},
+    envelope = {'entry_mode': MODE, 'packet': packet_env,
                 'reading_tools':list(LIVE_READ_TOOLS),'previous_validation_error':previous_error,
                 'continuity':{'source':'正式存档与accepted_history','rule':'本次资料包含当前正式记忆、已接受原文及原行动；旧会话未提交草稿不属于事实。重试承接同一冻结点，不跳到下一行动。'},
                 'required_memory_reads':projection['required'],'required_history_reads':required_history,
-                'operation_context':{'requested':resolved,'input_evidence':intent,'source_location':state['location'],'location_aliases':location_aliases(story.root), **({'detail': op_detail} if op_detail else {})},
+                'operation_context':{**op_meta, 'location_aliases':location_aliases(story.root)},
                 **({'resolution_policy':sp.resolution_policy(preview_cost['kind'], (selected or {}).get('option_id'), intimate_mode=intimate_mode_now)} if charged else {}),
                 'output_contract': contract, 'instruction': '先执行读取阶段：逐一照用packet.path和packet.read_ranges中的start_line/end_line调用read_file_part，读完每一段；header显示请求范围不代表正文已齐，核对实际返回的末行。需要时补齐截断正文，文件末尾空白不作为未读正文。再读required_memory_reads与required_history_reads，最后生成完整JSON；只允许reading_tools和本任务文件路径，grep_code只定位不计正文覆盖，禁止list_files/find_files或读取许可外文件；其余旧事实按本任务精确行号或归档索引补读。返回单个裸JSON，生成连贯剧情及decision中的A/B/C；无需演完一场戏，不写旧完整回合、L1或SYSTEM_LOG。'}
     if charged:
@@ -1598,7 +1653,8 @@ def packet(story, prepared, key, text, command=None, previous_error='', selected
     last_seq = int(all_rows[-1][1].get('sequence', 0)) if all_rows else 0
     recent_seqs = [meta[1] for meta, _ in recent]
     return {'protocol': 3, 'interaction_protocol': 3 if charged else 2, 'entry_mode': MODE, 'audit': sources,
-            'packet': {**envelope['packet'], 'sha256': rr._digest(raw)},
+            'packet': {**envelope['packet'], 'sha256': packet_sha},
+            'v2_packet_meta': v2_packet_meta,
             'allowed_archive': [*omitted_archive,archive_index,memory_index],
             'allowed_memory_reads':projection['all_refs']+projection['allowed'], 'required_memory_reads':projection['required'],
             'required_history_reads':required_history,
@@ -1641,6 +1697,8 @@ def material_delivery(story, key, job, chat_id, participant_id):
         raise rr.RoundError('资料直送只用于正式互动')
     story._source_check(context)
     wanted = context['packet']
+    if wanted.get('lazy') and not story.store._path(wanted['path']).is_file():
+        raise rr.ConflictError('本次任务为精简v2上下文，请升级v2桥接或重试任务')
     raw = story.store._path(wanted['path']).read_bytes()
     if rr._digest(raw) != wanted['sha256']:
         raise rr.ConflictError('本次资料包已经改变')
@@ -1718,12 +1776,21 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
         raise rr.RoundError('资料直送只用于正式互动')
     story._source_check(context)
     wanted = context['packet']
-    raw = story.store._path(wanted['path']).read_bytes()
-    if rr._digest(raw) != wanted['sha256']:
-        raise rr.ConflictError('本次资料包已经改变')
-    packet_data = json.loads(raw)
-    sources = [{'path': wanted['path'], 'source_sha256_at_result': rr._digest(raw),
-                'verified_lines': sorted(required_source_lines(raw, wanted['through_line']))}]
+    if wanted.get('lazy') and isinstance(context.get('v2_packet_meta'), dict):
+        packet_data = context['v2_packet_meta']
+        sources = []
+        for src_rel in (rr.FILES[0], CONFIG):
+            src_path = story.store._path(src_rel)
+            if src_path.is_file():
+                sources.append({'path': src_rel, 'source_sha256_at_result': rr._digest(src_path.read_bytes()),
+                                'verified_lines': []})
+    else:
+        raw = story.store._path(wanted['path']).read_bytes()
+        if rr._digest(raw) != wanted['sha256']:
+            raise rr.ConflictError('本次资料包已经改变')
+        packet_data = context['v2_packet_meta'] if isinstance(context.get('v2_packet_meta'), dict) else json.loads(raw)
+        sources = [{'path': wanted['path'], 'source_sha256_at_result': rr._digest(raw),
+                    'verified_lines': sorted(required_source_lines(raw, wanted['through_line']))}]
     supplements = []
     refs = list(context.get('required_memory_reads', []))
     refs.extend({'path': path, 'start_line': 1,
@@ -1795,26 +1862,45 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
     story_prefs = load_story_prefs(story.root)
     protagonist_style = story_prefs['protagonist_style']
 
-    zone0_global = sc.build_zone0_global(
-        story.root, mode=protocol_mode, protagonist_style=protagonist_style,
-        custom_rules=story_prefs,
-    )
-    zone1_scene = sc.build_zone1_scene(
-        story.root, effective_state, cast, references,
-        memory_text=memory_text, extra_text='', mode=protocol_mode,
-        protagonist_style=protagonist_style,
-    )
-    zone0_sha = rr._digest(zone0_global.encode('utf-8'))
-    zone1_sha = rr._digest(zone1_scene.encode('utf-8'))
-
     synced_z0 = str(opts.get('synced_zone0_sha256') or '')
     synced_z1 = str(opts.get('synced_zone1_sha256') or '')
     is_fresh = bool(opts.get('is_fresh_session', True))
     last_seen_seq = opts.get('last_committed_sequence', 0)
     if type(last_seen_seq) is not int or last_seen_seq < 0:
         last_seen_seq = 0
+    raw_synced_flags = opts.get('synced_zone1_flags')
+    if (not is_fresh) and isinstance(raw_synced_flags, dict) and 'vig' in raw_synced_flags and 'intl' in raw_synced_flags:
+        zone1_flags = {'vig': bool(raw_synced_flags.get('vig')), 'intl': bool(raw_synced_flags.get('intl'))}
+    else:
+        zone1_flags = {
+            'vig': sc._needs_vigilance_rules(effective_state, memory_text),
+            'intl': sc._needs_intimate_zone1(effective_state, memory_text),
+        }
+    injected_refs = [x for x in (opts.get('injected_refs') or ()) if isinstance(x, str) and x] if not is_fresh else []
+    injected_guides = [x for x in (opts.get('injected_guides') or ()) if isinstance(x, str) and x] if not is_fresh else []
+    injected_memory_fps = [x for x in (opts.get('injected_memory_fps') or ()) if isinstance(x, str) and x] if not is_fresh else []
+    prev_state_hashes = opts.get('prev_state_hashes') if (not is_fresh and isinstance(opts.get('prev_state_hashes'), dict)) else None
+    anchor_history_mode = story_prefs.get('anchor_history_mode', 'balanced')
+
+    zone0_global = sc.build_zone0_global(
+        story.root, mode=protocol_mode, protagonist_style=protagonist_style,
+        custom_rules=story_prefs,
+    )
+    # Zone 1 strictly excludes transient offstage references and freezes vig/intl flags per session
+    # so same-scene KV prefix cache stays 100% byte-identical across turns; offstage profiles/address locks
+    # and mid-session craft guides are delivered losslessly once per session in Zone 2.
+    zone1_scene = sc.build_zone1_scene(
+        story.root, effective_state, cast, (),
+        memory_text=memory_text, extra_text='', mode=protocol_mode,
+        protagonist_style=protagonist_style, frozen_flags=zone1_flags,
+    )
+    zone0_sha = rr._digest(zone0_global.encode('utf-8'))
+    zone1_sha = rr._digest(zone1_scene.encode('utf-8'))
+
     include_full_anchor = (
-        is_fresh or synced_z0 != zone0_sha or synced_z1 != zone1_sha or last_seen_seq <= 0
+        is_fresh or last_seen_seq <= 0
+        or (bool(synced_z0) and synced_z0 != zone0_sha)
+        or (bool(synced_z1) and synced_z1 != zone1_sha)
     )
 
     history = packet_data.get('accepted_history', [])
@@ -1840,6 +1926,7 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
         location=effective_state['location'],
         max_chars=3600 if include_full_anchor else 1400,
         incremental=not include_full_anchor,
+        exclude_fingerprints=injected_memory_fps if not include_full_anchor else None,
     )
     raw_chook = opts.get('continuity_hook')
     continuity_hook = re.sub(r'[\r\n]+', ' ', str(raw_chook)).strip()[:280] if isinstance(raw_chook, str) and raw_chook.strip() else ''
@@ -1848,6 +1935,7 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
     breakout_hint = sc.compile_breakout_hint(memory_text) if is_action_turn else None
     intel_catalog = sp.load_intel_catalog(story.root, optional=True)
     stage1_supplements = () if protocol_mode == 'dual_stream_v2' else supplements
+    session_delta = {}
     user_delta = sc.build_user_delta(
         story.root, effective_state, projection, history, new_history_only,
         text_input, packet_data.get('selection'), context.get('command'),
@@ -1871,6 +1959,13 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
         memory_view=mem_view,
         continuity_hook=continuity_hook,
         recent_room_continuity=context.get('recent_room_continuity'),
+        references=references,
+        injected_refs=injected_refs,
+        zone1_flags=zone1_flags,
+        injected_guides=injected_guides,
+        session_delta_out=session_delta,
+        prev_state_hashes=prev_state_hashes if not include_full_anchor else None,
+        anchor_history_mode=anchor_history_mode,
     )
     total_bytes = len(zone0_global.encode('utf-8')) + len(zone1_scene.encode('utf-8')) + len(user_delta.encode('utf-8'))
     if total_bytes > 2 * 1024 * 1024:
@@ -1909,6 +2004,9 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
                 raise rr.ConflictError('同一租约的资料或会话已经改变')
             record = old
     rr._atomic(existing, rr._json(record))
+    merged_injected_refs = sorted(set(injected_refs) | set(session_delta.get('newly_injected_refs') or ()))
+    merged_injected_guides = sorted(set(injected_guides) | set(session_delta.get('newly_injected_guides') or ()))
+    merged_memory_fps = sorted(set(injected_memory_fps) | set(mem_view.get('selected_fingerprints') or ()))[-256:]
     res_payload = {
         'delivery_version': 2,
         'protocol_mode': protocol_mode,
@@ -1923,6 +2021,13 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
         'last_committed_sequence': context.get('last_committed_sequence', 0),
         'envelope': envelope,
         'settlement_spec': settlement_spec,
+        'session_meta': {
+            'zone1_flags': zone1_flags,
+            'injected_refs': merged_injected_refs,
+            'injected_guides': merged_injected_guides,
+            'memory_fps': merged_memory_fps,
+            'state_hashes': session_delta.get('state_hashes') or {},
+        },
         'delivery': {
             'id': record['id'],
             'input_sha256': record['input_sha256'],
@@ -2021,13 +2126,18 @@ def verify(story, key, proof, allow_missing=False):
         if cursor!=len(tools) or passes[-1]['outcome']!=outcome or passes[-1]['snapshot_message_timestamp']!=stamp:
             raise rr.RoundError('补读累计工具或最终快照不符')
     wanted = context['packet']; covered = set(); verified = []
+    is_lazy_v2 = bool(wanted.get('lazy') and delivered and delivered.get('version') == 2)
     memory_refs=context.get('allowed_memory_reads',[])
     required_memory=context.get('required_memory_reads',[])
     memory_covered=set();history_covered={}
-    allowed = {wanted['path'], *context.get('allowed_archive', []), *[ref['path'] for ref in memory_refs]}
-    raw = story.store._path(wanted['path']).read_bytes()
-    if rr._digest(raw) != wanted['sha256']:
-        raise rr.ConflictError('本次资料包已经改变')
+    allowed = ({*context.get('allowed_archive', []), *[ref['path'] for ref in memory_refs]}
+               if is_lazy_v2
+               else {wanted['path'], *context.get('allowed_archive', []), *[ref['path'] for ref in memory_refs]})
+    raw = None
+    if not is_lazy_v2:
+        raw = story.store._path(wanted['path']).read_bytes()
+        if rr._digest(raw) != wanted['sha256']:
+            raise rr.ConflictError('本次资料包已经改变')
     if delivered:
         for source in delivered['sources']:
             lines = source['verified_lines']
@@ -2082,10 +2192,11 @@ def verify(story, key, proof, allow_missing=False):
             if path in context.get('required_history_reads',[]):history_covered.setdefault(path,set()).update(lines)
         verified.append(entry)
     targets=[];messages=[]
-    missing=required_source_lines(raw,wanted['through_line'])-covered
-    if missing:
-        targets.append(missing_read_target('packet',wanted['path'],raw,missing))
-        messages.append('正式互动资料包未完整读取；缺少行 '+','.join(str(x) for x in sorted(missing)[:12])+'；截断须补完')
+    if not is_lazy_v2:
+        missing=required_source_lines(raw,wanted['through_line'])-covered
+        if missing:
+            targets.append(missing_read_target('packet',wanted['path'],raw,missing))
+            messages.append('正式互动资料包未完整读取；缺少行 '+','.join(str(x) for x in sorted(missing)[:12])+'；截断须补完')
     for index,ref in enumerate(required_memory):
         missing=set(range(ref['start_line'],ref['end_line']+1))-memory_covered
         if missing:
@@ -2360,6 +2471,78 @@ def save_stage1_checkpoint(story, key, job, context, checkpoint):
     return True
 
 
+def _sanitize_settlement_mechanical_noise(settlement, context, files, root):
+    """Deterministically clean strictly unambiguous mechanical/schema noise in Stage 2 settlement JSON.
+    Never fabricates evidence, never alters gameplay tags/category, and never guesses semantic truth."""
+    cleaned = []
+    if not isinstance(settlement, dict):
+        return cleaned
+    if settlement.get('operation') == '':
+        settlement['operation'] = None
+        cleaned.append('operation(empty_to_none)')
+
+    fb = settlement.get('fallback_decision')
+    if isinstance(fb, dict) and isinstance(fb.get('options'), list):
+        for idx, opt in enumerate(fb['options']):
+            if isinstance(opt, dict) and opt.get('operation') in ('', None) and 'operation' in opt:
+                del opt['operation']
+                cleaned.append(f'fallback_decision.options[{idx}].operation(dropped_empty)')
+
+    res = settlement.get('resolution')
+    if not isinstance(res, dict):
+        return cleaned
+
+    for opt_field in ('task', 'intel_used', 'director_echo', 'scene_state'):
+        if res.get(opt_field) == '':
+            res[opt_field] = None
+            cleaned.append(f'resolution.{opt_field}(empty_to_none)')
+    if res.get('conditions') == '':
+        res['conditions'] = None
+        cleaned.append('resolution.conditions(empty_to_none)')
+    elif isinstance(res.get('conditions'), dict) and res['conditions'].get('npc') == '':
+        res['conditions']['npc'] = None
+        cleaned.append('resolution.conditions.npc(empty_to_none)')
+    if isinstance(res.get('sleep'), dict) and res['sleep'].get('start') == '':
+        res['sleep']['start'] = None
+        cleaned.append('resolution.sleep.start(empty_to_none)')
+    if isinstance(res.get('memory'), dict) and res['memory'].get('chronicle_digest') == '':
+        res['memory']['chronicle_digest'] = None
+        cleaned.append('resolution.memory.chronicle_digest(empty_to_none)')
+
+    # Rule 10: disallow new task when free SYSTEM or an active unfinished task already exists.
+    if res.get('task') is not None:
+        cat = str(res.get('category') or '').strip()
+        has_active_task = False
+        try:
+            bundle_st, _, _ = save_store.load_bundle(root, files)
+            cur_t = ((bundle_st.get('tasks') or {}).get('current'))
+            has_active_task = isinstance(cur_t, dict) and cur_t.get('status') != '已完成'
+        except Exception:
+            has_active_task = False
+        if cat == 'SYSTEM' or has_active_task:
+            res['task'] = None
+            cleaned.append('resolution.task(cleared_disallowed)')
+
+    # Drop strictly no-op monitor-target noise: vigilance_events(target='徐承邺', tags=['无异常回合']).
+    # Non-noop vigilance tags on '徐承邺' are intentionally preserved so strict validation rejects & retries them!
+    events = res.get('events')
+    if isinstance(events, list):
+        kept = []
+        for ev in events:
+            if (isinstance(ev, dict) and ev.get('group') == 'vigilance_events'
+                    and ev.get('target') == '徐承邺'
+                    and isinstance(ev.get('tags'), list)
+                    and ev['tags']
+                    and set(ev['tags']) <= {'无异常回合'}):
+                cleaned.append('resolution.events.vigilance(dropped_noop_monitor_target)')
+                continue
+            kept.append(ev)
+        if len(kept) != len(events):
+            res['events'] = kept
+
+    return cleaned
+
+
 def normalize_dual_stage(story, context, result):
     """Merge dual-stage foreground script + background SUMMARY settlement into canonical result."""
     if not isinstance(result, dict) or result.get('dual_stage_version') != 1:
@@ -2373,11 +2556,12 @@ def normalize_dual_stage(story, context, result):
     allowed_settle = {'operation', 'handoff', 'checks', 'quality_flags', 'fallback_decision'} | ({'resolution'} if charged else set())
     req_settle = {'operation', 'handoff', 'checks'} | ({'resolution'} if charged else set())
     rr._keys(settlement, allowed_settle, '后台结算结果', req_settle)
+    files = story.store._files()
+    sanitized_notes = _sanitize_settlement_mechanical_noise(settlement, context, files, story.root)
     autofilled_audit = _autofill_settlement_audit_lines(settlement, context)
     if context.get('command') and settlement.get('operation') != context['command']:
         if settlement.get('operation') is not None or not isinstance(settlement.get('handoff'), str) or not settlement.get('handoff').strip():
             raise rr.RoundError('后台结算未保留玩家明确操作；不能执行时须明确待处理且不提交操作')
-    files = story.store._files()
     mem_text = files[rr.FILES[0]].decode('utf-8')
     presence = rr._engine(story.root, story.root).parse_presence_from_memory(mem_text)
     op = settlement.get('operation')
@@ -2433,6 +2617,8 @@ def normalize_dual_stage(story, context, result):
         extra['decision_fallback'] = True
     if autofilled_audit:
         extra['audit_lines_autofilled'] = autofilled_audit
+    if sanitized_notes:
+        extra['settlement_sanitized'] = sanitized_notes
     if 'quality_flags' in settlement:
         qf = settlement['quality_flags']
         if not isinstance(qf, list) or len(qf) > 16 or not all(isinstance(x, str) and len(x) <= 200 for x in qf):

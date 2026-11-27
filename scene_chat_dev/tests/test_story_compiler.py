@@ -1142,6 +1142,171 @@ class StoryCompilerTests(unittest.TestCase):
         self.assertLess(len(z0), 9000)
         self.assertLess(len(z1), 6620)
 
+    def test_v230_cache_stability_lossless_offstage_and_stage2_quality(self):
+        """Verify Batch 1/2 guarantees:
+        1) Zone 1 stays 100% byte-identical across 5 turns with offstage refs & mid-scene vig/intl flips;
+        2) Zone 2 delivers 100% lossless offstage profile + directional address lock + single-shot craft guides;
+        3) anchor_history_mode balanced vs full preserves last 2 turns verbatim;
+        4) Stage 2 sys.* formula slimming preserves ALL 12 core AI trigger criteria & zero anchor truncation;
+        5) Stage 2 mechanical pre-repair cleans noop 徐承邺 vigilance & disallowed task while rejecting real errors.
+        """
+        import interaction_runtime as ir
+
+        mem_txt = (ROOT / '存档/全局记忆库.txt').read_text(encoding='utf-8')
+        base_state = {
+            'location': '徐家主宅', 'cast': ['沈知韫'],
+            'panels': [
+                '[宿主] 体力 90 | 精力 100 | 魅力 60',
+                '[沈知韫] 位置 徐家主宅 | 体力 85 | 好感 40 | 羞耻 20 | 欲望 15 | 堕落 10 | 警惕 10',
+            ],
+            'presence': {'沈知韫': {'location': '徐家主宅'}, '徐承邺': {'location': '外地'}},
+            'intimate': {'scene_active': False, 'session_beats': 0, 'privacy': 'open_public', 'present_actors': ['沈知韫']},
+            'tasks': [], 'items': [], 'deployed_items': [],
+        }
+        frozen_flags = {'vig': False, 'intl': False}
+
+        # (1) Zone 1 byte-identical across 5 turns even when desire/vigilance spikes & offstage refs vary.
+        z1_base = sc.build_zone1_scene(ROOT, base_state, ['沈知韫'], (), memory_text=mem_txt, mode='dual_stream_v2', frozen_flags=frozen_flags)
+        hot_state = dict(base_state)
+        hot_state['panels'] = [
+            '[宿主] 体力 70 | 精力 90 | 魅力 60',
+            '[沈知韫] 位置 徐家主宅 | 体力 60 | 好感 55 | 羞耻 60 | 欲望 85 | 堕落 45 | 警惕 45',
+        ]
+        hot_state['intimate'] = {'scene_active': True, 'session_beats': 2, 'privacy': 'private_room', 'present_actors': ['沈知韫']}
+        hot_mem = mem_txt + '\n徐承邺_沈知韫：警惕 35 | 发现 1 | 发现几率 10\n'
+        z1_hot = sc.build_zone1_scene(ROOT, hot_state, ['沈知韫'], (), memory_text=hot_mem, mode='dual_stream_v2', frozen_flags=frozen_flags)
+        self.assertEqual(z1_base, z1_hot, 'Zone 1 MUST remain 100% byte-identical under frozen_flags')
+
+        # (2) Zone 2 delivers 100% lossless offstage profile + 徐志北->徐承邺 address lock + single-shot guides.
+        s_delta_1 = {}
+        d1 = json.loads(sc.build_user_delta(
+            ROOT, hot_state, {'text': '', 'omitted_count': 0}, [], [], '顺便提一下徐承邺在电话里的事',
+            None, None, None, None, {'clock': {'day': 1, 'time': '20:00'}, 'memory_round': 1, 'phase': 'ready'},
+            hot_mem, include_full_anchor=True, mode='dual_stream_v2',
+            references=[{'name': '徐承邺', 'matched_aliases': ['二叔'], 'basis': 'input'}],
+            injected_refs=(), zone1_flags=frozen_flags, injected_guides=(), session_delta_out=s_delta_1,
+        ))
+        self.assertIn('referenced_offstage', d1)
+        off_names = [c['name'] for c in d1['referenced_offstage']['characters']]
+        self.assertIn('徐承邺', off_names)
+        self.assertIn('徐承邺', s_delta_1['newly_injected_refs'])
+        rels_blob = json.dumps(d1['referenced_offstage'].get('relationships_delta', {}), ensure_ascii=False)
+        self.assertIn('徐承邺', rels_blob, 'Offstage directional address lock for 徐承邺 must be preserved')
+        self.assertIn('vigilance_craft_guide', d1)
+        self.assertIn('intimate_craft_guide', d1)
+        self.assertIn('vigilance', s_delta_1['newly_injected_guides'])
+        self.assertIn('intimate', s_delta_1['newly_injected_guides'])
+
+        # Subsequent turn deduplicates full profile & craft guides cleanly!
+        s_delta_2 = {}
+        d2 = json.loads(sc.build_user_delta(
+            ROOT, hot_state, {'text': '', 'omitted_count': 0}, [], [], '徐承邺什么时候回来',
+            None, None, None, None, {'clock': {'day': 1, 'time': '20:05'}, 'memory_round': 1, 'phase': 'ready'},
+            hot_mem, include_full_anchor=False, mode='dual_stream_v2',
+            references=[{'name': '徐承邺', 'matched_aliases': [], 'basis': 'input'}],
+            injected_refs=s_delta_1['newly_injected_refs'],
+            zone1_flags=frozen_flags,
+            injected_guides=s_delta_1['newly_injected_guides'],
+            session_delta_out=s_delta_2,
+            prev_state_hashes=s_delta_1['state_hashes'],
+        ))
+        self.assertNotIn('referenced_offstage', d2)
+        self.assertIn('徐承邺', (d2.get('referenced_offstage_active') or {}).get('names', []))
+        self.assertNotIn('vigilance_craft_guide', d2)
+        self.assertNotIn('intimate_craft_guide', d2)
+        self.assertTrue(d2.get('unchanged_from_prev_turn'), 'True diff should collapse unchanged state fields')
+
+        # (3) anchor_history_mode balanced vs full preserves last 2 turns 100% verbatim.
+        long_hist = [
+            {'id': f'seg-{i}', 'input': f'输入{i}', 'messages': [{'kind': 'narration', 'speaker': '', 'text': f'第{i}轮剧情：' + ('长文测试。' * 400)}]}
+            for i in range(6)
+        ]
+        bal = sc._apply_anchor_history_mode(long_hist, 'balanced')
+        full = sc._apply_anchor_history_mode(long_hist, 'full')
+        self.assertEqual(len(full), 6)
+        self.assertGreaterEqual(len(bal), 2)
+        self.assertEqual(bal[-2:], long_hist[-2:], 'balanced mode must keep last 2 turns 100% verbatim')
+
+        # (4) Stage 2 sys.* formula slimming keeps ALL 12 core AI tagging trigger criteria & lossless anchors.
+        long_anchor_text = '沈知韫在书房亲口承诺：无论徐承邺下周是否追查海外信托与遗嘱附件，她都会先把老宅保险柜钥匙交给徐志北并当面核对全部流水清单。'
+        spec = sc.build_settlement_spec(
+            ROOT, hot_state, {'text': '', 'omitted_count': 0}, '继续交谈',
+            {'option_id': 'B', 'text': '继续交谈'}, None, None, {'kind': 'action', 'total': 10},
+            {'clock': {'day': 1, 'time': '20:05'}, 'memory_round': 5, 'phase': 'ready'},
+            mem_txt, {'category_policy': 'fixed_option', 'required_category': 'B'},
+            {'operation': '', 'handoff': '', 'checks': {}, 'resolution': {'category': 'B', 'events': [], 'memory': {}}},
+            {},
+            memory_view={
+                'active_anchors_index': [
+                    {'id': 'anc-001', 'category': 'promise', 'actors': ['沈知韫', '徐志北'], 'importance': 5, 'text': long_anchor_text},
+                ],
+                'pending_digest_episodes': [],
+            },
+        )
+        s2_sys = spec['system_prompt']
+        required_12_triggers = (
+            '羞耻>75', '主动破锁_30阶梯', '苏婉青_真相揭露', '触发高潮_绝顶清算',
+            '自慰_暗中纾解', '解离保护', '外地', '内射',
+            'effective_progress', '优雅掌控_魅力精进', '确诊怀孕', '体力 ≤ 15',
+        )
+        for marker in required_12_triggers:
+            self.assertIn(marker, s2_sys, f'Stage 2 system_prompt lost critical AI tagging trigger: {marker}')
+        self.assertLess(len(s2_sys), 12000, 'Stage 2 system_prompt (including moved static schema) must stay below 12K chars')
+        u_ctx = spec['user_context']
+        self.assertNotIn('output_contract', u_ctx, 'Static output_contract must live in system_prompt, not dynamic user_context')
+        self.assertTrue(any(long_anchor_text in line for line in u_ctx['memory_store_context']['active_anchors']),
+                        'Stage 2 active_anchors must NOT truncate anchor text!')
+
+        # (5) Stage 2 mechanical pre-repair cleans noop 徐承邺 vigilance & disallowed task, while keeping real errors for strict rejection.
+        ctx_mock = {
+            'cast': ['沈知韫'], 'location': '徐家主宅',
+            'turns': [{'content': json.dumps({'resolution_policy': {'category_policy': 'fixed_option', 'required_category': 'B'}}, ensure_ascii=False)}],
+        }
+        settle_noop = {
+            'operation': '', 'handoff': '',
+            'checks': {'intent': 'i', 'knowledge': 'k', 'action': 'a', 'pace': 'p'},
+            'resolution': {
+                'category': 'B', 'basis': 'b',
+                'clock': {'day': 1, 'time': '20:10', 'basis': '5min'},
+                'events': [
+                    {'group': 'vigilance_events', 'target': '徐承邺', 'tags': ['无异常回合'], 'evidence': '平静'},
+                    {'group': 'affection_events', 'target': '沈知韫', 'tags': ['温和对话'], 'evidence': '交谈'},
+                ],
+                'memory': {'fact': '', 'anchor_ops': [], 'chronicle_digest': ''},
+                'conditions': {'intensity': 'B', 'effective_progress': True, 'scene': '徐家主宅', 'npc': '', 'action_changed': True, 'stress_signals': 0, 'breakout_triggered': []},
+                'sleep': {'kind': 'none', 'start': '', 'evidence': ''},
+                'task': {'title': '误发任务'},
+                'items': [],
+            },
+        }
+        import copy as _copy
+        import save_store as _ss
+        st_active, ly_active, _ = _ss.load_bundle(ROOT)
+        st_active = _copy.deepcopy(st_active)
+        st_active['tasks'] = {'current': {'id': 'TASK-001', 'status': '进行中'}, 'history': []}
+        mock_files = {
+            _ss.SAVE_STATE_PATH: json.dumps(st_active, ensure_ascii=False).encode('utf-8'),
+            _ss.MEMORY_STORE_PATH: json.dumps(ly_active, ensure_ascii=False).encode('utf-8'),
+        }
+        cleaned_actions = ir._sanitize_settlement_mechanical_noise(
+            settle_noop, ctx_mock, mock_files, ROOT,
+        )
+        self.assertTrue(cleaned_actions)
+        self.assertIsNone(settle_noop['resolution']['task'])
+        self.assertEqual(len(settle_noop['resolution']['events']), 1)
+        self.assertEqual(settle_noop['resolution']['events'][0]['target'], '沈知韫')
+
+        # Real non-noop vigilance event on 徐承邺 MUST NOT be silently dropped (must survive for strict validator rejection)!
+        settle_real_err = {
+            'resolution': {
+                'category': 'B',
+                'events': [{'group': 'vigilance_events', 'target': '徐承邺', 'tags': ['深夜留宿起疑'], 'evidence': '可疑'}],
+            },
+        }
+        ir._sanitize_settlement_mechanical_noise(settle_real_err, ctx_mock, mock_files, ROOT)
+        self.assertEqual(len(settle_real_err['resolution']['events']), 1,
+                         'Non-noop monitor-target vigilance event must NOT be stripped so strict validator rejects it')
+
 
 if __name__ == '__main__':
     unittest.main()

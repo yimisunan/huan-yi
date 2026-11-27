@@ -525,13 +525,12 @@ class TaskAndShopTests(unittest.TestCase):
         self.assertIn('milestone_echo', delta)
         self.assertTrue(any(e['kind'] == 'shop_redeemed' for e in delta['milestone_echo']['events']))
 
-        # Stage 2 settlement_spec has real panels, task_whitelist_current, and Rule 10
+        # Stage 2 settlement_spec has real panels and Rule 10; omits task_whitelist_current while TASK-001 is in-progress
         sspec = mat['settlement_spec']
         self.assertIsNotNone(sspec)
         self.assertIn('panels', sspec['user_context'])
         self.assertTrue(any('[系统宿主]' in line for line in sspec['user_context']['panels']))
-        self.assertIn('task_whitelist_current', sspec['user_context'])
-        self.assertIn('系统宿主', sspec['user_context']['task_whitelist_current'])
+        self.assertNotIn('task_whitelist_current', sspec['user_context'])
         self.assertIn('10. 任务续接与道具增量：', sspec['system_prompt'])
 
         # Retry safety: failing this turn MUST NOT consume the pending echo

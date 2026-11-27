@@ -2,12 +2,23 @@
 import argparse
 import hashlib
 import json
+import threading
 from pathlib import Path
 
 SOURCE = 'txt文件/关系称谓库.json'
 VIEW = 'txt文件/关系称谓查询.jsonl'
 RESOLVER = 'relationship_query.py'
 OCCASIONS = ('formal', 'relaxed', 'business', 'intimate')
+
+_CACHE_LOCK = threading.RLock()
+_REG_CACHE = {}
+_VIEW_CACHE = {}
+_MAX_CACHE_ENTRIES = 32
+
+
+def _stat_sig(path):
+    st = path.stat()
+    return (str(path), st.st_mtime_ns, st.st_size)
 
 
 ELDER_ROLES = frozenset({'mother', 'adoptive_mother', 'mother_in_law', 'father'})
@@ -38,7 +49,18 @@ def _sha(raw):
 class RelationshipRegistry:
     def __init__(self, root):
         self.root = Path(root).resolve()
-        self.raw = self._path(SOURCE).read_bytes()
+        src_path = self._path(SOURCE)
+        sig = None
+        try:
+            sig = _stat_sig(src_path)
+            with _CACHE_LOCK:
+                cached = _REG_CACHE.get(sig)
+            if cached is not None:
+                self.raw, self.data, self.source = cached
+                return
+        except OSError:
+            sig = None
+        self.raw = src_path.read_bytes()
         if len(self.raw) > 1024 * 1024:
             raise RelationshipError('关系资料超过1MiB')
         try:
@@ -51,6 +73,11 @@ class RelationshipRegistry:
         except (KeyError, TypeError) as exc:
             raise RelationshipError("关系资料字段类型无效") from exc
         self.source = {'path': SOURCE, 'version': 1, 'sha256': _sha(self.raw)}
+        if sig is not None:
+            with _CACHE_LOCK:
+                if len(_REG_CACHE) >= _MAX_CACHE_ENTRIES:
+                    _REG_CACHE.pop(next(iter(_REG_CACHE)), None)
+                _REG_CACHE[sig] = (self.raw, self.data, self.source)
 
     @staticmethod
     def _fail(message):
@@ -269,10 +296,27 @@ class RelationshipRegistry:
         return '\n'.join(_dump(row) for row in rows) + '\n'
 
     def verify_view(self):
-        raw = self._path(VIEW).read_bytes()
+        view_path = self._path(VIEW)
+        res_path = self._path(RESOLVER)
+        sig = None
+        try:
+            sig = (_stat_sig(view_path), self.source['sha256'], _stat_sig(res_path))
+            with _CACHE_LOCK:
+                cached = _VIEW_CACHE.get(sig)
+            if cached is not None:
+                return list(cached)
+        except OSError:
+            sig = None
+        raw = view_path.read_bytes()
         if raw != self.render_view().encode('utf-8'):
             self._fail('关系称谓查询视图未同步，请从唯一原库重新生成')
-        return [json.loads(line) for line in raw.decode('utf-8').splitlines()]
+        rows = [json.loads(line) for line in raw.decode('utf-8').splitlines()]
+        if sig is not None:
+            with _CACHE_LOCK:
+                if len(_VIEW_CACHE) >= _MAX_CACHE_ENTRIES:
+                    _VIEW_CACHE.pop(next(iter(_VIEW_CACHE)), None)
+                _VIEW_CACHE[sig] = rows
+        return list(rows)
 
 
 def main(argv=None):

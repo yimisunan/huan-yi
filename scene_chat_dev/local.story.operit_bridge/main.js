@@ -8,7 +8,7 @@ let busy = null;
 let lastError = '';
 let monitorTimer = null, monitorBusy = false, starting = null;
 let controlSupported = null, sessionReady = false;
-const PLUGIN_VERSION = '2.2.0';
+const PLUGIN_VERSION = '2.3.0';
 const SETTINGS_ROUTE = 'toolpkg:local.story.operit_bridge:ui:settings';
 const THEATER_ROUTE = 'toolpkg:local.story.operit_bridge:ui:theater';
 const BRIDGE_PARTICIPANT_ID = 'model:chat';
@@ -25,13 +25,57 @@ function effectiveSettlementThinkingMode(config) {
 }
 let heartbeats = new Set();
 let waitLoopActive = false, workerSeq = 0, lastServiceEpoch = '', waitSleepTimer = null, waitSleepResolve = null;
+const MONITOR_ACTIVE_MS = 6000;
+const MONITOR_IDLE_MS = 30000;
+const MONITOR_IDLE_AFTER_MS = 60000;
+let monitorStarted = false;
+let lastBridgeActivityAt = Date.now();
+let bridgeTokenCache = { token: '', endpoint: '', epoch: '' };
+
+function invalidateBridgeToken() {
+    bridgeTokenCache = { token: '', endpoint: '', epoch: '' };
+}
+
+function computeMonitorDelayMs(nowMs = Date.now()) {
+    if (busy || starting || (nowMs - lastBridgeActivityAt) < MONITOR_IDLE_AFTER_MS) {
+        return MONITOR_ACTIVE_MS;
+    }
+    return MONITOR_IDLE_MS;
+}
+
+function markBridgeActivity(nowMs = Date.now()) {
+    lastBridgeActivityAt = nowMs;
+    if (monitorStarted && monitorTimer !== null) {
+        clearTimeout(monitorTimer);
+        monitorTimer = null;
+        scheduleMonitor();
+    }
+}
+
+async function getBridgeToken(config, forceRefresh = false) {
+    const ep = (config && config.endpoint) || '';
+    if (!forceRefresh && bridgeTokenCache.token && bridgeTokenCache.endpoint === ep
+            && (!lastServiceEpoch || !bridgeTokenCache.epoch || bridgeTokenCache.epoch === lastServiceEpoch)) {
+        return bridgeTokenCache.token;
+    }
+    const info = await http('/api/story/bridge-info');
+    const tok = (info && info.token) || '';
+    if (tok) {
+        bridgeTokenCache = { token: tok, endpoint: ep, epoch: lastServiceEpoch || '' };
+    }
+    return tok;
+}
 
 function syncServiceEpoch(epoch) {
     if (typeof epoch !== 'string' || !epoch) return;
     if (lastServiceEpoch && lastServiceEpoch !== epoch) {
         workerSeq = 0;
+        invalidateBridgeToken();
     }
     lastServiceEpoch = epoch;
+    if (bridgeTokenCache.token && !bridgeTokenCache.epoch) {
+        bridgeTokenCache.epoch = epoch;
+    }
 }
 let bridgeChatRegistry = new Map();
 let nonBridgeChatCache = new Set();
@@ -99,11 +143,39 @@ function roleProfile(scene = false, customPrompts = null) {
 function stripPackageSystemSections(prompt) {
     if (typeof prompt !== 'string' || !prompt) return '';
     return prompt
-        .replace(/(?:^|\n{2,})(?:包系统：|PACKAGE SYSTEM)[\s\S]*?(?=\n{2,}(?:可用工具|AVAILABLE TOOLS|附件|ATTACHMENT|文件同步|FILE SYNC|工作区|WORKSPACE)|$)/gi, '\n\n')
+        .replace(/(?:^|\n{2,})(?:包系统：|PACKAGE SYSTEM)[\s\S]*?(?=\n{2,}(?:可用工具|AVAILABLE TOOLS|工具使用指南|TOOL USAGE GUIDELINES|附件|ATTACHMENT|文件同步|FILE SYNC|工作区|WORKSPACE)|$)/gi, '\n\n')
         .replace(/(?:^|\n)No packages are currently available\.\s*/gi, '\n')
         .replace(/(?:^|\n)To use a package:\s*\n<tool name="use_package">[\s\S]*?<\/tool>\s*/gi, '\n')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
+}
+
+function sanitizeOperitCorePrompt(prompt, enabled = true) {
+    if (typeof prompt !== 'string' || !prompt) return '';
+    if (!enabled) return stripPackageSystemSections(prompt);
+    const hadTools = /(?:可用工具|AVAILABLE TOOLS|TOOL USAGE GUIDELINES|read_file_part)/i.test(prompt);
+    let cleaned = prompt
+        // 1. Strip injected workspace rule files (e.g. 8,108-char AGENTS.md) cleanly by self-contained XML tag.
+        .replace(/<workspace_rule_file\b[^>]*>[\s\S]*?<\/workspace_rule_file>/gi, '')
+        // Strip orphaned rule-file header lines left immediately before an empty block.
+        .replace(/(?:^|\n)(?:工作区规则文件|Workspace Rule Files?|Workspace Rules)\s*[:：]?\s*(?=\n{2,}|$)/gi, '\n');
+    // 2. Strip package system boilerplate.
+    cleaned = stripPackageSystemSections(cleaned);
+    // 3. Strip file-sync policy (.operit/sync.json) and generic attachments boilerplate irrelevant to headless story bridge.
+    cleaned = cleaned
+        .replace(/(?:^|\n{2,})(?:文件同步：|FILE SYNC(?:\s+POLICY)?\s*[:：]?)[\s\S]*?(?=\n{2,}(?:可用工具|AVAILABLE TOOLS|工具使用指南|TOOL USAGE GUIDELINES|附件|ATTACHMENT|工作区|WORKSPACE)|$)/gi, '\n\n')
+        .replace(/(?:^|\n{2,})(?:附件：|ATTACHMENTS?\s*[:：]?)[\s\S]*?(?=\n{2,}(?:可用工具|AVAILABLE TOOLS|工具使用指南|TOOL USAGE GUIDELINES|文件同步|FILE SYNC|工作区|WORKSPACE)|$)/gi, '\n\n')
+        // 4. Strip Operit's generic default self-intro paragraph ONLY when matching explicit known intro markers before workspace/tool sections.
+        .replace(/^(?:\s*(?:你是\s*Operit|你是一个?全能\s*AI\s*助手|你是人工智能助手|You are Operit|You are an? (?:helpful |versatile )?AI assistant)[\s\S]*?)(?=(?:^|\n{2,})(?:工作区|WORKSPACE|可用工具|AVAILABLE TOOLS|工具使用指南|TOOL USAGE GUIDELINES))/i, '')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    // Defensive invariant: never allow a future host template change to accidentally drop readonly tool guidelines.
+    if (hadTools && !/(?:可用工具|AVAILABLE TOOLS|TOOL USAGE GUIDELINES|read_file_part)/i.test(cleaned)) {
+        return stripPackageSystemSections(
+            prompt.replace(/<workspace_rule_file\b[^>]*>[\s\S]*?<\/workspace_rule_file>/gi, '')
+        );
+    }
+    return cleaned;
 }
 
 function stripWorldbookBlocks(prompt) {
@@ -131,6 +203,7 @@ function normalizeBridgeExtensionRecord(raw) {
         systemPrefix: typeof ext.systemPrefix === 'string' ? ext.systemPrefix : '',
         zone0Sha: typeof ext.zone0Sha === 'string' ? ext.zone0Sha : '',
         zone1Sha: typeof ext.zone1Sha === 'string' ? ext.zone1Sha : '',
+        sanitizeBoilerplate: ext.sanitizeBoilerplate !== false,
     };
 }
 
@@ -144,6 +217,7 @@ async function syncBridgeChatContext(chatId, profile, extra = {}) {
         systemPrefix: typeof profile.systemPrefix === 'string' ? profile.systemPrefix : '',
         zone0Sha: typeof extra.zone0Sha === 'string' ? extra.zone0Sha : '',
         zone1Sha: typeof extra.zone1Sha === 'string' ? extra.zone1Sha : '',
+        sanitizeBoilerplate: extra.sanitizeBoilerplate !== false,
     };
     nonBridgeChatCache.delete(chatId);
     bridgeChatRegistry.set(chatId, record);
@@ -188,7 +262,10 @@ async function composeStorySystemPrompt(event) {
     if (!payload || payload.stage !== 'compose_system_prompt_sections') return null;
     const state = await resolveBridgeChatState(extractHookChatId(payload));
     if (!state || !state.systemPrefix) return null;
-    const corePrompt = stripPackageSystemSections(typeof payload.systemPrompt === 'string' ? payload.systemPrompt : '');
+    const rawCore = typeof payload.systemPrompt === 'string' ? payload.systemPrompt : '';
+    const corePrompt = state.role === 'live'
+        ? sanitizeOperitCorePrompt(rawCore, state.sanitizeBoilerplate !== false)
+        : stripPackageSystemSections(rawCore);
     const composed = corePrompt ? (state.systemPrefix + '\n\n' + corePrompt) : state.systemPrefix;
     return { systemPrompt: composed };
 }
@@ -445,10 +522,12 @@ async function ensureSession(config, model, scene = false, persist = () => Plugi
     await bindWorkspaceToChat(config.chatId, config.workspacePath);
     if (!(await Tools.Chat.agentStatus(config.chatId)).isIdle) throw new Error('故事专用会话忙碌，未重复提交');
     const existingState = await resolveBridgeChatState(config.chatId);
-    if (!existingState || !skipPromptReset || existingState.role !== profile.role) {
+    const sanitizeBoilerplate = config.sanitizeOperitBoilerplate !== false;
+    if (!existingState || !skipPromptReset || existingState.role !== profile.role || existingState.sanitizeBoilerplate !== sanitizeBoilerplate) {
         await syncBridgeChatContext(config.chatId, profile, {
             zone0Sha: existingState ? existingState.zone0Sha : '',
             zone1Sha: existingState ? existingState.zone1Sha : '',
+            sanitizeBoilerplate,
         });
     }
     boundChatCache.set(config.chatId, JSON.stringify([config.chatId, BRIDGE_PARTICIPANT_ID, config.workspacePath, model.key, String(scene)]));
@@ -458,16 +537,17 @@ async function ensureSession(config, model, scene = false, persist = () => Plugi
 
 async function syncLivePrefixes(config, model, session, zone0Global, zone1Scene, zone0Sha, zone1Sha) {
     const state = config.liveSession || {};
-    const targetSig = JSON.stringify([session.chatId, model.key, zone0Sha, zone1Sha]);
+    const sanitizeBoilerplate = config.sanitizeOperitBoilerplate !== false;
+    const targetSig = JSON.stringify([session.chatId, model.key, zone0Sha, zone1Sha, sanitizeBoilerplate]);
     const mem = bridgeChatRegistry.get(session.chatId);
-    if (state.syncedPrefixSig === targetSig && mem && mem.zone0Sha === zone0Sha && mem.zone1Sha === zone1Sha) {
+    if (state.syncedPrefixSig === targetSig && mem && mem.zone0Sha === zone0Sha && mem.zone1Sha === zone1Sha && mem.sanitizeBoilerplate === sanitizeBoilerplate) {
         return;
     }
     if (session.chatId && !(await Tools.Chat.agentStatus(session.chatId)).isIdle) {
         throw new Error('专用会话仍在运行，不能更新冻结前缀');
     }
     const profile = roleProfile('live', { zone0Global, zone1Scene });
-    await syncBridgeChatContext(session.chatId, profile, { zone0Sha, zone1Sha });
+    await syncBridgeChatContext(session.chatId, profile, { zone0Sha, zone1Sha, sanitizeBoilerplate });
     state.zone0Sha = zone0Sha;
     state.zone1Sha = zone1Sha;
     state.syncedPrefixSig = targetSig;
@@ -514,12 +594,47 @@ function liveSessionView(config) {
         reset_reason: state.resetReason || '', turn_count: state.turnCount || 0, max_turns: liveMaxTurns(config) };
 }
 
+function applyCommittedSessionMeta(liveState, meta) {
+    const base = { ...(liveState || {}) };
+    if (!meta || typeof meta !== 'object') return base;
+    if (meta.zone1_flags && typeof meta.zone1_flags === 'object') {
+        base.zone1Flags = { vig: !!meta.zone1_flags.vig, intl: !!meta.zone1_flags.intl };
+    }
+    if (Array.isArray(meta.injected_refs)) {
+        const mergedRefs = Array.from(new Set([
+            ...(Array.isArray(base.injectedRefs) ? base.injectedRefs : []),
+            ...meta.injected_refs.filter(x => typeof x === 'string' && x),
+        ]));
+        base.injectedRefs = mergedRefs.slice(-32);
+    }
+    if (Array.isArray(meta.injected_guides)) {
+        const mergedGuides = Array.from(new Set([
+            ...(Array.isArray(base.injectedGuides) ? base.injectedGuides : []),
+            ...meta.injected_guides.filter(x => typeof x === 'string' && x),
+        ]));
+        base.injectedGuides = mergedGuides.slice(-16);
+    }
+    if (Array.isArray(meta.memory_fps)) {
+        const mergedFps = Array.from(new Set([
+            ...(Array.isArray(base.injectedMemoryFps) ? base.injectedMemoryFps : []),
+            ...meta.memory_fps.filter(x => typeof x === 'string' && x),
+        ]));
+        base.injectedMemoryFps = mergedFps.slice(-256);
+    }
+    if (meta.state_hashes && typeof meta.state_hashes === 'object') {
+        base.stateHashes = { ...(base.stateHashes && typeof base.stateHashes === 'object' ? base.stateHashes : {}), ...meta.state_hashes };
+    }
+    return base;
+}
+
 async function resetLiveSession(config, reason) {
     const state = config.liveSession || {};
     if (config.inFlight || config.outbox || state.chatId && !(await Tools.Chat.agentStatus(state.chatId)).isIdle) throw new Error('请等待当前生成和提交结束后重建会话');
     if (state.chatId) boundChatCache.delete(state.chatId);
     config.liveSession = { ...state, chatId: '', observedChars: 0, turnCount: 0, lastCommittedSeq: 0,
-        interactionScope: '', dirty: false, generation: (state.generation || 0) + 1, resetReason: reason };
+        interactionScope: '', dirty: false, zone1Flags: null, injectedRefs: [], injectedGuides: [],
+        injectedMemoryFps: [], stateHashes: null,
+        generation: (state.generation || 0) + 1, resetReason: reason };
     await PluginConfig.flush(config);
 }
 
@@ -539,13 +654,14 @@ function buildTailHook(messages) {
 async function liveSession(config, model, task) {
     const isV2 = task.material_delivery_v2 === 1;
     const protocolTag = isV2 ? (config.dualStageEnabled !== false ? 'live-dual-v2' : 'live-single-v2') : 'live-program-inline-v1';
-    const identity = JSON.stringify([config.workspacePath, task.save_epoch, model.key, protocolTag]);
+    const sanitizeTag = config.sanitizeOperitBoilerplate !== false ? 'clean' : 'raw';
+    const identity = JSON.stringify([config.workspacePath, task.save_epoch, task.prefs_epoch || '', model.key, protocolTag, sanitizeTag]);
     const policy = liveSessionPolicy(config);
     const maxTurns = liveMaxTurns(config);
     let state = config.liveSession;
     const canResumeSameChat = Boolean(isV2 && task.resume_stage2 && state && state.chatId && state.lastRequestId === task.request_id);
     const reason = !state ? '首次连接'
-        : state.identity !== identity ? '存档、工作区、模型或模式变更'
+        : state.identity !== identity ? '存档、规则、工作区、模型或模式变更'
         : isV2 && state.dirty && !canResumeSameChat ? '上轮异常干净切窗'
         : isV2 && state.chatId && state.interactionScope && task.interaction_scope && state.interactionScope !== task.interaction_scope ? '场景或同席人物变化'
         : isV2 && state.chatId && (state.turnCount || 0) >= maxTurns && state.lastRequestId !== task.request_id ? '满' + maxTurns + '轮防摘要切窗'
@@ -563,6 +679,7 @@ async function liveSession(config, model, task) {
             turnCount: 0, lastCommittedSeq: 0, interactionScope: task.interaction_scope || '', dirty: false,
             zone0Sha: state ? state.zone0Sha || '' : '', zone1Sha: state ? state.zone1Sha || '' : '',
             syncedPrefixSig: state ? (state.syncedPrefixSig || state.syncedCardSig || '') : '',
+            zone1Flags: null, injectedRefs: [], injectedGuides: [], injectedMemoryFps: [], stateHashes: null,
             lastTailHook: sameIdentity && state && state.lastTailHook ? state.lastTailHook : '',
             generation: ((state && state.generation) || 0) + 1, resetReason: reason };
         config.liveSession = state;
@@ -573,7 +690,10 @@ async function liveSession(config, model, task) {
     state.lastRequestId = task.request_id;
     if (task.interaction_scope) state.interactionScope = task.interaction_scope;
     const prevChatId = state.chatId || '';
-    const child = { workspacePath: config.workspacePath, chatId: state.chatId, participantId: state.participantId };
+    const child = {
+        workspacePath: config.workspacePath, chatId: state.chatId, participantId: state.participantId,
+        sanitizeOperitBoilerplate: config.sanitizeOperitBoilerplate !== false,
+    };
     const persist = async () => { state.chatId = child.chatId; state.participantId = child.participantId; config.liveSession = { ...state }; await PluginConfig.flush(config); };
     const session = await ensureSession(child, model, 'live', persist, isV2);
     if (session.chatId !== prevChatId) {
@@ -582,6 +702,11 @@ async function liveSession(config, model, task) {
         state.turnCount = 0;
         state.observedChars = 0;
         state.dirty = false;
+        state.zone1Flags = null;
+        state.injectedRefs = [];
+        state.injectedGuides = [];
+        state.injectedMemoryFps = [];
+        state.stateHashes = null;
         state.resetReason = reason || '外部窗口已重建';
     }
     await persist();
@@ -986,15 +1111,21 @@ async function executeSessionV2(config, task, model, session) {
     const timeout = setTimeout(() => { expired = true; void Tools.Chat.cancel(session.chatId).catch(error => { lastError = String(error.message || error); }); }, SESSION_TIMEOUT);
     const tools = [], passes = [];
     try {
-        const { token } = await http('/api/story/bridge-info');
+        const token = await getBridgeToken(config);
         const liveState = config.liveSession || {};
-        const material = await http(workerPath(task, 'material'), {
+        const materialBody = {
             lease: task.lease, chat_id: session.chatId, participant_id: session.participantId,
             delivery_version: 2, protocol_mode: protocolMode,
             synced_zone0_sha256: liveState.zone0Sha || '', synced_zone1_sha256: liveState.zone1Sha || '',
             last_committed_sequence: liveState.lastCommittedSeq || 0, is_fresh_session: !!session.isFresh,
-            ...(session.isFresh && liveState.lastTailHook ? { continuity_hook: liveState.lastTailHook } : {})
-        }, token);
+            ...(session.isFresh && liveState.lastTailHook ? { continuity_hook: liveState.lastTailHook } : {}),
+            ...(!session.isFresh && liveState.zone1Flags ? { synced_zone1_flags: liveState.zone1Flags } : {}),
+            ...(!session.isFresh && Array.isArray(liveState.injectedRefs) && liveState.injectedRefs.length ? { injected_refs: liveState.injectedRefs } : {}),
+            ...(!session.isFresh && Array.isArray(liveState.injectedGuides) && liveState.injectedGuides.length ? { injected_guides: liveState.injectedGuides } : {}),
+            ...(!session.isFresh && Array.isArray(liveState.injectedMemoryFps) && liveState.injectedMemoryFps.length ? { injected_memory_fps: liveState.injectedMemoryFps } : {}),
+            ...(!session.isFresh && liveState.stateHashes && typeof liveState.stateHashes === 'object' ? { prev_state_hashes: liveState.stateHashes } : {}),
+        };
+        const material = await http(workerPath(task, 'material'), materialBody, token);
         if (!material || material.delivery_version !== 2 || typeof material.zone0_global !== 'string'
                 || typeof material.zone1_scene !== 'string' || typeof material.input_text !== 'string'
                 || !material.delivery || !/^[0-9a-f]{64}$/.test(material.delivery.input_sha256)
@@ -1243,11 +1374,11 @@ async function executeSessionV2(config, task, model, session) {
                         const actualSeq = (res.receipt && Number.isSafeInteger(res.receipt.state_version))
                             ? res.receipt.state_version
                             : ((res.task && Number.isSafeInteger(res.task.result_sequence)) ? res.task.result_sequence : nextCommittedSeq);
-                        config.liveSession = { ...config.liveSession,
+                        config.liveSession = applyCommittedSessionMeta({ ...config.liveSession,
                             turnCount: ((config.liveSession && config.liveSession.turnCount) || 0) + 1,
                             lastCommittedSeq: actualSeq,
                             ...(tailHook ? { lastTailHook: tailHook } : {}),
-                            dirty: Boolean(resumeCp && !resumedFromSameChat) };
+                            dirty: Boolean(resumeCp && !resumedFromSameChat) }, material.session_meta);
                         await PluginConfig.flush(config);
                     } else {
                         await markLiveDirty(config);
@@ -1255,7 +1386,7 @@ async function executeSessionV2(config, task, model, session) {
                     return { __alreadyDelivered: true };
                 } catch (err) {
                     if (!(err.statusCode >= 400 && err.statusCode < 500)) {
-                        return { ...submitBody, __meta: { isV2: true, nextCommittedSeq, tailHook: buildTailHook(finalPreviewMsgs) } };
+                        return { ...submitBody, __meta: { isV2: true, nextCommittedSeq, tailHook: buildTailHook(finalPreviewMsgs), sessionMeta: material.session_meta || null } };
                     }
                     await markLiveDirty(config);
                     throw err;
@@ -1339,7 +1470,7 @@ async function executeSessionV2(config, task, model, session) {
             const timing = { generation_ms: passes.reduce((sum, item) => sum + Math.max(0, item.completed_at - item.started_at), 0),
                 preflight_ms: 0, generation_passes: passes.length };
             return { lease: task.lease, text: final.text, conversation_audit: audit, timing,
-                __meta: { isV2: true, nextCommittedSeq } };
+                __meta: { isV2: true, nextCommittedSeq, sessionMeta: material.session_meta || null } };
         }
         throw new Error('单阶段v2流程未取得结果');
     } catch (error) {
@@ -1372,7 +1503,7 @@ async function executeSession(config, task, model, session) {
     let formatRepair = false;
     try {
         const previous = task.previous_validation_error || (config.lastRejection && config.lastRejection.request_id === task.request_id ? config.lastRejection.error : '');
-        const { token } = await http('/api/story/bridge-info');
+        const token = await getBridgeToken(config);
         const inline = task.entry_mode === 'live_interaction';
         let delivered = null;
         let text;
@@ -1750,7 +1881,8 @@ function settings() {
         workspacePath: '', chatId: '', participantId: BRIDGE_PARTICIPANT_ID, inFlight: null, liveSessionPolicy: 'continuous',
         dualStageEnabled: true, settlementFunctionType: 'SUMMARY', settlementThinking: false,
         settlementThinkingMode: 'auto',
-        maxTurnsPerSession: DEFAULT_MAX_TURNS
+        maxTurnsPerSession: DEFAULT_MAX_TURNS,
+        sanitizeOperitBoilerplate: true
     });
     return settingsPromise;
 }
@@ -1965,11 +2097,11 @@ async function deliver(config, token) {
         await rememberRejection(config, result.task);
         if (pending.entry_mode === 'live_interaction' && pending.meta && pending.meta.isV2) {
             if (result && result.task && result.task.status === 'committed') {
-                config.liveSession = { ...config.liveSession,
+                config.liveSession = applyCommittedSessionMeta({ ...config.liveSession,
                     turnCount: ((config.liveSession && config.liveSession.turnCount) || 0) + 1,
                     lastCommittedSeq: pending.meta.nextCommittedSeq || ((config.liveSession && config.liveSession.lastCommittedSeq) || 0) + 1,
                     lastTailHook: pending.meta.tailHook || (config.liveSession && config.liveSession.lastTailHook) || '',
-                    dirty: false };
+                    dirty: false }, pending.meta.sessionMeta);
             } else if (config.liveSession) {
                 config.liveSession = { ...config.liveSession, dirty: true };
             }
@@ -1989,11 +2121,16 @@ async function deliver(config, token) {
 async function work() {
     const config = await settings();
     await interruptedSession(config);
-    const { token } = await http('/api/story/bridge-info');
+    let token = await getBridgeToken(config);
     if (config.outbox) {
+        markBridgeActivity();
         const pending = config.outbox;
         const stop = pulse(pending.request_id, pending.body.lease, token, pending.entry_mode);
-        try { await repairMemory(config); await deliver(config, token); } finally { stop(); }
+        try { await repairMemory(config); await deliver(config, token); }
+        catch (err) {
+            if (err && (err.statusCode === 401 || err.statusCode === 403)) invalidateBridgeToken();
+            throw err;
+        } finally { stop(); }
         return true;
     }
     const status = await http('/api/story/tasks');
@@ -2015,18 +2152,30 @@ async function work() {
         config.chatId = '';
         await PluginConfig.flush(config);
     }
+    const postWithToken = async (path, payload) => {
+        try {
+            return await http(path, payload, token);
+        } catch (err) {
+            if (err && (err.statusCode === 401 || err.statusCode === 403)) {
+                invalidateBridgeToken();
+                token = await getBridgeToken(config, true);
+                return await http(path, payload, token);
+            }
+            throw err;
+        }
+    };
     if (status.task && status.task.status === 'queued') {
         if (status.task.entry_mode !== 'live_interaction') {
             config.legacySaveEpoch = status.save_epoch || '';
             session = await ensureSession(config, model);
         }
-        response = await http('/api/story/worker/claim', { model }, token);
+        response = await postWithToken('/api/story/worker/claim', { model });
     } else {
-        try { response = await http('/api/story/scene/worker/claim', { model }, token); }
+        try { response = await postWithToken('/api/story/scene/worker/claim', { model }); }
         catch (error) { if (error.statusCode === 404) response = { task: null }; else throw error; }
     }
     if (!response || !response.task) {
-        response = await http('/api/story/worker/claim', { model }, token);
+        response = await postWithToken('/api/story/worker/claim', { model });
         if (response.task && response.task.entry_mode !== 'live_interaction') {
             config.legacySaveEpoch = response.task.save_epoch || status.save_epoch || '';
             session = await ensureSession(config, model);
@@ -2035,6 +2184,7 @@ async function work() {
     if (!response || !response.task) {
         return false;
     }
+    markBridgeActivity();
     const task = response.task;
     syncServiceEpoch(task.service_epoch);
     const stop = pulse(task.request_id, task.lease, token, task.entry_mode, () => {
@@ -2072,6 +2222,7 @@ async function work() {
         await PluginConfig.flush(config);
         await repairMemory(config);
         await deliver(config, token);
+        markBridgeActivity();
         return true;
     } finally { stop(); }
 }
@@ -2098,6 +2249,7 @@ async function startBridge(config) {
         config.enabled = true;
         await PluginConfig.flush(config);
         lastError = '';
+        markBridgeActivity();
         arm();
     })().catch(error => { lastError = String(error.message || error); throw error; })
         .finally(() => { starting = null; });
@@ -2138,12 +2290,25 @@ async function monitor() {
             lastError = String(err.message || err).slice(0, 500);
         }
         await resolveSettlementModel(config, model).catch(() => {});
-        const { token } = await http('/api/story/bridge-info');
-        const response = await http('/api/story/worker/control', { runtime: runtimeReport(config),
-            ack_id: config.controlAck || null, ack_error: config.controlError || '' }, token);
+        let token = await getBridgeToken(config);
+        const controlPayload = () => ({ runtime: runtimeReport(config),
+            ack_id: config.controlAck || null, ack_error: config.controlError || '' });
+        let response;
+        try {
+            response = await http('/api/story/worker/control', controlPayload(), token);
+        } catch (err) {
+            if (err && (err.statusCode === 401 || err.statusCode === 403)) {
+                invalidateBridgeToken();
+                token = await getBridgeToken(config, true);
+                response = await http('/api/story/worker/control', controlPayload(), token);
+            } else {
+                throw err;
+            }
+        }
         syncServiceEpoch(response && response.service_epoch);
         controlSupported = true;
         if (response.command && response.command.id !== config.controlAck) {
+            markBridgeActivity();
             const command = response.command;
             let error = '';
             try {
@@ -2174,15 +2339,29 @@ async function monitor() {
                 ack_id: command.id, ack_error: error }, token);
         }
     } catch (error) {
-        if (error.statusCode === 404) controlSupported = false;
+        if (error && error.statusCode === 404) controlSupported = false;
+        else if (!error || !error.statusCode || error.statusCode === 401 || error.statusCode === 403) invalidateBridgeToken();
         // A disconnected server is observed by heartbeat expiry; do not overwrite a useful session error.
     } finally { monitorBusy = false; }
 }
 
+function scheduleMonitor() {
+    if (!monitorStarted || monitorTimer !== null) return;
+    const delay = computeMonitorDelayMs();
+    monitorTimer = setTimeout(() => {
+        monitorTimer = null;
+        if (!monitorStarted) return;
+        void monitor().finally(() => { scheduleMonitor(); });
+    }, delay);
+    if (monitorTimer && typeof monitorTimer.unref === 'function') {
+        monitorTimer.unref();
+    }
+}
+
 function startMonitor() {
-    if (monitorTimer !== null) return;
-    monitorTimer = setInterval(() => { void monitor(); }, 6000);
-    void monitor();
+    if (monitorStarted) return;
+    monitorStarted = true;
+    void monitor().finally(() => { scheduleMonitor(); });
 }
 
 function cancelWaitSleep() {
@@ -2212,7 +2391,6 @@ function waitSleep(ms) {
 async function waitLoop() {
     if (waitLoopActive) return;
     waitLoopActive = true;
-    let cachedToken = '';
     let needTick = true;
     let spinCount = 0;
     try {
@@ -2233,20 +2411,20 @@ async function waitLoop() {
                 if (!running) break;
             }
             try {
-                if (!cachedToken) {
-                    const info = await http('/api/story/bridge-info');
-                    cachedToken = info && info.token || '';
-                }
-                const waited = await http('/api/story/worker/wait?since=' + workerSeq + '&timeout=25', undefined, cachedToken, 35);
+                const cfg = await settings();
+                const token = await getBridgeToken(cfg);
+                const waited = await http('/api/story/worker/wait?since=' + workerSeq + '&timeout=25', undefined, token, 35);
                 if (!running) break;
                 if (waited && waited.service_epoch) syncServiceEpoch(waited.service_epoch);
                 if (waited && Number.isSafeInteger(waited.seq)) workerSeq = waited.seq;
                 if (waited && waited.has_control) {
+                    markBridgeActivity();
                     await monitor();
                     if (!running) break;
                     if (!waited.has_task) { needTick = false; continue; }
                 }
                 if (waited && waited.has_task) {
+                    markBridgeActivity();
                     hadTaskSignal = true;
                     if (!lastTickDidWork) {
                         spinCount = Math.min(8, spinCount + 1);
@@ -2257,7 +2435,7 @@ async function waitLoop() {
                 }
                 if (!hadTaskSignal) spinCount = 0;
             } catch (_) {
-                cachedToken = '';
+                invalidateBridgeToken();
                 workerSeq = 0;
                 if (!running) break;
                 await waitSleep(2500);
@@ -2381,6 +2559,12 @@ async function receive(input = {}) {
         config.maxTurnsPerSession = n;
         await PluginConfig.flush(config);
         mutated = true;
+    } else if (action === 'sanitize_boilerplate') {
+        assertIdleForSettings(config, '调整宿主样板净化开关');
+        if (typeof input.sanitizeOperitBoilerplate !== 'boolean') throw new Error('宿主样板净化开关须为布尔值');
+        config.sanitizeOperitBoilerplate = input.sanitizeOperitBoilerplate;
+        await PluginConfig.flush(config);
+        mutated = true;
     } else if (action === 'update_settings') {
         assertIdleForSettings(config, '更新高级连接配置');
         if (input.workspacePath !== undefined) {
@@ -2400,6 +2584,10 @@ async function receive(input = {}) {
             const n = Number(input.maxTurnsPerSession);
             if (!Number.isInteger(n) || n < 2 || n > 30) throw new Error('自动切窗轮数须为2～30之间的整数');
             config.maxTurnsPerSession = n;
+        }
+        if (input.sanitizeOperitBoilerplate !== undefined) {
+            if (typeof input.sanitizeOperitBoilerplate !== 'boolean') throw new Error('宿主样板净化开关须为布尔值');
+            config.sanitizeOperitBoilerplate = input.sanitizeOperitBoilerplate;
         }
         await PluginConfig.flush(config);
         mutated = true;
@@ -2449,6 +2637,10 @@ async function receive(input = {}) {
             if (!Number.isInteger(n) || n < 2 || n > 30) throw new Error('maxTurnsPerSession须为2～30之间的整数');
             config.maxTurnsPerSession = n;
         }
+        if (input.sanitizeOperitBoilerplate !== undefined) {
+            if (typeof input.sanitizeOperitBoilerplate !== 'boolean') throw new Error('sanitizeOperitBoilerplate须为布尔值');
+            config.sanitizeOperitBoilerplate = input.sanitizeOperitBoilerplate;
+        }
         if (input.resetSession === true) {
             await resetLiveSession(config, '玩家手动重建');
             config.chatId = ''; config.sceneSession = null;
@@ -2465,6 +2657,7 @@ async function receive(input = {}) {
         await resolveSettlementModel(config, model).catch(() => {});
         if (mutated && lastError && /^故事主模型|^故事专属主模型|^无法读取 Operit 功能模型|^故事功能未绑定/.test(lastError)) lastError = '';
     } catch (error) { lastError = String(error.message || error); }
+    if (mutated) markBridgeActivity();
     if (mutated && !input._fromMonitor) void monitor();
 
     const settleThinkMode = effectiveSettlementThinkingMode(config);
@@ -2479,6 +2672,7 @@ async function receive(input = {}) {
         settlementThinkingMode: settleThinkMode,
         settlementModel: settlementModelInfo, settlementFallback: !!settlementFallback,
         maxTurnsPerSession: liveMaxTurns(config),
+        sanitizeOperitBoilerplate: config.sanitizeOperitBoilerplate !== false,
         pendingResult: config.outbox !== null, lastError,
         mode: 'operit_session', workspacePath: config.workspacePath, endpoint: config.endpoint,
         liveSession: liveSessionView(config),
@@ -2488,13 +2682,16 @@ async function receive(input = {}) {
 }
 
 async function restore() {
+    markBridgeActivity();
     startMonitor();
     if ((await settings()).enabled) arm();
 }
 
 function terminate() {
-    if (monitorTimer !== null) clearInterval(monitorTimer);
+    monitorStarted = false;
+    if (monitorTimer !== null) clearTimeout(monitorTimer);
     monitorTimer = null;
+    invalidateBridgeToken();
     running = false;
     cancelWaitSleep();
     if (timer !== null) clearInterval(timer);
@@ -2657,6 +2854,12 @@ function registerToolPkg() {
     return true;
 }
 exports.composeStorySystemPrompt = composeStorySystemPrompt;
+exports.sanitizeOperitCorePrompt = sanitizeOperitCorePrompt;
+exports.computeMonitorDelayMs = computeMonitorDelayMs;
+exports.markBridgeActivity = markBridgeActivity;
+exports.invalidateBridgeToken = invalidateBridgeToken;
+exports.getBridgeToken = getBridgeToken;
+exports.monitor = monitor;
 exports.filterStoryTools = filterStoryTools;
 exports.interceptStoryToolCall = interceptStoryToolCall;
 exports.finalizeStoryPrompt = finalizeStoryPrompt;

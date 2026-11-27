@@ -1074,6 +1074,104 @@ class SaveArchitectureV2Tests(unittest.TestCase):
         self.assertLess(len(z0_a), 9200)
         self.assertLess(len(z1_a), 6800)
 
+    def test_12_memory_fingerprint_dedup_and_500_turn_delta_budget(self):
+        """Verify exclude_fingerprints deduplicates unchanged anchors/episodes/chronicle,
+        NEVER drops NOW (pending_buffer), auto-re-emits modified anchors via anchor_ops.update,
+        preserves K01 epistemic isolation, and keeps Turn 2+ memory view compact."""
+        ms = save_store.default_memory_store('', prologue_active=False)
+        ms = save_store.record_memory_turn(
+            ms,
+            fact='徐志北与沈知韫在书房商定核对海外信托。',
+            anchor_ops=[
+                {'op': 'add', 'kind': 'promise', 'importance': 5, 'text': '约定下周核对海外信托。', 'private_host': False},
+                {'op': 'add', 'kind': 'secret', 'importance': 5, 'text': '老宅保险柜存着千亿遗产唯一继承人遗嘱。', 'private_host': False},
+            ],
+            day=1, time_str='20:00', location='徐家主宅', sub_location='二楼书房',
+            known_by=['徐志北', '沈知韫'], secrets_unlocked=(),
+        )
+        promise_id = ms['anchors'][0]['id']
+        # Su Wanqing private turn at apartment (flushes Shen's buffer into EP + adds Su private anchor)
+        ms = save_store.record_memory_turn(
+            ms,
+            fact='苏婉青在公寓答应私下补账。',
+            anchor_ops=[{'op': 'add', 'kind': 'clue', 'importance': 4, 'text': '苏婉青在公司会议后同意私下补账。', 'private_host': False}],
+            day=2, time_str='14:00', location='市中心顶层公寓',
+            known_by=['徐志北', '苏婉青'], secrets_unlocked=(),
+        )
+        # Simulate ongoing multi-day history + current NOW pending_buffer in 徐家主宅 with 沈知韫
+        for i in range(3, 25):
+            digest = None
+            if save_store.needs_chronicle_archive(ms):
+                digest = {
+                    'public': f'第{i}日前主宅日常推进摘要。',
+                    'views': {'沈知韫': f'书房对账进展{i}。'},
+                }
+            ms = save_store.record_memory_turn(
+                ms,
+                fact=f'第{i}轮书房商议细节。',
+                chronicle_digest=digest,
+                day=i, time_str='20:30', location='徐家主宅',
+                known_by=['徐志北', '沈知韫'], overnight=True, secrets_unlocked=(),
+            )
+        # Final active turn sitting in pending_buffer (NOW)
+        ms = save_store.record_memory_turn(
+            ms,
+            fact='刚在书房聊完信托条款，茶还没凉。',
+            day=26, time_str='21:00', location='徐家主宅',
+            known_by=['徐志北', '沈知韫'], secrets_unlocked=(),
+        )
+
+        def _join_view(mv):
+            parts = list(mv.get('shared_scene_memory') or [])
+            for vals in (mv.get('actor_private_memory') or {}).values():
+                parts.extend(vals or [])
+            parts.extend(mv.get('host_private_memory') or [])
+            return '\n'.join(parts)
+
+        # Turn 1: full retrieval emits selected_fingerprints, keeps NOW & promise, isolates Su Wanqing
+        mv1 = save_store.retrieve_memory_view(
+            ms, query='信托', cast=['沈知韫'], present_actors=['沈知韫'], location='徐家主宅',
+            max_chars=3600, incremental=False,
+        )
+        txt1 = _join_view(mv1)
+        self.assertTrue(mv1['selected_fingerprints'])
+        self.assertIn('刚在书房聊完信托条款', txt1)
+        self.assertIn('约定下周核对海外信托', txt1)
+        shen_visible = '\n'.join(list(mv1.get('shared_scene_memory') or []) + list((mv1.get('actor_private_memory') or {}).get('沈知韫') or []))
+        self.assertNotIn('补账', shen_visible, 'Su Wanqing private anchor must remain epistemically isolated from Shen Zhiyun')
+
+        # Turn 2: passing Turn 1 fingerprints deduplicates unchanged anchors/episodes/chronicle while NEVER dropping NOW!
+        mv2 = save_store.retrieve_memory_view(
+            ms, query='信托', cast=['沈知韫'], present_actors=['沈知韫'], location='徐家主宅',
+            max_chars=1400, incremental=True, exclude_fingerprints=mv1['selected_fingerprints'],
+        )
+        txt2 = _join_view(mv2)
+        self.assertIn('刚在书房聊完信托条款', txt2, 'NOW (pending_buffer) must NEVER be deduplicated')
+        self.assertNotIn('约定下周核对海外信托', txt2, 'Unchanged anchor must be deduplicated on Turn 2')
+        self.assertLess(mv2['used_chars'], 600, 'Turn 2 incremental memory view must stay ultra-compact')
+
+        # Turn 3: updating anchor via anchor_ops changes its content hash -> auto-re-emits even with Turn 1 fps excluded!
+        ms = save_store.record_memory_turn(
+            ms,
+            fact='',
+            anchor_ops=[{'op': 'update', 'id': promise_id, 'text': '约定明天上午十点当面核对海外信托原件。'}],
+            day=26, time_str='21:05', location='徐家主宅',
+            known_by=['徐志北', '沈知韫'], secrets_unlocked=(),
+        )
+        mv3 = save_store.retrieve_memory_view(
+            ms, query='信托', cast=['沈知韫'], present_actors=['沈知韫'], location='徐家主宅',
+            max_chars=1400, incremental=True, exclude_fingerprints=mv1['selected_fingerprints'],
+        )
+        self.assertIn('明天上午十点当面核对海外信托原件', _join_view(mv3), 'Updated anchor must auto-re-emit on content hash change')
+
+        # Epistemic isolation when only 徐念薇 is in room: K01 secret MUST NOT leak into shared or 徐念薇 private memory!
+        mv_nv = save_store.retrieve_memory_view(
+            ms, query='遗嘱 继承人', cast=['徐念薇'], present_actors=['徐念薇'], location='徐家主宅',
+            max_chars=3600, incremental=False,
+        )
+        nv_visible = '\n'.join(list(mv_nv.get('shared_scene_memory') or []) + list((mv_nv.get('actor_private_memory') or {}).get('徐念薇') or []))
+        self.assertNotIn('唯一继承人遗嘱', nv_visible, 'K01 secret must NEVER leak to 徐念薇')
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

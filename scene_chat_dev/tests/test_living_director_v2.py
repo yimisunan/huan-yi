@@ -441,8 +441,9 @@ class LivingDirectorV2Tests(unittest.TestCase):
         )
         spec1 = mat1['settlement_spec']
         self.assertIn('director_echo', spec1['system_prompt'])
+        self.assertIn('channels_enum=', spec1['system_prompt'])
         self.assertIn('director_context', spec1['user_context'])
-        self.assertEqual(len(spec1['user_context']['director_context']['channels_enum']), 8)
+        self.assertNotIn('channels_enum', spec1['user_context']['director_context'])
         z0_sha_1 = mat1['zone0_sha256']
         z1_sha_1 = mat1['zone1_sha256']
 

@@ -190,7 +190,72 @@ function createBox(initialConfig = {}) {
         null
     );
 
-    console.log('BRIDGE_SELF_HOSTED_OK native model:chat, zero character_cards, write/readExtension hydration, system/tool/worldbook hooks & non-bridge isolation verified');
+    // 7. v2.3.0 Operit 2 zh/en AGENTS.md & host boilerplate sanitization (live-only, preserves tools, toggleable).
+    const fakeAgents = '# AGENTS.md\n' + '规则正文。'.repeat(1800);
+    const zhPrompt = [
+        '你是 Operit，一个由人工智能驱动的全能助手，能够执行各种任务。',
+        '',
+        '工作区指南：当前工作区为 /fixture',
+        '',
+        '<workspace_rule_file name="AGENTS.md">\n' + fakeAgents + '\n</workspace_rule_file>',
+        '',
+        '包系统：\n- 使用 use_package 激活扩展包',
+        '',
+        '文件同步：\n- 自动同步本地文件变更到工作区',
+        '',
+        '附件：\n- 用户可上传图片或文档附件',
+        '',
+        '可用工具：\n- read_file_part: 按行号读取文件',
+    ].join('\n');
+    const zhComposed = await b1.exports.composeStorySystemPrompt({
+        eventPayload: { stage: 'compose_system_prompt_sections', chatId: 'native-chat-1', systemPrompt: zhPrompt },
+    });
+    assert(zhComposed && zhComposed.systemPrompt.startsWith('ZONE0_TEXT\n\nZONE1_TEXT'));
+    assert(!zhComposed.systemPrompt.includes('<workspace_rule_file'), 'must strip AGENTS.md workspace_rule_file on live chat');
+    assert(!zhComposed.systemPrompt.includes('规则正文。'), 'must strip AGENTS.md body on live chat');
+    assert(!zhComposed.systemPrompt.includes('包系统：'), 'must strip PACKAGE SYSTEM on live chat');
+    assert(!zhComposed.systemPrompt.includes('文件同步：'), 'must strip FILE SYNC on live chat');
+    assert(!zhComposed.systemPrompt.includes('附件：'), 'must strip ATTACHMENTS on live chat');
+    assert(!zhComposed.systemPrompt.includes('你是 Operit'), 'must strip generic Operit intro on live chat');
+    assert(zhComposed.systemPrompt.includes('工作区指南'), 'must preserve workspace guidance');
+    assert(zhComposed.systemPrompt.includes('可用工具') && zhComposed.systemPrompt.includes('read_file_part'), 'must preserve readonly tools section');
+    assert(zhComposed.systemPrompt.length < zhPrompt.length - 8000, 'must reclaim 8K+ chars of AGENTS.md overhead');
+
+    const enPrompt = [
+        'You are Operit, an all-purpose AI assistant capable of handling many tasks.',
+        '',
+        'Workspace Guidelines: /fixture',
+        '',
+        '<workspace_rule_file name="AGENTS.md">\n' + fakeAgents + '\n</workspace_rule_file>',
+        '',
+        'FILE SYNC:\n- Auto sync files',
+        '',
+        'ATTACHMENTS:\n- User attachments',
+        '',
+        'AVAILABLE TOOLS:\n- read_file_part: read lines',
+    ].join('\n');
+    const enSanitized = b1.exports.sanitizeOperitCorePrompt(enPrompt, true);
+    assert(!enSanitized.includes('<workspace_rule_file') && !enSanitized.includes('FILE SYNC:') && !enSanitized.includes('ATTACHMENTS:') && !enSanitized.includes('You are Operit'));
+    assert(enSanitized.includes('Workspace Guidelines') && enSanitized.includes('AVAILABLE TOOLS:') && enSanitized.includes('read_file_part'));
+
+    // Scene chat (role !== 'live') must NOT strip AGENTS.md / boilerplate.
+    const sScene = await vm.runInContext('ensureSession(config, model, "scene")', b1);
+    const sceneComposed = await b1.exports.composeStorySystemPrompt({
+        eventPayload: { stage: 'compose_system_prompt_sections', chatId: sScene.chatId, systemPrompt: zhPrompt },
+    });
+    assert(sceneComposed === null || sceneComposed.systemPrompt.includes('<workspace_rule_file'), 'non-live scene chat must not strip AGENTS.md');
+
+    // Toggle sanitizeOperitBoilerplate=false falls back to preserving AGENTS.md while keeping package stripping.
+    const bNoSan = createBox({ sanitizeOperitBoilerplate: false });
+    await vm.runInContext('ensureSession(config, model, "live")', bNoSan);
+    await vm.runInContext('syncLivePrefixes(config, model, { chatId: "native-chat-1", participantId: "model:chat" }, "ZONE0_TEXT", "ZONE1_TEXT", "sha0", "sha1")', bNoSan);
+    const noSanComposed = await bNoSan.exports.composeStorySystemPrompt({
+        eventPayload: { stage: 'compose_system_prompt_sections', chatId: 'native-chat-1', systemPrompt: zhPrompt },
+    });
+    assert(noSanComposed && noSanComposed.systemPrompt.includes('<workspace_rule_file'), 'sanitizeOperitBoilerplate=false must preserve AGENTS.md');
+    assert(!noSanComposed.systemPrompt.includes('包系统：'), 'package system strip remains active even when boilerplate sanitize is off');
+
+    console.log('BRIDGE_SELF_HOSTED_OK native model:chat, zero character_cards, write/readExtension hydration, system/tool/worldbook/AGENTS hooks & non-bridge isolation verified');
 })().catch(error => {
     console.error(error);
     process.exitCode = 1;

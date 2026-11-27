@@ -132,7 +132,7 @@ class StoryService:
             return {'speed_scale': 0.95, 'expressive_boost': 0.02}
         return {}
 
-    def _trigger_tts_prewarm(self, messages, *, dedup_prefix=''):
+    def _trigger_tts_prewarm(self, messages, *, dedup_prefix='', stage='streaming'):
         fn = self._tts_prewarmer
         if not callable(fn) or not messages:
             return
@@ -146,6 +146,20 @@ class StoryService:
         except (OSError, ValueError):
             voice_cfg_rev = '0'
         v_settings = voice_cfg.get('__settings__') if isinstance(voice_cfg.get('__settings__'), dict) else {}
+        voice_tier = str(v_settings.get('voice_tier') or 'free').strip().lower()
+        is_paid_tier = voice_tier not in ('', 'free')
+        if is_paid_tier:
+            # Paid TTS safeguard (free tier stays 100% untouched):
+            # 1) Never burn paid credits while client voice playback is muted;
+            # 2) Wait until Stage 1 finishes ('settling') so retried/partial streaming drafts never bill;
+            # 3) Cap prewarm to top 2 lines.
+            if not ir.load_story_prefs(self.root).get('voice_playback_enabled', True):
+                return
+            if stage == 'streaming':
+                return
+            max_candidates = 2
+        else:
+            max_candidates = 3
         protag_enabled = bool(v_settings.get('protagonist_voice_enabled', False))
         protag_usable = protag_enabled and self._has_usable_voice_slot(voice_cfg.get('徐志北'))
         action_mode = str(v_settings.get('action_voice_mode') or 'follow_narrator').strip().lower()
@@ -205,7 +219,7 @@ class StoryService:
             if prosody:
                 item.update(prosody)
             candidates.append(item)
-            if len(candidates) >= 3:
+            if len(candidates) >= max_candidates:
                 break
         if candidates:
             try:
@@ -312,6 +326,16 @@ class StoryService:
         except (OSError, ValueError, TypeError, AttributeError) as exc:
             raise rr.RecoveryError('新档标识无效，请检查清理器恢复记录') from exc
 
+    def _prefs_epoch(self):
+        prefs = ir.load_story_prefs(self.root)
+        z0_slice = {
+            'protagonist_style': prefs.get('protagonist_style', 'faithful'),
+            'custom_rules_enabled': bool(prefs.get('custom_rules_enabled', False)),
+            'custom_rules_position': prefs.get('custom_rules_position', 'append'),
+            'custom_rules_text': prefs.get('custom_rules_text', ''),
+        }
+        return rr._digest(rr._json(z0_slice))[:16]
+
     def start(self):
         self._reset_guard()
         with self.start_lock:
@@ -369,7 +393,7 @@ class StoryService:
             return {'control_supported': True, 'present': connected, 'phase': 'legacy' if connected else 'offline',
                     'running': connected, 'busy': False, 'last_error': '',
                     'expected_plugin_version': expected_ver, 'control': command}
-        present = now - monitor['received_at'] < 15
+        present = (now - monitor['received_at'] < 45) or (now - getattr(self, '_last_worker_wait_at', 0.0) < 40)
         extra = {}
         for opt_key in (
             'dual_stage', 'primary_model_mode', 'primary_function_type',
@@ -1763,6 +1787,7 @@ class StoryService:
 
     def worker_wait(self, since_seq=0, timeout=25.0):
         self.start()
+        self._last_worker_wait_at = time.time()
         has_task, has_control = self._pending_flags()
         if has_task or has_control:
             seq = self.hub.worker_seq
@@ -1770,6 +1795,7 @@ class StoryService:
             return {'wake': True, 'reason': reason, 'seq': seq, 'worker_seq': seq,
                     'has_task': has_task, 'has_control': has_control, 'service_epoch': self.service_epoch}
         seq = self.hub.wait_worker(since_seq, timeout=timeout)
+        self._last_worker_wait_at = time.time()
         has_task, has_control = self._pending_flags()
         wake = has_task or has_control or seq > since_seq
         reason = 'task' if has_task else ('control' if has_control else ('event' if seq > since_seq else 'timeout'))
@@ -1823,8 +1849,9 @@ class StoryService:
                               'dual_stage_protocol': 1 if job.get('entry_mode') == ir.MODE else 0,
                               'resume_stage2': bool(job.get('resume_stage2')),
                               'entry_mode': job.get('entry_mode'), 'save_epoch': self._save_epoch(),
+                              'prefs_epoch': self._prefs_epoch(),
                               'interaction_scope': context.get('interaction_scope'),
-                              'packet_bytes': self.store._path(context['packet']['path']).stat().st_size if context.get('packet') else 0,
+                              'packet_bytes': self.store._path(context['packet']['path']).stat().st_size if context.get('packet') and self.store._path(context['packet']['path']).is_file() else 0,
                               'story_protocol': STORY_PROTOCOL, 'reading_preflight': 1,
                               'round_identity': {'schema_version': 1, **{field: job[field] for field in
                                   ('request_id', 'base_revision', 'current_round')}}}}
@@ -1850,7 +1877,8 @@ class StoryService:
         # continuity_hook: 桥接在重建会话时携带的跨窗续接钩子，已正式透传至 material_delivery_v2 承接尾句。
         opt_keys = {'delivery_version', 'protocol_mode', 'synced_zone0_sha256',
                     'synced_zone1_sha256', 'last_committed_sequence', 'is_fresh_session',
-                    'continuity_hook'}
+                    'continuity_hook', 'synced_zone1_flags', 'injected_refs', 'injected_guides',
+                    'injected_memory_fps', 'prev_state_hashes'}
         rr._keys(body, {'lease', 'chat_id', 'participant_id'} | opt_keys, '程序资料交付',
                  {'lease', 'chat_id', 'participant_id'})
         for field in ('chat_id', 'participant_id'):
@@ -1918,7 +1946,7 @@ class StoryService:
             self._stream_preview[key] = preview
         self.hub.publish('story_stream', preview)
         if clean_msgs and stage in ('streaming', 'settling'):
-            self._trigger_tts_prewarm(clean_msgs[:5], dedup_prefix=key)
+            self._trigger_tts_prewarm(clean_msgs[:5], dedup_prefix=key, stage=stage)
         return {'ok': True, 'count': len(clean_msgs)}
 
     def heartbeat(self, key, lease):

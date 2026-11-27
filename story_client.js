@@ -3302,8 +3302,10 @@
           e.stopPropagation();
           haptic(8);
           unlock();
+          const wasMuted = !cache.voice;
           cache.voice = true;
           save();
+          if (wasMuted) syncVoicePlaybackPref(true);
           void speak({ kind, speaker: '', text }, id);
         };
         actions.append(replay);
@@ -3404,8 +3406,10 @@
             e.stopPropagation();
             haptic(8);
             unlock();
+            const wasMuted = !cache.voice;
             cache.voice = true;
             save();
+            if (wasMuted) syncVoicePlaybackPref(true);
             void speak({ kind, speaker, text }, id);
           };
           actions.append(replay);
@@ -6240,6 +6244,7 @@
     const curDirectorPacing = ['slow', 'standard', 'frequent'].includes(snapshot?.preferences?.director_pacing)
       ? snapshot.preferences.director_pacing
       : 'standard';
+    const curAnchorHistoryMode = snapshot?.preferences?.anchor_history_mode === 'full' ? 'full' : 'balanced';
 
     // Sub-tab 1: Display, Narrative & Haptics
     if (subKey === 'display') {
@@ -6277,6 +6282,20 @@
             if (snapshot && res?.preferences) snapshot.preferences = res.preferences;
             const labels = { slow: '慢热写实', standard: '标准节奏', frequent: '密集邂逅' };
             toast(`女主意外节奏已设为「${labels[v] || v}」（下幕生效）`);
+            renderWorld(true);
+          } catch (err) {
+            toast('保存偏好失败：' + (err?.message || err));
+          } finally {
+            backendPrefBusy = false;
+          }
+        }),
+        mkSwitchRow('开窗回溯模式', '均衡模式保留近2幕完整原文+三轨记忆（省量连贯）；完整模式保留近6幕全量原文', [['balanced', '均衡（推荐）'], ['full', '完整6幕']], curAnchorHistoryMode, async v => {
+          if (backendPrefBusy) return;
+          backendPrefBusy = true;
+          try {
+            const res = await api('preferences', { anchor_history_mode: v });
+            if (snapshot && res?.preferences) snapshot.preferences = res.preferences;
+            toast(v === 'balanced' ? '开窗回溯已设为「均衡模式」（下次开窗生效）' : '开窗回溯已设为「完整6幕」（下次开窗生效）');
             renderWorld(true);
           } catch (err) {
             toast('保存偏好失败：' + (err?.message || err));
@@ -8062,11 +8081,18 @@
     await dispatch();
   }
 
+  function syncVoicePlaybackPref(enabled) {
+    void api('preferences', { voice_playback_enabled: !!enabled }).then(res => {
+      if (snapshot && res?.preferences) snapshot.preferences = res.preferences;
+    }).catch(() => {});
+  }
+
   function toggleVoice() {
     haptic(8);
     unlock();
     cache.voice = !cache.voice;
     save();
+    syncVoicePlaybackPref(cache.voice);
     if (!cache.voice) {
       stopVoice();
       toast('语音已静音');
@@ -8172,8 +8198,10 @@
     if (!audioMessage) return;
     haptic(8);
     unlock();
+    const wasMuted = !cache.voice;
     cache.voice = true;
     save();
+    if (wasMuted) syncVoicePlaybackPref(true);
     void speak(audioMessage.m, audioMessage.id);
   };
 

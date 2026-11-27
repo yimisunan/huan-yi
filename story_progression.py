@@ -3606,6 +3606,20 @@ def contract(root=None,kind='action',option_id=None,*,intimate_mode=False):
             'sleep':{'kind':'none|collapse|interrupted|overnight','start':None,'evidence':''},'task':None,'items':[]}
 
 
+def _is_v2_bridge_active(tasks):
+    """Return True when a recent v2.x bridge plugin heartbeat is recorded, enabling lazy live.txt skipping."""
+    mon = (tasks or {}).get('bridge_monitor')
+    if not isinstance(mon, dict):
+        return False
+    ver = str(mon.get('plugin_version') or '').strip()
+    if not ver.startswith('2.'):
+        return False
+    rec_at = mon.get('received_at')
+    if not isinstance(rec_at, (int, float)):
+        return False
+    return (time.time() - float(rec_at)) < 600
+
+
 def create(service,body,retry_key=None,resume_stage2=False):
     service.start()
     rr._keys(body,{'request_id','base_revision','action','model_key','entry_mode','operation','save_epoch','selection'},'提交',{'request_id','base_revision','action','entry_mode','save_epoch','selection'})
@@ -3614,8 +3628,10 @@ def create(service,body,retry_key=None,resume_stage2=False):
     rr._text(action,'action',2000)
     model_key=service._model_key(body);selected=body['selection'];command=body.get('operation')
     import interaction_runtime as ir
+    lazy_live_txt = False
     with service.store._locked():
         tasks=service._read();service._expire(tasks)
+        lazy_live_txt = bool(getattr(service, '_v2_lazy_packet', False) or _is_v2_bridge_active(tasks))
         existing=tasks['jobs'].get(key)
         if existing and retry_key is None:
             if any(existing.get(k)!=body.get(k) for k in ('base_revision','action','entry_mode','save_epoch','selection','operation','model_key')):
@@ -3649,7 +3665,7 @@ def create(service,body,retry_key=None,resume_stage2=False):
         if cost['kind']=='item':
             context={'protocol':3,'interaction_protocol':3,'entry_mode':ir.MODE,'audit':{n:rr._digest(service.store._path(n).read_bytes()) for n in ('story_progression.py','injection_core.py','txt文件/互动运行配置.json','txt文件/事件注册表.json')},'system_item':True,'command':command,'selection':selected}
         else:
-            context=ir.packet(service,prepared,key,action,command,previous_error=previous_error,selected=selected,reservation=job['reservation'])
+            context=ir.packet(service,prepared,key,action,command,previous_error=previous_error,selected=selected,reservation=job['reservation'],lazy_live_txt=lazy_live_txt)
         with service.store._locked():
             tasks=service._read();current=tasks['jobs'][key]
             if current['status']!='preparing' or current['reservation']!=job['reservation']:raise rr.ConflictError('任务已取消')

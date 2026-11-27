@@ -49,11 +49,12 @@
   - `seq`：全部客户端可见事件序号（`bridge_control`, `bridge_state`, `save_reset`, `task_state`, `committed`, `story_stream`）。
   - `worker_seq`：仅当 `publish(..., wake_worker=True)` 时递增（新任务入队 `queued`、实验场景入队/重试或网页下发 `bridge_control` 指令）。
 
-### 2.2 Worker Long-Polling（`GET /api/story/worker/wait`, `L1158-1192, 1670-1680`）
+### 2.2 Worker Long-Polling（`GET /api/story/worker/wait`）与自适应保活
 - 取代传统 3 秒轮询，实现秒级领单与零空转功耗：
-  1. 进接口立即检查 `_pending_flags()`（是否有正式 `queued` 任务、120s 内未确认的 `bridge_control` 指令，或 `scene_chat` SQLite 中的 `queued` 任务）。
-  2. 有待办立即返回 `{wake: true, reason: "task"|"control", seq, worker_seq, has_task, has_control}`。
+  1. 进接口与返回前同步刷新进程内内存时间戳 `self._last_worker_wait_at`（零磁盘写入），并立即检查 `_pending_flags()`（是否有正式 `queued` 任务、120s 内未确认的 `bridge_control` 指令，或 `scene_chat` SQLite 中的 `queued` 任务）。
+  2. 有待办立即返回 `{wake: true, reason: "task"|"control", seq, worker_seq, has_task, has_control, service_epoch}`。
   3. 否则阻塞在 `hub.wait_worker(since_seq, timeout)`（`timeout` 钳位 `[0.2, 25.0]` 秒），被事件唤醒或超时后复查 `_pending_flags()` 返回。
+  - `_bridge_view()` 结合 `monitor.received_at < 45s` 与 `_last_worker_wait_at < 40s` 判定桥接在线，配合桥接插件 `6s` 活跃 / `30s` 空闲退避心跳，空闲永不误报离线。
   - `scene_chat.py` 在提交实验消息与重试时均同步调用 `story.hub.publish('scene_task', ..., wake_worker=True)`，实现实验任务秒级唤醒。
 
 ### 2.3 浏览器 SSE 推送流（`GET /api/story/stream`, `L1605-1629`）
@@ -61,14 +62,14 @@
 - 连接建立立刻发送 `event: ready\ndata: {"seq": N}\n\n`；此后每轮最长等 15s，超时发 `: keepalive\n\n`，有事件则推 `id: <seq>\nevent: <type>\ndata: <json>\n\n`。
 - 推送事件类型：`story_stream`（流式预览帧）、`committed`（事务落盘完成）、`task_state`（任务状态变更）、`bridge_state`（桥接运行态/模型/配置变化）、`save_reset`（新档重置完成）。
 
-### 2.4 纯内存 `_stream_preview` 与 `allow_settlement_retry` 协议
-- **纯内存预览（[`stream_chunk()`](../../story_service.py#L1280-L1325)）**：
+### 2.4 纯内存 `_stream_preview`、付费语音预热门禁与 `allow_settlement_retry` 协议
+- **纯内存预览与分级语音预热（[`stream_chunk()`](../../story_service.py) & [`_trigger_tts_prewarm()`](../../story_service.py)）**：
   - 仅在任务为 `live_interaction` 且处于 `generating`、持有合法租约时接受 `POST /api/story/worker/<key>/stream`。
-  - 要求单调 `revision >= 0`（旧帧忽略）、`stage ∈ {'thinking', 'streaming', 'settling'}`，并按 `context['cast']` 过滤非法说话人与超长句（≤4000 字传输防呆）。
+  - 要求单调 `revision >= 0`（旧帧忽略）、`stage ∈ {'thinking', 'streaming', 'settling'}`，并按 `context['cast']` 过滤非法说话人与超长句（≤4000 字传输防呆）；流式到达触发 `_trigger_tts_prewarm(..., stage=stage)`：默认免费档 `voice_tier: "free"` 保持 100% 原样（`streaming`/`settling` 均预热前 3 句），切换付费档时自动启用保护门禁（客户端静音跳过、跳过 `streaming` 待 `settling` 再预热且限前 2 句）。
   - 数据仅存 `self._stream_preview` 内存字典，**绝不写入 `tasks.json` 或 `RoundStore`**；在 `new_game`、`claim`、租约超时、失败、取消或 `_finish()` 结束时立即 `_clear_preview()`。
-- **后台结算原地重试协议（[`result()`](../../story_service.py#L1411-L1485)）**：
-  - 双阶段第 1、2 次提交携带 `allow_settlement_retry: true` 与 `dual_stage_version: 1`；服务端在写入 `.result.txt` 切 `validating` 之前，先试运行 `ir.assemble()` 与 `ir.validate()`。
-  - 若抛 `RoundError`（非 `ConflictError`）且错误原因**不含** Stage 1 前台/红线不可重试关键字（`'前台演播'` / `'红线拦截'` / `'角色不在场或代写玩家台词'` / `'动作角色不在场'` / `'旁白不能携带说话人'` / `'message.text'` / `'消息类型无效'` / `'剧情须为非空节点数组'`），判定为可重试的后台结算字段错（例外：错误含 `可补充 fallback_decision` 时，因前台正文与红线已通过，同样判定可重试，仅要求 Stage 2 补 `fallback_decision`）：**保留 `generating` 状态、租约与预扣不退**，返回 HTTP `200 {"retryable_settlement": true, "error": "...", "task": ...}`，供桥接原地重跑 `SUMMARY`（不重跑前台剧情）；若命中 Stage 1 不可重试错则立刻结束不烧 Stage 2 额度。
+- **后台结算原地重试协议（[`result()`](../../story_service.py)）**：
+  - 双阶段第 1、2 次提交携带 `allow_settlement_retry: true` 与 `dual_stage_version: 1`；服务端先经 `_sanitize_settlement_mechanical_noise()` 清洗无歧义机械噪声，再试运行 `ir.assemble()` 与 `ir.validate()`。
+  - 若抛 `RoundError`（非 `ConflictError`）且错误原因**不含** Stage 1 前台/红线不可重试关键字（例外：错误含 `可补充 fallback_decision` 时允许补全），**保留 `generating` 状态、租约与预扣不退**，返回 HTTP `200 {"retryable_settlement": true, "error": "...", "task": ...}` 供桥接原地重跑 Stage 2；命中 Stage 1 不可重试错则立刻结束不烧 Stage 2 额度。
 
 ---
 
@@ -125,18 +126,18 @@
 | 20 | `POST` | `/api/story/passive/upgrade` | Client | `{request_id, base_revision, save_epoch, target}` | 确定性 0 体力将目标女主被动升阶 `Lv.N→Lv.(N+1)` |
 | 21 | `POST` | `/api/story/intel/acquire` | Client | `{request_id, base_revision, save_epoch, intel_id}` | 确定性 0 体力获取一次性商业情报 |
 | 22 | `POST` | `/api/story/intel/leverage` | Client | `{request_id, base_revision, save_epoch, armed, intel_id?}` | 确定性 0 体力武装/解除商业杠杆 |
-| 23 | `GET` | `/api/story/bridge-info` | 同源 | — | 读取或懒生成 `.round-runtime/story/bridge-key.json` 返回 `{token}` |
+| 23 | `GET` | `/api/story/bridge-info` | 同源 | — | 读取或懒生成 `.round-runtime/story/bridge-key.json` 返回 `{token}`（插件侧缓存复用） |
 | 24 | `POST` | `/api/story/bridge/control` | Client | `{action, ...}` | 下发桥接控制指令并 `wake_worker=True` |
-| 25 | `POST` | `/api/story/worker/control` | Bridge | `{runtime, ack_id?, ack_error?}` | 插件每 6s 上报运行态与确认指令结果 |
-| 26 | `GET` | `/api/story/worker/wait` | Bridge | `?since=<int>&timeout=<float>` | Long-Polling 等待剧情任务或控制指令 |
-| 27 | `POST` | `/api/story/worker/claim` | Bridge | `{model?}` | 领取队首 `queued` 剧情任务，签发 120s `lease` |
+| 25 | `POST` | `/api/story/worker/control` | Bridge | `{runtime, ack_id?, ack_error?}` | 插件自适应（活跃 6s / 空闲 30s）上报运行态与确认指令结果 |
+| 26 | `GET` | `/api/story/worker/wait` | Bridge | `?since=<int>&timeout=<float>` | Long-Polling 等待剧情任务或控制指令，同步刷新内存保活时间 |
+| 27 | `POST` | `/api/story/worker/claim` | Bridge | `{model?}` | 领取队首 `queued` 剧情任务，签发 120s `lease` 并附带仅哈希 Zone 0 偏好的 `prefs_epoch` |
 | 28 | `POST` | `/api/story/worker/shop-inquiry/claim` | Bridge | `{}` | 兼容 `v2.1.8` 桥接插件的静默空返回路由（恒返 `{"inquiry": null}`，免重装 `.toolpkg`） |
-| 29 | `POST` | `/api/story/worker/<key>/material` | Bridge | `{lease, chat_id, participant_id, ...}` | 颁发 v1 / v2 冻结资料与 `settlement_spec` |
-| 30 | `POST` | `/api/story/worker/<key>/stream` | Bridge | `{lease, stage, messages?, revision?}` | 上报瞬时流式预览节点并广播 SSE `story_stream` |
+| 29 | `POST` | `/api/story/worker/<key>/material` | Bridge | `{lease, chat_id, participant_id, synced_zone1_flags?, injected_refs?, injected_guides?, injected_memory_fps?, prev_state_hashes?, ...}` | 颁发 v1 / v2 冻结资料、`settlement_spec` 与待提交 `session_meta` |
+| 30 | `POST` | `/api/story/worker/<key>/stream` | Bridge | `{lease, stage, messages?, revision?}` | 上报瞬时流式预览节点、广播 SSE `story_stream` 并触发分档语音预热 |
 | 31 | `POST` | `/api/story/worker/<key>/heartbeat` | Bridge | `{lease}` | 续期 `lease_until = now + 120` |
 | 32 | `POST` | `/api/story/worker/<key>/preflight` | Bridge | `{lease, text, conversation_audit}` | v1 / 旧回合提交前读审计预检 |
-| 33 | `POST` | `/api/story/worker/<key>/result` | Bridge | `{lease, text?, error?, conversation_audit?, timing?, allow_settlement_retry?}` | 提交最终结果或报错；通过审计/双阶段重试/装配后经 `RoundStore` 原子落盘 |
-| 34 | `POST` | `/api/story/preferences` | Client | `{protagonist_style?, director_pacing?, custom_rules_enabled?, custom_rules_position?, custom_rules_text?, settlement_custom_rules_enabled?, settlement_custom_rules_position?, settlement_custom_rules_text?}` | 保存并广播玩家演播偏好（主角戏份风格、女主意外节奏 `slow/standard/frequent`，以及主模型 `Zone 0` / 副模型 `Stage 2` 独立的无字数上限自定义系统级 Rule）至 `.round-runtime/story/prefs.json`（重置存档与同步 GitHub 均自动保留） |
+| 33 | `POST` | `/api/story/worker/<key>/result` | Bridge | `{lease, text?, error?, conversation_audit?, timing?, allow_settlement_retry?}` | 提交最终结果或报错；经机械预清洗、审计、双阶段重试与装配后经 `RoundStore` 原子落盘 |
+| 34 | `POST` | `/api/story/preferences` | Client | `{protagonist_style?, director_pacing?, anchor_history_mode?, voice_playback_enabled?, custom_rules_enabled?, custom_rules_position?, custom_rules_text?, settlement_custom_rules_enabled?, settlement_custom_rules_position?, settlement_custom_rules_text?}` | 保存并广播玩家演播偏好（主角戏份风格、女主意外节奏、开窗回溯模式 `balanced/full`、客户端静音同步标志及主/副模型独立无字数上限自定义系统级 Rule）至 `.round-runtime/story/prefs.json`（重置存档与同步 GitHub 均自动保留） |
 
 ### 3.3 隔离实验场景与只读旧档导入路由（`scene_chat.py`，15 个路由）
 

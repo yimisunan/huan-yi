@@ -317,7 +317,7 @@ function StoryBridgeSettingsScreen(ctx) {
                 UI.Text({ text: '新建干净会话', fontSize: 13 })),
             UI.TextButton({ key: 'btn-refresh', height: 36, text: '刷新模型列表', enabled, onClick: () => runAction({ action: 'ui_snapshot', forceRefresh: true }, '已刷新模型与状态', true) }),
         ]));
-        cards.push(section('status-card', '故事桥接 · v' + (snap.version || '2.2.0'), 'Tune', [badge(statusLabel, statusTone)], statusChildren));
+        cards.push(section('status-card', '故事桥接 · v' + (snap.version || '2.3.0'), 'Tune', [badge(statusLabel, statusTone)], statusChildren));
 
         // Build option lists from live catalog
         const modelOptions = models.map(m => ({
@@ -485,7 +485,7 @@ function StoryBridgeSettingsScreen(ctx) {
             UI.Row({ fillMaxWidth: true, verticalAlignment: 'center', spacing: 8 }, [
                 UI.Column({ weight: 1, spacing: 2 }, [
                     UI.Text({ text: '同场景防漂移自动切窗：每 ' + maxTurns + ' 轮', fontSize: 13, fontWeight: '600', color: colors.onSurface }),
-                    muted('满轮数或切换场景/人物时自动开启干净新会话，防止长对话摘要漂移（范围 2～30）。'),
+                    muted('满轮数或切换场景/人物时自动开启干净新会话（默认 10 轮兼顾通用稳定；长上下文强模型可调至 15～18 轮提升前缀缓存复用，弱模型建议保持 8～10 轮）。'),
                 ]),
                 UI.OutlinedButton({
                     key: 'btn-turns-dec',
@@ -514,8 +514,24 @@ function StoryBridgeSettingsScreen(ctx) {
         const wsSummaryLabel = matchedWs
             ? (matchedWs.name + ' (' + matchedWs.id.slice(0, 8) + '…)')
             : (snap.workspacePath || '未设置');
+        const sanitizeBoilerplate = snap.sanitizeOperitBoilerplate !== false;
         const advChildren = [];
         if (state.showAdvanced) {
+            advChildren.push(UI.Row({ fillMaxWidth: true, verticalAlignment: 'center', spacing: 12 }, [
+                UI.Column({ weight: 1, spacing: 2 }, [
+                    UI.Text({ text: '净化 Operit 宿主样板（推荐）', fontSize: 13, fontWeight: '600', color: colors.onSurface }),
+                    muted('仅对正式剧情会话剔除 AGENTS.md、文件同步与附件样板，保留只读旧档查询工具，大幅省量且不影响普通聊天。'),
+                ]),
+                UI.Switch({
+                    key: 'switch-sanitize-boilerplate',
+                    checked: sanitizeBoilerplate,
+                    enabled,
+                    onCheckedChange: val => {
+                        void runAction({ action: 'sanitize_boilerplate', sanitizeOperitBoilerplate: !!val }, val ? '已开启宿主样板净化' : '已关闭宿主样板净化（恢复原样）');
+                    },
+                }),
+            ]));
+            advChildren.push(UI.HorizontalDivider({ thickness: 1, color: colors.outlineVariant.copy({ alpha: 0.35 }) }));
             advChildren.push(muted('新版 Operit 2 需绑定已创建的工作区 ID；直接点选下方已有工作区，或填入工作区 ID / 目录路径（自动匹配已有工作区）。'));
             if (workspaces.length > 0) {
                 advChildren.push(UI.Text({ text: '快速选择 Operit 已有工作区', fontSize: 13, fontWeight: '600', color: colors.onSurface }));
@@ -550,7 +566,7 @@ function StoryBridgeSettingsScreen(ctx) {
                 }),
             ]));
         } else {
-            advChildren.push(muted('工作区：' + wsSummaryLabel + '\n本地地址：' + (snap.endpoint || 'http://127.0.0.1:5000')));
+            advChildren.push(muted('工作区：' + wsSummaryLabel + '\n本地地址：' + (snap.endpoint || 'http://127.0.0.1:5000') + '\n宿主样板净化：' + (sanitizeBoilerplate ? '已开启' : '已关闭')));
         }
         cards.push(section('advanced-card', '高级连接配置', 'Settings', [
             UI.TextButton({

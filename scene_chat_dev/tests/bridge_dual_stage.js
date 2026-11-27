@@ -431,7 +431,116 @@ async function run() {
     assert.equal(hResume.state.resultPosts[0].timing.generation_passes, 0);
     assert.equal(hResume.state.resultPosts[0].conversation_audit.settlement_audit.resumed_stage2, true);
     assert.equal(hResume.config.liveSession.dirty, false, 'Same-chat resume commit clears dirty flag');
-    console.log('PASS Stage 1 checkpoint attached on Stage 2 failure and Stage-2-only resume skips main LLM (0 calls)');
+    // 13. v2.3.0: prefs_epoch triggers clean rollover, session_meta commits ONLY on committed, and monitor token cache + 6s/30s backoff work.
+    const hMeta = createHarness({});
+    const metaModel = { key: 'prov:gemini-4', provider_id: 'prov', model_id: 'gemini-4' };
+    // Intercept box.http to return session_meta and capture outgoing material opts.
+    const origHttp = hMeta.http;
+    const matRequests = [];
+    let forceCommitReject = false;
+    hMeta.http = async (urlPath, body, token, timeout) => {
+        if (urlPath.endsWith('/material')) {
+            matRequests.push(JSON.parse(JSON.stringify(body)));
+            const data = await origHttp(urlPath, body, token, timeout);
+            data.session_meta = {
+                zone1_flags: { vig: false, intl: false },
+                injected_refs: ['徐承邺'],
+                injected_guides: ['vig'],
+                memory_fps: ['anc-1:abcd1234'],
+                state_hashes: { panels: 'h1', intimacy: 'h2' },
+            };
+            return data;
+        }
+        if (urlPath.endsWith('/result') && forceCommitReject) {
+            const err = new Error('模拟校验拒绝');
+            err.statusCode = 400;
+            throw err;
+        }
+        return origHttp(urlPath, body, token, timeout);
+    };
+    const tMeta1 = {
+        request_id: 'req-meta-1', lease: 'L-meta-1', entry_mode: 'live_interaction',
+        save_epoch: 'ep-m', prefs_epoch: 'pe-1', service_epoch: 'svc-1',
+        material_delivery_v2: 1, dual_stage_protocol: 1, interaction_scope: '徐家主宅|沈知韫',
+    };
+    // First attempt rejected by server 400 -> session_meta MUST NOT be persisted!
+    forceCommitReject = true;
+    const sMeta1 = await hMeta.liveSession(hMeta.config, metaModel, tMeta1);
+    let rejectCaught = false;
+    try { await hMeta.executeSessionV2(hMeta.config, tMeta1, metaModel, sMeta1); } catch (_) { rejectCaught = true; }
+    assert(rejectCaught, '400 rejection must throw');
+    assert.deepEqual(hMeta.config.liveSession.injectedRefs || [], [], 'rejected turn MUST NOT persist injectedRefs');
+    assert.deepEqual(hMeta.config.liveSession.injectedMemoryFps || [], [], 'rejected turn MUST NOT persist memory_fps');
+
+    // Retry succeeds -> session_meta MUST be committed and forwarded on next turn!
+    forceCommitReject = false;
+    hMeta.config.liveSession.dirty = false;
+    const sMeta2 = await hMeta.liveSession(hMeta.config, metaModel, { ...tMeta1, request_id: 'req-meta-2', lease: 'L-meta-2' });
+    await hMeta.executeSessionV2(hMeta.config, { ...tMeta1, request_id: 'req-meta-2', lease: 'L-meta-2' }, metaModel, sMeta2);
+    assert.deepEqual(hMeta.config.liveSession.injectedRefs, ['徐承邺']);
+    assert.deepEqual(hMeta.config.liveSession.injectedGuides, ['vig']);
+    assert.deepEqual(hMeta.config.liveSession.injectedMemoryFps, ['anc-1:abcd1234']);
+    assert.deepEqual(hMeta.config.liveSession.stateHashes, { panels: 'h1', intimacy: 'h2' });
+
+    // Next turn in same session forwards synced_zone1_flags, injected_refs, injected_guides, injected_memory_fps, prev_state_hashes!
+    const sMeta3 = await hMeta.liveSession(hMeta.config, metaModel, { ...tMeta1, request_id: 'req-meta-3', lease: 'L-meta-3' });
+    assert.equal(sMeta3.isFresh, false, 'same prefs_epoch & scope reuses session');
+    await hMeta.executeSessionV2(hMeta.config, { ...tMeta1, request_id: 'req-meta-3', lease: 'L-meta-3' }, metaModel, sMeta3);
+    const lastMat = matRequests[matRequests.length - 1];
+    assert.deepEqual(lastMat.synced_zone1_flags, { vig: false, intl: false });
+    assert.deepEqual(lastMat.injected_refs, ['徐承邺']);
+    assert.deepEqual(lastMat.injected_guides, ['vig']);
+    assert.deepEqual(lastMat.injected_memory_fps, ['anc-1:abcd1234']);
+    assert.deepEqual(lastMat.prev_state_hashes, { panels: 'h1', intimacy: 'h2' });
+
+    // Changing prefs_epoch triggers clean rollover!
+    const sMetaRoll = await hMeta.liveSession(hMeta.config, metaModel, { ...tMeta1, request_id: 'req-meta-4', prefs_epoch: 'pe-2' });
+    assert.equal(sMetaRoll.isFresh, true, 'changed prefs_epoch must roll over to fresh session');
+    assert.notEqual(sMetaRoll.chatId, sMeta3.chatId);
+
+    // Monitor token cache & 6s/30s adaptive backoff verification
+    let bridgeInfoCalls = 0, controlCalls = 0, rejectFirstToken = false;
+    const monBox = {
+        exports: {}, console, setTimeout, clearTimeout, setInterval, clearInterval,
+        PluginConfig: { use: async () => ({ endpoint: 'http://127.0.0.1:5000', workspacePath: '/w' }), flush: async () => {} },
+        ToolPkg: { ipc: { on() {} } },
+        Tools: {
+            Net: {
+                http: async (opts) => {
+                    if (opts.url.endsWith('/api/story/bridge-info')) {
+                        bridgeInfoCalls += 1;
+                        return { statusCode: 200, content: JSON.stringify({ token: 'tok-' + bridgeInfoCalls }) };
+                    }
+                    if (opts.url.endsWith('/api/story/worker/control')) {
+                        controlCalls += 1;
+                        if (rejectFirstToken && opts.headers && opts.headers['X-Story-Bridge'] === 'tok-1') {
+                            return { statusCode: 401, content: JSON.stringify({ error: 'stale token' }) };
+                        }
+                        return { statusCode: 200, content: JSON.stringify({ command: null, service_epoch: 'ep-1' }) };
+                    }
+                    return { statusCode: 200, content: '{}' };
+                },
+            },
+            SoftwareSettings: {
+                exec: async () => JSON.stringify({ success: true, data: { models: [], bindings: [] } }),
+            },
+            Chat: {},
+        },
+    };
+    vm.runInNewContext(source, monBox);
+    const now0 = 1_000_000;
+    monBox.exports.markBridgeActivity(now0);
+    assert.equal(monBox.exports.computeMonitorDelayMs(now0 + 10_000), 6000, 'active monitor runs every 6s');
+    assert.equal(monBox.exports.computeMonitorDelayMs(now0 + 65_000), 30000, 'idle monitor (>60s) backs off to 30s');
+    await monBox.exports.monitor();
+    await monBox.exports.monitor();
+    assert.equal(bridgeInfoCalls, 1, 'cached bridge token must avoid repeated /bridge-info calls');
+    assert.equal(controlCalls, 2);
+    // 401 automatically invalidates cached token and refreshes cleanly once!
+    rejectFirstToken = true;
+    await monBox.exports.monitor();
+    assert.equal(bridgeInfoCalls, 2, '401 must invalidate cached token and re-fetch /bridge-info');
+    console.log('PASS v2.3.0 prefs_epoch rollover, commit-only session_meta, and monitor token-cache + 6s/30s backoff');
 }
 
 run().catch(e => { console.error(e); process.exitCode = 1; });
