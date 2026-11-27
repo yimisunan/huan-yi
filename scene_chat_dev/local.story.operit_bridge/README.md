@@ -1,6 +1,8 @@
 # 故事桥接
 
-当前源码维护入口为本目录的 `main.js`、`ui/settings.ui.js`、`ui/theater.ui.js`、`tools.js` 和 `manifest.json`；插件 ID 为 `local.story.operit_bridge`，当前版本 **2.3.0**，API 2.0.0。根目录运行 `python scene_chat_dev/build.py` 构建到 `scene_chat_dev/artifacts/`，再在 Operit 同 ID 导入才会更新已安装插件。
+当前源码维护入口为本目录的 `main.js`、`ui/settings.ui.js`、`ui/theater.ui.js`、`tools.js` 和 `manifest.json`；插件 ID 为 `local.story.operit_bridge`，当前版本 **2.3.1**，API 2.0.0。根目录运行 `python scene_chat_dev/build.py` 构建到 `scene_chat_dev/artifacts/`，再在 Operit 同 ID 导入才会更新已安装插件。
+
+**v2.3.1 人设稳态与暗线隔离联动适配**：`buildTailHook()` 清洗对白中未说出口的 `｜潜台词` 防止跨窗钩子泄漏；`applyCommittedSessionMeta()` 完整透传 `zone1_flags` 中的 `char_stage` 与 `unlocked_secrets` 会话冻结桶；服务端进入 `awaiting_review` 沉浸裁决态时静默执行 `markLiveDirty` 确保「重演本幕」走 100% 干净新会话。
 
 **v2.3.0 全链路降本增效与零漂移前缀锁定**：演播专用会话默认净化 Operit 宿主样板（`<workspace_rule_file>`、`AGENTS.md`、文件同步/附件说明，可在高级设置开关，零干扰普通聊天与只读工具）；Zone 1 彻底剥离场外提及与中段动态标志切换，实现同场景 100% 字节级 KV 前缀锁定；Zone 2 真差分与指纹去重、按 `prefs_epoch` 精确触发重卷、以及 `monitor()` Token 缓存与 6s/30s 空闲自适应退避。
 

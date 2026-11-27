@@ -1311,7 +1311,7 @@ _SCENE_RESIDUE_TABLE = {
     ('徐念薇', '工作室', 'night'): '画室只留了一盏冷白工作灯，围裙下摆蹭了道灰蓝，正盯着二稿出神',
     ('徐承邺', '徐家主宅', 'morning'): '西装袖扣刚扣好一半，正站在客厅边听助理语音边扫过餐桌',
     ('徐承邺', '徐家主宅', 'afternoon'): '靠在真皮沙发里划着项目报表，手边放着新捎回来的高价茶叶礼盒',
-    ('徐承邺', '徐家主宅', 'evening'): '刚应酬完进门松了半截领带，身上带着一点酒气与烟草余味',
+    ('徐承邺', '徐家主宅', 'evening'): '刚应酬完进门松了半截领带，身上带着一点应酬后的酒气与浓烈古龙水味',
     ('徐承邺', '市中心顶层公寓', 'evening'): '正把公文包随手放上玄关柜，顺口问起这两天主宅那边的动静',
     ('徐承邺', '市中心顶层公寓', 'night'): '松开衬衫最上面两颗扣子靠在书房椅背上，还在翻手机里的并购群消息',
 }
@@ -1443,6 +1443,7 @@ def format_surprise_directive(director_roll, catalog=None):
     cat = director_roll.get('category') or ''
     is_erotic = cat == 'erotic_accident'
     is_sensual = cat == 'sensual_hook'
+    is_subtext_leak = cat == 'subtext_leak'
     sd = {
         'mode': 'preset_beat',
         'tier': director_roll.get('tier', 'tier1'),
@@ -1451,8 +1452,11 @@ def format_surprise_directive(director_roll, catalog=None):
             '本幕真实突发的女主贴身/香艳意外：细腻刻画视觉、气味、体温与女主在当前羞耻值下的真实慌乱、掩饰或生理失控反应，必须在需要徐志北立刻伸手/接茬/决定进退的临界半拍戛然而止，把主动权交给段末decision；禁提系统/随机/概率/导演词，禁替主角做决定，严守K01知情边界。'
             if is_erotic else (
                 '本幕真实发生的日常魅力微距契机：自然织入在场女主的标志性形体细节（美足/美手/36D）、近距气味与徐志北的生理克制反应，在呼吸交错或视线撞上的半拍停住并把拉近距离/顺势试探的选择权交给段末decision；禁提系统/随机/概率/导演词，禁替主角做决定，严守K01知情边界。'
-                if is_sensual else
-                '本幕真实发生的客观外部变数：自然织入剧情并触发人物反应；禁提系统/随机/概率/导演词，禁替主角做决定，严守K01知情边界。'
+                if is_sensual else (
+                    '本幕真实发生的客观微兆：只露出客观物件/声响微兆，当事人若被察觉必须按人设本能用无害日常敷衍遮掩，严禁借此主动坦白或交底；禁提系统/随机/概率/导演词，禁替主角做决定，严守K01知情边界。'
+                    if is_subtext_leak else
+                    '本幕真实发生的客观外部变数：自然织入剧情并触发人物反应；禁提系统/随机/概率/导演词，禁替主角做决定，严守K01知情边界。'
+                )
             )
         ),
     }
@@ -3637,7 +3641,7 @@ def create(service,body,retry_key=None,resume_stage2=False):
             if any(existing.get(k)!=body.get(k) for k in ('base_revision','action','entry_mode','save_epoch','selection','operation','model_key')):
                 raise rr.ConflictError('同编号不得改动原选择')
             return {'task':service._public(existing)}
-        if any(j['status'] in {'preparing','queued','generating','validating','refund_pending'} for j in tasks['jobs'].values()):raise rr.ConflictError('已有行动正在处理或等待退款恢复')
+        if any(j['status'] in {'preparing','queued','generating','validating','awaiting_review','refund_pending'} for j in tasks['jobs'].values()):raise rr.ConflictError('已有行动正在处理或等待退款恢复')
         files=service.store._files()
         if service._save_epoch()!=body['save_epoch'] or rr._revision(files)!=revision:raise rr.ConflictError('存档或选择已更新，请恢复当前段落')
         ir.selection(service.root,files,selected,action,command)
@@ -3656,7 +3660,7 @@ def create(service,body,retry_key=None,resume_stage2=False):
              'current_round':state(service.root,files)['memory_round'],'status':'preparing','attempt':(existing or {}).get('attempt',0),
              'created_at':__import__('time').time(),'error':'','lease':None,'cost_preview':cost,
              'resume_stage2':use_stage2_resume,'has_stage1_checkpoint':use_stage2_resume}
-        job.pop('refund',None);job.pop('receipt',None);job.pop('generation_model',None)
+        job.pop('refund',None);job.pop('receipt',None);job.pop('generation_model',None);job.pop('review',None)
         service._blob(key,'.assembled.json').unlink(missing_ok=True)
         reserve(service,tasks,job,files,cost)
     try:
@@ -3744,6 +3748,8 @@ def cancel(service,key):
         ir.clear_stage1_checkpoint(service, key)
         job['has_stage1_checkpoint'] = False
         job['resume_stage2'] = False
+        job.pop('review', None)
+        job.pop('drift_retry_guidance', None)
         if job.get('status')=='refund_pending':
             res=job.get('reservation')
             if isinstance(res,dict): res['status']='abandoned'

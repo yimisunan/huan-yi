@@ -457,7 +457,7 @@
   }
 
   const isCurtainMode = () => prefs.displayMode !== 'stream';
-  const active = () => ['preparing', 'queued', 'generating', 'validating', 'refund_pending'].includes(snapshot?.task?.status);
+  const active = () => ['preparing', 'queued', 'generating', 'validating', 'awaiting_review', 'refund_pending'].includes(snapshot?.task?.status);
   const hasPreview = () => !!(streamPreview && active() && streamPreview.request_id === snapshot?.task?.request_id);
   const hasPreviewNodes = () => !isCurtainMode() && hasPreview() && Array.isArray(streamPreview.messages) && streamPreview.messages.length > 0;
   const baseBlocked = () => posting || polling || progressing || catchingUp || !online || !storageOK || ![2, 3].includes(snapshot?.interaction_protocol) || !!cache.pending || !!inkCommit || active();
@@ -1875,22 +1875,23 @@
     const useCurtain = isCurtainMode();
     const isSubmitting = posting && !!cache.pending;
 
-    const showActive = useCurtain && (isAct || isSubmitting);
-    const showError = useCurtain && !isAct && !isSubmitting && task
+    const showReview = !isSubmitting && !!task && task.status === 'awaiting_review';
+    const showActive = !showReview && useCurtain && (isAct || isSubmitting);
+    const showError = !showReview && useCurtain && !isAct && !isSubmitting && task
       && ['failed', 'interrupted'].includes(task.status)
       && !!curtainTrackedReqId && task.request_id === curtainTrackedReqId;
 
-    if (!showActive && !showError) {
+    if (!showReview && !showActive && !showError) {
       if (!curtain.hidden && curtainHideTimer === null) {
         if (reducedMotion()) {
           curtain.hidden = true;
-          curtain.classList.remove('is-hiding', 'is-error');
+          curtain.classList.remove('is-hiding', 'is-error', 'is-review');
         } else {
           curtain.classList.add('is-hiding');
           curtainHideTimer = setTimeout(() => {
             curtainHideTimer = null;
             curtain.hidden = true;
-            curtain.classList.remove('is-hiding', 'is-error');
+            curtain.classList.remove('is-hiding', 'is-error', 'is-review');
           }, 340);
         }
       }
@@ -1928,11 +1929,62 @@
       }
     }
 
+    const reviewDetails = $('curtainReviewDetails');
+    const reviewExcerpt = $('curtainReviewExcerpt');
+    const reviewRegenBtn = $('curtainReviewRegenBtn');
+    const reviewAcceptBtn = $('curtainReviewAcceptBtn');
+    const reviewCancelBtn = $('curtainReviewCancelBtn');
     const cancelBtn = $('curtainCancelBtn');
     const retryBtn = $('curtainRetryBtn');
     const fullRetryBtn = $('curtainFullRetryBtn');
     const dismissBtn = $('curtainDismissBtn');
     const progEl = $('curtainProgress');
+
+    if (showReview) {
+      curtain.classList.remove('is-error');
+      curtain.classList.add('is-review');
+      if (task.request_id) curtainTrackedReqId = task.request_id;
+      setSteps(3, false);
+      const rev = (task.review && typeof task.review === 'object') ? task.review : {};
+      if ($('curtainEyebrow')) $('curtainEyebrow').textContent = '天平察微 · 脉络待定';
+      if ($('curtainTitle')) $('curtainTitle').textContent = rev.title || '人物脉络微偏，待你裁夺';
+      const summaryLead = rev.summary ? (rev.summary + ' ') : '';
+      if ($('curtainSub')) $('curtainSub').textContent = summaryLead + '本幕尚未落盘入档，可先展开片段审阅，再决定纠偏重演或留存并由下轮温和回拉。';
+      if (progEl) {
+        const rc = Number(rev.regen_count) || 0;
+        progEl.textContent = rc > 0 ? ('已重演 ' + rc + ' 次 · 预扣安全托管中') : '尚未落盘 · 预扣安全托管中';
+        progEl.hidden = false;
+      }
+      const lines = Array.isArray(rev.excerpt) ? rev.excerpt.filter(x => typeof x === 'string' && x.trim()) : [];
+      if (reviewDetails && reviewExcerpt) {
+        if (lines.length > 0) {
+          const exSig = (task.request_id || '') + '|' + lines.join('\n');
+          if (reviewDetails.dataset.sig !== exSig) {
+            reviewDetails.dataset.sig = exSig;
+            reviewDetails.open = false;
+            reviewExcerpt.replaceChildren(...lines.map(txt => node('li', '', txt)));
+          }
+          reviewDetails.hidden = false;
+        } else {
+          reviewDetails.hidden = true;
+        }
+      }
+      const busy = posting || polling || !online;
+      if (reviewRegenBtn) { reviewRegenBtn.hidden = false; reviewRegenBtn.disabled = busy; }
+      if (reviewAcceptBtn) { reviewAcceptBtn.hidden = false; reviewAcceptBtn.disabled = busy; }
+      if (reviewCancelBtn) { reviewCancelBtn.hidden = false; reviewCancelBtn.disabled = busy; }
+      if (cancelBtn) cancelBtn.hidden = true;
+      if (retryBtn) retryBtn.hidden = true;
+      if (fullRetryBtn) fullRetryBtn.hidden = true;
+      if (dismissBtn) dismissBtn.hidden = true;
+      return;
+    }
+
+    curtain.classList.remove('is-review');
+    if (reviewDetails) reviewDetails.hidden = true;
+    if (reviewRegenBtn) reviewRegenBtn.hidden = true;
+    if (reviewAcceptBtn) reviewAcceptBtn.hidden = true;
+    if (reviewCancelBtn) reviewCancelBtn.hidden = true;
 
     if (showError) {
       curtain.classList.add('is-error');
@@ -2026,14 +2078,15 @@
   function controls() {
     const p = snapshot?.playback, ready = canDecide(), base = baseBlocked(), hasSegment = !!p?.segment_id;
     const rest = resting(), isAct = active(), task = snapshot?.task;
+    const isReviewing = task?.status === 'awaiting_review';
     const previewOn = hasPreviewNodes();
     const mode = previewOn ? 'playback' : !hasSegment ? 'empty' : !ready ? 'playback' : 'decision';
 
     document.body.classList.toggle('mode-empty', mode === 'empty');
     document.body.classList.toggle('mode-playback', mode === 'playback');
     document.body.classList.toggle('mode-decision', mode === 'decision');
-    document.body.classList.toggle('is-thinking', isAct);
-    $('statusSpinner').hidden = !isAct;
+    document.body.classList.toggle('is-thinking', isAct && !isReviewing);
+    $('statusSpinner').hidden = !(isAct && !isReviewing);
 
     const showDecisions = ready && !rest && !previewOn;
     const isCollapsed = showDecisions && deckCollapsed;
@@ -2194,7 +2247,7 @@
 
     $('pending').textContent = cache.pending
       ? '待确认行动：' + cache.pending.action
-      : task && ['queued', 'generating', 'validating', 'failed', 'interrupted'].includes(task.status)
+      : task && ['queued', 'generating', 'validating', 'awaiting_review', 'failed', 'interrupted'].includes(task.status)
         ? '当前行动：' + task.action
         : '';
     $('pending').hidden = !$('pending').textContent;
@@ -2209,7 +2262,9 @@
     const queueIssue = queuedBridgeIssue(snapshot);
     $('status').classList.toggle('error', !!error || !!task?.error || !!queueIssue);
     const pvStage = hasPreview() ? streamPreview.stage : '';
-    const activeStatusText = pvStage === 'thinking'
+    const activeStatusText = task?.status === 'awaiting_review'
+      ? '天平察微 · 本幕脉络待你裁夺（尚未落盘）'
+      : pvStage === 'thinking'
       ? '模型思考中 · 正在构思微幕剧情……'
       : pvStage === 'streaming'
         ? (isCurtainMode()
@@ -6245,6 +6300,9 @@
       ? snapshot.preferences.director_pacing
       : 'standard';
     const curAnchorHistoryMode = snapshot?.preferences?.anchor_history_mode === 'full' ? 'full' : 'balanced';
+    const curDriftReviewMode = ['ask', 'auto_regen', 'soft_only'].includes(snapshot?.preferences?.drift_review_mode)
+      ? snapshot.preferences.drift_review_mode
+      : 'ask';
 
     // Sub-tab 1: Display, Narrative & Haptics
     if (subKey === 'display') {
@@ -6296,6 +6354,21 @@
             const res = await api('preferences', { anchor_history_mode: v });
             if (snapshot && res?.preferences) snapshot.preferences = res.preferences;
             toast(v === 'balanced' ? '开窗回溯已设为「均衡模式」（下次开窗生效）' : '开窗回溯已设为「完整6幕」（下次开窗生效）');
+            renderWorld(true);
+          } catch (err) {
+            toast('保存偏好失败：' + (err?.message || err));
+          } finally {
+            backendPrefBusy = false;
+          }
+        }),
+        mkSwitchRow('人设与暗线偏离处理', '检测到暗线穿帮或明显OOC时：待我裁决（零脏档）/ 自动纠偏重演1次 / 放行并下轮回拉', [['ask', '待我裁决'], ['auto_regen', '自动重演1次'], ['soft_only', '仅下轮回拉']], curDriftReviewMode, async v => {
+          if (backendPrefBusy) return;
+          backendPrefBusy = true;
+          try {
+            const res = await api('preferences', { drift_review_mode: v });
+            if (snapshot && res?.preferences) snapshot.preferences = res.preferences;
+            const labels = { ask: '推演界面待我裁决', auto_regen: '自动纠偏重演一次', soft_only: '直接放行并下轮回拉' };
+            toast(`偏离处理已设为「${labels[v] || v}」`);
             renderWorld(true);
           } catch (err) {
             toast('保存偏好失败：' + (err?.message || err));
@@ -8344,6 +8417,26 @@
     catch (e) { error = e.message; }
     finally { posting = false; await restore({ preserveError: true }); }
   }
+  async function runReviewDecision(decision) {
+    const task = snapshot?.task;
+    if (posting || polling || !online || !task || task.status !== 'awaiting_review' || !task.request_id) return;
+    haptic(12);
+    posting = true;
+    error = '';
+    controls();
+    try {
+      await api('tasks/' + encodeURIComponent(task.request_id) + '/review-decision', { decision });
+      if (decision === 'regenerate') toast('已附定向纠偏提示，正在重新演播本幕……');
+      else if (decision === 'accept_with_correction') toast('本幕已留存入档，下轮将自动温和回拉');
+      else if (decision === 'cancel') toast('已撤回本幕，预扣体力全额退还');
+    } catch (e) {
+      error = e.message;
+      toast('裁决操作失败：' + e.message);
+    } finally {
+      posting = false;
+      await restore({ preserveError: true });
+    }
+  }
   $('retry').onclick = () => void runRetry(Boolean(snapshot?.task?.has_stage1_checkpoint));
 
   const switchActionTab = tab => {
@@ -8940,6 +9033,21 @@
         settlement_thinking_mode: mode,
         settlement_thinking: mode === 'on'
       }, msg);
+    };
+  }
+  if ($('curtainReviewRegenBtn')) {
+    $('curtainReviewRegenBtn').onclick = () => {
+      void runReviewDecision('regenerate');
+    };
+  }
+  if ($('curtainReviewAcceptBtn')) {
+    $('curtainReviewAcceptBtn').onclick = () => {
+      void runReviewDecision('accept_with_correction');
+    };
+  }
+  if ($('curtainReviewCancelBtn')) {
+    $('curtainReviewCancelBtn').onclick = () => {
+      void runReviewDecision('cancel');
     };
   }
   if ($('curtainCancelBtn')) {

@@ -4081,6 +4081,15 @@ html[data-theme="ivory"] .stage-curtain-card {
   border-color: rgba(212, 98, 98, 0.55);
   box-shadow: 0 20px 52px rgba(0, 0, 0, 0.52), 0 0 28px rgba(196, 72, 72, 0.14);
 }
+.stage-curtain.is-review .stage-curtain-card {
+  max-width: 400px;
+  border-color: rgba(226, 179, 98, 0.62);
+  box-shadow: 0 22px 58px rgba(0, 0, 0, 0.58), 0 0 32px rgba(212, 166, 86, 0.16);
+}
+html[data-theme="ivory"] .stage-curtain.is-review .stage-curtain-card {
+  border-color: rgba(173, 125, 46, 0.52);
+  box-shadow: 0 18px 46px rgba(68, 48, 22, 0.18), 0 0 22px rgba(173, 125, 46, 0.12);
+}
 
 .curtain-crest {
   width: 96px;
@@ -4095,6 +4104,10 @@ html[data-theme="ivory"] .stage-curtain-card {
 .stage-curtain.is-error .curtain-scales-beam {
   animation: none;
   transform: rotate(-7deg);
+}
+.stage-curtain.is-review .curtain-scales-beam {
+  animation: none;
+  transform: rotate(-4deg);
 }
 
 .curtain-steps {
@@ -4151,13 +4164,19 @@ html[data-theme="ivory"] .stage-curtain-card {
 html[data-theme="ivory"] .stage-curtain.is-error .stage-curtain-title {
   color: #a63434;
 }
+.stage-curtain.is-review .stage-curtain-title {
+  color: var(--gold-bright);
+}
+html[data-theme="ivory"] .stage-curtain.is-review .stage-curtain-title {
+  color: #8c5c19;
+}
 
 .stage-curtain-sub {
   margin: 0;
   font-size: 12.5px;
   line-height: 1.68;
   color: var(--muted);
-  max-width: 310px;
+  max-width: 336px;
   word-break: break-word;
 }
 
@@ -4189,6 +4208,51 @@ html[data-theme="ivory"] .stage-curtain.is-error .stage-curtain-title {
 }
 html[data-theme="ivory"] .stage-curtain-quote {
   background: rgba(143, 105, 44, 0.07);
+}
+
+.stage-curtain-review-details {
+  width: 100%;
+  margin: 4px 0 2px;
+  border-radius: 11px;
+  border: 1px solid rgba(216, 180, 118, 0.24);
+  background: rgba(216, 180, 118, 0.05);
+  text-align: left;
+}
+html[data-theme="ivory"] .stage-curtain-review-details {
+  border-color: rgba(143, 105, 44, 0.24);
+  background: rgba(143, 105, 44, 0.06);
+}
+.stage-curtain-review-details > summary {
+  cursor: pointer;
+  padding: 7px 12px;
+  font-size: 12px;
+  color: var(--gold-bright);
+  letter-spacing: 0.4px;
+  user-select: none;
+}
+html[data-theme="ivory"] .stage-curtain-review-details > summary {
+  color: #8c5c19;
+}
+.stage-curtain-review-excerpt {
+  list-style: none;
+  margin: 0;
+  padding: 0 12px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 150px;
+  overflow-y: auto;
+}
+.stage-curtain-review-excerpt li {
+  font: 12px/1.58 var(--font-serif);
+  color: var(--ink-soft);
+  padding-top: 5px;
+  border-top: 1px dashed rgba(216, 180, 118, 0.16);
+  word-break: break-word;
+}
+.stage-curtain-review-excerpt li:first-child {
+  border-top: 0;
+  padding-top: 0;
 }
 
 .stage-curtain-actions {

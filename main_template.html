@@ -275,7 +275,14 @@
         <p id="curtainSub" class="stage-curtain-sub">主模型构思微幕剧情，后台校验完成后即刻揭幕</p>
         <div id="curtainProgress" class="stage-curtain-pill" hidden></div>
         <blockquote id="curtainActionQuote" class="stage-curtain-quote" hidden></blockquote>
+        <details id="curtainReviewDetails" class="stage-curtain-review-details" hidden>
+          <summary>展开审阅本幕关键片段</summary>
+          <ul id="curtainReviewExcerpt" class="stage-curtain-review-excerpt"></ul>
+        </details>
         <div id="curtainActions" class="stage-curtain-actions">
+          <button id="curtainReviewRegenBtn" type="button" class="cta-gold compact-cta" hidden>重演本幕（纠偏重推）</button>
+          <button id="curtainReviewAcceptBtn" type="button" class="btn-outline compact-btn" hidden>留存本幕 · 下轮回拉</button>
+          <button id="curtainReviewCancelBtn" type="button" class="pill-danger-sm" hidden>撤回并退还体力</button>
           <button id="curtainCancelBtn" type="button" class="pill-danger-sm" hidden>取消并退还体力</button>
           <button id="curtainRetryBtn" type="button" class="cta-gold compact-cta" hidden>重试本次推演</button>
           <button id="curtainFullRetryBtn" type="button" class="btn-outline compact-btn" hidden>完整重推（含主模型）</button>

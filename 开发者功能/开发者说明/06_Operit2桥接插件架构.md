@@ -1,8 +1,8 @@
 # 06 · Operit 2 桥接插件架构
 
 > **非数据源声明**：本文件为开发者架构参考文档，严禁作为 AI 剧情运行时提示词或世界书注入。
-> **源码唯一入口**：[`scene_chat_dev/local.story.operit_bridge/`](../../scene_chat_dev/local.story.operit_bridge/)（版本 **2.3.0**，Operit API `2.0.0`，插件 ID `local.story.operit_bridge`，子包 `story_bridge`，**零外部插件依赖**）。
-> **成品与构建**：[`scene_chat_dev/build.py`](../../scene_chat_dev/build.py) → `scene_chat_dev/artifacts/故事桥接-continuous-2.3.0.toolpkg`（含零 `character_cards` 依赖与全量 JS 语法门禁，验包通过后自动清理旧版 `.toolpkg`）。
+> **源码唯一入口**：[`scene_chat_dev/local.story.operit_bridge/`](../../scene_chat_dev/local.story.operit_bridge/)（版本 **2.3.1**，Operit API `2.0.0`，插件 ID `local.story.operit_bridge`，子包 `story_bridge`，**零外部插件依赖**）。
+> **成品与构建**：[`scene_chat_dev/build.py`](../../scene_chat_dev/build.py) → `scene_chat_dev/artifacts/故事桥接-continuous-2.3.1.toolpkg`（含零 `character_cards` 依赖与全量 JS 语法门禁，验包通过后自动清理旧版 `.toolpkg`）。
 
 ---
 
@@ -46,7 +46,7 @@ Operit 2 通过 `ToolPkgLoader`（`loadToolPkgFromExternalFile`）加载 `.toolp
 2. **Subpackage Runtime（`tools.js`）**：按工具调用触发的子包入口，经包内私有 `ToolPkg.ipc.call('story.bridge.control', payload, { targetRuntime: 'main' })` 转发控制命令。
 3. **Compose DSL UI Runtime（`ui/settings.ui.js` 与 `ui/theater.ui.js`）**：独立 UI 渲染上下文（ABI 4 布局程序），由 `ComposeDslScreen(ctx)` 产出 `ComposeNode` 树（含原生 `UI.WebView` 剧场与 Material 3 设置页），通过 `ToolPkg.ipc.call` 与 Main Runtime 交换快照；异步回调以 `ctx.useRef` 镜像 `ctx.useState` 规避闭包陈旧。
 
-### 1.4 底层原理：v2.3.0 原生自托管如何实现零样板、零漂移纯净 KV 缓存
+### 1.4 底层原理：v2.3.x 原生自托管如何实现零样板、零漂移纯净 KV 缓存
 
 桥接完全脱离 `com.operit.character_cards`，走 Operit 2 Rust Core 原生管线：
 
@@ -77,12 +77,12 @@ Operit 2 通过 `ToolPkgLoader`（`loadToolPkgFromExternalFile`）加载 `.toolp
 
 ## 2. 插件包结构与运行时拓扑
 
-本插件由 6 个文件组成（打包体积 ~53 KB）：
+本插件由 6 个文件组成（打包体积 ~54 KB）：
 
 | 文件 | 角色与运行时 | 核心职责 |
 |---|---|---|
-| [`manifest.json`](../../scene_chat_dev/local.story.operit_bridge/manifest.json) | 包声明 | `toolpkg_id: "local.story.operit_bridge"`、`version: "2.3.0"`、`api_version: "2.0.0"`、`installation_scope: "device"`、**`requires: []`（零外部依赖）**、声明子包 `story_bridge -> tools.js` |
-| [`main.js`](../../scene_chat_dev/local.story.operit_bridge/main.js) | Main Runtime（~2,870 行） | `PluginConfig` 持久化、IPC 通道 `story.bridge.control`、`waitLoop()` Long-Polling、`getBridgeToken()` 令牌缓存与 `monitor()` 6s/30s 空闲退避、工作区 UUID 自动匹配/创建绑定、`writeExtension/readExtension` + 5 原生钩子（含 `sanitizeOperitCorePrompt`）、`prefs_epoch` 重卷与 commit-only `session_meta`、v2 双阶段/单阶段执行、Outbox 抗断网投递与 `/storybridge` 命令 |
+| [`manifest.json`](../../scene_chat_dev/local.story.operit_bridge/manifest.json) | 包声明 | `toolpkg_id: "local.story.operit_bridge"`、`version: "2.3.1"`、`api_version: "2.0.0"`、`installation_scope: "device"`、**`requires: []`（零外部依赖）**、声明子包 `story_bridge -> tools.js` |
+| [`main.js`](../../scene_chat_dev/local.story.operit_bridge/main.js) | Main Runtime（~2,910 行） | `PluginConfig` 持久化、IPC 通道 `story.bridge.control`、`waitLoop()` Long-Polling、`getBridgeToken()` 令牌缓存与 `monitor()` 6s/30s 空闲退避、工作区 UUID 自动匹配/创建绑定、`writeExtension/readExtension` + 5 原生钩子（含 `sanitizeOperitCorePrompt`）、`prefs_epoch` 重卷与 commit-only `session_meta`（透传 `zone1_flags.char_stage` / `unlocked_secrets`）、`buildTailHook()` 剥离未说出口 `｜潜台词`、`awaiting_review` 洁净标脏切窗、v2 双阶段/单阶段执行、Outbox 抗断网投递与 `/storybridge` 命令 |
 | [`tools.js`](../../scene_chat_dev/local.story.operit_bridge/tools.js) | Subpackage Tool Runtime（60 行） | 暴露 `start` / `stop` / `status` / `configure` 给 Operit 工具层，经私有 IPC 转发至 Main Runtime |
 | [`ui/theater.ui.js`](../../scene_chat_dev/local.story.operit_bridge/ui/theater.ui.js) | Compose DSL WebView Runtime（~155 行） | 内嵌 `ComposeDslWebView` 全屏剧场入口（默认 `http://127.0.0.1:5000`），加载完成后零多余遮挡，断连时提供「重新连接」与「桥接设置」跳转 |
 | [`ui/settings.ui.js`](../../scene_chat_dev/local.story.operit_bridge/ui/settings.ui.js) | Compose DSL UI Runtime（~600 行） | 原生 Material 3 设置界面：顶部含「打开内嵌剧场」快捷按钮，支持 `CHAT` 主模型槽一键改绑、副模型独立选槽/改绑/三档思考自适应、会话策略、防漂移切窗轮数（默认 `10` 及强/弱模型调优指引）、**「净化 Operit 宿主样板」开关**与工作区快捷选择 |
@@ -94,7 +94,7 @@ flowchart LR
         THEATER["ui/theater.ui.js\n(ComposeDslWebView 剧场)"]
         UI["ui/settings.ui.js\n(Compose DSL 设置页)"]
         TOOLS["tools.js & /storybridge"]
-        MAIN["main.js v2.3.0 (Main Runtime)\nwaitLoop() + adaptive monitor() + executeSessionV2()"]
+        MAIN["main.js v2.3.1 (Main Runtime)\nwaitLoop() + adaptive monitor() + executeSessionV2()"]
         HOOKS["5 原生 Hooks\nSystemPrompt(+Sanitize) / ToolFilter / ToolIntercept / Finalize"]
         EXT["Chat Private Extension\n(writeExtension / readExtension)"]
         CHAT["Tools.Chat (model:chat)\nsendMessageStreaming / call"]
@@ -121,7 +121,7 @@ flowchart LR
 - 通过 `PluginConfig.use('story_bridge', defaults)` 落盘：
   - 连接与模式：`enabled`, `endpoint` (`http://127.0.0.1:5000`), `workspacePath`, `dualStageEnabled` (默认 `true`), `liveSessionPolicy` (`'continuous'`), `maxTurnsPerSession` (默认 `10`, 范围 `2..30`), **`sanitizeOperitBoilerplate` (默认 `true`)**。
   - 主/副模型：主模型统一跟随 Operit `CHAT` 功能槽（支持双端直接改绑 `CHAT` 槽），副模型独立配置 `settlementFunctionType` (`'SUMMARY'`)、`settlementThinking` (`false`)、`settlementThinkingMode` (`'auto'`)。
-  - 会话与容错：`liveSession`（含 `chatId`, `participantId: 'model:chat'`, `turnCount`, `lastCommittedSeq`, `interactionScope`, `prefsEpoch`, `dirty`, `zone0Sha`, `zone1Sha`, `zone1Flags`, `injectedRefs`, `injectedGuides`, `injectedMemoryFps`, `stateHashes`, `syncedPrefixSig`, `generation`, `resetReason`, `serviceEpoch`, `lastRequestId`）、`sceneSession`、`inFlight`、`outbox`、`lastRejection`、`controlAck`/`controlError`。
+  - 会话与容错：`liveSession`（含 `chatId`, `participantId: 'model:chat'`, `turnCount`, `lastCommittedSeq`, `interactionScope`, `prefsEpoch`, `dirty`, `zone0Sha`, `zone1Sha`, `zone1Flags`（含 `char_stage` 与 `unlocked_secrets`）, `injectedRefs`, `injectedGuides`, `injectedMemoryFps`, `stateHashes`, `syncedPrefixSig`, `generation`, `resetReason`, `serviceEpoch`, `lastRequestId`）、`sceneSession`、`inFlight`、`outbox`、`lastRejection`、`controlAck`/`controlError`。
 - **30 秒 TTL 缓存与令牌缓存**：`modelInfo` / `settlementModelInfo` / `modelCatalogCache` 改绑槽位时立即全量失效；`bridgeTokenCache`（`getBridgeToken()`）跨 `monitor()`/`waitLoop()`/`work()` 复用桥接密钥，仅在 `401/403`、端点变动或 `service_epoch` 重启时自动失效重取。
 
 ### 3.2 `waitLoop()` 与自适应退避 `monitor()`
@@ -134,27 +134,27 @@ flowchart LR
 
 入口位于 [`main.js`](../../scene_chat_dev/local.story.operit_bridge/main.js)（`entry_mode === 'live_interaction' && material_delivery_v2 === 1`），全程受 10 分钟硬超时与 20 秒心跳保护：
 
-1. **取料与前缀同步**：`POST /worker/<id>/material`（`delivery_version: 2`，携带 `synced_zone1_flags`、`injected_refs`、`injected_guides`、`injected_memory_fps`、`prev_state_hashes` 与可选主/副模型自定义系统级 Rule）→ 校验 SHA-256 与 `delivery.id` → 执行 `syncLivePrefixes()`（仅在 `[chatId, model.key, zone0Sha, zone1Sha, sanitizeBoilerplate]` 变化时调用 `writeExtension`）。
+1. **取料与前缀同步**：`POST /worker/<id>/material`（`delivery_version: 2`，携带 `synced_zone1_flags`（含 `char_stage` / `unlocked_secrets`）、`injected_refs`、`injected_guides`、`injected_memory_fps`、`prev_state_hashes` 与可选主/副模型自定义系统级 Rule）→ 校验 SHA-256 与 `delivery.id` → 执行 `syncLivePrefixes()`（仅在 `[chatId, model.key, zone0Sha, zone1Sha, sanitizeBoilerplate]` 变化时调用 `writeExtension`）。
 2. **分支 A · `dual_stream_v2`（默认）**：
-   - **Stage 1（前台流式演播）**：`Tools.Chat.sendMessageStreaming()` 监听 `thinking`/`markdown` 分片，经与 Python 对称的 `parseStreamMessages()` 解析与单槽合并 `pushPreview()` 推往 `/worker/<id>/stream`，结束提取正文并推送 `stage: 'settling'`。
-   - **Stage 2（后台无状态结算）**：由副模型槽（默认 `SUMMARY`，未绑定回退 `CHAT`）调用无状态 `Tools.Chat.call`（`auto` 智能自适应思考，失败重试自动提权思考；120s 超时）→ `normalizeSettlementJson()` → `POST /worker/<id>/result` 经 `RoundStore` 原子落盘；遇 `retryable_settlement: true` 推 `settling_retry` 并原地重试 Stage 2（不重跑前台）；**仅当响应 `task.status === 'committed'` 时**才调用 `applyCommittedSessionMeta()` 将本轮 `session_meta` 合并持久化。
-3. **分支 B · `single_prefix_v2`（单阶段精简备选）**：主模型单次输出 6 键裸 JSON（首错自动追加 1 次 `format_repair`），同样仅在 `deliver()` 确认 `committed` 后持久化 `session_meta`。
+   - **Stage 1（前台流式演播）**：`Tools.Chat.sendMessageStreaming()` 监听 `thinking`/`markdown` 分片，经与 Python 对称的 `parseStreamMessages()` 解析与单槽合并 `pushPreview()` 推往 `/worker/<id>/stream`，结束提取正文并推送 `stage: 'settling'`；`buildTailHook()` 构造尾钩时自动剥离 `｛表层台词｜潜台词｝` 中的 `｜潜台词` 部分，防止角色未说出口的心声泄露为跨轮对话事实。
+   - **Stage 2（后台无状态结算与沉浸裁决门禁）**：由副模型槽（默认 `SUMMARY`，未绑定回退 `CHAT`）调用无状态 `Tools.Chat.call`（`auto` 智能自适应思考，失败重试自动提权思考；120s 超时）→ `normalizeSettlementJson()` → `POST /worker/<id>/result` 经 `RoundStore` 原子落盘；遇 `retryable_settlement: true` 推 `settling_retry` 并原地重试 Stage 2（不重跑前台）；若后端命中两级人设/暗线守卫并返回 `status: 'awaiting_review'`，桥接立即执行 `markLiveDirty('awaiting_review')` 且不推进会话计数与 `session_meta`（若玩家在剧场点击「回溯重演」，下一单直接在 100% 洁净新窗重跑，零泄密残影污染）；**仅当响应 `task.status === 'committed'` 时**才调用 `applyCommittedSessionMeta()` 将本轮 `session_meta`（含 `zone1_flags.char_stage` / `unlocked_secrets`）合并持久化。
+3. **分支 B · `single_prefix_v2`（单阶段精简备选）**：主模型单次输出 6 键裸 JSON（首错自动追加 1 次 `format_repair`），同样仅在 `deliver()` 确认 `committed` 后持久化 `session_meta`，命中 `awaiting_review` 时同步标脏不落盘。
 
 ### 崩溃恢复、自动切窗与旧协议兼容
 - **中断保护（`interruptedSession()`）**：Operit 进程被杀重启时自动终止残留会话、标记 `dirty = true` 并写入 `config.outbox` 退还体力，绝不偷跑重试。
-- **会话策略与自动切窗（`liveSession()`）**：支持 `continuous`（默认）、`service_restart`、`per_action`；首次连接、身份变更、**`prefs_epoch` 变更（仅 Zone 0 相关偏好）**、`dirty == true`、场景/阵容变化（`interactionScope`）、达 `maxTurns`（默认 `10`）、策略触发或检测到外部删窗时自动新建干净会话（`isFresh = true`）。
+- **会话策略与自动切窗（`liveSession()`）**：支持 `continuous`（默认）、`service_restart`、`per_action`；首次连接、身份变更、**`prefs_epoch` 变更（仅 Zone 0 相关偏好）**、`dirty == true`（含 `awaiting_review` 标脏）、场景/阵容变化（`interactionScope`）、达 `maxTurns`（默认 `10`）、策略触发或检测到外部删窗时自动新建干净会话（`isFresh = true`）。
 
 ---
 
 ## 5. 构建与发布流程（`scene_chat_dev/build.py`）
 
 ```bash
-# 1. 全套 9 组 Node 桥接回归测试（含自托管钩子、宿主样板净化、session_meta/退避与内嵌 WebView 剧场 UI 测试）
+# 1. 全套 9 组 Node 桥接回归测试（含自托管钩子、宿主样板净化、潜台词剥离/awaiting_review切窗、session_meta/退避与内嵌 WebView 剧场 UI 测试）
 for f in scene_chat_dev/tests/bridge_*.js; do node "$f" || exit 1; done
 
 # 2. 打包为唯一 .toolpkg：自动校验零 character_cards 依赖、全量 JS 语法、ui/theater.ui.js 入包与 zip 完整性，并自动清理旧版 .toolpkg
 python3 scene_chat_dev/build.py
-# 输出: ARCHIVE_OK .../scene_chat_dev/artifacts/故事桥接-continuous-2.3.0.toolpkg
+# 输出: ARCHIVE_OK .../scene_chat_dev/artifacts/故事桥接-continuous-2.3.1.toolpkg
 ```
 
 > **版本升级规范**：每次改动桥接源码均须递增 `manifest.json` 的 `version`，同步更新 `main.js` 中的 `PLUGIN_VERSION`、`ui/settings.ui.js` 的兜底版本、`README.md` 与根目录 `.gitignore` 末尾的白名单豁免行（`!/scene_chat_dev/artifacts/故事桥接-continuous-<version>.toolpkg`），执行 `build.py`（自动清理旧包），再在 Operit 2 中同 ID 覆盖导入新包。后端 `story_service._bridge_view()` 会动态透出仓库 `manifest.json` 的 `expected_plugin_version`，前端检测到已连接插件落后于最新版时会自动提示导入路径。

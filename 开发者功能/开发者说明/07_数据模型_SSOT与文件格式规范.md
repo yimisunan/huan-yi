@@ -15,6 +15,7 @@ flowchart LR
         EVT["txt文件/事件注册表.json\n(6组 85个事件ID与算分参数)"]
         REL["txt文件/关系称谓库.json\n(7实体/12类型/13事实/17角色/4场合/5身份规则/3信念)"]
         KB["txt文件/知识库/*.json\n(4库 24条目 · ST-v1格式)"]
+        SEC["txt文件/隐秘守卫注册表.json\n(4条暗线守卫 S01~S04 + 4人话量预算)"]
         RULES["txt文件/{场景交流规范,全局执行法典,\n一键注入指南,提示词,故事检索索引}"]
     end
 
@@ -34,6 +35,8 @@ flowchart LR
     KB -->|"convert_to_operit.py"| OP_WB
     KB -->|"story_reading.build_bundle()"| SR_CACHE
     KB -->|"compile_characters() / compile_knowledge_rules()"| ZONES
+    SEC -->|"compile_characters() 门控解锁 & 两级守卫"| ZONES
+    SEC -->|"check_stage1_persona_and_secrets()"| RT
     RULES --> ZONES
     CFG -->|"唯一运行参数源"| RT["interaction_runtime / story_progression / story_service"]
 ```
@@ -42,7 +45,8 @@ flowchart LR
 
 | 修改了哪个权威源 | 必须同步的派生文件与校验命令 |
 |---|---|
-| `txt文件/知识库/*.json` | 1) 运行 `python3 Operit世界书导出/convert_to_operit.py` 重建 `operit_worldbook_深渊天平.json`<br>2) 核对 [`开发者说明/世界书关键字配置.txt`](世界书关键字配置.txt)（若增删条目或改关键词） |
+| `txt文件/知识库/*.json` | 1) 运行 `python3 Operit世界书导出/convert_to_operit.py` 重建 `operit_worldbook_深渊天平.json`<br>2) 核对 [`开发者说明/世界书关键字配置.txt`](世界书关键字配置.txt)（若增删条目或改关键词）<br>3) 跑 `test_story_compiler.py` 与 `test_persona_secret_guards.py` |
+| `txt文件/隐秘守卫注册表.json` | 校验 `S01～S04` 的 `unlock_key` / `surface_cover` / `unlocked_branch` / `leak_patterns` / 沉浸话术及 4 人 `voice_budgets` 合法性，并跑 `test_persona_secret_guards.py` |
 | `txt文件/关系称谓库.json` | 运行 `python3 relationship_query.py render > txt文件/关系称谓查询.jsonl` 后跑 `python3 relationship_query.py check` |
 | `txt文件/事件注册表.json` | 同步更新 `txt文件/一键注入指南.txt` 与 `txt文件/知识库/系统标签类.json` 中对应的 `【注册表生成表开始】...【注册表生成表结束】` 块（否则 `round_runtime._event_registry()` 提交前直接拒收），并复检 `injection_core.py` AST 引用 |
 | `txt文件/互动运行配置.json` | 校验 `story_progression.config()` 与 `interaction_runtime.location_aliases()` 合法性（尤其 `costs`/`intimate_continuation_costs`/`maximum`/`minimum_action`/`memory`/`shop`/`intel`/`passive`/`director` 键集不可缺） |
@@ -152,6 +156,13 @@ flowchart LR
 - `spark_matrix` & `sensual_spark_matrix`：25×25 常规生活张力火花矩阵 + 专属私密情欲张力火花矩阵（由 `load_world_beats()` 透传），配 `moves.soft`（6 条）与 `moves.hard`（5 条）。
 - `offstage_clocks`：4 条角色暗钟（`CLK_XCY` / `CLK_SZY` / `CLK_XNW` / `CLK_SWQ`），每条含 `owner`、`max_segments=4`、`soft_at=3`、`k01_guard` 与 2 个循环阶段 `phases[{label, channel_hint, soft_omen, hard_landing}]`。
 - `beats`（**75 条**精选支点事件，含常规支点 + 1 条 `covert_risk` 装置风控 + **12 条 Tier-0 `category: "sensual_hook"` 感官契机** + **31 条 `category: "erotic_accident"` 四阶香艳突发意外**）：单条含 `id`、`tier`（`tier0`–`tier4`）、`category`、`channel`、`locations[]`、`required_cast[]`、`time_slots[]`、`min_vigilance`、`min_biz`、可选生理门控与 `requires_door_catch` 防瞬移字段、`weight`、`cooldown`、`once`、`seed_to_add`、`requires_seed`、`objective_event`。
+
+### 2.8 `txt文件/隐秘守卫注册表.json` 与运行时纠偏缓冲（全员暗线隔离与话量预算 SSOT）
+- **权威文件**：`txt文件/隐秘守卫注册表.json`（`version: 1`），由 `story_compiler.load_secret_guard_registry()` 按 `(mtime_ns, size)` 线程安全热缓存加载：
+  - `secrets`（4 条全员暗线条目，按 ID 键控）：`S01_SU_SPY`（苏婉青，共持者徐承邺，`unlock_key: "INTEL-002"`）、`S02_SHEN_LEDGER`（沈知韫，`unlock_key: "INTEL-001"`）、`S03_XU_PAINTING`（徐念薇，`unlock_key: "SECRET-XNW-PAINTING"`）、`S04_CHENGYE_MERGER`（徐承邺，`unlock_key: "INTEL-003"`）。
+  - 单条结构：`owner`、`co_holders[]`、`unlock_key`、`severity`（`"review"`）、`surface_cover`（未解锁时注入 Zone 1 的正面掩护描写，零含敏感词防「粉红大象效应」）、`unlocked_branch`（解锁后注入 Zone 1 的显式摊牌态描写）、`leak_patterns[]`（两级守卫硬级正则集）、`immersive_title` / `immersive_summary`（前端 `#stageCurtain.is-review` 沉浸裁决文案）、`correction_hint`（一次性纠偏提示）。
+  - `voice_budgets`（4 位主要角色 `苏婉青/徐念薇/沈知韫/徐承邺`）：单条含 `style` 与 `daily_hint`，供编译期 `Zone 1` 与运行时软级监测共用。
+- **一次性纠偏运行时缓冲**：`.round-runtime/story/persona-correction.json`（受 `.gitignore` 忽略，由 `story_service.save_persona_correction()` / `pop_persona_correction()` 管理）。玩家在 `awaiting_review` 裁决窗选择「沿用本段，下幕自然收束」（`accept_with_correction`）或策略切为 `soft_only` 时，写入 `{hints[], reasons[], created_at}`；下一幕取料 `POST /worker/<id>/material` 注入 `Zone 2` 末尾后立即消费删除（不污染 `Zone 0/1` KV 前缀）。
 
 ---
 

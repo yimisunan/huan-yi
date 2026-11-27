@@ -160,14 +160,16 @@ def selection(root, files, proposed, text, command=None, *, allow_handoff_drop=F
 
 
 STORY_PREFS_PATH = '.round-runtime/story/prefs.json'
+PERSONA_CORRECTION_PATH = '.round-runtime/story/persona-correction.json'
 
 
 def load_story_prefs(root):
-    """Load runtime story preferences (defaults: faithful protagonist, standard director pacing, balanced anchor history, custom rules off)."""
+    """Load runtime story preferences (defaults: faithful protagonist, standard director pacing, balanced anchor history, ask on drift, custom rules off)."""
     defaults = {
         'protagonist_style': 'faithful',
         'director_pacing': 'standard',
         'anchor_history_mode': 'balanced',
+        'drift_review_mode': 'ask',
         'voice_playback_enabled': True,
         'custom_rules_enabled': False,
         'custom_rules_position': 'append',
@@ -187,6 +189,7 @@ def load_story_prefs(root):
             'protagonist_style': sc.normalize_protagonist_style(raw.get('protagonist_style', 'faithful')),
             'director_pacing': sp.normalize_director_pacing(raw.get('director_pacing', 'standard')),
             'anchor_history_mode': sc.normalize_anchor_history_mode(raw.get('anchor_history_mode', 'balanced')),
+            'drift_review_mode': sc.normalize_drift_review_mode(raw.get('drift_review_mode', 'ask')),
             'voice_playback_enabled': bool(raw.get('voice_playback_enabled', True)),
             'custom_rules_enabled': bool(raw.get('custom_rules_enabled', False)),
             'custom_rules_position': sc.normalize_custom_rules_position(raw.get('custom_rules_position', 'append')),
@@ -204,7 +207,7 @@ def save_story_prefs(root, updates):
     if not isinstance(updates, dict):
         raise rr.RoundError('偏好设置须为对象')
     allowed_keys = {
-        'protagonist_style', 'director_pacing', 'anchor_history_mode', 'voice_playback_enabled',
+        'protagonist_style', 'director_pacing', 'anchor_history_mode', 'drift_review_mode', 'voice_playback_enabled',
         'custom_rules_enabled', 'custom_rules_position', 'custom_rules_text',
         'settlement_custom_rules_enabled', 'settlement_custom_rules_position', 'settlement_custom_rules_text',
     }
@@ -225,6 +228,11 @@ def save_story_prefs(root, updates):
         if val not in sc.ANCHOR_HISTORY_MODES:
             raise rr.RoundError('开窗回溯模式须为 balanced 或 full')
         cur['anchor_history_mode'] = val
+    if 'drift_review_mode' in updates:
+        val = updates['drift_review_mode']
+        if val not in sc.DRIFT_REVIEW_MODES:
+            raise rr.RoundError('人设与暗线偏离处理须为 ask、auto_regen 或 soft_only')
+        cur['drift_review_mode'] = val
     if 'voice_playback_enabled' in updates:
         val = updates['voice_playback_enabled']
         if type(val) is not bool:
@@ -256,6 +264,51 @@ def save_story_prefs(root, updates):
     target.parent.mkdir(parents=True, exist_ok=True)
     rr._atomic(target, rr._json(cur))
     return cur
+
+
+def load_persona_correction(root, *, save_epoch=None):
+    """Load pending one-shot soft persona correction matching save_epoch, or None."""
+    p = Path(root) / PERSONA_CORRECTION_PATH
+    if not p.is_file():
+        return None
+    try:
+        raw = json.loads(p.read_text(encoding='utf-8'))
+        if not isinstance(raw, dict):
+            return None
+        hint = str(raw.get('hint') or '').strip()
+        if not hint:
+            return None
+        if save_epoch is not None and str(raw.get('save_epoch') or '') != str(save_epoch):
+            return None
+        return raw
+    except Exception:
+        return None
+
+
+def save_persona_correction(root, *, save_epoch, hint, source_request_id=''):
+    """Atomically store a one-shot next-turn Zone 2 persona/secret soft correction."""
+    clean_hint = re.sub(r'[\r\n]+', ' ', str(hint or '')).strip()[:160]
+    if not clean_hint:
+        return None
+    payload = {
+        'save_epoch': str(save_epoch or ''),
+        'hint': clean_hint,
+        'source_request_id': str(source_request_id or ''),
+        'created_at': time.time(),
+    }
+    target = Path(root) / PERSONA_CORRECTION_PATH
+    target.parent.mkdir(parents=True, exist_ok=True)
+    rr._atomic(target, rr._json(payload))
+    return payload
+
+
+def clear_persona_correction(root):
+    """Remove any pending one-shot soft persona correction."""
+    p = Path(root) / PERSONA_CORRECTION_PATH
+    try:
+        p.unlink(missing_ok=True)
+    except OSError:
+        pass
 
 
 def update_playback(store, row, revealed, completed, *, allow_catchup=False):
@@ -1869,12 +1922,21 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
     if type(last_seen_seq) is not int or last_seen_seq < 0:
         last_seen_seq = 0
     raw_synced_flags = opts.get('synced_zone1_flags')
+    pflags_now = sc.compute_zone1_persona_flags(effective_state, memory_text)
     if (not is_fresh) and isinstance(raw_synced_flags, dict) and 'vig' in raw_synced_flags and 'intl' in raw_synced_flags:
-        zone1_flags = {'vig': bool(raw_synced_flags.get('vig')), 'intl': bool(raw_synced_flags.get('intl'))}
+        synced_stage = raw_synced_flags.get('char_stage')
+        zone1_flags = {
+            'vig': bool(raw_synced_flags.get('vig')),
+            'intl': bool(raw_synced_flags.get('intl')),
+            'char_stage': dict(synced_stage) if isinstance(synced_stage, dict) else pflags_now['char_stage'],
+            'unlocked_secrets': list(pflags_now['unlocked_secrets']),
+        }
     else:
         zone1_flags = {
             'vig': sc._needs_vigilance_rules(effective_state, memory_text),
             'intl': sc._needs_intimate_zone1(effective_state, memory_text),
+            'char_stage': pflags_now['char_stage'],
+            'unlocked_secrets': list(pflags_now['unlocked_secrets']),
         }
     injected_refs = [x for x in (opts.get('injected_refs') or ()) if isinstance(x, str) and x] if not is_fresh else []
     injected_guides = [x for x in (opts.get('injected_guides') or ()) if isinstance(x, str) and x] if not is_fresh else []
@@ -1886,7 +1948,7 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
         story.root, mode=protocol_mode, protagonist_style=protagonist_style,
         custom_rules=story_prefs,
     )
-    # Zone 1 strictly excludes transient offstage references and freezes vig/intl flags per session
+    # Zone 1 strictly excludes transient offstage references and freezes vig/intl/char_stage flags per session
     # so same-scene KV prefix cache stays 100% byte-identical across turns; offstage profiles/address locks
     # and mid-session craft guides are delivered losslessly once per session in Zone 2.
     zone1_scene = sc.build_zone1_scene(
@@ -1929,12 +1991,27 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
         exclude_fingerprints=injected_memory_fps if not include_full_anchor else None,
     )
     raw_chook = opts.get('continuity_hook')
-    continuity_hook = re.sub(r'[\r\n]+', ' ', str(raw_chook)).strip()[:280] if isinstance(raw_chook, str) and raw_chook.strip() else ''
+    continuity_hook = (
+        sc.strip_dialogue_subtext(re.sub(r'[\r\n]+', ' ', str(raw_chook)).strip())[:280]
+        if isinstance(raw_chook, str) and raw_chook.strip() else ''
+    )
     is_action_turn = (not charged or (packet_data.get('cost_preview') or {}).get('kind') == 'action')
     pending_echoes = sp.parse_shop_echo_block(memory_text)['echoes'] if is_action_turn else []
     breakout_hint = sc.compile_breakout_hint(memory_text) if is_action_turn else None
     intel_catalog = sp.load_intel_catalog(story.root, optional=True)
     stage1_supplements = () if protocol_mode == 'dual_stream_v2' else supplements
+    persona_correction = ''
+    if is_action_turn:
+        retry_guidance = str((job or {}).get('drift_retry_guidance') or '').strip() if isinstance(job, dict) else ''
+        if retry_guidance:
+            persona_correction = retry_guidance
+        else:
+            cur_epoch = (job or {}).get('save_epoch') if isinstance(job, dict) else None
+            if not cur_epoch and hasattr(story, '_save_epoch'):
+                cur_epoch = story._save_epoch()
+            pending_corr = load_persona_correction(story.root, save_epoch=cur_epoch)
+            if isinstance(pending_corr, dict) and pending_corr.get('hint'):
+                persona_correction = str(pending_corr['hint'])
     session_delta = {}
     user_delta = sc.build_user_delta(
         story.root, effective_state, projection, history, new_history_only,
@@ -1966,6 +2043,7 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
         session_delta_out=session_delta,
         prev_state_hashes=prev_state_hashes if not include_full_anchor else None,
         anchor_history_mode=anchor_history_mode,
+        persona_correction=persona_correction,
     )
     total_bytes = len(zone0_global.encode('utf-8')) + len(zone1_scene.encode('utf-8')) + len(user_delta.encode('utf-8'))
     if total_bytes > 2 * 1024 * 1024:
@@ -2650,11 +2728,18 @@ def assemble(story, key, job, result, context, audit):
     eff_cast = scene_cast(presence, mem_text, eff_loc)
     bundle_state, _, _ = save_store.load_bundle(story.root, files)
     secrets_unlocked = list((bundle_state.get('mechanics') or {}).get('secrets_unlocked', []))
+    res_obj = result.get('resolution') if isinstance(result.get('resolution'), dict) else {}
+    intel_used = res_obj.get('intel_used') if isinstance(res_obj.get('intel_used'), dict) else None
+    intel_used_id = str(intel_used.get('id') or '').strip() if intel_used else ''
+    effective_unlocked = list(dict.fromkeys([*secrets_unlocked, *([intel_used_id] if intel_used_id else [])]))
     protagonist_style = load_story_prefs(story.root)['protagonist_style']
+    intimate_active = bool((bundle_state.get('intimate') or {}).get('scene_active'))
     guard = sc.guardrail_check(
         story.root, eff_loc, eff_cast, result['messages'],
-        memory_text=mem_text, secrets_unlocked=secrets_unlocked,
+        memory_text=mem_text, secrets_unlocked=effective_unlocked,
         allow_player_dialogue=(protagonist_style == 'faithful'),
+        panels=bundle_state.get('panels'),
+        intimate_active=intimate_active,
     )
     accepted_audit = {**audit, **extra_audit, 'checks': result['checks']}
     if context.get('delivered_echo_ids'):
@@ -2663,6 +2748,14 @@ def assemble(story, key, job, result, context, audit):
         accepted_audit['director_roll'] = copy.deepcopy(context['director_roll'])
     if guard.get('warnings'):
         accepted_audit['guardrail_warnings'] = guard['warnings']
+    guard_signals = list(guard.get('review_signals') or ())
+    s2_signals = sc.extract_settlement_review_signals(
+        story.root, extra_audit.get('quality_flags') or (),
+        secrets_unlocked=effective_unlocked,
+    )
+    all_review_signals = guard_signals + s2_signals
+    if all_review_signals:
+        accepted_audit['review_signals'] = all_review_signals
     if charged:
         if not job.get('reservation') or job['reservation']['status']!='held':raise rr.ConflictError('预扣已结束，拒绝旧结果')
         accepted_audit['reservation'] = copy.deepcopy(job['reservation'])

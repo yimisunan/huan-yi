@@ -574,13 +574,149 @@ def compile_codex_runtime(root):
     return _sc_cache_set(key, _clean_text(body))
 
 
-def compile_characters(root, cast, references=(), *, include_host=True):
-    """Preserve 100% of character persona/appearance/speech/Fish tags, stripping repeated meta markers."""
+_SUBTEXT_PAIR_RE = re.compile(r'｛([^｜｝]*)｜[^｝]*｝')
+_SECRET_BOUNDARY_LINE_RE = re.compile(r'【暗线边界:([A-Za-z0-9_-]+)】[^\n]*')
+_SPINE_BLOCK_RE = re.compile(
+    r'【三阶亲密心理脊梁】\s*\n((?:\[阶段[123]:[^\]]+\][^\n]*(?:\n|$))+)',
+    re.M,
+)
+_SPINE_STAGE_LINE_RE = re.compile(r'^\[阶段([123]):[^\]]+\]\s*(.+)$')
+
+
+def load_secret_guard_registry(root):
+    """Load canonical secret-isolation & voice-budget registry with mtime caching."""
+    path = Path(root) / 'txt文件/隐秘守卫注册表.json'
+    if not path.is_file():
+        return {'version': 1, 'secrets': {}, 'voice_budgets': {}}
+    key = ('secret_guard_reg', _stat_sig(path))
+    cached = _sc_cache_get(key)
+    if cached is not None:
+        return cached
+    data = json.loads(path.read_text(encoding='utf-8'))
+    if not isinstance(data, dict):
+        data = {'version': 1, 'secrets': {}, 'voice_budgets': {}}
+    return _sc_cache_set(key, data)
+
+
+def strip_dialogue_subtext(text):
+    """Strip unspoken right-hand subtext from ｛表层｜潜台词｝ so listeners/history only see spoken surface."""
+    if not isinstance(text, str) or '｛' not in text or '｜' not in text:
+        return text
+    return _SUBTEXT_PAIR_RE.sub(lambda m: m.group(1), text)
+
+
+def sanitize_history_for_context(history):
+    """Return a shallow-copied history list with unspoken ｜subtext removed from dialogue nodes."""
+    if not isinstance(history, (list, tuple)):
+        return history
+    out = []
+    for item in history:
+        if not isinstance(item, dict):
+            out.append(item)
+            continue
+        msgs = item.get('messages')
+        if not isinstance(msgs, list):
+            out.append(item)
+            continue
+        changed = False
+        new_msgs = []
+        for m in msgs:
+            if isinstance(m, dict) and m.get('kind') == 'dialogue' and isinstance(m.get('text'), str) and '｜' in m['text']:
+                cleaned = strip_dialogue_subtext(m['text'])
+                if cleaned != m['text']:
+                    nm = dict(m)
+                    nm['text'] = cleaned
+                    new_msgs.append(nm)
+                    changed = True
+                    continue
+            new_msgs.append(m)
+        if changed:
+            ni = dict(item)
+            ni['messages'] = new_msgs
+            out.append(ni)
+        else:
+            out.append(item)
+    return out
+
+
+def compute_zone1_persona_flags(state, memory_text=''):
+    """Compute coarse session-freezable persona stage buckets and unlocked secret keys for Zone 1."""
+    panel_map = _parse_panel_map((state or {}).get('panels', []))
+    cast = (state or {}).get('cast', [])
+    char_stage = {}
+    for name in cast:
+        if name not in PEOPLE:
+            continue
+        stats = panel_map.get(name, {})
+        shame_m = re.match(r'-?\d+', str(stats.get('羞耻', '100')))
+        dep_m = re.match(r'-?\d+', str(stats.get('堕落', '0')))
+        shame = int(shame_m.group(0)) if shame_m else 100
+        dep = int(dep_m.group(0)) if dep_m else 0
+        if dep >= 35 or shame < 45:
+            char_stage[name] = 'stage3'
+        elif shame >= 75 and dep < 15:
+            char_stage[name] = 'stage1'
+        else:
+            char_stage[name] = 'stage2'
+    mech = (state or {}).get('mechanics') if isinstance((state or {}).get('mechanics'), dict) else {}
+    raw_unlocked = list(mech.get('secrets_unlocked') or ())
+    if not raw_unlocked and isinstance((state or {}).get('secrets_unlocked'), (list, tuple)):
+        raw_unlocked = list(state.get('secrets_unlocked') or ())
+    unlocked = sorted({str(x).strip() for x in raw_unlocked if str(x).strip()})
+    return {'char_stage': char_stage, 'unlocked_secrets': unlocked}
+
+
+def _filter_character_body_for_scene(root, name, body, *, stage_bucket=None, unlocked_secrets=()):
+    """Deterministically desensitize locked secret branches and slice psychological spine to active stage."""
+    reg = load_secret_guard_registry(root)
+    secrets_map = reg.get('secrets') or {}
+    unlocked_set = {str(x).strip() for x in (unlocked_secrets or ()) if str(x).strip()}
+
+    def _replace_secret(match):
+        sid = match.group(1).strip()
+        meta = secrets_map.get(sid)
+        if not isinstance(meta, dict):
+            return match.group(0)
+        ukey = str(meta.get('unlock_key') or '').strip()
+        if ukey and ukey in unlocked_set:
+            branch = str(meta.get('unlocked_branch') or '').strip()
+            return f'【已解锁暗线态势】{branch}' if branch else ''
+        cover = str(meta.get('surface_cover') or '').strip()
+        return f'【台面与回避边界】{cover}' if cover else ''
+
+    text = _SECRET_BOUNDARY_LINE_RE.sub(_replace_secret, body)
+
+    if stage_bucket in ('stage1', 'stage2', 'stage3'):
+        target_num = stage_bucket[-1]
+
+        def _slice_spine(match):
+            lines = [ln.strip() for ln in match.group(1).splitlines() if ln.strip()]
+            picked = ''
+            for ln in lines:
+                sm = _SPINE_STAGE_LINE_RE.match(ln)
+                if sm and sm.group(1) == target_num:
+                    picked = sm.group(2).strip()
+                    break
+            if not picked:
+                return match.group(0)
+            return f'【当前阶段亲密心理边界】{picked}\n'
+
+        text = _SPINE_BLOCK_RE.sub(_slice_spine, text)
+
+    return _clean_text(text)
+
+
+def compile_characters(root, cast, references=(), *, include_host=True,
+                       stage_filter=None, unlocked_secrets=None):
+    """Compile character profiles; when stage_filter/unlocked_secrets are given, slice spine & desensitize secrets."""
     entries = _load_kb_entries(root, '角色类')
     ref_names = [r['name'] if isinstance(r, dict) else str(r) for r in references]
     base = [*cast, *ref_names, '徐志北'] if include_host else [*cast, *ref_names]
     ordered = list(dict.fromkeys(base))
     cast_set = set(cast)
+    apply_scene_filter = (stage_filter is not None) or (unlocked_secrets is not None)
+    stage_map = stage_filter if isinstance(stage_filter, dict) else {}
+    unlocked_tuple = tuple(unlocked_secrets or ())
     result = []
     for name in ordered:
         found = [e['content'] for e in entries if '※索引key※ char.' + name in e.get('content', '')]
@@ -590,7 +726,13 @@ def compile_characters(root, cast, references=(), *, include_host=True):
         cleaned = _INDEX_KEY_RE.sub('', cleaned)
         cleaned = _KINSHIP_DEADLINE_RE.sub('', cleaned)
         cleaned = _CROSS_MODULE_PTR_RE.sub('', cleaned)
-        cleaned = _clean_text(cleaned)
+        if apply_scene_filter and name != '徐志北':
+            bucket = stage_map.get(name, 'stage1') if name in PEOPLE else None
+            cleaned = _filter_character_body_for_scene(
+                root, name, cleaned, stage_bucket=bucket, unlocked_secrets=unlocked_tuple,
+            )
+        else:
+            cleaned = _clean_text(cleaned)
         scope = 'present' if name in cast_set else ('host' if name == '徐志北' else 'referenced_background_offstage')
         result.append({'key': 'char.' + name, 'name': name, 'scope': scope, 'body': cleaned})
     return result
@@ -723,7 +865,7 @@ def _heroine_affection_desc(name, aff):
         if aff >= 88:
             return '对你已生极深依赖与偏爱，话里行间藏着舍不得拒绝的软意，常先顺着你退半步'
         if aff >= 80:
-            return '对你天然偏护信任、日常容错率极高（偶有冒失多半先替你找台阶或柔声包容），私下愿卸下几分董事长架子'
+            return '对你天然偏护信任、日常容错率极高（偶有冒失多半先替你找台阶或轻声包容），但仍保留董事长省字定调的分寸，绝不轻易向晚辈长篇倾诉愧疚或苦衷'
         if aff >= 70:
             return '对你亲近信任、日常容错率高，偶有小别扭多半轻声包容'
         if aff >= 55:
@@ -990,7 +1132,7 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
             if su_exposed:
                 flags.append('眼线身份已被宿主当面揭穿(心虚受制，不再主动替徐承邺盯梢，开启私下周旋/妥协线)')
             elif not remote and location == '徐家主宅' and (aff < 70 or shame > 80):
-                flags.append('心底仍把丈夫立场摆在前头，回宅见闻事后多半会顺口告知徐承邺')
+                flags.append('心底仍顾忌大房名分与婆婆礼数，在主宅言行愈发谨小慎微，遇试探必先以礼数微笑岔开')
         phys = ((state or {}).get('physiology') or {}).get(name) or {}
         cp_cnt = int(phys.get('creampie_count', _int_stat(stats.get('内射', '0'), 0)) or 0)
         if cp_cnt == 1:
@@ -1125,10 +1267,16 @@ MAX_PLAYER_DIALOGUE_PER_TURN = 3
 
 
 CUSTOM_RULES_POSITIONS = ('append', 'prepend')
+DRIFT_REVIEW_MODES = ('ask', 'auto_regen', 'soft_only')
 
 
 def normalize_protagonist_style(value):
     return 'silent' if str(value or '').strip().lower() == 'silent' else 'faithful'
+
+
+def normalize_drift_review_mode(value):
+    val = str(value or '').strip().lower()
+    return val if val in DRIFT_REVIEW_MODES else 'ask'
 
 
 def normalize_custom_rules_position(value):
@@ -1218,7 +1366,7 @@ def build_zone0_global(root, mode='dual_stream_v2', protagonist_style='faithful'
                 '你是深渊天平前台叙事演播者，专注真实活人对话、人物主体性、自然节奏、信息差与 Drama 3 导演声演；'
                 '数值与结算交由后台完成，正文禁输出 JSON、面板数值、事件标签、SYSTEM_LOG 或审计表。\n'
                 '1. 创作与流转：\n'
-                '   - 篇幅由戏核自然呼吸决定（单行防呆上限4000字）：重场写透，日常快节奏亦可干脆短答；一幕一位移（变完回不去），打破礼貌寒暄循环；动作与对白自由穿插，快节奏交锋可连续多行 [D] 零动作直抛，不必机械一动一言。\n'
+                '   - 篇幅由戏核自然呼吸决定（单行防呆上限4000字）：重场写透，日常快节奏亦可干脆短答；一幕一位移（变完回不去），打破礼貌寒暄循环（对内敛/清冷/守密角色而言，一次目光躲闪、半句咽回或借琐事岔开本身即是高张力位移，严禁逼其直白自剖或提前道破暗线）；动作与对白依角色性格穿插（争锋或外放角色可连发 [D]，内敛/清冷角色严格守角色卡的话量与留白边界，宁用 [A] 微动作承接不凑长台词）。\n'
                 + protagonist_rule +
                 '   - 外部变数（仅当 delta 携带 surprise_directive 时生效）：将其化作真实客观动静织入并触发反应；thread_spark 顺着锚点融合双词意象；offstage_clock 且 owner_in_scene=false 时禁瞬移现身或输出 [D:姓名]，只经物件/转述浮现；若携带 choice_hook_guide（女主突发意外/微距契机），须在需要主角伸手或表态的临界半拍定格，段末 PROMPT 与 B/C 必须直接锚定该意外作为切入点（B 合法近身协助解围、C 借势压近试探，禁跳回无关寒暄）；避开 banned_channels，禁提机制词，不代作应对决定。\n'
                 '   - 特定时刻微回响（仅当 delta 携带 milestone_echo 时生效）：自然间隙用 1 句克制氛围或内心轻顿带过，禁提系统/任务/商城/积分词，不扭转玩家意图。\n'
@@ -1278,7 +1426,24 @@ def build_zone1_scene(root, state, cast, references=(), memory_text='', extra_te
                       mode='dual_stream_v2', protagonist_style='faithful', *, frozen_flags=None):
     """Build scene-scoped semi-static Zone 1 system prompt (byte-invariant across turns in same scene/session)."""
     style = normalize_protagonist_style(protagonist_style)
-    chars = compile_characters(root, cast, references, include_host=False)
+    # Zone 1 gating relies ONLY on session-frozen flags (or persistent state when no frozen_flags provided)
+    # so KV prefix cache stays 100% byte-identical across turns in the same scene session.
+    if isinstance(frozen_flags, dict):
+        vig_on = bool(frozen_flags.get('vig'))
+        intl_on = bool(frozen_flags.get('intl'))
+        char_stage = frozen_flags.get('char_stage') if isinstance(frozen_flags.get('char_stage'), dict) else {}
+        unlocked_secrets = tuple(frozen_flags.get('unlocked_secrets') or ())
+    else:
+        vig_on = _needs_vigilance_rules(state, memory_text)
+        intl_on = _needs_intimate_zone1(state, memory_text)
+        pflags = compute_zone1_persona_flags(state, memory_text)
+        char_stage = pflags['char_stage']
+        unlocked_secrets = tuple(pflags['unlocked_secrets'])
+
+    chars = compile_characters(
+        root, cast, references, include_host=False,
+        stage_filter=char_stage, unlocked_secrets=unlocked_secrets,
+    )
     rels = compile_relationships(root, cast, references)
     location = (state or {}).get('location', '')
     offstage = [c['name'] for c in chars if c['scope'] == 'referenced_background_offstage']
@@ -1307,15 +1472,6 @@ def build_zone1_scene(root, state, cast, references=(), memory_text='', extra_te
     sections.append(
         '【关系、知情隔离与称谓编译表】\n' + json.dumps(rels, ensure_ascii=False, separators=(',', ':'))
     )
-
-    # Zone 1 gating relies ONLY on session-frozen flags (or persistent state when no frozen_flags provided)
-    # so KV prefix cache stays 100% byte-identical across turns in the same scene session.
-    if isinstance(frozen_flags, dict):
-        vig_on = bool(frozen_flags.get('vig'))
-        intl_on = bool(frozen_flags.get('intl'))
-    else:
-        vig_on = _needs_vigilance_rules(state, memory_text)
-        intl_on = _needs_intimate_zone1(state, memory_text)
 
     if vig_on:
         vig_body = _load_vigilance_body(root, protocol_mode=mode)
@@ -1446,9 +1602,12 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
                      continuity_hook='', recent_room_continuity=None,
                      references=(), injected_refs=(), zone1_flags=None,
                      injected_guides=(), session_delta_out=None,
-                     prev_state_hashes=None, anchor_history_mode='balanced'):
+                     prev_state_hashes=None, anchor_history_mode='balanced',
+                     persona_correction=''):
     """Build compact per-turn user message (tiny diff-only delta on turns 2..N, bounded anchor on turn 1)."""
     style = normalize_protagonist_style(protagonist_style)
+    history = sanitize_history_for_context(history)
+    new_history_only = sanitize_history_for_context(new_history_only)
     is_single = (mode == 'single_prefix_v2')
     cat = intel_catalog if intel_catalog is not None else sp.load_intel_catalog(root, optional=True)
     brief = compile_state_qualitative_brief(
@@ -1522,7 +1681,7 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
         else:
             mind_block = {'people': cast_mind_view}
             if include_full_anchor:
-                mind_block['rule'] = '在场人物此刻的未散余绪、手头牵挂与暗自记账：作为内在驱动自然流露、借题发挥或隔幕提起，严禁生硬复读原文，更禁开上帝视角读主角括号内心。'
+                mind_block['rule'] = '在场人物此刻暗自斟酌的内在心绪、手头牵挂与私下印象：只通过微动作、神色停顿与选词分寸折射，严禁当成台词直白说破或长段自我剖析，更禁开上帝视角读主角括号内心。'
             delta['cast_mind'] = mind_block
     prologue_active_now = bool((state or {}).get('prologue_active', False))
     is_move_op = (
@@ -1552,6 +1711,8 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
             delta['scene_exit_hint'] = f'已在{location}连续停驻{scene_turns}幕：至少1个选项须提供推进时段或[MOVE:地点]转场出口。'
     if previous_error:
         delta['previous_validation_error'] = previous_error
+    if isinstance(persona_correction, str) and persona_correction.strip():
+        delta['persona_drift_correction'] = persona_correction.strip()[:260]
     if not cast:
         delta['solo_scene_rule'] = '当前地点无其他在场角色：严禁输出任何 [D:...] 台词行；若出现来电或消息，请在 [N] 旁白中转述或用引号呈现。'
 
@@ -1571,7 +1732,12 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
         new_ref_names = [n for n in offstage_names if n not in seen_refs_set]
         seen_active_refs = [n for n in offstage_names if n in seen_refs_set]
         if new_ref_names:
-            ref_chars = compile_characters(root, [], new_ref_names, include_host=False)
+            ref_pflags = compute_zone1_persona_flags(state, memory_text)
+            ref_unlocked = tuple(zone1_flags.get('unlocked_secrets') or ()) if isinstance(zone1_flags, dict) and 'unlocked_secrets' in zone1_flags else tuple(ref_pflags['unlocked_secrets'])
+            ref_chars = compile_characters(
+                root, [], new_ref_names, include_host=False,
+                stage_filter={}, unlocked_secrets=ref_unlocked,
+            )
             ref_rels = compile_relationships_delta(root, cast, new_ref_names)
             delta['referenced_offstage'] = {
                 'characters': [{'key': c['key'], 'name': c['name'], 'body': c['body']} for c in ref_chars],
@@ -1762,7 +1928,17 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
         delta['unchanged_from_prev_turn'] = unchanged_blocks
 
     if isinstance(recent_room_continuity, dict) and recent_room_continuity.get('tail'):
-        delta['recent_room_continuity'] = recent_room_continuity
+        cleaned_tail = []
+        for row in recent_room_continuity.get('tail') or ():
+            if isinstance(row, dict) and isinstance(row.get('text'), str) and '｜' in row['text']:
+                nr = dict(row)
+                nr['text'] = strip_dialogue_subtext(row['text'])
+                cleaned_tail.append(nr)
+            elif isinstance(row, str) and '｜' in row:
+                cleaned_tail.append(strip_dialogue_subtext(row))
+            else:
+                cleaned_tail.append(row)
+        delta['recent_room_continuity'] = {**recent_room_continuity, 'tail': cleaned_tail}
 
     if pending_echoes:
         delta['milestone_echo'] = {
@@ -1889,13 +2065,13 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
         if include_full_anchor:
             if style == 'faithful':
                 delta['output_format'] = (
-                    '逐行以[N]/[A:名]/[D:在场角色名]起头：动作与对白自由穿插（快节奏可连发[D]，不必每句硬配动作）；'
-                    '允许≤3句贴合原意图的简短[D:徐志北]（单句≤40字、零标签）；[D:名]只写纯台词（禁动作旁白或外层引号），三女主按需用导演[...]与词级标签。'
+                    '逐行以[N]/[A:名]/[D:在场角色名]起头：动作与对白依角色性格穿插（争锋或外放可连发[D]，内敛/清冷角色保持短句留白与动作回避）；'
+                    '允许≤3句贴合原意图的简短[D:徐志北]（单句≤40字、零标签）；[D:名]只写纯台词（禁动作旁白或外层引号），三女主按需轻点导演[...]与词级标签。'
                     + lateral_hint + acting_anchor + decision_clause
                 )
             else:
                 delta['output_format'] = (
-                    '逐行以[N]/[A:名]/[D:在场角色名]起头（严禁[D:徐志北]，以[A:徐志北]/[N]呈现主角动作与提问；[D:名]只写纯台词禁动作旁白或外层引号，快节奏可连发[D]）。'
+                    '逐行以[N]/[A:名]/[D:在场角色名]起头（严禁[D:徐志北]，以[A:徐志北]/[N]呈现主角动作与提问；[D:名]只写纯台词禁动作旁白或外层引号，依角色性格控制话量与留白）。'
                     + lateral_hint + acting_anchor + decision_clause
                 )
         else:
@@ -2067,7 +2243,9 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
             'chronicle_digest通常写""；仅当context含chronicle_archive_request时，将所列8幕浓缩为{"public":"<=260字公共纪要","views":{"角色名":"<=140字私密线"}}（禁将私密混入public或泄K01绝密）。\n'
             '7. operation：若context.operation_context.requested非空且现场未拒绝，原样返回该对象；若现场拒绝或未满足条件，operation写""并在handoff说明原因。\n'
             '8. checks：intent/knowledge/action/pace 四条具体单行事实依据，禁用“已读取/通过/同上”。\n'
-            '9. quality_flags：字符串数组，无问题写[]；若发现正文违背玩家括号显形、擅加反派滤镜、越界代打、泄露未解锁秘密，或段末A/B/C三选项高度同质化/原地打转（记录"option_stagnation"），简要列出。\n'
+            '9. quality_flags：数组，无问题写[]；若违背括号显形、擅加反派滤镜、越界代打或选项同质化（记"option_stagnation"）简要列出；'
+            '明显人设OOC对照context.persona_anchors记"persona_ooc:<角色名>:<≤24字原因>"（仅内敛变直白话痨/大段自剖/清冷长篇吐槽等严重偏离，轻微起伏勿报）；'
+            '未解锁暗线穿帮对照context.unlocked_secrets记"secret_premature_leak:<角色名>:<≤24字原因>"（仅台词提前道破打听主宅/深圳走账/画展旧画/并购漏洞）。\n'
             '10. 任务续接与道具增量：仅当 context.cost_preview.kind=="action" 且 (context.tasks.current 为空或 context.tasks.current.status=="已完成") 时，'
             '参考 context.task_whitelist_current 续接1个温和且自然可达的新任务，填入 resolution.task 六键对象：'
             '{"title":"简短中文标题","target":"系统宿主|沈知韫|徐念薇|苏婉青","attr":"系统宿主限积分/经验值/商业嗅觉/体力，三女主仅好感","value":严格大于当前值的正整数,"tier":"small|medium|large","item_desc":"非空小物描述"}（例：积分+6~20，好感+2~5）。'
@@ -2147,6 +2325,18 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
     )
     compact_items = _compact_items_for_settlement((state or {}).get('items', []), text, operation_context)
     deployed_items = (state or {}).get('deployed_items', [])
+    guard_reg = load_secret_guard_registry(root)
+    vb_map = guard_reg.get('voice_budgets') if isinstance(guard_reg, dict) else {}
+    persona_anchors = {
+        cname: f"{vb_map[cname].get('style', '')}｜{vb_map[cname].get('daily_hint', '')}"
+        for cname in ((state or {}).get('cast') or ())
+        if isinstance(vb_map, dict) and isinstance(vb_map.get(cname), dict)
+    }
+    unlocked_s2 = sorted({
+        str(x).strip()
+        for x in (((state or {}).get('mechanics') or {}).get('secrets_unlocked') or ())
+        if str(x).strip()
+    })
 
     user_context = {
         'location': (state or {}).get('location'),
@@ -2154,6 +2344,8 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
         'presence': (state or {}).get('presence', {}),
         'intimate': _compact_intimate_for_settlement((state or {}).get('intimate'), (state or {}).get('cast', [])),
         **({'cast_mind': cast_mind_s2} if cast_mind_s2 else {}),
+        **({'persona_anchors': persona_anchors} if persona_anchors else {}),
+        **({'unlocked_secrets': unlocked_s2} if unlocked_s2 else {}),
         'panels': panels,
         **({'task_whitelist_current': _extract_task_whitelist_values(panels)} if can_issue_task else {}),
         **({'held_intel': held_intel} if held_intel else {}),
@@ -2584,7 +2776,8 @@ _HOST_INNER_RE = re.compile(
 
 def guardrail_check(root, location, cast, messages, memory_text='', *,
                     secrets_unlocked=(), allow_player_dialogue=False,
-                    max_player_dialogue=MAX_PLAYER_DIALOGUE_PER_TURN):
+                    max_player_dialogue=MAX_PLAYER_DIALOGUE_PER_TURN,
+                    panels=None, intimate_active=False):
     """Zero-cost deterministic checks protecting speaker sovereignty, info-gap secrets, and residence locks."""
     root = Path(root)
     warnings = []
@@ -2660,4 +2853,260 @@ def guardrail_check(root, location, cast, messages, memory_text='', *,
         if _SU_RESIDENCE_CONFLICT_RE.search(joined):
             warnings.append('驻地红线提示：检测到苏婉青主宅居住表述冲突，请核对是否误写成常住主宅。')
 
-    return {'ok': True, 'warnings': warnings}
+    # 4. Data-driven Tier-2 hidden-secret leak detection (non-K01; triggers immersive player review gate).
+    review_signals = []
+    guard_reg = load_secret_guard_registry(root)
+    reg_secrets = guard_reg.get('secrets') if isinstance(guard_reg, dict) else {}
+    if isinstance(reg_secrets, dict):
+        for sid, meta in reg_secrets.items():
+            if not isinstance(meta, dict):
+                continue
+            owner = str(meta.get('owner') or '').strip()
+            ukey = str(meta.get('unlock_key') or '').strip()
+            if not owner or (ukey and ukey in unlocked):
+                continue
+            co_holders = [str(c).strip() for c in (meta.get('co_holders') or ()) if str(c).strip()]
+            watch_speakers = ({owner} | set(co_holders)) & cast_set
+            if not watch_speakers:
+                continue
+            compiled = []
+            for pat in (meta.get('leak_patterns') or ()):
+                if isinstance(pat, str) and pat.strip():
+                    try:
+                        compiled.append(re.compile(pat))
+                    except re.error:
+                        continue
+            if not compiled:
+                continue
+            matched_info = None
+            for m in messages:
+                if m.get('kind') != 'dialogue':
+                    continue
+                spk = str(m.get('speaker') or '').strip()
+                if spk not in watch_speakers:
+                    continue
+                # Inspect spoken surface only; right-hand ｜subtext is unspoken inner thought.
+                surface = strip_dialogue_subtext(str(m.get('text') or ''))
+                for rx in compiled:
+                    hit = rx.search(surface)
+                    if hit:
+                        matched_info = (spk, hit.group(0), surface)
+                        break
+                if matched_info:
+                    break
+            if matched_info:
+                spk, hit_str, surface = matched_info
+                review_signals.append({
+                    'code': sid,
+                    'kind': 'secret_leak',
+                    'source': 'guardrail',
+                    'character': spk,
+                    'matched': hit_str,
+                    'title': str(meta.get('immersive_title') or '暗线险些走漏，待你裁夺'),
+                    'summary': str(meta.get('immersive_summary') or f'「{spk}」过早道破了未解锁暗线（命中“{hit_str}”）。'),
+                    'correction_hint': str(meta.get('correction_hint') or f'{spk}此刻须严守未解锁暗线，以无害日常自然岔开话题。'),
+                    'excerpt': surface[:160],
+                })
+
+    # 5. Conservative zero-cost voice-budget soft warning (informational only; does not trigger review by itself).
+    if panels and not intimate_active:
+        pmap = _parse_panel_map(panels)
+        for cname in ('苏婉青', '徐念薇'):
+            if cname not in cast_set:
+                continue
+            stats = pmap.get(cname, {})
+            aff_m = re.match(r'-?\d+', str(stats.get('好感', '60')))
+            aff = int(aff_m.group(0)) if aff_m else 60
+            if aff >= 60:
+                continue
+            spoken = [
+                _DRAMA3_XML_STRIP_RE.sub(
+                    '', _ANY_VOICE_BRACKET_RE.sub('', strip_dialogue_subtext(str(m.get('text') or '')))
+                ).strip()
+                for m in messages
+                if m.get('kind') == 'dialogue' and m.get('speaker') == cname
+            ]
+            total_chars = sum(len(s) for s in spoken)
+            if len(spoken) >= 6 or total_chars >= 260:
+                warnings.append(
+                    f'人设话量软提示：{cname}在日常低好感态本幕发言偏密（{len(spoken)}句/{total_chars}字），可留意是否偏向话多外化。'
+                )
+
+    res = {'ok': True, 'warnings': warnings}
+    if review_signals:
+        res['review_signals'] = review_signals
+    return res
+
+
+_QUALITY_FLAG_DRIFT_RE = re.compile(
+    r'^\s*(persona_ooc|secret_premature_leak)\s*[:：]\s*([^:：\n]{1,16})\s*[:：]?\s*(.*)$',
+    re.I,
+)
+
+
+def _clean_preview_line(text):
+    cleaned = strip_dialogue_subtext(str(text or ''))
+    cleaned = _DRAMA3_XML_STRIP_RE.sub('', _ANY_VOICE_BRACKET_RE.sub('', cleaned))
+    return re.sub(r'\s+', ' ', cleaned).strip()
+
+
+def extract_settlement_review_signals(root, quality_flags, *, secrets_unlocked=()):
+    """Extract Tier-2 review signals reported by Stage 2 quality_flags (persona_ooc / secret_premature_leak)."""
+    if not isinstance(quality_flags, (list, tuple)) or not quality_flags:
+        return []
+    guard_reg = load_secret_guard_registry(root)
+    reg_secrets = guard_reg.get('secrets') if isinstance(guard_reg, dict) else {}
+    vb_map = guard_reg.get('voice_budgets') if isinstance(guard_reg, dict) else {}
+    unlocked = {str(x).strip() for x in (secrets_unlocked or ()) if str(x).strip()}
+    out = []
+    for raw in quality_flags:
+        if not isinstance(raw, str):
+            continue
+        m = _QUALITY_FLAG_DRIFT_RE.match(raw.strip())
+        if not m:
+            continue
+        tag = m.group(1).lower()
+        char = m.group(2).strip()
+        reason = m.group(3).strip().rstrip('。；;')[:40]
+        if tag == 'secret_premature_leak':
+            owner_metas = [
+                (sid, meta)
+                for sid, meta in (reg_secrets or {}).items()
+                if isinstance(meta, dict) and str(meta.get('owner') or '').strip() == char
+            ]
+            # If the character's registered secret(s) are all unlocked, suppress false-positive premature leak flags.
+            if owner_metas and all(
+                str(meta.get('unlock_key') or '').strip() in unlocked
+                for _, meta in owner_metas
+                if str(meta.get('unlock_key') or '').strip()
+            ):
+                continue
+            locked_meta = next(
+                (meta for _, meta in owner_metas if str(meta.get('unlock_key') or '').strip() not in unlocked),
+                None,
+            )
+            title = (locked_meta or {}).get('immersive_title') or '暗线险些走漏，待你裁夺'
+            summary = (
+                f'「{char}」疑似过早触及未解锁暗线（{reason}），与当下信息差和隐忍处境不合。'
+                if reason else ((locked_meta or {}).get('immersive_summary') or f'「{char}」疑似提前道破未解锁暗线。')
+            )
+            hint = (locked_meta or {}).get('correction_hint') or (
+                f'{char}此刻绝不主动提及或暗示“{reason or "未解锁暗线"}”，以无害日常与微动作自然岔开。'
+            )
+            out.append({
+                'code': f'S2_SECRET_{char}',
+                'kind': 'secret_leak',
+                'source': 'settlement',
+                'character': char,
+                'reason': reason,
+                'title': str(title),
+                'summary': str(summary),
+                'correction_hint': str(hint),
+            })
+        else:
+            vb = vb_map.get(char) if isinstance(vb_map, dict) else None
+            style_txt = (vb or {}).get('style', '')
+            daily_txt = (vb or {}).get('daily_hint', '')
+            summary = (
+                f'「{char}」在本幕中的言行略有出戏（{reason}），与人物当下心境和一贯分寸不合。'
+                if reason else f'「{char}」在本幕中的言行略有出戏，与一贯人设分寸不合。'
+            )
+            if style_txt:
+                hint = f'{char}须回归「{style_txt}」底色：{daily_txt}'
+                if reason:
+                    hint += f'（避免：{reason}）'
+            else:
+                hint = f'{char}言行须收敛回归人物原设定分寸（避免：{reason or "人设失真"}）。'
+            out.append({
+                'code': f'S2_OOC_{char}',
+                'kind': 'persona_ooc',
+                'source': 'settlement',
+                'character': char,
+                'reason': reason,
+                'title': '人物神色微偏，待你裁夺',
+                'summary': summary,
+                'correction_hint': hint,
+            })
+    return out
+
+
+def build_review_payload(signals, messages, *, regen_count=0):
+    """Merge guardrail + settlement Tier-2 signals into a compact immersive review payload for the theater UI."""
+    deduped = []
+    seen = set()
+    for sig in (signals or ()):
+        if not isinstance(sig, dict):
+            continue
+        key = (sig.get('kind', ''), sig.get('character', ''))
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(sig)
+    if not deduped:
+        return None
+    # Prioritize secret_leak over persona_ooc for headline clarity.
+    deduped.sort(key=lambda s: (0 if s.get('kind') == 'secret_leak' else 1, 0 if s.get('source') == 'guardrail' else 1))
+    primary = deduped[0]
+    title = str(primary.get('title') or '人物脉络微偏，待你裁夺')
+    summaries = []
+    hints = []
+    flagged_chars = set()
+    for s in deduped[:3]:
+        if s.get('character'):
+            flagged_chars.add(str(s['character']))
+        sm = str(s.get('summary') or '').strip()
+        if sm and sm not in summaries:
+            summaries.append(sm)
+        ht = str(s.get('correction_hint') or '').strip()
+        if ht and ht not in hints:
+            hints.append(ht)
+    combined_summary = ' '.join(summaries)[:220]
+    combined_hint = '；'.join(hints)
+    if len(combined_hint) > 160:
+        combined_hint = combined_hint[:157].rstrip('；，, ') + '…'
+
+    excerpt = []
+    prioritized = []
+    fallback = []
+    for m in (messages or ()):
+        if not isinstance(m, dict):
+            continue
+        kind = m.get('kind', '')
+        spk = str(m.get('speaker') or '').strip()
+        line_txt = _clean_preview_line(m.get('text', ''))
+        if not line_txt:
+            continue
+        if kind == 'dialogue':
+            formatted = f'{spk}：「{line_txt[:110]}」'
+        elif kind == 'action':
+            formatted = f'[{spk or "动作"}] {line_txt[:110]}'
+        else:
+            formatted = line_txt[:110]
+        if kind == 'dialogue' and spk in flagged_chars:
+            prioritized.append(formatted)
+        elif spk in flagged_chars:
+            fallback.append(formatted)
+        else:
+            fallback.append(formatted)
+    for line in (prioritized + fallback):
+        if line not in excerpt:
+            excerpt.append(line)
+        if len(excerpt) >= 4:
+            break
+
+    return {
+        'title': title,
+        'summary': combined_summary,
+        'correction_hint': combined_hint,
+        'excerpt': excerpt,
+        'signals': [
+            {
+                'code': str(s.get('code') or ''),
+                'kind': str(s.get('kind') or ''),
+                'character': str(s.get('character') or ''),
+                'source': str(s.get('source') or ''),
+            }
+            for s in deduped[:4]
+        ],
+        'regen_count': int(regen_count or 0),
+    }

@@ -436,10 +436,10 @@
       "once": false,
       "seed_to_add": {
         "seed_id": "SEED-CHENGYE-MSG",
-        "summary": "苏婉青手机静音亮屏，跳出徐承邺问起主宅近况与南边项目的未展开消息预览"
+        "summary": "苏婉青手机静音亮屏，跳出徐承邺的两条未读消息随即被她按暗锁屏"
       },
       "requires_seed": null,
-      "objective_event": "台面上的手机在静音下闷震两声，屏幕亮起一瞬间，备注栏跳出徐承邺的名字和半截未展开的预览——隐约提到了「妈这周有没有提南边那边……」，随即屏幕熄灭。"
+      "objective_event": "台面上的手机在静音下闷震两声，屏幕亮起一瞬间跳出「徐承邺」的备注和两条未读气泡，随即被她迅速按暗锁屏。"
     },
     {
       "id": "BEAT-T1-SHEN-TABLET-PING",
@@ -663,7 +663,7 @@
         "any"
       ],
       "min_vigilance": 0,
-      "min_biz": 0,
+      "min_biz": 10,
       "weight": 18,
       "cooldown": 8,
       "once": false,

@@ -8,7 +8,7 @@ let busy = null;
 let lastError = '';
 let monitorTimer = null, monitorBusy = false, starting = null;
 let controlSupported = null, sessionReady = false;
-const PLUGIN_VERSION = '2.3.0';
+const PLUGIN_VERSION = '2.3.1';
 const SETTINGS_ROUTE = 'toolpkg:local.story.operit_bridge:ui:settings';
 const THEATER_ROUTE = 'toolpkg:local.story.operit_bridge:ui:theater';
 const BRIDGE_PARTICIPANT_ID = 'model:chat';
@@ -598,7 +598,14 @@ function applyCommittedSessionMeta(liveState, meta) {
     const base = { ...(liveState || {}) };
     if (!meta || typeof meta !== 'object') return base;
     if (meta.zone1_flags && typeof meta.zone1_flags === 'object') {
-        base.zone1Flags = { vig: !!meta.zone1_flags.vig, intl: !!meta.zone1_flags.intl };
+        const zf = { vig: !!meta.zone1_flags.vig, intl: !!meta.zone1_flags.intl };
+        if (meta.zone1_flags.char_stage && typeof meta.zone1_flags.char_stage === 'object') {
+            zf.char_stage = { ...meta.zone1_flags.char_stage };
+        }
+        if (Array.isArray(meta.zone1_flags.unlocked_secrets)) {
+            zf.unlocked_secrets = meta.zone1_flags.unlocked_secrets.filter(x => typeof x === 'string' && x);
+        }
+        base.zone1Flags = zf;
     }
     if (Array.isArray(meta.injected_refs)) {
         const mergedRefs = Array.from(new Set([
@@ -638,11 +645,17 @@ async function resetLiveSession(config, reason) {
     await PluginConfig.flush(config);
 }
 
+function stripDialogueSubtext(text) {
+    if (typeof text !== 'string' || !text.includes('｛') || !text.includes('｜')) return text;
+    return text.replace(/｛([^｜｝]*)｜[^｝]*｝/g, '$1');
+}
+
 function buildTailHook(messages) {
     if (!Array.isArray(messages) || !messages.length) return '';
     const tail = messages.slice(-2).map(m => {
         if (!m || !m.text) return '';
-        const txt = String(m.text).replace(/\s+/g, ' ').trim().slice(0, 110);
+        const raw = m.kind === 'dialogue' ? stripDialogueSubtext(String(m.text)) : String(m.text);
+        const txt = raw.replace(/\s+/g, ' ').trim().slice(0, 110);
         if (!txt) return '';
         if (m.kind === 'dialogue' && m.speaker) return m.speaker + '：「' + txt + '」';
         if (m.kind === 'action' && m.speaker) return m.speaker + '（动作）：' + txt;
@@ -1380,6 +1393,9 @@ async function executeSessionV2(config, task, model, session) {
                             ...(tailHook ? { lastTailHook: tailHook } : {}),
                             dirty: Boolean(resumeCp && !resumedFromSameChat) }, material.session_meta);
                         await PluginConfig.flush(config);
+                    } else if (res && res.task && res.task.status === 'awaiting_review') {
+                        // Mark live session dirty so player "regenerate" starts in a 100% clean session without drifted draft.
+                        await markLiveDirty(config);
                     } else {
                         await markLiveDirty(config);
                     }
@@ -2855,6 +2871,8 @@ function registerToolPkg() {
 }
 exports.composeStorySystemPrompt = composeStorySystemPrompt;
 exports.sanitizeOperitCorePrompt = sanitizeOperitCorePrompt;
+exports.buildTailHook = buildTailHook;
+exports.applyCommittedSessionMeta = applyCommittedSessionMeta;
 exports.computeMonitorDelayMs = computeMonitorDelayMs;
 exports.markBridgeActivity = markBridgeActivity;
 exports.invalidateBridgeToken = invalidateBridgeToken;

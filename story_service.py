@@ -17,11 +17,12 @@ import save_store
 import relationship_query as rq
 import story_reading as sr
 import interaction_runtime as ir
+import story_compiler as sc
 import story_progression as sp
 
 STORY_PROTOCOL = 3
 LEASE_SECONDS = 120
-ACTIVE = {'preparing', 'queued', 'generating', 'validating', 'refund_pending'}
+ACTIVE = {'preparing', 'queued', 'generating', 'validating', 'awaiting_review', 'refund_pending'}
 RULES = ('txt文件/一键注入指南.txt', 'txt文件/全局执行法典.md',
          'txt文件/提示词.md', 'txt文件/故事检索索引.md',
          'txt文件/知识库/世界观类.json', 'txt文件/知识库/角色类.json',
@@ -300,6 +301,9 @@ class StoryService:
     def _expire(self, state):
         changed = False
         for job in state['jobs'].values():
+            if job.get('status') == 'awaiting_review':
+                # awaiting_review waits indefinitely for player decision (lease already released).
+                continue
             if job.get('reservation') and job['status']=='generating' and job.get('lease_until',0)<time.time():
                 sp.refund(self,state,job,'interrupted','生成超时，预扣已全额返还，可原编号重试。')
                 changed = True
@@ -355,7 +359,7 @@ class StoryService:
         if job is None:
             return None
         value = {key: val for key, val in job.items()
-                if key not in {'lease', 'lease_until', 'before_panel', 'reservation', 'settlement', 'generation_model', 'created_at', 'claimed_at', 'returned_at', 'validation_started_at', 'committed_at', 'timing'}}
+                if key not in {'lease', 'lease_until', 'before_panel', 'reservation', 'settlement', 'generation_model', 'created_at', 'claimed_at', 'returned_at', 'validation_started_at', 'committed_at', 'timing', 'drift_retry_guidance'}}
         timing = job.get('timing') or {}
         if isinstance(timing, dict):
             safe_timing = {key: timing[key] for key in ('queue_ms', 'generation_ms', 'settlement_ms', 'preflight_ms', 'acceptance_ms', 'generation_passes', 'settlement_passes', 'model_id', 'settlement_model_id') if key in timing}
@@ -823,6 +827,7 @@ class StoryService:
                     raise rr.ConflictError(str(exc)) from exc
                 data = json.loads(self.store._files()['data.json'] or b'{}')
                 self._clear_preview()
+                ir.clear_persona_correction(self.root)
                 result = {
                     'status': 'reset',
                     'save_epoch': self._save_epoch(),
@@ -934,6 +939,7 @@ class StoryService:
                 except RuntimeError as exc:
                     raise rr.ConflictError(str(exc)) from exc
                 self._clear_preview()
+                ir.clear_persona_correction(self.root)
                 result = {
                     **res,
                     'replayed': False,
@@ -2085,6 +2091,10 @@ class StoryService:
                 job['timing'].update(timing_update)
                 job['returned_at'] = time.time()
                 job['validation_started_at'] = job['returned_at']
+            awaiting_review_pub = None
+            auto_regen_hint = None
+            soft_only_hint = None
+            soft_only_epoch = None
             if job['status'] == 'validating':
                 if self._blob(key, '.result.txt').read_text(encoding='utf-8') != text:
                     raise rr.ConflictError('同一任务已有待提交结果，不得更换')
@@ -2105,39 +2115,156 @@ class StoryService:
                     self.hub.publish('task_state', {'request_id': key, 'status': job['status']})
                     return pub
                 parsed_dual = None
+                validated_payload = None
                 if job.get('entry_mode') == ir.MODE:
+                    context = json.loads(self._blob(key, '.context.json').read_bytes())
                     try:
                         maybe_parsed = rr.load_request(text)
                         if isinstance(maybe_parsed, dict) and maybe_parsed.get('dual_stage_version') == 1:
                             parsed_dual = maybe_parsed
-                    except rr.RoundError:
-                        parsed_dual = None
-                if allow_settlement_retry and job.get('entry_mode') == ir.MODE:
-                    context = json.loads(self._blob(key, '.context.json').read_bytes())
-                    try:
-                        parsed = parsed_dual if parsed_dual is not None else rr.load_request(text)
-                        if isinstance(parsed, dict) and parsed.get('dual_stage_version') == 1:
-                            payload = ir.assemble(self, key, job, parsed, context, audit)
-                            ir.validate(self.root, payload, self.store._files())
+                        if isinstance(maybe_parsed, dict):
+                            cand_payload = ir.assemble(self, key, job, maybe_parsed, context, audit)
+                            ir.validate(self.root, cand_payload, self.store._files())
+                            validated_payload = cand_payload
                     except rr.ConflictError:
-                        raise
+                        if allow_settlement_retry and parsed_dual is not None:
+                            raise
+                        validated_payload = None
                     except rr.RoundError as exc:
-                        msg = str(exc)
-                        # Settlement-layer errors (or foreground missing ONLY the decision block after
-                        # passing prose & redline guardrails) are safely retryable without re-running foreground.
-                        if ir.is_settlement_retryable_error(msg):
-                            return {'retryable_settlement': True, 'error': msg, 'task': self._public(job)}
+                        if allow_settlement_retry and parsed_dual is not None:
+                            msg = str(exc)
+                            # Settlement-layer errors (or foreground missing ONLY the decision block after
+                            # passing prose & redline guardrails) are safely retryable without re-running foreground.
+                            if ir.is_settlement_retryable_error(msg):
+                                return {'retryable_settlement': True, 'error': msg, 'task': self._public(job)}
+                        validated_payload = None
                 if parsed_dual is not None and isinstance(body.get('conversation_audit'), dict):
                     stage1_fallback = {
                         'foreground_text': parsed_dual.get('foreground_text', ''),
                         'generation_ms': timing_update.get('generation_ms', 0) if isinstance(timing_update, dict) else 0,
                         'base_audit': body.get('conversation_audit'),
                     }
-                rr._atomic(self._blob(key, '.read-audit.json'), rr._json(audit))
-                rr._atomic(self._blob(key, '.result.txt'), text.encode('utf-8'))
+
+                awaiting_review_pub = None
+                auto_regen_hint = None
+                soft_only_hint = None
+                soft_only_epoch = None
+                is_action_turn = (not sp.enabled(self.root)) or ((job.get('cost_preview') or {}).get('kind') == 'action')
+                review_signals = (
+                    (validated_payload.get('audit') or {}).get('review_signals')
+                    if isinstance(validated_payload, dict) else None
+                )
+                if is_action_turn and review_signals:
+                    review_payload = sc.build_review_payload(
+                        review_signals,
+                        validated_payload.get('messages') or [],
+                        regen_count=int(job.get('review_regen_count') or 0),
+                    )
+                    if review_payload:
+                        drift_mode = ir.load_story_prefs(self.root).get('drift_review_mode', 'ask')
+                        if drift_mode == 'soft_only':
+                            soft_only_hint = review_payload['correction_hint']
+                            soft_only_epoch = job.get('save_epoch') or self._save_epoch()
+                        elif drift_mode == 'auto_regen' and int(job.get('review_regen_count') or 0) < 1:
+                            auto_regen_hint = review_payload['correction_hint']
+                        else:
+                            rr._atomic(self._blob(key, '.read-audit.json'), rr._json(audit))
+                            rr._atomic(self._blob(key, '.result.txt'), text.encode('utf-8'))
+                            job.update(status='awaiting_review', error='', lease=None, review=review_payload)
+                            self._write(state)
+                            awaiting_review_pub = {'task': self._public(job)}
+                if awaiting_review_pub is None and auto_regen_hint is None:
+                    rr._atomic(self._blob(key, '.read-audit.json'), rr._json(audit))
+                    rr._atomic(self._blob(key, '.result.txt'), text.encode('utf-8'))
+                    job.update(status='validating', error='')
+                    job.pop('review', None)
+                    self._write(state)
+        if awaiting_review_pub is not None:
+            self._clear_preview(key)
+            self.hub.publish('task_state', {'request_id': key, 'status': 'awaiting_review'})
+            return awaiting_review_pub
+        if auto_regen_hint is not None:
+            return self._requeue_drift_job(key, auto_regen_hint)
+        res = self._finish(key, stage1_fallback=stage1_fallback)
+        if soft_only_hint and (res.get('task') or {}).get('status') == 'committed':
+            ir.save_persona_correction(
+                self.root, save_epoch=soft_only_epoch, hint=soft_only_hint, source_request_id=key,
+            )
+        return res
+
+    def _requeue_drift_job(self, key, hint):
+        """Clear failed/drifted blobs, store targeted retry guidance, and requeue cleanly with full refund/re-reserve."""
+        clean_hint = re.sub(r'[\r\n]+', ' ', str(hint or '')).strip()[:200]
+        with self.store._locked():
+            state = self._read()
+            job = state['jobs'].get(key)
+            if job is None:
+                abort(404)
+            ir.clear_stage1_checkpoint(self, key)
+            job['has_stage1_checkpoint'] = False
+            job['resume_stage2'] = False
+            job['review_regen_count'] = int(job.get('review_regen_count') or 0) + 1
+            job['drift_retry_guidance'] = clean_hint
+            job.pop('review', None)
+            self._blob(key, '.result.txt').unlink(missing_ok=True)
+            self._blob(key, '.read-audit.json').unlink(missing_ok=True)
+            self._blob(key, '.assembled.json').unlink(missing_ok=True)
+            has_res = bool(job.get('reservation'))
+            # Move out of 'generating' so sp.retry() refunds held reservation (or non-charged retry() proceeds).
+            job.update(status='awaiting_review' if has_res else 'failed', lease=None, error='')
+            self._write(state)
+        self._clear_preview(key)
+        if has_res:
+            res = sp.retry(self, key, {'resume_stage2': False})
+            task = (res or {}).get('task') or {}
+            self.hub.publish(
+                'task_state',
+                {'request_id': task.get('request_id', key), 'status': task.get('status')},
+                wake_worker=(task.get('status') == 'queued'),
+            )
+            return res
+        return self.retry(key, {})
+
+    def review_decision(self, key, body):
+        """Handle player decision on a Tier-2 awaiting_review task: regenerate, accept_with_correction, accept, or cancel."""
+        self.start()
+        rr._keys(body, {'decision'}, '偏离裁决', {'decision'})
+        decision_val = str(body.get('decision') or '').strip()
+        if decision_val not in ('regenerate', 'accept_with_correction', 'accept', 'cancel'):
+            raise rr.RoundError('偏离裁决须为 regenerate、accept_with_correction、accept 或 cancel')
+        hint = ''
+        cur_epoch = ''
+        with self.store._locked():
+            state = self._read()
+            self._expire(state)
+            job = state['jobs'].get(key)
+            if job is None:
+                abort(404)
+            status = job.get('status')
+            if status != 'awaiting_review':
+                if decision_val in ('accept', 'accept_with_correction') and status == 'committed':
+                    return {'task': self._public(job)}
+                if decision_val == 'cancel' and status == 'cancelled':
+                    return {'task': self._public(job)}
+                raise rr.ConflictError('当前任务不在待裁决状态，请刷新界面')
+            hint = str((job.get('review') or {}).get('correction_hint') or '').strip()
+            cur_epoch = str(job.get('save_epoch') or self._save_epoch())
+            if decision_val in ('accept', 'accept_with_correction'):
                 job.update(status='validating', error='')
+                job.pop('review', None)
+                job.pop('drift_retry_guidance', None)
                 self._write(state)
-        return self._finish(key, stage1_fallback=stage1_fallback)
+        if decision_val == 'cancel':
+            res = sp.cancel(self, key)
+            self._clear_preview(key)
+            self.hub.publish('task_state', {'request_id': key, 'status': 'cancelled'})
+            return res
+        if decision_val == 'regenerate':
+            return self._requeue_drift_job(key, hint)
+        res = self._finish(key)
+        if decision_val == 'accept_with_correction' and (res.get('task') or {}).get('status') == 'committed' and hint:
+            ir.save_persona_correction(self.root, save_epoch=cur_epoch, hint=hint, source_request_id=key)
+        return res
 
     def _finish(self, key, stage1_fallback=None):
         with self.store._locked():
@@ -2152,6 +2279,13 @@ class StoryService:
                     ir.clear_stage1_checkpoint(self, key)
                     current['has_stage1_checkpoint'] = False
                     current['resume_stage2'] = False
+                    current.pop('review', None)
+                    current.pop('drift_retry_guidance', None)
+                    is_action_commit = (not current.get('cost_preview')) or (current.get('cost_preview') or {}).get('kind') == 'action'
+                    if is_action_commit:
+                        pending_corr = ir.load_persona_correction(self.root)
+                        if pending_corr and pending_corr.get('source_request_id') != key:
+                            ir.clear_persona_correction(self.root)
                     if current.get('returned_at'):
                         current.setdefault('timing', {})['acceptance_ms'] = max(0, round((time.time() - current['returned_at']) * 1000))
                         current['committed_at'] = time.time()
@@ -2213,6 +2347,12 @@ class StoryService:
             current = state['jobs'][key]
             if current['status'] == 'validating':
                 current.update(status=status, error=error, receipt=receipt)
+                if status == 'committed':
+                    current.pop('review', None)
+                    current.pop('drift_retry_guidance', None)
+                    pending_corr = ir.load_persona_correction(self.root)
+                    if pending_corr and pending_corr.get('source_request_id') != key:
+                        ir.clear_persona_correction(self.root)
                 if current.get('returned_at'):
                     current.setdefault('timing', {})['acceptance_ms'] = max(0, round((time.time() - current['returned_at']) * 1000))
                     current['committed_at'] = time.time()
@@ -2409,6 +2549,10 @@ def register_story_routes(app, root, *, tts_prewarmer=None):
     @app.post('/api/story/tasks/<key>/retry')
     def retry(key):
         return jsonify(service.retry(key, body()))
+
+    @app.post('/api/story/tasks/<key>/review-decision')
+    def review_decision(key):
+        return jsonify(service.review_decision(key, body()))
 
     @app.get('/api/story/shop')
     def shop():

@@ -131,14 +131,14 @@ def default_npc_mind():
         '沈知韫': {
             'mood': '',
             'mood_ttl': 0,
-            'preoccupation': '留意深圳分部近期对账风波，顺便掂量志北近来有没有进公司看看的心思',
+            'preoccupation': '批阅集团季度例行报表，顺便留意志北近来的作息与定力',
             'impressions': [],
             'aff_delta_last': 0,
         },
         '苏婉青': {
             'mood': '',
             'mood_ttl': 0,
-            'preoccupation': '留意主宅近况好应付丈夫晚间来电，同时在婆婆面前拿捏周全分寸',
+            'preoccupation': '盘算周五去主宅请安带什么点心合婆婆口味，独处时略感冷清',
             'impressions': [],
             'aff_delta_last': 0,
         },

@@ -541,6 +541,22 @@ async function run() {
     await monBox.exports.monitor();
     assert.equal(bridgeInfoCalls, 2, '401 must invalidate cached token and re-fetch /bridge-info');
     console.log('PASS v2.3.0 prefs_epoch rollover, commit-only session_meta, and monitor token-cache + 6s/30s backoff');
+
+    // 14. v2.3.1: buildTailHook strips unspoken dialogue ｜subtext & applyCommittedSessionMeta preserves char_stage/unlocked_secrets.
+    const hook = monBox.exports.buildTailHook([
+        { kind: 'action', speaker: '苏婉青', text: '她｛表面镇定｜指尖发颤｝放下杯子。' },
+        { kind: 'dialogue', speaker: '苏婉青', text: '｛没事，快递短信。｜还好没被发现我替承邺盯着主宅｝' },
+    ]);
+    assert.ok(hook.includes('没事，快递短信。'), 'tailHook must keep spoken surface dialogue');
+    assert.ok(!hook.includes('替承邺盯着主宅'), 'tailHook MUST strip unspoken dialogue ｜subtext');
+    assert.ok(hook.includes('指尖发颤'), 'tailHook keeps visible action slip');
+    const mergedMeta = monBox.exports.applyCommittedSessionMeta({}, {
+        zone1_flags: { vig: false, intl: false, char_stage: { 苏婉青: 'stage1' }, unlocked_secrets: ['INTEL-002'] },
+    });
+    assert.deepEqual(mergedMeta.zone1Flags, {
+        vig: false, intl: false, char_stage: { 苏婉青: 'stage1' }, unlocked_secrets: ['INTEL-002'],
+    });
+    console.log('PASS v2.3.1 subtext-stripped tailHook and char_stage/unlocked_secrets session_meta preservation');
 }
 
 run().catch(e => { console.error(e); process.exitCode = 1; });
