@@ -555,7 +555,7 @@ def process_shame_system(shame_events, memory_file, *, privacy='open_public', ho
             elif tag == _event_tag('SHAME_04'): c_delta -= (_event_param('SHAME_04', 'base_delta_01') if is_first else _event_param('SHAME_04', 'base_delta_02'))
             elif tag == _event_tag('SHAME_19'):
                 if current_shame > _event_param('SHAME_19', 'cur_shame_01'):
-                    c_delta -= _event_param('SHAME_19', 'base_delta_02')
+                    special_delta -= _event_param('SHAME_19', 'base_delta_02')
             elif tag == _event_tag('SHAME_05'): special_delta -= _event_param('SHAME_05', 'base_delta_01')
             elif tag == _event_tag('SHAME_06'): special_delta -= _event_param('SHAME_06', 'base_delta_01')
             elif tag == _event_tag('SHAME_07'): special_delta -= _event_param('SHAME_07', 'base_delta_01')
@@ -586,12 +586,15 @@ def process_shame_system(shame_events, memory_file, *, privacy='open_public', ho
             c_delta = -max(abs(c_delta) + 1, int(round(abs(c_delta) * 1.25)))
             print(f" [羞耻引擎] 🤫 {char_name} 处于【{privacy} 禁忌潜行压迫】，羞耻降幅 ×1.25 -> {c_delta}。")
             
-        # 3. 堕落乘数 (堕落>60时，降幅 × 1.5)
+        # 3. 堕落乘数 (堕落>60时，降幅 × 1.5) 与常规 C 烈度单轮软顶 (-10 防后期雪崩归零)
         if current_depravity > 60:
             if c_delta < 0:
                 c_delta = int(round(c_delta * 1.5))
             if special_delta < 0:
                 special_delta = int(round(special_delta * 1.5))
+        if c_delta < -10:
+            print(f" [羞耻引擎] 🛡️ {char_name} 常规 C 烈度破防触发单轮软顶：{c_delta} -> -10。")
+            c_delta = -10
             
         # 4. 同质化免疫折扣（仅作用于重复 C 烈度；Lv.4 二轮保留 75% 穿透率）
         if _event_tag('SHAME_15') in tags:
@@ -863,7 +866,8 @@ def process_desire_stamina_system(
         sig_hit = bool(sig_zone and sig_zone in char_acts)
         is_coy = char_name in coy_set
         
-        seepage_eligible = (cur_shame < 40 and cur_aff > 75)
+        seepage_gain = 3 if (cur_shame < 40 and cur_aff > 75) else (2 if (cur_shame < 55 and cur_aff > 70) else 0)
+        seepage_eligible = seepage_gain > 0
         if char_name in passive_only_chars and not seepage_eligible and not sig_hit and not is_coy:
             continue
 
@@ -871,12 +875,12 @@ def process_desire_stamina_system(
         new_sta = cur_sta
         new_org = cur_org
         
-        # 1. 引擎底层被动：好感渗漏机制（全回合自动生效）
+        # 1. 引擎底层被动：好感渗漏机制（全回合自动生效；中段<55且好感>70给+2，深段<40且好感>75给+3）
         if seepage_eligible:
-            new_des += 3
-            print(f" [欲望引擎] {char_name} 触发【好感渗漏】，欲望底层暗流自动 +3。")
+            new_des += seepage_gain
+            print(f" [欲望引擎] {char_name} 触发【好感渗漏】，欲望底层暗流自动 +{seepage_gain}。")
             
-        # 2. 标签解析（被动 Lv.3 疲劳诱导：焦虑/劳作/剧烈抗拒体力消耗 ×2）
+        # 2. 标签解析（被动 Lv.3 疲劳诱导：焦虑/劳作 ×2，剧烈抗拒 ×1.5 防两回合瞬间断电）
         sensory_visual = 0
         sensory_smell = 0
         sensory_audio = 0
@@ -898,7 +902,9 @@ def process_desire_stamina_system(
             # 体力
             elif tag == _event_tag('DS_08'): new_sta -= _event_param('DS_08', 'new_sta_01') * drain_mult
             elif tag == _event_tag('DS_09'): new_sta -= _event_param('DS_09', 'new_sta_01') * drain_mult
-            elif tag == _event_tag('DS_10'): new_sta -= _event_param('DS_10', 'new_sta_01') * drain_mult
+            elif tag == _event_tag('DS_10'):
+                resist_base = _event_param('DS_10', 'new_sta_01')
+                new_sta -= int(round(resist_base * 1.5)) if cur_passive >= 3 else resist_base
             elif tag == _event_tag('DS_11'): new_sta -= _event_param('DS_11', 'new_sta_01')
             elif tag == _event_tag('DS_12'): new_sta += _event_param('DS_12', 'new_sta_01')
             elif tag == _event_tag('DS_13'):
@@ -910,11 +916,11 @@ def process_desire_stamina_system(
             elif tag == _event_tag('DS_16'): raw_org_add += _event_param('DS_16', 'new_org_01'); has_active_arousal = True
             elif tag == _event_tag('DS_18'): has_self_relief = True
             
-        # 3. 多通道复合感官刺激（主通道全额 + 次通道 50% 协同，单回合上限 +5；羞耻 > 80 时视觉保留 +1 悸动底线，欲拒还迎放宽至 +2，任意官能 Buff 下全额放行）
+        # 3. 多通道复合感官刺激（主通道全额 + 次通道 50% 协同，单回合上限 +5；羞耻 > 80 时视觉保留 +2 底线，欲拒还迎或官能 Buff 全额放行）
         char_buffs = parsed_buffs.get(char_name) or []
         if cur_shame > 80 and sensory_visual > 0:
-            if not _has_sensual_buff(char_buffs):
-                sensory_visual = min(sensory_visual, 2 if is_coy else 1)
+            if not _has_sensual_buff(char_buffs) and not is_coy:
+                sensory_visual = min(sensory_visual, 2)
         s_vals = sorted([sensory_visual, sensory_smell, sensory_audio], reverse=True)
         sensory_add = min(5, int(round(s_vals[0] + 0.5 * (s_vals[1] + s_vals[2]))))
         new_des += sensory_add
@@ -1027,9 +1033,9 @@ def process_desire_stamina_system(
 
 
 COY_AFF_FLOORS = {
-    "沈知韫": 70,
-    "苏婉青": 60,
-    "徐念薇": 58,
+    "沈知韫": 65,
+    "苏婉青": 45,
+    "徐念薇": 42,
 }
 
 
@@ -1052,7 +1058,7 @@ def compute_tension_profile(
     dep = max(0, min(100, int(cur_dep or 0)))
     pas = max(0, int(cur_passive or 0))
     res = max(0, min(100, int(resentment or 0)))
-    aff_floor = COY_AFF_FLOORS.get(char_name, 65)
+    aff_floor = COY_AFF_FLOORS.get(char_name, 60)
 
     approach = min(
         100,
@@ -1065,9 +1071,9 @@ def compute_tension_profile(
 
     if res >= res_block:
         quadrant = 'resentful'
-    elif aff < aff_floor and des < 35 and dep < 15 and not has_buff:
+    elif aff < aff_floor and des < 30 and dep < 10 and not has_buff:
         quadrant = 'true_reject'
-    elif (approach >= 48 or (aff >= aff_floor and des >= 40)) and inhibition >= 60 and tension >= 40:
+    elif (approach >= 45 or (aff >= aff_floor and des >= 30)) and inhibition >= 60 and tension >= 38:
         quadrant = 'coy_tension'
     elif approach >= 55 and inhibition < 60:
         quadrant = 'yielding'
@@ -1180,15 +1186,15 @@ def process_affection_system(
             has_mid_c = (_event_tag('SHAME_02') in s_tags)
             coercive_aff = {_event_tag('AFFECTION_01'), _event_tag('AFFECTION_02')}
             coercive_shame = {_event_tag('SHAME_11'), _event_tag('SHAME_12'), _event_tag('SHAME_13')}
-            aff_floor = COY_AFF_FLOORS.get(char_name, 65)
+            aff_floor = COY_AFF_FLOORS.get(char_name, 60)
             is_crowded_public = (privacy == 'open_public') and (len(cast_list) >= 2 or '徐承邺' in cast_list)
 
             block_reason = ''
             if cur_res >= coy_res_block:
                 block_reason = f'真实反感裂痕({cur_res}≥{coy_res_block})锁死'
-            elif not (cur_aff >= aff_floor or cur_des >= 40 or cur_dep >= 15 or has_sensual):
-                block_reason = f'感情与生理未达准入(好感{cur_aff}<{aff_floor}且欲望{cur_des}<40)'
-            elif (has_deep_heavy and cur_shame >= 55) or (has_mid_c and cur_shame >= 80 and cur_des < 45 and not has_sensual):
+            elif not (cur_aff >= aff_floor or cur_des >= 30 or cur_dep >= 10 or has_sensual):
+                block_reason = f'感情与生理未达准入(好感{cur_aff}<{aff_floor}且欲望{cur_des}<30)'
+            elif (has_deep_heavy and cur_shame >= 55) or (has_mid_c and cur_shame >= 88 and cur_des < 30 and not has_sensual):
                 block_reason = f'高羞耻({cur_shame})越界烈度超窗'
             elif (set(a_tags) & coercive_aff) or (set(s_tags) & coercive_shame) or (_event_tag('DS_10') in d_tags) or cur_sta <= 15:
                 block_reason = '存在强迫/剧烈抗拒/解离或生理断电'
@@ -1203,30 +1209,38 @@ def process_affection_system(
             else:
                 print(f" [好感引擎] 🚫 {char_name} 未通过【欲拒还迎】安全闸（{block_reason}），驳回翻正并按真实防线结算。")
         
-        # 1. 越界联动下降机制 (跨模块监听 SHAME_EVENTS；当羞耻>=85且堕落<15且未达被动Lv.4时防线完好，亲情/长辈高好感不享受>60越界轻判)
-        intact_defense = (cur_shame >= 85 and cur_dep < 15 and cur_passive < 4)
-        eff_aff = min(60, cur_aff) if intact_defense else cur_aff
+        # 1. 越界联动下降机制 (跨模块监听 SHAME_EVENTS；当羞耻>=90且堕落<10且未达被动Lv.4时防线完好，高好感仍享>60档轻判但不触发0掉分闭环)
+        intact_defense = (cur_shame >= 90 and cur_dep < 10 and cur_passive < 4)
         violation_drop = 0
+        hit_c_tier = ''
         if not coy_qualified:
             if _event_tag('SHAME_04') in s_tags:
-                if eff_aff > _event_param('SHAME_04', 'cur_aff_03'): violation_drop -= _event_param('SHAME_04', 'violation_drop_05') if cur_shame < _event_param('SHAME_04', 'cur_shame_04') else _event_param('SHAME_04', 'violation_drop_06')
-                elif eff_aff >= _event_param('SHAME_04', 'cur_aff_07'): violation_drop -= _event_param('SHAME_04', 'violation_drop_08')
+                hit_c_tier = 'SHAME_04'
+                if cur_aff > _event_param('SHAME_04', 'cur_aff_03'):
+                    violation_drop -= (_event_param('SHAME_04', 'violation_drop_05') if (cur_shame < _event_param('SHAME_04', 'cur_shame_04') and not intact_defense) else _event_param('SHAME_04', 'violation_drop_06'))
+                elif cur_aff >= _event_param('SHAME_04', 'cur_aff_07'): violation_drop -= _event_param('SHAME_04', 'violation_drop_08')
                 else: violation_drop -= _event_param('SHAME_04', 'violation_drop_09')
             elif _event_tag('SHAME_03') in s_tags:
-                if eff_aff > _event_param('SHAME_03', 'cur_aff_03'): violation_drop -= _event_param('SHAME_03', 'violation_drop_05') if cur_shame < _event_param('SHAME_03', 'cur_shame_04') else _event_param('SHAME_03', 'violation_drop_06')
-                elif eff_aff >= _event_param('SHAME_03', 'cur_aff_07'): violation_drop -= _event_param('SHAME_03', 'violation_drop_08')
+                hit_c_tier = 'SHAME_03'
+                if cur_aff > _event_param('SHAME_03', 'cur_aff_03'):
+                    violation_drop -= (_event_param('SHAME_03', 'violation_drop_05') if (cur_shame < _event_param('SHAME_03', 'cur_shame_04') and not intact_defense) else _event_param('SHAME_03', 'violation_drop_06'))
+                elif cur_aff >= _event_param('SHAME_03', 'cur_aff_07'): violation_drop -= _event_param('SHAME_03', 'violation_drop_08')
                 else: violation_drop -= _event_param('SHAME_03', 'violation_drop_09')
             elif _event_tag('SHAME_02') in s_tags:
-                if eff_aff > _event_param('SHAME_02', 'cur_aff_03'): violation_drop -= _event_param('SHAME_02', 'violation_drop_05') if cur_shame < _event_param('SHAME_02', 'cur_shame_04') else _event_param('SHAME_02', 'violation_drop_06')
-                elif eff_aff >= _event_param('SHAME_02', 'cur_aff_07'): violation_drop -= _event_param('SHAME_02', 'violation_drop_08')
+                hit_c_tier = 'SHAME_02'
+                if cur_aff > _event_param('SHAME_02', 'cur_aff_03'):
+                    violation_drop -= (_event_param('SHAME_02', 'violation_drop_05') if (cur_shame < _event_param('SHAME_02', 'cur_shame_04') and not intact_defense) else _event_param('SHAME_02', 'violation_drop_06'))
+                elif cur_aff >= _event_param('SHAME_02', 'cur_aff_07'): violation_drop -= _event_param('SHAME_02', 'violation_drop_08')
                 else: violation_drop -= _event_param('SHAME_02', 'violation_drop_09')
             elif _event_tag('SHAME_01') in s_tags:
-                if eff_aff > _event_param('SHAME_01', 'cur_aff_02'): violation_drop -= _event_param('SHAME_01', 'violation_drop_04') if cur_shame < _event_param('SHAME_01', 'cur_shame_03') else _event_param('SHAME_01', 'violation_drop_05')
-                elif eff_aff >= _event_param('SHAME_01', 'cur_aff_06'): violation_drop -= _event_param('SHAME_01', 'violation_drop_07')
+                hit_c_tier = 'SHAME_01'
+                if cur_aff > _event_param('SHAME_01', 'cur_aff_02'):
+                    violation_drop -= (_event_param('SHAME_01', 'violation_drop_04') if (cur_shame < _event_param('SHAME_01', 'cur_shame_03') and not intact_defense) else _event_param('SHAME_01', 'violation_drop_05'))
+                elif cur_aff >= _event_param('SHAME_01', 'cur_aff_06'): violation_drop -= _event_param('SHAME_01', 'violation_drop_07')
                 else: violation_drop -= _event_param('SHAME_01', 'violation_drop_08')
 
         raw_violation_drop = violation_drop
-        if (not coy_qualified) and violation_drop == _event_param('SHAME_04', 'violation_drop_10') and (_event_tag('SHAME_04') in s_tags or _event_tag('SHAME_03') in s_tags or _event_tag('SHAME_02') in s_tags or _event_tag('SHAME_01') in s_tags):
+        if (not coy_qualified) and violation_drop == _event_param('SHAME_04', 'violation_drop_10') and bool(hit_c_tier):
             print(f" [好感引擎] 💖 {char_name} 触发【合理化闭环】！好感与羞耻达标，潜意识自我保护启动，未造成好感下降。")
 
         # 意外撞破_私密自渎（把柄在握+身体诚实情动）：当轮C烈度越界好感惩罚自动减半
@@ -1269,20 +1283,42 @@ def process_affection_system(
             print(f" [好感引擎] ⚖️ {char_name} 触发【商业杠杆】：越界好感惩罚减半 {violation_drop} -> {halved}")
             violation_drop = halved
 
-        # 多重减免硬护栏：未达合理化闭环且非欲拒还迎合格翻正（原始惩罚 < 0）时，总减免封顶 75% 且保底至少 -1（杜绝 int(-1/2)==0 归零漏洞）
-        if raw_violation_drop < 0:
+        # 多重减免硬护栏：轻度越界(SHAME_01)经道具/被动/魅力/杠杆准备后允许真正免罚归 0；中/深/重度保留 75% 减免上限且保底至少 -1
+        if raw_violation_drop < 0 and hit_c_tier != 'SHAME_01':
             min_penalty = -max(1, int(round(abs(raw_violation_drop) * 0.25)))
             if violation_drop > min_penalty:
                 print(f" [好感引擎] 🛡️ {char_name} 触发【减免上限护栏(75%/保底-1)】：{violation_drop} -> {min_penalty}（原始 {raw_violation_drop}）")
                 violation_drop = min_penalty
-            
+
+        # 合并「越界自动扣分 + 阻止侵犯_成功/暴力下流_雪崩」防同回合双重叠扣
+        aff01_tag = _event_tag('AFFECTION_01')
+        aff02_tag = _event_tag('AFFECTION_02')
+        explicit_neg_merged = False
+        if aff02_tag in a_tags:
+            aff02_drop = -_event_param('AFFECTION_02', 'new_aff_01')
+            violation_drop = min(violation_drop, aff02_drop)
+            explicit_neg_merged = True
+        elif aff01_tag in a_tags:
+            aff01_drop = -_event_param('AFFECTION_01', 'new_aff_01')
+            if violation_drop < 0:
+                merged_drop = min(violation_drop, aff01_drop) - 1
+                print(f" [好感引擎] ⚖️ {char_name} 越界({violation_drop})与阻止侵犯({aff01_drop})合并防重扣 -> {merged_drop}")
+                violation_drop = merged_drop
+            else:
+                violation_drop = aff01_drop
+            explicit_neg_merged = True
+
         new_aff += violation_drop
         
         # 2. 手动标签结算（高魅力 75+ 正面互动额外破冰加成）
         positive_gain = 0
         for tag in a_tags:
-            if tag == _event_tag('AFFECTION_01'): new_aff -= _event_param('AFFECTION_01', 'new_aff_01')
-            elif tag == _event_tag('AFFECTION_02'): new_aff -= _event_param('AFFECTION_02', 'new_aff_01')
+            if tag == aff01_tag:
+                if not explicit_neg_merged:
+                    new_aff -= _event_param('AFFECTION_01', 'new_aff_01')
+            elif tag == aff02_tag:
+                if not explicit_neg_merged:
+                    new_aff -= _event_param('AFFECTION_02', 'new_aff_01')
             elif tag == _event_tag('AFFECTION_03'):
                 g = (_event_param('AFFECTION_03', 'new_aff_02') if cur_aff < _event_param('AFFECTION_03', 'cur_aff_01') else _event_param('AFFECTION_03', 'new_aff_03'))
                 new_aff += g; positive_gain += g
@@ -4291,6 +4327,34 @@ def apply_story_events(events, task_issue, memory_round, *, business_leverage=Fa
         _flush_sim()
 
     heroine_cast = [c for c in (active_cast or ()) if c in save_store.HEROINES]
+    # 温暖日常好感补底：A/B 档无越界与负面事件、副模型记了日常_信任建立/情感共振却漏标正面好感时，为单在场女主补 +1（限 <90 且守住苏婉青天花板）
+    if (
+        str(action_category or '').upper() in ('A', 'B')
+        and not shame
+        and len(heroine_cast) == 1
+    ):
+        who_warm = heroine_cast[0]
+        host_ev_now = norm_events.get('host_events') or []
+        has_warm_host_now = (_event_tag('HOST_05') in host_ev_now) or (_event_tag('HOST_06') in host_ev_now)
+        who_aff_tags = (norm_events.get('affection_events') or {}).get(who_warm) or []
+        who_ds_tags = (norm_events.get('ds_events') or {}).get(who_warm) or []
+        neg_aff_set = {_event_tag('AFFECTION_01'), _event_tag('AFFECTION_02')}
+        if (
+            has_warm_host_now
+            and not who_aff_tags
+            and not (set(who_aff_tags) & neg_aff_set)
+            and (_event_tag('DS_10') not in who_ds_tags)
+            and '好感' not in (panels.get(who_warm) or {})
+        ):
+            cur_aff_w = _read_attr_value(content, who_warm, '好感')
+            if cur_aff_w is not None and cur_aff_w < 90:
+                su_unlk = bool(state['mechanics'].get('su_affection_85_unlocked')) or bool(unlock_out.get('su_affection_85_unlocked')) or cur_aff_w > 85
+                cap_w = (95 if su_unlk else 85) if who_warm == '苏婉青' else 100
+                next_aff_w = min(cap_w, cur_aff_w + 1)
+                if next_aff_w > cur_aff_w:
+                    panels.setdefault(who_warm, {})['好感'] = next_aff_w
+                    _flush_sim()
+                    print(f" 💗 [好感引擎] {who_warm} 触发【温暖日常补底】（{action_category}档无越界+日常信任/共振）：好感 {cur_aff_w} -> {next_aff_w}")
     auto_climax = set()
     if norm_events['ds_events'] or creampie_chars or heroine_cast or coy_chars:
         for who, values in process_desire_stamina_system(

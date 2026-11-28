@@ -732,7 +732,7 @@ class SaveArchitectureV2Tests(unittest.TestCase):
         st_n3, _, _ = save_store.load_bundle(self.tmp)
         self.assertEqual(st_n3['panels']['沈知韫']['体力'], 75)
 
-        # (9c) Passive Lv.2 halves C-intensity violation drop (intact_defense stays active until Lv.4; 75% mitigation cap), Lv.4 exempts intact_defense, Lv.3 doubles NPC stamina drain
+        # (9c) Passive Lv.2 halves C-intensity violation drop (intact_defense blocks closure without demoting >60; 75% mitigation cap), Lv.3 scales DS_10 by 1.5x (-22)
         st_p, ly_p, _ = save_store.load_bundle(self.tmp)
         st_p['panels']['沈知韫']['被动'] = 2
         st_p['panels']['沈知韫']['好感'] = 80
@@ -742,21 +742,21 @@ class SaveArchitectureV2Tests(unittest.TestCase):
         save_store.save_bundle(self.tmp, st_p, ly_p)
         engine = rr._engine(self.tmp, self.tmp)
         aff_lv2 = engine.process_affection_system({}, {'沈知韫': ['C烈度_重度']}, str(self.tmp / rr.FILES[0]))
-        self.assertEqual(aff_lv2['沈知韫'], 73)  # intact_defense -> raw -15, Lv.2 *0.5 -> -7
+        self.assertEqual(aff_lv2['沈知韫'], 77)  # >60 tier raw -6, Lv.2 *0.5 -> -3
         aff_lv2_lev = engine.process_affection_system(
             {}, {'沈知韫': ['C烈度_重度']}, str(self.tmp / rr.FILES[0]),
             business_leverage=True,
         )
-        self.assertEqual(aff_lv2_lev['沈知韫'], 76)  # stacked Lv.2 + leverage capped at 75% mitigation -> -4
+        self.assertEqual(aff_lv2_lev['沈知韫'], 78)  # stacked Lv.2 + leverage capped at 75% mitigation on -6 -> -2
         st_p['panels']['沈知韫']['被动'] = 4
         save_store.save_bundle(self.tmp, st_p, ly_p)
         aff_lv4 = engine.process_affection_system({}, {'沈知韫': ['C烈度_重度']}, str(self.tmp / rr.FILES[0]))
-        self.assertEqual(aff_lv4['沈知韫'], 75)  # Lv.4 exempts intact_defense -> raw -10, Lv.2+ *0.5 -> -5
+        self.assertEqual(aff_lv4['沈知韫'], 77)  # >60 tier raw -6, Lv.2+ *0.5 -> -3
 
         st_p['panels']['沈知韫']['被动'] = 3
         save_store.save_bundle(self.tmp, st_p, ly_p)
         ds_lv3 = engine.process_desire_stamina_system({'沈知韫': ['消耗_剧烈抗拒']}, str(self.tmp / rr.FILES[0]))
-        self.assertEqual(ds_lv3['沈知韫']['体力'], 50)  # 80 - (15 * 2) = 50
+        self.assertEqual(ds_lv3['沈知韫']['体力'], 58)  # 80 - round(15 * 1.5) = 58
 
         # (9d) Deterministic first triggers & homogeneity immunity c_streak across fresh windows
         ev_c1 = '沈知韫被逼到书桌边，呼吸骤乱，这是第一次如此失控。'

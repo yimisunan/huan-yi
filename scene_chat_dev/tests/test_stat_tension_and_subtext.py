@@ -210,7 +210,7 @@ class StatTensionAndSubtextTests(unittest.TestCase):
             coy_chars=coy_out,
         )
         # Visual base under shame>80 relaxed to +2 + coy_desire_bonus +3 = +5 -> 48 -> 53
-        self.assertEqual(ds_res['沈知韫']['欲望'], 53)
+        self.assertEqual(ds_res['沈知韫']['欲望'], 54)
 
         # High charm (85): aff 85 -> 87 (+1 base +1 charm synergy)
         self._patch_save_panels({'系统宿主': {'魅力': 85}})
@@ -388,32 +388,46 @@ class StatTensionAndSubtextTests(unittest.TestCase):
         self.assertGreater(res_priv['苏婉青'], 75)
 
     def test_resentment_locks_coy_yield_across_turns_and_heals_with_care(self):
-        """Scenario 5: Genuine rejection raises resentment >= 25 blocking coy yield; sincere care + overnight cools < 25 and unlocks."""
+        """Scenario 5: Repeated rejection raises resentment >= 30 blocking coy yield; sincere care + overnight cools < 30 and unlocks."""
         self._patch_save_panels({
             '沈知韫': {'好感': 85, '羞耻': 86, '欲望': 50, '堕落': 8, '体力': 88, '被动': 0},
         })
         mem_file = str(self.root / rr.FILES[0])
         st, _, _ = save_store.load_bundle(self.root, sync_txt_drift=True)
-        # Turn A: Genuine rejection + violent struggle -> resentment +18 + 12 + 10 = 40
+        # Turn A1: Genuine rejection + violent struggle -> raw +20 capped at +15 (anti-death-spiral)
+        reject_events = {
+            'shame_events': {'沈知韫': [ic._event_tag('SHAME_02')]},
+            'affection_events': {'沈知韫': [ic._event_tag('AFFECTION_01')]},
+            'ds_events': {'沈知韫': [ic._event_tag('DS_10')]},
+            'host_events': [],
+        }
         sp.advance_npc_mind(
             st,
             active_cast=['沈知韫'],
             aff_deltas={'沈知韫': -7},
-            events={
-                'shame_events': {'沈知韫': [ic._event_tag('SHAME_02')]},
-                'affection_events': {'沈知韫': [ic._event_tag('AFFECTION_01')]},
-                'ds_events': {'沈知韫': [ic._event_tag('DS_10')]},
-                'host_events': [],
-            },
+            events=reject_events,
             coy_chars=[],
             action_category='C',
             pre_values={('沈知韫', '体力'): 88, ('沈知韫', '羞耻'): 86},
             engine=ic,
         )
-        self.assertEqual(st['npc_mind']['沈知韫']['resentment'], 40)
+        self.assertEqual(st['npc_mind']['沈知韫']['resentment'], 15)
         self.assertEqual(st['npc_mind']['沈知韫']['last_shift_kind'], 'true_friction')
 
-        # Gate 1 hard-blocks coy yield while resentment == 40 >= 25
+        # Turn A2: Second consecutive coercive rejection -> +15 -> 30 >= 30 (locks Gate 1)
+        sp.advance_npc_mind(
+            st,
+            active_cast=['沈知韫'],
+            aff_deltas={'沈知韫': -7},
+            events=reject_events,
+            coy_chars=[],
+            action_category='C',
+            pre_values={('沈知韫', '体力'): 70, ('沈知韫', '羞耻'): 84},
+            engine=ic,
+        )
+        self.assertEqual(st['npc_mind']['沈知韫']['resentment'], 30)
+
+        # Gate 1 hard-blocks coy yield while resentment == 30 >= 30
         coy_blocked = set()
         res_blocked = ic.process_affection_system(
             {'沈知韫': [ic._event_tag('AFFECTION_12')]},
@@ -428,7 +442,7 @@ class StatTensionAndSubtextTests(unittest.TestCase):
         self.assertEqual(coy_blocked, set())
         self.assertLess(res_blocked['沈知韫'], 85)
 
-        # Turn B: Sincere deep heart-to-heart A-tier care (-15 -> 25)
+        # Turn B: Sincere deep heart-to-heart A-tier care (-20 -> 10 < 30)
         sp.advance_npc_mind(
             st,
             active_cast=['沈知韫'],
@@ -443,9 +457,9 @@ class StatTensionAndSubtextTests(unittest.TestCase):
             action_category='A',
             engine=ic,
         )
-        self.assertEqual(st['npc_mind']['沈知韫']['resentment'], 25)
+        self.assertEqual(st['npc_mind']['沈知韫']['resentment'], 10)
 
-        # Turn C: Overnight cooling (-8 -> 17 < 25)
+        # Turn C: Overnight cooling (-12 -> 0)
         sp.advance_npc_mind(
             st,
             active_cast=[],
@@ -457,7 +471,7 @@ class StatTensionAndSubtextTests(unittest.TestCase):
             action_category='',
             engine=ic,
         )
-        self.assertEqual(st['npc_mind']['沈知韫']['resentment'], 17)
+        self.assertEqual(st['npc_mind']['沈知韫']['resentment'], 0)
 
         # Now Gate 1 passes again!
         coy_unlocked = set()
@@ -655,7 +669,7 @@ class StatTensionAndSubtextTests(unittest.TestCase):
         s2['resolution']['basis'] = '强行加重越界遭到沈知韫果断推开与严词拒绝。'
         s2['resolution']['events'] = [
             {'group': 'shame_events', 'target': '沈知韫', 'tags': [ic._event_tag('SHAME_02')], 'evidence': '果断抬手用力推开你'},
-            {'group': 'affection_events', 'target': '沈知韫', 'tags': [ic._event_tag('AFFECTION_01')], 'evidence': '沈知韫脸色一沉，果断抬手用力推开你'},
+            {'group': 'affection_events', 'target': '沈知韫', 'tags': [ic._event_tag('AFFECTION_02')], 'evidence': '沈知韫脸色一沉，果断抬手用力推开你'},
             {'group': 'ds_events', 'target': '沈知韫', 'tags': [ic._event_tag('DS_10')], 'evidence': '果断抬手用力推开你'},
         ]
         s2['resolution']['memory'] = {'fact': '强行加重越界遭沈知韫严词推开，心生真实裂痕。', 'anchor_ops': [], 'chronicle_digest': ''}
@@ -670,7 +684,7 @@ class StatTensionAndSubtextTests(unittest.TestCase):
         self.assertNotIn('刚才略有不快，语气比平日收紧了些', mat2['input_text'])
 
         st2, _, _ = save_store.load_bundle(self.root, sync_txt_drift=False)
-        self.assertGreaterEqual(st2['npc_mind']['沈知韫']['resentment'], 25)
+        self.assertGreaterEqual(st2['npc_mind']['沈知韫']['resentment'], 30)
         self.assertEqual(st2['npc_mind']['沈知韫']['last_shift_kind'], 'true_friction')
 
         # Check Turn 3 material now surfaces real resentment directive & blocks coy directive!
@@ -701,7 +715,7 @@ class StatTensionAndSubtextTests(unittest.TestCase):
         aff12 = next((x for x in aff_list if x.get('id') == 'AFFECTION_12'), None)
         self.assertIsNotNone(aff12)
         self.assertEqual(aff12['tag'], '欲拒还迎_嘴硬心软')
-        self.assertEqual(aff12['parameters']['resentment_block_03'], 25)
+        self.assertEqual(aff12['parameters']['resentment_block_03'], 30)
 
         grouped_reg = rr._event_registry(ROOT, ic)
         self.assertIn('欲拒还迎_嘴硬心软', grouped_reg['affection_events'])
@@ -742,7 +756,7 @@ class StatTensionAndSubtextTests(unittest.TestCase):
         self.assertLess(len(sys_prompt), 12000, f'Stage 2 static prompt exceeded 12K budget: {len(sys_prompt)}')
         self.assertIn('欲拒还迎_嘴硬心软', sys_prompt)
         self.assertIn('阻止侵犯_成功', sys_prompt)
-        for marker in ('羞耻>75', '主动破锁_30阶梯', '苏婉青_真相揭露', '触发高潮_绝顶清算',
+        for marker in ('羞耻>70', '主动破锁_30阶梯', '苏婉青_真相揭露', '触发高潮_绝顶清算',
                        '自慰_暗中纾解', '解离保护', '外地', '内射', 'effective_progress',
                        '优雅掌控_魅力精进', '确诊怀孕', '体力 ≤ 15'):
             self.assertIn(marker, sys_prompt, f'Missing Stage 2 trigger marker: {marker}')

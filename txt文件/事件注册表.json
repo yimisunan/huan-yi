@@ -8,12 +8,12 @@
         "parameters": {
           "base_delta_01": 2,
           "cur_aff_02": 60,
-          "cur_shame_03": 70,
+          "cur_shame_03": 75,
           "violation_drop_04": 0,
           "violation_drop_05": 1,
           "cur_aff_06": 30,
-          "violation_drop_07": 2,
-          "violation_drop_08": 4
+          "violation_drop_07": 1,
+          "violation_drop_08": 2
         },
         "parameter_usage": {
           "base_delta_01": "base_delta 扣减",
@@ -36,12 +36,12 @@
           "base_delta_01": 3,
           "base_delta_02": 2,
           "cur_aff_03": 60,
-          "cur_shame_04": 50,
+          "cur_shame_04": 55,
           "violation_drop_05": 0,
-          "violation_drop_06": 4,
+          "violation_drop_06": 2,
           "cur_aff_07": 30,
-          "violation_drop_08": 5,
-          "violation_drop_09": 12
+          "violation_drop_08": 3,
+          "violation_drop_09": 6
         },
         "parameter_usage": {
           "base_delta_01": "base_delta 扣减",
@@ -65,12 +65,12 @@
           "base_delta_01": 4,
           "base_delta_02": 3,
           "cur_aff_03": 60,
-          "cur_shame_04": 40,
+          "cur_shame_04": 45,
           "violation_drop_05": 0,
-          "violation_drop_06": 7,
+          "violation_drop_06": 4,
           "cur_aff_07": 30,
-          "violation_drop_08": 9,
-          "violation_drop_09": 16
+          "violation_drop_08": 6,
+          "violation_drop_09": 10
         },
         "parameter_usage": {
           "base_delta_01": "base_delta 扣减",
@@ -94,12 +94,12 @@
           "base_delta_01": 6,
           "base_delta_02": 4,
           "cur_aff_03": 60,
-          "cur_shame_04": 30,
+          "cur_shame_04": 35,
           "violation_drop_05": 0,
-          "violation_drop_06": 10,
+          "violation_drop_06": 6,
           "cur_aff_07": 30,
-          "violation_drop_08": 15,
-          "violation_drop_09": 20,
+          "violation_drop_08": 10,
+          "violation_drop_09": 14,
           "violation_drop_10": 0
         },
         "parameter_usage": {
@@ -300,14 +300,14 @@
         "id": "SHAME_19",
         "tag": "心理破冰_暧昧试探",
         "parameters": {
-          "cur_shame_01": 75,
+          "cur_shame_01": 70,
           "base_delta_02": 3
         },
         "parameter_usage": {
           "cur_shame_01": "cur_shame 比较阈值",
           "base_delta_02": "base_delta 扣减"
         },
-        "description": "心理破冰_暧昧试探；高羞耻期(>75)近距擦边或言语双关破冰，数值不由模型计算。",
+        "description": "心理破冰_暧昧试探；高羞耻期(>70)安全言语暧昧或轻度拉近破冰，不吃重复免疫且不扣好感，数值不由模型计算。",
         "pattern": null,
         "shared_parameters": []
       },
@@ -740,9 +740,9 @@
         "id": "AFFECTION_03",
         "tag": "基础安抚",
         "parameters": {
-          "cur_aff_01": 50,
-          "new_aff_02": 1,
-          "new_aff_03": 0
+          "cur_aff_01": 60,
+          "new_aff_02": 2,
+          "new_aff_03": 1
         },
         "parameter_usage": {
           "cur_aff_01": "cur_aff 比较阈值",
@@ -787,7 +787,7 @@
         "id": "AFFECTION_06",
         "tag": "社交微幅回馈",
         "parameters": {
-          "cur_aff_01": 60,
+          "cur_aff_01": 80,
           "new_aff_02": 1,
           "new_aff_03": 0
         },
@@ -844,8 +844,8 @@
         "tag": "情感共振_深度交心",
         "parameters": {
           "cur_aff_01": 85,
-          "new_aff_02": 2,
-          "new_aff_03": 1
+          "new_aff_02": 3,
+          "new_aff_03": 2
         },
         "parameter_usage": {
           "cur_aff_01": "cur_aff 比较阈值",
@@ -860,7 +860,7 @@
         "id": "AFFECTION_11",
         "tag": "危机并肩_实质破局",
         "parameters": {
-          "new_aff_01": 3
+          "new_aff_01": 4
         },
         "parameter_usage": {
           "new_aff_01": "new_aff 增加"
@@ -875,7 +875,7 @@
         "parameters": {
           "new_aff_01": 1,
           "desire_bonus_02": 3,
-          "resentment_block_03": 25
+          "resentment_block_03": 30
         },
         "parameter_usage": {
           "new_aff_01": "new_aff 欲拒还迎翻正基值",

@@ -234,14 +234,14 @@ class NarrativeOverhaulTests(unittest.TestCase):
         # High aff (70) + low shame (30) -> rationalization loop (0 drop)
         delta_rat, _ = run_shame03(70, 30)
         self.assertEqual(delta_rat, 0)
-        # High aff (70) + high shame (60) -> -7
-        self.assertEqual(run_shame03(70, 60)[0], -7)
-        # Mid aff (40) -> -9
-        self.assertEqual(run_shame03(40, 60)[0], -9)
-        # Low aff (25 < 30) -> -16; with commercial leverage -> halved (-8)
-        self.assertEqual(run_shame03(25, 60)[0], -16)
+        # High aff (70) + high shame (60) -> -4
+        self.assertEqual(run_shame03(70, 60)[0], -4)
+        # Mid aff (40) -> -6
+        self.assertEqual(run_shame03(40, 60)[0], -6)
+        # Low aff (25 < 30) -> -10; with commercial leverage -> halved (-5)
+        self.assertEqual(run_shame03(25, 60)[0], -10)
         delta_lev, lev_meta = run_shame03(25, 60, leverage=True)
-        self.assertEqual(delta_lev, -8)
+        self.assertEqual(delta_lev, -5)
         self.assertTrue(lev_meta.get('applied'))
 
         # Restore clean memory before full service transaction test
@@ -757,8 +757,8 @@ class NarrativeOverhaulTests(unittest.TestCase):
         self.assertEqual(st_m_after['panels']['苏婉青']['欲望'], 40)
         self.assertEqual(st_m_after['panels']['苏婉青']['体力'], 72)
         self.assertEqual(st_m_after['mechanics']['masturbation_trace']['苏婉青'], 2)
-        # C烈度_中度 at aff=50 normally drops -4, halved to -2 by 意外撞破_私密自渎
-        self.assertEqual(st_m_after['panels']['苏婉青']['好感'], 48)
+        # C烈度_中度 at aff=50 normally drops -3, halved to -1 by 意外撞破_私密自渎
+        self.assertEqual(st_m_after['panels']['苏婉青']['好感'], 49)
 
     def test_protagonist_embodiment_and_explicit_register_pipeline(self):
         # 1. Zone 0 stays strictly under 9,200 chars and includes protagonist action-first embodiment

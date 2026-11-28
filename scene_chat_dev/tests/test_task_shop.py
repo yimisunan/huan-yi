@@ -1055,7 +1055,7 @@ class TaskAndShopTests(unittest.TestCase):
         mem_after = (self.root / rr.FILES[0]).read_text(encoding='utf-8')
         self.assertIn('[温热精油] 剩余时效: 2回合', mem_after)
         aff_after = engine._read_attr_value(mem_after, '沈知韫', '好感')
-        self.assertEqual(aff_after, 48)  # 50 - 2 (halved from -4!)
+        self.assertEqual(aff_after, 49)  # 50 - 1 (halved from -3!)
 
         # Turn 2: use_item on reusable_tool (SHOP-013) -> quantity remains 1
         req2 = self._make_req('CUSTOM', text='取出真丝蒙眼带与玉石滚轮，轻轻试探她的反应。')

@@ -453,7 +453,7 @@ class PhaseABLinkageTests(unittest.TestCase):
         self.assertEqual(istate_after_a['leverage_armed'], 'INTEL-001')
         self.assertIn('INTEL-001', istate_after_a['held'])
 
-        # 5. Run C turn with SHAME_04 (C烈度_重度): baseline drop at aff=50 is -15 -> halved to -7 (aff 50 -> 43), INTEL-001 consumed and 2 shield charges remain!
+        # 5. Run C turn with SHAME_04 (C烈度_重度): baseline drop at aff=50 is -10 -> halved to -5 (aff 50 -> 45), INTEL-001 consumed and 2 shield charges remain!
         aff_before = engine._read_attr_value(mem_path.read_text(encoding='utf-8'), '沈知韫', '好感')
         run_action_turn(
             self.svc, text='强势逼近试探', option_id='C', category='C',
@@ -463,8 +463,8 @@ class PhaseABLinkageTests(unittest.TestCase):
             req_id='c-leverage-fire',
         )
         aff_after = engine._read_attr_value(mem_path.read_text(encoding='utf-8'), '沈知韫', '好感')
-        # Normal SHAME_04 drop at aff=50 is -15 (would be 35); halved to -7 -> 43!
-        self.assertEqual(aff_after, aff_before - 7)
+        # Normal SHAME_04 drop at aff=50 is -10 (would be 40); halved to -5 -> 45!
+        self.assertEqual(aff_after, aff_before - 5)
         istate_after_c = sp.parse_intel_block(mem_path.read_text(encoding='utf-8'))
         self.assertEqual(istate_after_c['leverage_armed'], '')
         self.assertEqual(istate_after_c['leverage_charges'], 2)

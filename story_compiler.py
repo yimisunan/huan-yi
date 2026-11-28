@@ -678,7 +678,7 @@ def compute_zone1_persona_flags(state, memory_text=''):
         coy_floor = ic.COY_AFF_FLOORS.get(name, 65)
         if dep >= 35 or shame < 45:
             char_stage[name] = 'stage3'
-        elif shame >= 75 and dep < 15 and not (shame < 90 and aff >= coy_floor and desire >= 40 and resentment < 25):
+        elif shame >= 75 and dep < 15 and not (shame < 90 and aff >= coy_floor and desire >= 30 and resentment < 30):
             char_stage[name] = 'stage1'
         else:
             char_stage[name] = 'stage2'
@@ -1042,7 +1042,7 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
         quad = str((tension_prof or {}).get('quadrant') or 'neutral')
         if res >= 50:
             return '【真实裂痕·严正冷淡】近期粗暴越界或失信已伤及底线，明确抗拒亲近与敷衍哄骗，禁演成嘴硬心软，须见实质道歉与退让方能缓和'
-        if res >= 25:
+        if res >= 30:
             return '【真实裂痕·委屈戒备】因先前越界或压迫仍存真实委屈与戒心，防备收紧且拒走半推半就，须先展现尊重与诚意方渐冰释'
         if quad == 'coy_tension' or last_shift_kind == 'coy_fluster':
             if name == '沈知韫':
@@ -2577,7 +2577,8 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
             'shame_events/depravity_events/ds_events/affection_events 严禁填徐承邺（死亡查岗_沉沦期target填在场女主）；当operation_context.detail.kind=="inspect_deployed"时，允许对detail.remote_cast中的远程目标据正文结算自慰_暗中纾解/堕落_私密自渎/意外撞破_私密自渎，其余事件组target必须严格属于本场实际在场角色姓名。目标体力<=15且无玩家括号强行授权时严禁施加C烈度_深度/重度。免费SYSTEM不得附带事件/任务/物品。'
             '「首次」「深度操控_首次」「内射_首次核爆」「同质化免疫_回合2/3」「小憩单日限次」「失眠防叠加」「状态_空耗惩罚」「生理_危险期」均由后端据持久化记录自动派生与拦截，模型只需如实标注本幕发生的基础事件。'
             '多档标签判准速查（严禁自造白名单外标签）：'
-            'C烈度_轻度(越界言语挑逗/近距离施压/非敏感部位试探)、C烈度_中度(亲吻/隔衣贴合/轻度敏感部位触碰)、C烈度_深度(褪衣暴露/直接敏感带抚弄/口交侍奉，仅限C档)、C烈度_重度(实质性交/强行突破/高危越界结合，仅限C档)；'
+            '心理破冰_暧昧试探(羞耻>70时的安全言语暧昧/轻度拉近试探，只降羞耻不扣好感)、'
+            'C烈度_轻度(明确越界挑逗/近距离施压/非敏感部位试探)、C烈度_中度(亲吻/隔衣贴合/轻度敏感部位触碰)、C烈度_深度(褪衣暴露/直接敏感带抚弄/口交侍奉，仅限C档)、C烈度_重度(实质性交/强行突破/高危越界结合，仅限C档)；'
             '高潮_轻度累积(初段爱抚/边缘挑弄)、高潮_中度累积(持续密集快感/深入刺激)、高潮_重度累积(临近绝顶/强烈痉挛)、触发高潮_绝顶清算(明确达到高潮绝顶)；'
             '刺激_视觉(近距凝视/暴露羞耻)、刺激_嗅觉(贴颈呼吸/体香气息)、刺激_听觉(耳语喘息/羞耻指令)、刺激_物理(实质肢体爱抚/器官接触)；'
             '消耗_轻微焦虑(短暂心虚/轻微防备)、消耗_日常劳作(常规奔波家务办公消耗)、消耗_剧烈抗拒(剧烈挣扎/高强度体力与心理拉扯)；'

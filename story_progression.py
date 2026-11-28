@@ -1341,37 +1341,38 @@ def advance_npc_mind(
             is_coy = name in coy_set
             cur_res = max(0, min(100, int(slot.get('resentment') or 0)))
 
-            # 4a. Resentment accumulation on genuine offense / coercion / blackout push
+            # 4a. Resentment accumulation on genuine offense / coercion / blackout push (anti-death-spiral)
             res_gain = 0
+            has_explicit_reject = (t_aff01 in a_tags) or (t_aff02 in a_tags)
             if t_aff02 in a_tags:
                 res_gain += 35
             if t_aff01 in a_tags:
-                res_gain += 18
-            if t_ds10 in d_tags:
                 res_gain += 12
+            if t_ds10 in d_tags:
+                res_gain += 8
             if (t_sh09 in s_tags) or (t_sh14 in s_tags):
-                res_gain += 15
+                res_gain += 12
             pre_sta = pre_map.get((name, '体力'))
-            pre_shame = pre_map.get((name, '羞耻'))
             if pre_sta is not None and int(pre_sta) <= 15 and ((t_sh03 in s_tags) or (t_sh04 in s_tags)):
-                res_gain += 20
-            if (not is_coy) and dval <= -4:
-                res_gain += 10
-            elif (not is_coy) and -3 <= dval <= -2 and (pre_shame is None or int(pre_shame) >= 85):
-                res_gain += 6
+                res_gain += 15
+            # Only add drop-based resentment when no explicit rejection tag already accounted for it
+            if (not is_coy) and (not has_explicit_reject) and dval <= -6:
+                res_gain += 8
+            if t_aff02 not in a_tags:
+                res_gain = min(15, res_gain)
 
             # 4b. Resentment healing on sincere respectful interaction & time cooling
             res_heal = 0
             if res_gain == 0:
                 if action_category in ('A', 'B') and name in cast_set and not s_tags and (t_aff01 not in a_tags) and (t_aff02 not in a_tags) and (t_ds10 not in d_tags):
                     if any(t in deep_warm_aff for t in a_tags):
-                        res_heal += 15
+                        res_heal += 20
                     elif any(t in mild_warm_aff for t in a_tags) or has_warm_host:
-                        res_heal += 10
+                        res_heal += 12
                     else:
-                        res_heal += 5
+                        res_heal += 8
                 if overnight or day_crossed:
-                    res_heal += 8
+                    res_heal += 12
             slot['resentment'] = max(0, min(100, cur_res + res_gain - res_heal))
 
             # 4c. Affection trend & semantic shift classification (prevents coy_fluster from poisoning next turn as annoyance)
@@ -3660,6 +3661,14 @@ def apply_staged(store,engine,stage,body,files,parsed):
             if task_after_events['current'].get('status')=='已完成' and not was_active_task:
                 task_completed=True
                 completed_task_info=copy.deepcopy(task_after_events['current'])
+        if task_completed and completed_task_info and completed_task_info.get('tier') in ('medium','large') and not charm_gained_now:
+            cmem=memory_path.read_text(encoding='utf-8')
+            chost=engine._read_host_panel(str(memory_path)) or {'积分':0,'经验值':0,'体力':100,'魅力':70,'商业嗅觉':0}
+            cur_cm=int(chost.get('魅力',70) or 70)
+            if cur_cm<100:
+                chost['魅力']=min(100,cur_cm+1)
+                rr._atomic(memory_path,engine._simulate_panel(cmem,{'系统宿主':chost}).encode('utf-8'))
+                charm_gained_now=True
         rr._engine_call(engine.update_persistent_buffs,str(memory_path),events['shame_events'],{})
         rr._engine_call(engine.process_item_timers,str(memory_path),str(stage/rr.FILES[1]),action)
         memory=rr._write_lifecycle(rr._write_counters(rr._write_micro(memory_path.read_text(encoding='utf-8'),states),counts),lifecycle)
@@ -3852,6 +3861,11 @@ def apply_staged(store,engine,stage,body,files,parsed):
                 m_trace[hname]=2
             elif rem_lock_turns>0 and cur_h_des<lock_floor:
                 ov_patch[hname]['欲望']=lock_floor
+            elif cur_h_des>20:
+                des_floor=max(30 if cur_h_dep>=60 else 15,lock_floor)
+                cooled_des=max(des_floor,cur_h_des-20)
+                if cooled_des!=cur_h_des:
+                    ov_patch[hname]['欲望']=cooled_des
             dep_coef=0.7 if cur_h_pas>=4 else 0.6
             shame_cap=min(35 if is_h_preg else 100,max(0,100-int(cur_h_dep*dep_coef)))
             if not ins_map.get(hname,False):

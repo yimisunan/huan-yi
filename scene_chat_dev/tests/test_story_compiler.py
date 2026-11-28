@@ -840,18 +840,18 @@ class StoryCompilerTests(unittest.TestCase):
             sh_fresh = ic.process_shame_system({'沈知韫': ['C烈度_中度']}, str(mp))['沈知韫']
             self.assertEqual(sh_fresh - sh_tired, 1)
 
-            # Intact defense stays active at Lv.2/3, exempt at Lv.4; stacked mitigations capped at 75% (floor -1)
+            # High aff keeps >60 tier (-6 for SHAME_04); stacked mitigations capped at 75% (min -2 on -6)
             aff_lv3 = ic.process_affection_system({}, {'沈知韫': ['C烈度_重度']}, str(mp))['沈知韫']
-            self.assertEqual(aff_lv3, 73)  # raw -15 (intact), Lv.2+ *0.5 -> -7
+            self.assertEqual(aff_lv3, 77)  # raw -6 (>60 tier), Lv.2+ *0.5 -> -3
             aff_stacked = ic.process_affection_system(
                 {}, {'沈知韫': ['C烈度_重度']}, str(mp),
                 business_leverage=True, host_charm=95,
             )['沈知韫']
-            self.assertEqual(aff_stacked, 76)  # 75% cap on -15 -> -4 (never 0)
+            self.assertEqual(aff_stacked, 78)  # 75% cap on -6 -> -2 (never 0 on heavy C)
             st['panels']['沈知韫']['被动'] = 4
             mp.write_text(save_store.render_memory_txt(st, save_store.default_layers()), encoding='utf-8')
             aff_lv4 = ic.process_affection_system({}, {'沈知韫': ['C烈度_重度']}, str(mp))['沈知韫']
-            self.assertEqual(aff_lv4, 75)  # Lv.4 exempts intact_defense -> raw -10 * 0.5 -> -5
+            self.assertEqual(aff_lv4, 77)  # raw -6 * 0.5 -> -3
 
             # 6. Same-turn shame_cap clamp after depravity rise + clean A-tier gentle recovery (+5 cap 30) + nap +15
             prev_paths = (ic.BASE_DIR, ic.DATA_DIR, ic.MEMORY_FILE, ic.ITEM_FILE, ic.DATA_JSON_FILE)
@@ -1247,7 +1247,7 @@ class StoryCompilerTests(unittest.TestCase):
         )
         s2_sys = spec['system_prompt']
         required_12_triggers = (
-            '羞耻>75', '主动破锁_30阶梯', '苏婉青_真相揭露', '触发高潮_绝顶清算',
+            '羞耻>70', '主动破锁_30阶梯', '苏婉青_真相揭露', '触发高潮_绝顶清算',
             '自慰_暗中纾解', '解离保护', '外地', '内射',
             'effective_progress', '优雅掌控_魅力精进', '确诊怀孕', '体力 ≤ 15',
         )
