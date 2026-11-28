@@ -106,7 +106,7 @@ class ProgressionChecks(unittest.TestCase):
   with self.assertRaises(rr.RoundError):self.service.create(self.request('CUSTOM','使用恢复道具 ITEM-999'))
   self.assertEqual(self.energy(),10)
  def test_events_real_diff_and_old_base_cost_deduplicated(self):
-  self.begin();text='他认真听完今天的安排，她点了点头。';event=[{'group':'host_events','target':'系统宿主','tags':['日常_信任建立','体力_日常消耗'],'evidence':text}];self.accept(time='22:10',text=text,events=event);self.assertEqual(self.energy(),95);self.assertIn('积分 2',(self.root/rr.FILES[0]).read_text());self.play();receipt=self.service.interaction_snapshot()['settlement'];self.assertEqual(receipt['net_cost'],5);self.assertTrue(any(x['attribute']=='积分' and x['delta']==2 for x in receipt['changes']))
+  self.begin();text='他认真听完今天的安排，她点了点头。';event=[{'group':'host_events','target':'系统宿主','tags':['日常_信任建立','体力_日常消耗'],'evidence':text}];self.accept(time='22:10',text=text,events=event);self.assertEqual(self.energy(),95);self.assertIn('积分 5',(self.root/rr.FILES[0]).read_text());self.play();receipt=self.service.interaction_snapshot()['settlement'];self.assertEqual(receipt['net_cost'],5);self.assertTrue(any(x['attribute']=='积分' and x['delta']==5 for x in receipt['changes']))
  def test_bad_result_refunds_and_no_premature_receipt(self):
   self.begin();request=self.request('A');self.service.create(request);task=self.service.claim()['task'];body=self.response(task,category='A');value=json.loads(body['text']);value['resolution']['clock']['day']=0;body['text']=json.dumps(value);result=self.service.result(task['request_id'],body);self.assertEqual(result['task']['status'],'failed');self.assertEqual(self.energy(),100)
   self.accept(time='22:10');snapshot=self.service.interaction_snapshot();self.assertIsNone(snapshot['settlement']);self.assertNotIn('settlement',snapshot['history'][-1]);self.play();self.assertEqual(self.service.interaction_snapshot()['settlement']['stamina_after'],95)
@@ -130,10 +130,10 @@ class ProgressionChecks(unittest.TestCase):
   text='他凌晨一点睡下，早晨八点醒来。'
   self.accept(option='REST',category='SYSTEM',day=1,time='08:00',text=text,sleep={'kind':'overnight','start':{'day':1,'time':'01:05'},'evidence':text});self.play();self.assertEqual(self.energy(),100);self.assertEqual(sp.state(self.root,self.store._files())['last_closed'],1)
   engine=rr._engine(self.root,self.root)
-  engine.process_task_system({'title':'练习目标','target':'系统宿主','attr':'积分','value':2,'tier':'small','item_desc':'普通纪念品'},2,str(self.root/rr.FILES[0]))
+  engine.process_task_system({'title':'练习目标','target':'系统宿主','attr':'积分','value':5,'tier':'small','item_desc':'普通纪念品'},2,str(self.root/rr.FILES[0]))
   text='他认真听完今天的安排。';events=[{'group':'host_events','target':'系统宿主','tags':['日常_信任建立'],'evidence':text}]
-  self.accept(time='08:10',text=text,events=events);self.play();panel=engine._read_host_panel(str(self.root/rr.FILES[0]));self.assertEqual(panel['积分'],17);self.assertEqual(engine._parse_task_block((self.root/rr.FILES[0]).read_text())['current']['status'],'已完成')
-  self.accept(time='08:15',text='他把事情再确认了一遍。');self.play();self.assertEqual(engine._read_host_panel(str(self.root/rr.FILES[0]))['积分'],17)
+  self.accept(time='08:10',text=text,events=events);self.play();panel=engine._read_host_panel(str(self.root/rr.FILES[0]));self.assertEqual(panel['积分'],27);self.assertEqual(engine._parse_task_block((self.root/rr.FILES[0]).read_text())['current']['status'],'已完成')
+  self.accept(time='08:15',text='他把事情再确认了一遍。');self.play();self.assertEqual(engine._read_host_panel(str(self.root/rr.FILES[0]))['积分'],29)
  def test_four_layer_transfer_preserves_source_and_action_timers(self):
   import save_store
   self.begin();engine=rr._engine(self.root,self.root)

@@ -396,7 +396,7 @@ class TaskAndShopTests(unittest.TestCase):
         self._play_all()
         self._set_host_attr('积分', 4)
 
-        # Trigger host_events (+2 points) to cross TASK-001 target (6 for zhiyun_sunday_noon)
+        # Trigger host_events (+5 points) to cross TASK-001 target (6 for zhiyun_sunday_noon)
         ev_text = '她安静听完你的安排，微微颔首。'
         self._accept_paid(
             time='12:05',
@@ -405,7 +405,7 @@ class TaskAndShopTests(unittest.TestCase):
         )
         snap = self._play_all()
         self.assertTrue(snap['settlement']['task_completed'])
-        self.assertEqual(self._read_host_attr('积分'), 21)  # 4 + 2 + 15
+        self.assertEqual(self._read_host_attr('积分'), 29)  # 4 + 5 + 20
         self.assertTrue(snap['world']['tasks']['pending_item'].startswith('TASK-001'))
         mem_after_complete = (self.root / rr.FILES[0]).read_text(encoding='utf-8')
         echoes = sp.parse_shop_echo_block(mem_after_complete)['echoes']

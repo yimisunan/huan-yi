@@ -321,11 +321,17 @@ def derive_host_fetishes(body_dev, keepsakes):
     return marks[:6]
 
 
-def process_host_system(host_events, shame_events, memory_file):
+ACTION_ECONOMY_FLOOR = {"A": (2, 2), "B": (3, 2), "C": (4, 3)}
+BODY_DEV_ECON_REWARDS = {1: (6, 5), 2: (10, 8), 3: (15, 12)}
+SYNCED_CLIMAX_ECON_REWARD = (10, 8)
+KEEPSAKE_NEW_ECON_REWARD = (6, 4)
+
+
+def process_host_system(host_events, shame_events, memory_file, *, action_floor=None):
     """
-    宿主核心引擎：三轨竞标结算、动态体力代偿与魅力精进
+    宿主核心引擎：三轨主次协同结算、连续守护独立入账、有效行动保底、动态体力代偿与魅力精进
     """
-    if not host_events and not shame_events:
+    if not host_events and not shame_events and not action_floor:
         return {}
     if not os.path.exists(memory_file):
         return {}
@@ -344,40 +350,94 @@ def process_host_system(host_events, shame_events, memory_file):
     cur_biz = int(match_host.group(4))
     cur_charm = int(match_charm.group(1)) if match_charm else 70
     
-    # 1. 三轨竞标计算
+    # 1. 三轨主次协同结算 + HOST_07 连续守护独立里程碑（同经济标签单轮去重防刷）
     track1 = {"pts": 0, "exp": 0, "biz": 0, "name": "堕落侵蚀"}
     track2 = {"pts": 0, "exp": 0, "biz": 0, "name": "日常温馨"}
     track3 = {"pts": 0, "exp": 0, "biz": 0, "name": "商业权力"}
+    guard_bonus = {"pts": 0, "exp": 0}
+    seen_econ_tags = set()
     
     if host_events:
         for tag in host_events:
-            if tag == _event_tag('HOST_01'): track1["pts"] += _event_param('HOST_01', 'track1_pts_01'); track1["exp"] += _event_param('HOST_01', 'track1_exp_02')
-            elif tag == _event_tag('HOST_02'): track1["pts"] += _event_param('HOST_02', 'track1_pts_01'); track1["exp"] += _event_param('HOST_02', 'track1_exp_02')
-            elif tag == _event_tag('HOST_03'): track1["pts"] += _event_param('HOST_03', 'track1_pts_01'); track1["exp"] += _event_param('HOST_03', 'track1_exp_02')
-            elif tag == _event_tag('HOST_04'): track1["pts"] += _event_param('HOST_04', 'track1_pts_01'); track1["exp"] += _event_param('HOST_04', 'track1_exp_02')
-            elif tag == _event_tag('HOST_05'): track2["pts"] += _event_param('HOST_05', 'track2_pts_01'); track2["exp"] += _event_param('HOST_05', 'track2_exp_02')
-            elif tag == _event_tag('HOST_06'): track2["pts"] += _event_param('HOST_06', 'track2_pts_01'); track2["exp"] += _event_param('HOST_06', 'track2_exp_02')
-            elif tag == _event_tag('HOST_07'): track2["pts"] += _event_param('HOST_07', 'track2_pts_01'); track2["exp"] += _event_param('HOST_07', 'track2_exp_02')
-            elif tag == _event_tag('HOST_08'): track2["pts"] += _event_param('HOST_08', 'track2_pts_01')
-            elif tag == _event_tag('HOST_09'): track3["pts"] += _event_param('HOST_09', 'track3_pts_01'); track3["exp"] += _event_param('HOST_09', 'track3_exp_02'); track3["biz"] += _event_param('HOST_09', 'track3_biz_03')
-            elif tag == _event_tag('HOST_10'): track3["pts"] += _event_param('HOST_10', 'track3_pts_01'); track3["exp"] += _event_param('HOST_10', 'track3_exp_02'); track3["biz"] += _event_param('HOST_10', 'track3_biz_03')
-            elif tag == _event_tag('HOST_11'): track3["pts"] += _event_param('HOST_11', 'track3_pts_01'); track3["exp"] += _event_param('HOST_11', 'track3_exp_02'); track3["biz"] += _event_param('HOST_11', 'track3_biz_03')
+            if tag in seen_econ_tags:
+                continue
+            if tag == _event_tag('HOST_01'):
+                seen_econ_tags.add(tag)
+                track1["pts"] += _event_param('HOST_01', 'track1_pts_01'); track1["exp"] += _event_param('HOST_01', 'track1_exp_02')
+            elif tag == _event_tag('HOST_02'):
+                seen_econ_tags.add(tag)
+                track1["pts"] += _event_param('HOST_02', 'track1_pts_01'); track1["exp"] += _event_param('HOST_02', 'track1_exp_02')
+            elif tag == _event_tag('HOST_03'):
+                seen_econ_tags.add(tag)
+                track1["pts"] += _event_param('HOST_03', 'track1_pts_01'); track1["exp"] += _event_param('HOST_03', 'track1_exp_02')
+            elif tag == _event_tag('HOST_04'):
+                seen_econ_tags.add(tag)
+                track1["pts"] += _event_param('HOST_04', 'track1_pts_01'); track1["exp"] += _event_param('HOST_04', 'track1_exp_02')
+            elif tag == _event_tag('HOST_05'):
+                seen_econ_tags.add(tag)
+                track2["pts"] += _event_param('HOST_05', 'track2_pts_01'); track2["exp"] += _event_param('HOST_05', 'track2_exp_02')
+            elif tag == _event_tag('HOST_06'):
+                seen_econ_tags.add(tag)
+                track2["pts"] += _event_param('HOST_06', 'track2_pts_01'); track2["exp"] += _event_param('HOST_06', 'track2_exp_02')
+            elif tag == _event_tag('HOST_07'):
+                seen_econ_tags.add(tag)
+                guard_bonus["pts"] += _event_param('HOST_07', 'track2_pts_01'); guard_bonus["exp"] += _event_param('HOST_07', 'track2_exp_02')
+            elif tag == _event_tag('HOST_08'):
+                seen_econ_tags.add(tag)
+                track2["pts"] += _event_param('HOST_08', 'track2_pts_01'); track2["exp"] += _event_param('HOST_08', 'track2_exp_02')
+            elif tag == _event_tag('HOST_09'):
+                seen_econ_tags.add(tag)
+                track3["pts"] += _event_param('HOST_09', 'track3_pts_01'); track3["exp"] += _event_param('HOST_09', 'track3_exp_02'); track3["biz"] += _event_param('HOST_09', 'track3_biz_03')
+            elif tag == _event_tag('HOST_10'):
+                seen_econ_tags.add(tag)
+                track3["pts"] += _event_param('HOST_10', 'track3_pts_01'); track3["exp"] += _event_param('HOST_10', 'track3_exp_02'); track3["biz"] += _event_param('HOST_10', 'track3_biz_03')
+            elif tag == _event_tag('HOST_11'):
+                seen_econ_tags.add(tag)
+                track3["pts"] += _event_param('HOST_11', 'track3_pts_01'); track3["exp"] += _event_param('HOST_11', 'track3_exp_02'); track3["biz"] += _event_param('HOST_11', 'track3_biz_03')
 
-    tracks = [track1, track2, track3]
-    best_track = max(tracks, key=lambda t: t["pts"])
+    tracks = sorted([track1, track2, track3], key=lambda t: (t["pts"], t["exp"]), reverse=True)
+    best_track = tracks[0]
     strategist_bonus = (cur_biz >= 80)
 
-    if best_track["pts"] > 0:
-        pts_gain = best_track["pts"]
-        exp_gain = best_track["exp"]
-        if strategist_bonus:
+    pts_gain = best_track["pts"]
+    exp_gain = best_track["exp"]
+    synergy_names = []
+    for sec in tracks[1:]:
+        if sec["pts"] > 0 or sec["exp"] > 0:
+            pts_gain += int(round(sec["pts"] * 0.5))
+            exp_gain += int(round(sec["exp"] * 0.5))
+            synergy_names.append(sec["name"])
+
+    if (pts_gain > 0 or exp_gain > 0) and strategist_bonus:
+        if pts_gain > 0:
             pts_gain += max(1, int(round(pts_gain * 0.15)))
-            if exp_gain > 0:
-                exp_gain += max(1, int(round(exp_gain * 0.15)))
-        cur_pts += pts_gain
-        cur_exp += exp_gain
-        bonus_note = "（深局棋手+15%）" if strategist_bonus else ""
-        print(f" 🏆 [宿主引擎] 三轨结算：【{best_track['name']}】路线胜出{bonus_note}！积分+{pts_gain} 经验+{exp_gain}")
+        if exp_gain > 0:
+            exp_gain += max(1, int(round(exp_gain * 0.15)))
+
+    floor_applied = False
+    if action_floor:
+        f_pts = max(0, int(action_floor[0] or 0))
+        f_exp = max(0, int(action_floor[1] or 0))
+        if f_pts > pts_gain or f_exp > exp_gain:
+            pts_gain = max(pts_gain, f_pts)
+            exp_gain = max(exp_gain, f_exp)
+            floor_applied = True
+
+    total_pts_gain = pts_gain + guard_bonus["pts"]
+    total_exp_gain = exp_gain + guard_bonus["exp"]
+    if total_pts_gain > 0 or total_exp_gain > 0:
+        cur_pts += total_pts_gain
+        cur_exp += total_exp_gain
+        parts = []
+        if best_track["pts"] > 0 or best_track["exp"] > 0:
+            syn_note = f"+{'/'.join(synergy_names)}×50%" if synergy_names else ""
+            bonus_note = "（深局棋手+15%）" if strategist_bonus else ""
+            parts.append(f"【{best_track['name']}】主轨{syn_note}{bonus_note}")
+        if floor_applied:
+            parts.append("有效推进保底")
+        if guard_bonus["pts"] > 0 or guard_bonus["exp"] > 0:
+            parts.append(f"连续守护独立+{guard_bonus['pts']}分/+{guard_bonus['exp']}经")
+        print(f" 🏆 [宿主引擎] 经济结算（{' / '.join(parts)}）：积分+{total_pts_gain} 经验+{total_exp_gain}")
 
     # 商业嗅觉独立入账（不再被更高积分的情感/侵蚀轨道吞没，单轮上限 +20）
     biz_gain = min(20, max(0, int(track3["biz"])))
@@ -1796,7 +1856,7 @@ TASK_WHITELIST = {
     "徐念薇": ["好感"],
     "苏婉青": ["好感"],
 }  # 严格白名单：堕落/欲望/羞耻/高潮/怀孕/内射/被动Lv 硬禁（任务化会诱导越界剧情）
-TASK_REWARDS = {"small": (15, 8), "medium": (40, 25), "large": (80, 50)}  # (积分, 经验) 固定档位
+TASK_REWARDS = {"small": (20, 12), "medium": (45, 30), "large": (80, 50)}  # (积分, 经验) 固定档位
 TASK_HISTORY_LIMIT = 3  # 最近完成保留条数
 TASK_BLOCK_ANCHOR = "【任务状态】"
 
@@ -4100,7 +4160,7 @@ def _execute_injection_internal(current_round, story_nodes, memory_deltas, panel
 def apply_story_events(events, task_issue, memory_round, *, business_leverage=False,
                        current_day=None, active_cast=None, pre_event_content=None,
                        insomnia_targets=None, defer_task=False, privacy=None, body_acts=None,
-                       action_category=None):
+                       action_category=None, effective_progress=False):
     """Settle accepted event tags with deterministic cross-window mechanics persistence (in-memory pipeline: depravity -> shame -> affection -> ds -> host)."""
     state, layers, _ = save_store.load_bundle(BASE_DIR)
     intl_now = state.get('intimate') or {}
@@ -4273,8 +4333,33 @@ def apply_story_events(events, task_issue, memory_round, *, business_leverage=Fa
         if care_changed:
             _flush_sim()
 
-    if norm_events['host_events'] or shame:
-        host = process_host_system(norm_events['host_events'], shame, MEMORY_FILE)
+    # 欲拒还迎（AFFECTION_12）自动联动轨道 1 初阶（侵蚀_认知撕裂），避免嘴硬心软试探回合白打
+    if coy_chars:
+        track1_tags = {
+            _event_tag('HOST_01'), _event_tag('HOST_02'),
+            _event_tag('HOST_03'), _event_tag('HOST_04'),
+        }
+        if not any(t in track1_tags for t in norm_events['host_events']):
+            norm_events['host_events'].append(_event_tag('HOST_01'))
+
+    has_non_host_event = bool(
+        norm_events['depravity_events']
+        or shame
+        or norm_events['affection_events']
+        or norm_events['ds_events']
+        or norm_events.get('vigilance_events')
+    )
+    action_floor = (
+        ACTION_ECONOMY_FLOOR.get(str(action_category or '').upper())
+        if (effective_progress or has_non_host_event)
+        else None
+    )
+
+    if norm_events['host_events'] or shame or action_floor:
+        host = process_host_system(
+            norm_events['host_events'], shame, MEMORY_FILE,
+            action_floor=action_floor,
+        )
         if host:
             panels.setdefault('系统宿主', {}).update(host)
             _flush_sim()
@@ -4637,6 +4722,7 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
         intl['session_beats'] = 0
         intl['session_orgasms'] = {h: 0 for h in save_store.HEROINES}
         intl['session_charm_gained'] = False
+        intl['session_econ_climax_paid'] = False
         intl['noise_risk'] = 0
         intl['privacy'] = 'open_public'
         intl['sub_location'] = ''
@@ -4655,6 +4741,7 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
         intl['session_beats'] = 0
         intl['session_orgasms'] = {h: 0 for h in save_store.HEROINES}
         intl['session_charm_gained'] = False
+        intl['session_econ_climax_paid'] = False
         intl['noise_risk'] = 0
         intl['privacy'] = 'open_public'
         intl['sub_location'] = ''
@@ -4770,6 +4857,7 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
         prose_text, events, explicit_acts=ss.get('body_acts')
     )
     dev_milestones = []
+    dev_econ_milestones = []
     service_desire_bonus = 0
     for hname, zones in resolved_body_acts.items():
         if hname not in save_store.HEROINES or not isinstance(zones, list):
@@ -4785,13 +4873,19 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
             new_val = min(100, old_val + gain)
             bd[hname][z] = new_val
             new_lv = body_dev_level(new_val)
-            if new_lv > old_lv and new_lv >= 2:
-                dev_milestones.append({'heroine': hname, 'zone': z, 'label': save_store.BODY_ZONE_LABELS.get(z, z), 'level': new_lv})
+            if new_lv > old_lv:
+                z_label = save_store.BODY_ZONE_LABELS.get(z, z)
+                for crossed_lv in range(old_lv + 1, new_lv + 1):
+                    if crossed_lv in BODY_DEV_ECON_REWARDS:
+                        dev_econ_milestones.append({'heroine': hname, 'zone': z, 'label': z_label, 'level': crossed_lv})
+                if new_lv >= 2:
+                    dev_milestones.append({'heroine': hname, 'zone': z, 'label': z_label, 'level': new_lv})
             if z in ('oral', 'hand', 'chest', 'foot'):
                 service_desire_bonus = max(service_desire_bonus, 4 + new_lv * 2)
 
     # 4.6 私密贴身收藏登记与更新（keepsake_adds / keepsake_updates）
     keepsakes_added = []
+    new_keepsakes_created = []
     if isinstance(ss.get('keepsake_adds'), list):
         for raw_ks in ss['keepsake_adds'][:3]:
             if not isinstance(raw_ks, dict):
@@ -4829,6 +4923,7 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
                     if len(ks_list) > 24:
                         del ks_list[24:]
                     keepsakes_added.append(copy.deepcopy(norm_k))
+                    new_keepsakes_created.append(copy.deepcopy(norm_k))
     if isinstance(ss.get('keepsake_updates'), list):
         for upd in ss['keepsake_updates'][:4]:
             if not isinstance(upd, dict):
@@ -4853,6 +4948,7 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
             intl['session_beats'] = 0
             intl['session_orgasms'] = {h: 0 for h in save_store.HEROINES}
             intl['session_charm_gained'] = False
+            intl['session_econ_climax_paid'] = False
             intl['noise_risk'] = max(0, int(intl.get('noise_risk', 0) or 0) - 25)
         elif intl.get('scene_active'):
             # 维持亲密中进行（如 A 档喘息/调情缓拍）
@@ -4956,6 +5052,36 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
         floor_c = min(cur_charm_panel, 60)
         host_panel['魅力'] = max(floor_c, cur_charm_panel + net_charm_delta)
 
+    # 5.7 高光互动里程碑经济红利（部位首破 Lv.1/2/3、同频绝顶每场限1次、全新贴身珍藏单轮限1件）
+    econ_pts_bonus = 0
+    econ_exp_bonus = 0
+    economy_notes = []
+    for dm in dev_econ_milestones:
+        rew = BODY_DEV_ECON_REWARDS.get(int(dm.get('level') or 0))
+        if rew:
+            p_add, e_add = rew
+            econ_pts_bonus += p_add
+            econ_exp_bonus += e_add
+            economy_notes.append(
+                f"{dm['heroine']} {dm['label']}首破 Lv.{dm['level']}（积分+{p_add}、经验+{e_add}）"
+            )
+    if synced_climax and not intl.get('session_econ_climax_paid'):
+        intl['session_econ_climax_paid'] = True
+        p_add, e_add = SYNCED_CLIMAX_ECON_REWARD
+        econ_pts_bonus += p_add
+        econ_exp_bonus += e_add
+        economy_notes.append(f"达成同频绝顶（积分+{p_add}、经验+{e_add}）")
+    if new_keepsakes_created:
+        ks0 = new_keepsakes_created[0]
+        p_add, e_add = KEEPSAKE_NEW_ECON_REWARD
+        econ_pts_bonus += p_add
+        econ_exp_bonus += e_add
+        owner_p = f"{ks0.get('owner', '')} · " if ks0.get('owner') else ''
+        economy_notes.append(f"首次珍藏 {owner_p}「{ks0.get('name', '')}」（积分+{p_add}、经验+{e_add}）")
+    if econ_pts_bonus > 0 or econ_exp_bonus > 0:
+        host_panel['积分'] = int(host_panel.get('积分', 0) or 0) + econ_pts_bonus
+        host_panel['经验值'] = int(host_panel.get('经验值', 0) or 0) + econ_exp_bonus
+
     # 6. 隔墙/同席潜行声响暴露风险与同栋楼女主疑心联动
     stealth_alert = False
     if intl.get('privacy') in ('thin_wall', 'under_cover'):
@@ -4993,6 +5119,8 @@ def advance_intimate_state(state, events, *, scene_state=None, active_cast=None,
         'charm_penalty_reasons': charm_penalty_reasons,
         'keepsakes_added': keepsakes_added,
         'body_acts_used': resolved_body_acts,
+        'economy_notes': economy_notes,
+        'economy_bonus': {'pts': econ_pts_bonus, 'exp': econ_exp_bonus},
     }
 
 

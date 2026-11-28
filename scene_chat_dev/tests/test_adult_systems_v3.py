@@ -177,7 +177,7 @@ class AdultSystemsV3Tests(unittest.TestCase):
         self.assertIn('内射', st2['mechanics']['first_triggers']['沈知韫'])
         self.assertGreaterEqual(st2['panels']['沈知韫']['堕落'], 30)  # +15 from DEPRAVITY_03
         self.assertGreaterEqual(st2['panels']['系统宿主']['积分'], 50)  # +50 from HOST_04
-        self.assertGreaterEqual(st2['panels']['系统宿主']['经验值'], 50)
+        self.assertGreaterEqual(st2['panels']['系统宿主']['经验值'], 45)  # +45 from HOST_04
 
         # Second creampie must NOT duplicate first-time DEPRAVITY_03 or HOST_04
         dep_before = st2['panels']['沈知韫']['堕落']

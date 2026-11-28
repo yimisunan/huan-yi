@@ -892,8 +892,8 @@
         "id": "HOST_01",
         "tag": "侵蚀_认知撕裂",
         "parameters": {
-          "track1_pts_01": 2,
-          "track1_exp_02": 1
+          "track1_pts_01": 5,
+          "track1_exp_02": 3
         },
         "parameter_usage": {
           "track1_pts_01": "track1['pts'] 增加",
@@ -907,8 +907,8 @@
         "id": "HOST_02",
         "tag": "侵蚀_生理战栗",
         "parameters": {
-          "track1_pts_01": 8,
-          "track1_exp_02": 5
+          "track1_pts_01": 12,
+          "track1_exp_02": 8
         },
         "parameter_usage": {
           "track1_pts_01": "track1['pts'] 增加",
@@ -922,8 +922,8 @@
         "id": "HOST_03",
         "tag": "侵蚀_防线坍塌",
         "parameters": {
-          "track1_pts_01": 30,
-          "track1_exp_02": 20
+          "track1_pts_01": 32,
+          "track1_exp_02": 22
         },
         "parameter_usage": {
           "track1_pts_01": "track1['pts'] 增加",
@@ -938,7 +938,7 @@
         "tag": "侵蚀_首次核爆",
         "parameters": {
           "track1_pts_01": 50,
-          "track1_exp_02": 50
+          "track1_exp_02": 45
         },
         "parameter_usage": {
           "track1_pts_01": "track1['pts'] 增加",
@@ -952,8 +952,8 @@
         "id": "HOST_05",
         "tag": "日常_信任建立",
         "parameters": {
-          "track2_pts_01": 2,
-          "track2_exp_02": 1
+          "track2_pts_01": 5,
+          "track2_exp_02": 3
         },
         "parameter_usage": {
           "track2_pts_01": "track2['pts'] 增加",
@@ -967,8 +967,8 @@
         "id": "HOST_06",
         "tag": "日常_情感共振",
         "parameters": {
-          "track2_pts_01": 4,
-          "track2_exp_02": 3
+          "track2_pts_01": 8,
+          "track2_exp_02": 6
         },
         "parameter_usage": {
           "track2_pts_01": "track2['pts'] 增加",
@@ -982,14 +982,14 @@
         "id": "HOST_07",
         "tag": "日常_连续守护5回合",
         "parameters": {
-          "track2_pts_01": 5,
-          "track2_exp_02": 3
+          "track2_pts_01": 10,
+          "track2_exp_02": 8
         },
         "parameter_usage": {
-          "track2_pts_01": "track2['pts'] 增加",
-          "track2_exp_02": "track2['exp'] 增加"
+          "track2_pts_01": "连续守护里程碑独立积分增加",
+          "track2_exp_02": "连续守护里程碑独立经验增加"
         },
-        "description": "日常_连续守护5回合；触发条件见对应sys条目，数值不由模型计算。",
+        "description": "日常_连续守护5回合；由程序计数派生并独立入账（不参与三轨吞噬），数值不由模型计算。",
         "pattern": null,
         "shared_parameters": []
       },
@@ -997,12 +997,14 @@
         "id": "HOST_08",
         "tag": "日常_温和累进",
         "parameters": {
-          "track2_pts_01": 1
+          "track2_pts_01": 3,
+          "track2_exp_02": 2
         },
         "parameter_usage": {
-          "track2_pts_01": "track2['pts'] 增加"
+          "track2_pts_01": "track2['pts'] 增加",
+          "track2_exp_02": "track2['exp'] 增加"
         },
-        "description": "日常_温和累进；触发条件见对应sys条目，数值不由模型计算。",
+        "description": "日常_温和累进；日常陪伴、稳步推进或轻度互动但尚未达深度信任/共振时触发，数值不由模型计算。",
         "pattern": null,
         "shared_parameters": []
       },
@@ -1010,8 +1012,8 @@
         "id": "HOST_09",
         "tag": "商业_信息获取",
         "parameters": {
-          "track3_pts_01": 4,
-          "track3_exp_02": 4,
+          "track3_pts_01": 6,
+          "track3_exp_02": 5,
           "track3_biz_03": 4
         },
         "parameter_usage": {
@@ -1027,8 +1029,8 @@
         "id": "HOST_10",
         "tag": "商业_权力博弈",
         "parameters": {
-          "track3_pts_01": 8,
-          "track3_exp_02": 8,
+          "track3_pts_01": 12,
+          "track3_exp_02": 10,
           "track3_biz_03": 8
         },
         "parameter_usage": {
@@ -1044,7 +1046,7 @@
         "id": "HOST_11",
         "tag": "商业_战略突破",
         "parameters": {
-          "track3_pts_01": 20,
+          "track3_pts_01": 24,
           "track3_exp_02": 20,
           "track3_biz_03": 20
         },

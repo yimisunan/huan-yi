@@ -3325,6 +3325,13 @@ def collect_state_deltas(st_before, st_after, *, intimate_meta=None):
                 'level': 'milestone',
                 'text': f"新增私密珍藏：{prefix}「{ks['name']}」",
             })
+    for econ_txt in (im.get('economy_notes') or []):
+        if isinstance(econ_txt, str) and econ_txt.strip():
+            notes.append({
+                'kind': 'economy_milestone',
+                'level': 'milestone',
+                'text': f"里程碑奖励：{econ_txt.strip()}",
+            })
     pen_reasons = [str(r) for r in (im.get('charm_penalty_reasons') or []) if str(r).strip()]
     if pen_reasons:
         notes.append({
@@ -3551,6 +3558,7 @@ def apply_staged(store,engine,stage,body,files,parsed):
             insomnia_targets=parsed.get('insomnia_targets'),defer_task=True,
             privacy=eff_privacy,body_acts=resolved_body_acts,
             action_category=value.get('category'),
+            effective_progress=bool((value.get('conditions') or {}).get('effective_progress')),
         )
         if isinstance(ev_meta,dict) and isinstance(ev_meta.get('normalized_events'),dict):
             events=ev_meta['normalized_events']

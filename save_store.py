@@ -303,6 +303,7 @@ def default_intimate():
         'session_beats': 0,
         'session_orgasms': {name: 0 for name in HEROINES},
         'session_charm_gained': False,
+        'session_econ_climax_paid': False,
         'privacy': 'open_public',
         'sub_location': '',
         'present_actors': [],
@@ -1472,6 +1473,7 @@ def normalize_state(raw):
     intl['scene_active'] = bool(raw_int.get('scene_active', False))
     intl['session_beats'] = max(0, _parse_int(raw_int.get('session_beats'), 0)) if intl['scene_active'] else 0
     intl['session_charm_gained'] = bool(raw_int.get('session_charm_gained', False)) if intl['scene_active'] else False
+    intl['session_econ_climax_paid'] = bool(raw_int.get('session_econ_climax_paid', False)) if intl['scene_active'] else False
     raw_sorg = raw_int.get('session_orgasms') if isinstance(raw_int.get('session_orgasms'), dict) else {}
     for name in HEROINES:
         intl['session_orgasms'][name] = max(0, _parse_int(raw_sorg.get(name), 0)) if intl['scene_active'] else 0

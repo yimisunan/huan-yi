@@ -359,17 +359,17 @@ Python负责排序、推流和盖戳；AI只提供当回合增量，并按后续
 
 【注册表生成表开始】
 【HOST_EVENTS】侵蚀_认知撕裂 / 侵蚀_生理战栗 / 侵蚀_防线坍塌 / 侵蚀_首次核爆 / 日常_信任建立 / 日常_情感共振 / 日常_连续守护5回合 / 日常_温和累进 / 商业_信息获取 / 商业_权力博弈 / 商业_战略突破 / 兑换道具_X / 体力_日常消耗 / 体力_激烈交欢 / 体力_次日休息 / 优雅掌控_魅力精进
-- 侵蚀_认知撕裂：track1_pts_01=2（track1['pts'] 增加）；track1_exp_02=1（track1['exp'] 增加）
-- 侵蚀_生理战栗：track1_pts_01=8（track1['pts'] 增加）；track1_exp_02=5（track1['exp'] 增加）
-- 侵蚀_防线坍塌：track1_pts_01=30（track1['pts'] 增加）；track1_exp_02=20（track1['exp'] 增加）
-- 侵蚀_首次核爆：track1_pts_01=50（track1['pts'] 增加）；track1_exp_02=50（track1['exp'] 增加）
-- 日常_信任建立：track2_pts_01=2（track2['pts'] 增加）；track2_exp_02=1（track2['exp'] 增加）
-- 日常_情感共振：track2_pts_01=4（track2['pts'] 增加）；track2_exp_02=3（track2['exp'] 增加）
-- 日常_连续守护5回合：track2_pts_01=5（track2['pts'] 增加）；track2_exp_02=3（track2['exp'] 增加）
-- 日常_温和累进：track2_pts_01=1（track2['pts'] 增加）
-- 商业_信息获取：track3_pts_01=4（track3['pts'] 增加）；track3_exp_02=4（track3['exp'] 增加）；track3_biz_03=4（track3['biz'] 增加）
-- 商业_权力博弈：track3_pts_01=8（track3['pts'] 增加）；track3_exp_02=8（track3['exp'] 增加）；track3_biz_03=8（track3['biz'] 增加）
-- 商业_战略突破：track3_pts_01=20（track3['pts'] 增加）；track3_exp_02=20（track3['exp'] 增加）；track3_biz_03=20（track3['biz'] 增加）
+- 侵蚀_认知撕裂：track1_pts_01=5（track1['pts'] 增加）；track1_exp_02=3（track1['exp'] 增加）
+- 侵蚀_生理战栗：track1_pts_01=12（track1['pts'] 增加）；track1_exp_02=8（track1['exp'] 增加）
+- 侵蚀_防线坍塌：track1_pts_01=32（track1['pts'] 增加）；track1_exp_02=22（track1['exp'] 增加）
+- 侵蚀_首次核爆：track1_pts_01=50（track1['pts'] 增加）；track1_exp_02=45（track1['exp'] 增加）
+- 日常_信任建立：track2_pts_01=5（track2['pts'] 增加）；track2_exp_02=3（track2['exp'] 增加）
+- 日常_情感共振：track2_pts_01=8（track2['pts'] 增加）；track2_exp_02=6（track2['exp'] 增加）
+- 日常_连续守护5回合：track2_pts_01=10（连续守护里程碑独立积分增加）；track2_exp_02=8（连续守护里程碑独立经验增加）
+- 日常_温和累进：track2_pts_01=3（track2['pts'] 增加）；track2_exp_02=2（track2['exp'] 增加）
+- 商业_信息获取：track3_pts_01=6（track3['pts'] 增加）；track3_exp_02=5（track3['exp'] 增加）；track3_biz_03=4（track3['biz'] 增加）
+- 商业_权力博弈：track3_pts_01=12（track3['pts'] 增加）；track3_exp_02=10（track3['exp'] 增加）；track3_biz_03=8（track3['biz'] 增加）
+- 商业_战略突破：track3_pts_01=24（track3['pts'] 增加）；track3_exp_02=20（track3['exp'] 增加）；track3_biz_03=20（track3['biz'] 增加）
 - 兑换道具_X：条件/修饰标签；按既有通用规则处理；实际提交模式=兑换道具_[1-9]\d{0,8}
 - 体力_日常消耗：cur_sta_01=5（cur_sta 扣减）
 - 体力_激烈交欢：cur_sta_01=15（cur_sta 扣减）

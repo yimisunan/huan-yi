@@ -884,12 +884,13 @@ class StoryCompilerTests(unittest.TestCase):
             panels_nap = ic.process_desire_stamina_system({'沈知韫': ['恢复_小憩']}, str(mp))
             self.assertEqual(panels_nap['沈知韫']['体力'], 35)  # 20 + 15
 
-            # 7. Independent biz settlement + biz >= 80 (+15% winning pts/exp & -15% non-witness vig) + leverage vig suppression
+            # 7. Independent biz settlement + primary 100% / secondary 50% synergy + biz >= 80 (+15%)
             st['panels']['系统宿主'].update({'积分': 0, '经验值': 0, '商业嗅觉': 80})
             mp.write_text(save_store.render_memory_txt(st, save_store.default_layers()), encoding='utf-8')
             host_res = ic.process_host_system(['侵蚀_防线坍塌', '商业_信息获取'], {}, str(mp))
-            self.assertEqual(host_res['积分'], round(30 * 1.15))
-            self.assertEqual(host_res['经验值'], round(20 * 1.15))
+            # track1=(32,22) + 50% track3=(3,2) => (35,24); +15% => (40,28)
+            self.assertEqual(host_res['积分'], 35 + round(35 * 0.15))
+            self.assertEqual(host_res['经验值'], 24 + round(24 * 0.15))
             self.assertEqual(host_res['商业嗅觉'], 84)  # +4 independent
 
             st_v = save_store.default_state()
