@@ -133,7 +133,16 @@ class RoundTests(unittest.TestCase):
         data = json.loads((self.root / 'data.json').read_text(encoding='utf-8'))
         self.assertEqual(1, data['state_version'])
         self.assertEqual('request-1', data['request_id'])
-        self.assertIn('[系统宿主] 积分 8', state[rr.FILES[0]].decode('utf-8'))
+        reg = json.loads((self.root / 'txt文件/事件注册表.json').read_text(encoding='utf-8'))
+        host08 = next(
+            e['parameters']
+            for g in reg['groups'].values()
+            for e in (g['events'] if isinstance(g, dict) else g)
+            if isinstance(e, dict) and e.get('id') == 'HOST_08'
+        )
+        expected_pts = 7 + int(host08['track2_pts_01'])
+        expected_exp = 3 + int(host08.get('track2_exp_02', 0))
+        self.assertIn(f'[系统宿主] 积分 {expected_pts} | 经验值 {expected_exp}', state[rr.FILES[0]].decode('utf-8'))
         self.assertEqual(1, len(list((self.root / '日志').glob('*.txt'))))
 
     def test_stale_revision_round_and_request_conflicts(self):
