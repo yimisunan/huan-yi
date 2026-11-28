@@ -67,6 +67,15 @@ def _build_reference_aliases(root):
                     alias = candidate['text']
                     if candidate.get('kind') == 'kinship' and len(alias) >= 2:
                         aliases.setdefault(alias, set()).add(target['listener'])
+    # Merge unified single-source-of-truth person aliases (kinship compounds & titles) from save_store
+    import save_store as _ss_aliases
+    active_entities = {n for n, ent in entities.items() if ent.get('status') == 'active'}
+    for canonical, extra_list in getattr(_ss_aliases, 'PERSON_REFERENCE_ALIASES', {}).items():
+        if canonical not in active_entities:
+            continue
+        for alias in extra_list:
+            if len(alias) >= 2:
+                aliases.setdefault(alias, set()).add(canonical)
     frozen = tuple((alias, next(iter(names))) for alias, names in aliases.items() if len(names) == 1)
     if sig is not None:
         with _ALIAS_CACHE_LOCK:
@@ -111,8 +120,18 @@ class SceneService:
 
     def references(self, text, history):
         unique_aliases = _build_reference_aliases(self.root)
-        # Carry only the last two player turns; model wording cannot trigger new dependencies.
-        inputs = [turn['input'] for turn in history[-2:]] + [text]
+        # Carry last two player inputs + last 1 turn's spoken/surface messages (subtext-stripped)
+        # so pronoun follow-ups ("他怎么说的？") resolve entities introduced by an NPC in the previous turn.
+        inputs = [turn.get('input', '') for turn in (history or ())[-2:] if isinstance(turn, dict)] + [text or '']
+        if history and isinstance(history[-1], dict):
+            prev_msgs = history[-1].get('messages') or ()
+            if isinstance(prev_msgs, list):
+                import re as _re_sub
+                for m in prev_msgs:
+                    if isinstance(m, dict) and isinstance(m.get('text'), str) and m['text']:
+                        # Strip unspoken ｜subtext inside ｛surface｜subtext｝ so private inner thoughts never pull refs.
+                        surface = _re_sub.sub(r'[｛{]([^｝}|｜]*)[｜|][^｝}]*[｝}]', r'\1', m['text'])
+                        inputs.append(surface)
         found = {}
         for alias, name in unique_aliases:
             if any(alias in value for value in inputs):

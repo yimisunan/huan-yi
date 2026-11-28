@@ -65,12 +65,33 @@ MEMORY_LAYER_HEADERS = (
 _EMPTY_MARKERS = frozenset({'', '（空）', '(空)', '无', '（无）', '(无)'})
 _LABEL_RE = re.compile(r'^【(\d+)(?:-(\d+))?】')
 _PROLOGUE_LINE_RE = re.compile(r'(?m)^\s*【系统隐藏标记：[^\n]*】\s*$')
-_ENTITY_ALIAS_MAP = {
-    '沈知韫': ('沈知韫', '知韫', '母亲', '妈妈', '妈', '夫人', '董事长', '沈总', '婆婆'),
-    '徐念薇': ('徐念薇', '念薇', '二姐', '姐姐', '姐', '画室', '画展', '美院'),
-    '苏婉青': ('苏婉青', '婉青', '嫂子', '大嫂', '少奶奶', '公寓'),
-    '徐承邺': ('徐承邺', '承邺', '大哥', '哥哥', '长兄', '外地', '查岗', '监视'),
+# Single source of truth for unambiguous person-referring aliases (shared by scene_chat.references & memory retrieval).
+# Avoid bare single-char '姐'/'妈'/'哥' to prevent false positives like '小姐'/'大妈'/'帅哥'; use natural compounds.
+PERSON_REFERENCE_ALIASES = {
+    '沈知韫': (
+        '沈知韫', '知韫', '母亲', '妈妈', '我妈', '咱妈', '你妈', '他妈',
+        '找妈', '跟妈', '给妈', '向妈', '叫妈', '喊妈', '妈那边', '妈那里', '妈在',
+        '夫人', '董事长', '沈董', '沈总', '婆婆',
+    ),
+    '徐念薇': (
+        '徐念薇', '念薇', '小薇', '二姐', '姐姐', '我姐', '咱姐', '你姐',
+        '找姐', '跟姐', '给姐', '姐那边', '姐那里', '二小姐', '徐小姐',
+    ),
+    '苏婉青': (
+        '苏婉青', '婉青', '嫂子', '嫂嫂', '大嫂', '表嫂', '少奶奶', '苏女士',
+    ),
+    '徐承邺': (
+        '徐承邺', '承邺', '大哥', '哥哥', '我哥', '咱哥', '你哥', '他哥',
+        '找哥', '跟哥', '哥那边', '哥那里', '长兄', '徐总', '大少爷', '养兄', '老公', '丈夫',
+    ),
     '徐志北': ('徐志北', '志北', '小叔', '小少爷'),
+}
+_ENTITY_ALIAS_MAP = {
+    '沈知韫': (*PERSON_REFERENCE_ALIASES['沈知韫'], '妈'),
+    '徐念薇': (*PERSON_REFERENCE_ALIASES['徐念薇'], '画室', '画展', '美院', '工作室'),
+    '苏婉青': (*PERSON_REFERENCE_ALIASES['苏婉青'], '公寓', '顶层公寓'),
+    '徐承邺': (*PERSON_REFERENCE_ALIASES['徐承邺'], '外地', '查岗', '监视'),
+    '徐志北': PERSON_REFERENCE_ALIASES['徐志北'],
 }
 
 
@@ -1083,9 +1104,9 @@ def retrieve_memory_view(mem_store, *, query='', cast=(), present_actors=None,
         + [int((ms['pending_buffer'] or {}).get('day') or 1)]
     )
 
-    def _score(text, entities, tags, item_loc, item_day, importance=3, is_anchor=False, is_pending=False):
+    def _score_detail(text, entities, tags, item_loc, item_day, importance=3, is_anchor=False, is_pending=False):
         if is_pending:
-            return 100.0
+            return (100.0, 1.0)
         ent_set = set(entities or ())
         # 1. Entity relevance (0.40)
         ent_hits = len((ent_set - {'徐志北'}) & (query_ents - {'徐志北'}))
@@ -1094,7 +1115,8 @@ def retrieve_memory_view(mem_store, *, query='', cast=(), present_actors=None,
         # 2. Lexical / tag / location match (0.30)
         item_tokens = _extract_tokens(text + ' ' + ' '.join(tags or ()))
         lex_hits = len(query_tokens & item_tokens)
-        lex_score = min(1.0, (lex_hits / max(1.0, min(6.0, float(len(query_tokens))))) if query_tokens else 0.0)
+        pure_lex = min(1.0, (lex_hits / max(1.0, min(6.0, float(len(query_tokens))))) if query_tokens else 0.0)
+        lex_score = pure_lex
         if location and item_loc and location == item_loc:
             lex_score = min(1.0, lex_score + 0.35)
         # 3. Importance (0.20)
@@ -1102,7 +1124,8 @@ def retrieve_memory_view(mem_store, *, query='', cast=(), present_actors=None,
         # 4. Recency decay (0.10)
         age = max(0, max_day - max(1, int(item_day)))
         rec_score = 1.0 / (1.0 + 0.18 * age)
-        return round(0.40 * ent_score + 0.30 * lex_score + 0.20 * imp_score + 0.10 * rec_score, 4)
+        total = round(0.40 * ent_score + 0.30 * lex_score + 0.20 * imp_score + 0.10 * rec_score, 4)
+        return (total, round(pure_lex, 4))
 
     def _partition_bucket(known_by):
         kb_set = set(known_by or ('徐志北',))
@@ -1121,16 +1144,17 @@ def retrieve_memory_view(mem_store, *, query='', cast=(), present_actors=None,
     if pb.get('facts'):
         pb_txt = f"[第{pb['day']}天 {pb.get('start_time') or ''} {pb.get('location') or ''}] " + '；'.join(pb['facts'])
         candidates.append({
-            'source': 'pending', 'id': 'NOW', 'score': 100.0, 'pinned': True,
+            'source': 'pending', 'id': 'NOW', 'score': 100.0, 'lex_score': 1.0, 'pinned': True,
             'known_by': pb.get('known_by') or ['徐志北'], 'text': pb_txt.strip(),
         })
 
     # Active anchors (durable facts/promises/milestones)
     for a in ms['anchors']:
-        sc = _score(a['text'], a['entities'], [a['kind']], '', a['day'], importance=a['importance'], is_anchor=True)
+        sc, lx = _score_detail(a['text'], a['entities'], [a['kind']], '', a['day'], importance=a['importance'], is_anchor=True)
         tag_lbl = {'promise': '约定', 'milestone': '节点', 'secret': '秘密', 'clue': '线索', 'relationship': '关系'}.get(a['kind'], '锚点')
         candidates.append({
-            'source': 'anchor', 'id': a['id'], 'score': sc, 'pinned': (not incremental and a['importance'] >= 4 and bool(set(a['entities']) & room_set)),
+            'source': 'anchor', 'id': a['id'], 'score': sc, 'lex_score': lx,
+            'pinned': (not incremental and a['importance'] >= 4 and bool(set(a['entities']) & room_set)),
             'known_by': a['known_by'], 'text': f"[{a['id']}·{tag_lbl}·D{a['day']}] {a['text']}",
         })
 
@@ -1138,12 +1162,12 @@ def retrieve_memory_view(mem_store, *, query='', cast=(), present_actors=None,
     eps = ms['episodes']
     recent_ep_ids = {ep['id'] for ep in eps[-3:]}
     for ep in eps:
-        sc = _score(ep['summary'], ep['entities'], ep.get('tags'), ep.get('location'), ep['day'], importance=3, is_anchor=False)
+        sc, lx = _score_detail(ep['summary'], ep['entities'], ep.get('tags'), ep.get('location'), ep['day'], importance=3, is_anchor=False)
         loc_part = f" {ep['location']}" if ep.get('location') else ''
         tm_part = f" {ep['time_range']}" if ep.get('time_range') else ''
         candidates.append({
             'source': 'episode', 'id': ep['id'], 'score': sc + (0.25 if ep['id'] in recent_ep_ids else 0.0),
-            'pinned': (not incremental and ep['id'] in recent_ep_ids),
+            'lex_score': lx, 'pinned': (not incremental and ep['id'] in recent_ep_ids),
             'known_by': ep['known_by'],
             'text': f"[{ep['id']}·D{ep['day']}{tm_part}{loc_part}] {ep['summary']}",
         })
@@ -1152,16 +1176,18 @@ def retrieve_memory_view(mem_store, *, query='', cast=(), present_actors=None,
     for ch in ms['chronicle']:
         dr = ch.get('day_range') or [1, 1]
         if ch.get('public'):
-            sc = _score(ch['public'], ch.get('entities'), [], '', dr[1], importance=3, is_anchor=False)
+            sc, lx = _score_detail(ch['public'], ch.get('entities'), [], '', dr[1], importance=3, is_anchor=False)
             candidates.append({
-                'source': 'chronicle', 'id': ch['id'], 'score': sc * 0.9, 'pinned': (not incremental and ch == ms['chronicle'][-1]),
+                'source': 'chronicle', 'id': ch['id'], 'score': sc * 0.9, 'lex_score': lx,
+                'pinned': (not incremental and ch == ms['chronicle'][-1]),
                 'known_by': list(_VALID_MEMORY_ACTORS),
                 'text': f"[{ch['id']}·D{dr[0]}-{dr[1]}编年] {ch['public']}",
             })
         for wname, wtxt in (ch.get('views') or {}).items():
-            sc = _score(wtxt, [wname, '徐志北'], [], '', dr[1], importance=3, is_anchor=False)
+            sc, lx = _score_detail(wtxt, [wname, '徐志北'], [], '', dr[1], importance=3, is_anchor=False)
             candidates.append({
-                'source': 'chronicle_view', 'id': f"{ch['id']}:{wname}", 'score': sc * 0.95, 'pinned': False,
+                'source': 'chronicle_view', 'id': f"{ch['id']}:{wname}", 'score': sc * 0.95, 'lex_score': lx,
+                'pinned': False,
                 'known_by': ['徐志北', wname] if wname != '徐志北' else ['徐志北'],
                 'text': f"[{ch['id']}·D{dr[0]}-{dr[1]}·{wname}线] {wtxt}",
             })
@@ -1169,8 +1195,12 @@ def retrieve_memory_view(mem_store, *, query='', cast=(), present_actors=None,
     candidates.sort(key=lambda c: (c['pinned'], c['score']), reverse=True)
     budget = max(400, int(max_chars or 2400))
     if incremental:
-        # On turns 2..N inside an active session, focus on pending + highest-relevance non-trivial recalls
-        candidates = [c for c in candidates if c['source'] == 'pending' or c['score'] >= 0.42]
+        # On turns 2..N inside an active session, focus on pending + high-relevance recalls,
+        # while allowing explicit lexical callbacks (lex_score >= 0.40) to surface offstage/older clues.
+        candidates = [
+            c for c in candidates
+            if c['source'] == 'pending' or c['score'] >= 0.42 or (c.get('lex_score', 0.0) >= 0.40 and c['score'] >= 0.30)
+        ]
         budget = min(budget, 1400)
 
     excl_fps = {str(x) for x in exclude_fingerprints if isinstance(x, str) and x} if (incremental and exclude_fingerprints) else set()
@@ -1182,6 +1212,7 @@ def retrieve_memory_view(mem_store, *, query='', cast=(), present_actors=None,
     selected_fps = []
     ep_selected = 0
     ch_selected = 0
+    callback_recalled = 0
     max_eps = 4 if incremental else 8
     max_ch = 2 if incremental else 4
     for item in candidates:
@@ -1190,7 +1221,11 @@ def retrieve_memory_view(mem_store, *, query='', cast=(), present_actors=None,
         if src != 'pending':
             fp = f"{item['id']}:{hashlib.sha1(item['text'].encode('utf-8')).hexdigest()[:8]}"
             if excl_fps and fp in excl_fps:
-                continue
+                # Allow explicit strong lexical callbacks (up to 2) to re-surface previously injected anchors/clues.
+                if item.get('lex_score', 0.0) >= 0.45 and callback_recalled < 2:
+                    callback_recalled += 1
+                else:
+                    continue
         if src == 'episode' and ep_selected >= max_eps:
             continue
         if src in ('chronicle', 'chronicle_view') and ch_selected >= max_ch:
@@ -1214,9 +1249,13 @@ def retrieve_memory_view(mem_store, *, query='', cast=(), present_actors=None,
         elif src in ('chronicle', 'chronicle_view'):
             ch_selected += 1
 
-    # Lossless active anchor index for Stage 2 UPDATE/RESOLVE reference (preserves all high-importance & room anchors)
+    # Lossless active anchor index for Stage 2 UPDATE/RESOLVE reference (preserves all high-importance, room anchors & known_by)
     anchors_for_stage2 = [
-        {'id': a['id'], 'kind': a['kind'], 'day': a['day'], 'importance': a['importance'], 'text': a['text']}
+        {
+            'id': a['id'], 'kind': a['kind'], 'day': a['day'],
+            'importance': a['importance'], 'text': a['text'],
+            'known_by': list(a.get('known_by') or ['徐志北']),
+        }
         for a in sorted(
             ms['anchors'],
             key=lambda x: (x['importance'] >= 4 or bool(set(x['entities']) & room_set), bool(set(x['entities']) & room_set), x['importance'], x['day']),

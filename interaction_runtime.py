@@ -2139,6 +2139,7 @@ def material_delivery_v2(story, key, job, chat_id, participant_id, options=None)
             intel_catalog=intel_catalog, director_roll=context.get('director_roll'),
             settlement_custom_rules=story_prefs,
             memory_view=mem_view,
+            history=history,
         )
 
     record = {

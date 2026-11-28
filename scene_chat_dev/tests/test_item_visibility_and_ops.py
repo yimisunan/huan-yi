@@ -564,11 +564,11 @@ class ItemVisibilityAndOpsTests(unittest.TestCase):
         self.assertEqual(d_dep['mentioned_items'][0]['status'], '已部署(当前现场)')
         self.assertEqual(d_dep['mentioned_items'][0]['capability'], '隐蔽广角实时画面回传')
 
-        # (d) Ambiguous noun ("精油" matches both SHOP-006 and DYN-002) -> neither guessed blindly
+        # (d) Ambiguous noun ("精油" matches both SHOP-006 and DYN-002) -> surface both candidates for disambiguation instead of silent amnesia
         d_ambig, _ = self._call_delta(
             state, '我想用精油', include_full_anchor=False, prev_state_hashes=hashes1,
         )
-        self.assertNotIn('mentioned_items', d_ambig)
+        self.assertEqual({x['id'] for x in d_ambig.get('mentioned_items', [])}, {'SHOP-006', 'DYN-002'})
 
         # (e) Disambiguated phrase ("按摩精油") -> locks uniquely onto SHOP-006
         d_disambig, _ = self._call_delta(

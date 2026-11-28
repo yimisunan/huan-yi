@@ -120,11 +120,11 @@ _OPT_INLINE_MOVE_RE = re.compile(r'^\s*\[(?i:MOVE)[:：]\s*([^\]]+?)\s*\]\s*')
 _OPT_TRAILING_MOVE_RE = re.compile(r'\s*\[(?i:MOVE)[:：]\s*([^\]]+?)\s*\]\s*[。.]?\s*$')
 _DEFAULT_DECISION_PROMPT = '此刻，你准备怎么回应？'
 _INTIMATE_TURN_RE = re.compile(
-    r'强吻|亲吻|舌吻|拥吻|轻吻|热吻|吻(?:上|住|下|向|过|了|进|着|落|她|在)|抚摸|爱抚|轻揉|揉捏|按摩|按揉|摩挲|轻抚|抚过|贴近|凑近|抱紧|搂住|揽住|贴住|靠在怀里|压倒|推倒|扑倒|抱上床|抱进卧室|上床|'
-    r'脱衣|脱掉|褪下|掀起裙|解开衣|解开扣|扯开|撕破|撩起|衣领|领口|肩带|睡裙|睡衣|内衣|内裤|底裤|丝袜|黑丝|偷藏|私藏|嗅闻|脚踝|玉足|美足|足背|足弓|脚尖|脚趾|手腕|指尖|锁骨|后颈|腰线|胸线|36D|大腿内侧|腿间|'
-    r'胸部|胸口|胸前|双乳|乳房|乳尖|乳头|奶头|乳晕|奶子|大奶|酥胸|丰臀|屁股|臀部|肉臀|翘臀|胴体|私处|下身|小穴|穴口|骚逼|嫩逼|花穴|阴蒂|阴唇|鸡巴|肉棒|龟头|阳具|阴茎|大屌|卵蛋|淫水|爱液|'
-    r'体香|沐浴露|耳垂|耳畔|耳边|精油|催情|桃露|香薰|眼罩|滚轮|润滑|束缚|项圈|丝带|摄像头|针孔|偷拍|监听|'
-    r'足交|乳交|手交|素股|胸推|口交|颜射|射精|潮吹|舔|吮|咬|啃|捏|掐|揉|摸胸|揉胸|抓奶|捏奶|磨|蹭|跨坐|压在身下|按在墙上|把玩|掰开|'
+    r'强吻|亲吻|舌吻|拥吻|轻吻|热吻|吻(?:上|住|下|向|过|了|进|着|落|她|在)|抚摸|爱抚|轻揉|揉捏|按摩|按揉|摩挲|轻抚|抚过|贴近|凑近|抱紧|抱住|抱起|搂住|搂腰|掐腰|揽住|拉进怀里|依偎|贴住|靠在怀里|压倒|推倒|扑倒|按倒|壁咚|坐到腿上|抱上床|抱进卧室|上床|反锁房门|反锁|关灯|'
+    r'脱衣|脱掉|褪下|掀起裙|裙摆|吊带|解开衣|解开扣|纽扣|扣子|扯开|撕破|撩起|衣领|领口|肩带|睡裙|睡衣|内衣|内裤|底裤|丝袜|黑丝|偷藏|私藏|嗅闻|脚踝|玉足|美足|足背|足弓|脚尖|脚趾|手腕|指尖|掌心|锁骨|后颈|颈侧|腰线|腰侧|胸线|36D|大腿内侧|大腿|小腿|膝盖|腿间|腿软|'
+    r'胸部|胸口|胸前|体温|双乳|乳房|乳尖|乳头|奶头|乳晕|奶子|大奶|酥胸|丰臀|屁股|臀部|肉臀|翘臀|胴体|私处|下身|小穴|穴口|骚逼|嫩逼|花穴|阴蒂|阴唇|鸡巴|肉棒|龟头|阳具|阴茎|大屌|卵蛋|淫水|爱液|'
+    r'体香|沐浴露|耳垂|耳畔|耳边|喘息|呻吟|精油|催情|桃露|香薰|眼罩|滚轮|润滑|束缚|项圈|丝带|摄像头|针孔|偷拍|监听|'
+    r'足交|乳交|手交|素股|胸推|口交|颜射|射精|潮吹|舔|吮|咬|啃|捏|掐|揉|摸胸|揉胸|抓奶|捏奶|磨|蹭|探进去|跨坐|压在身下|按在墙上|把玩|掰开|'
     r'挺入|抽插|顶入|顶进|插进|捅|操|肏|干她|撸|撞击|调教|侍奉|跪下含|含住|指奸|后入|骑乘|内射|外射|吞精|自慰|自渎|换衣|洗澡|沐浴|走光|湿身|高潮|性爱|做爱|情欲|亲密接触|'
     r'(?:感受|摸|揉|捏|抓|贴|搂|抱|压|蹭|吻|舔|抚|触)[^\n。！？]{0,6}(?:身体|身子|胸|乳|奶|腰|臀|腿|温度|曲线|触感|软)'
 )
@@ -159,8 +159,10 @@ _SETTLE_DROP_SECTIONS_RE = re.compile(
 )
 _SETTLE_DIRECTOR_PROSE_RE = re.compile(r'\n*正式互动（live_interaction）同时启用后端活体世界导演 2\.0[^\n]*')
 _SETTLE_BACKEND_MATH_RES = (
-    # Pure Python arithmetic in sys.ds (modulation soft cap 1.50x, overnight auto-masturbation & +5 rest recovery math)
-    re.compile(r'高潮累积受欲望、堕落、宿主魅力[^。]*。'),
+    # Pure Python arithmetic in sys.ds (preserve 场景切换_欲望回落 clause after the semicolon!)
+    re.compile(r'高潮累积受欲望、堕落、宿主魅力[^；。]*；'),
+    re.compile(r'，后端按生成表清空高潮、欲望回落至35（体液锁定期间按剩余时效三段锁底）、扣除NPC体力15并激活余韵微状态\(residual_tension\)及身体余韵痕迹（极敏余韵/腿软潮红）'),
+    re.compile(r'：清空高潮至0、欲望回落至40（受体液锁定锁底约束）、扣除体力8、重置空耗计数并留下自渎余韵\(masturbation_trace\)'),
     re.compile(r'（若跨夜入睡时[^）]*上限88）'),
     re.compile(r'；纯A级平和照料回合若目标体力≤25且无消耗标签，后端自动轻缓回神\+5（至多回至30）'),
     re.compile(r'，失眠由后端按 save_state\.json 的 mechanics\.insomnia_applied 防同夜叠加'),
@@ -169,8 +171,8 @@ _SETTLE_BACKEND_MATH_RES = (
     re.compile(r'（其中深度操控首次/重复由后端据[^）]*）'),
     re.compile(r'（即使好感暂未破 85，后续回合仍保持已解锁）'),
     re.compile(r'（持久化保存于 mechanics\.depravity_unlocked_caps）'),
-    # Pure Python RNG math in sys.pregnancy (preserving 内射/外射/潜伏期/确诊怀孕 trigger rules 100%)
-    re.compile(r'\(安全期×0\.25[^)]*不进受孕暗骰\)'),
+    # Pure Python RNG math in sys.pregnancy (preserve 外射仅计羞耻-3与余韵微状态，不进受孕暗骰!)
+    re.compile(r'安全期×0\.25[^；)]*；'),
     re.compile(r'，并自动挂载24回合【持续_体液锁定】BUFF（[^）]*）'),
     re.compile(r'\(determine_cycle_phase / process_pregnancy_rng\)'),
     # Backend counter persistence implementation details in sys.breakout (preserving all 4 breakout & effective_progress rules)
@@ -424,7 +426,11 @@ def _parse_vigilance_state(memory_text):
 
 
 def _mentions_vigilance(extra_text=''):
-    return any(k in (extra_text or '') for k in ('徐承邺', '大哥', '哥哥', '查岗', '眼线', '监视', '被发现', '撞见'))
+    return any(k in (extra_text or '') for k in (
+        '徐承邺', '大哥', '哥哥', '我哥', '你哥', '徐总', '大少爷', '老公', '丈夫',
+        '查岗', '眼线', '监视', '被发现', '撞见', '来电', '电话', '手机响',
+        '管家', '保姆', '物业', '穿帮', '暴露', '偷听', '门外脚步',
+    ))
 
 
 def _needs_vigilance_rules(state, memory_text='', extra_text=''):
@@ -678,7 +684,10 @@ def compute_zone1_persona_flags(state, memory_text=''):
         coy_floor = ic.COY_AFF_FLOORS.get(name, 65)
         if dep >= 35 or shame < 45:
             char_stage[name] = 'stage3'
-        elif shame >= 75 and dep < 15 and not (shame < 90 and aff >= coy_floor and desire >= 30 and resentment < 30):
+        elif (
+            (shame >= 75 and dep < 15 and not (shame < 90 and aff >= coy_floor and desire >= 30 and resentment < 30))
+            or (shame >= 70 and dep < 15 and desire < 30 and aff < coy_floor)
+        ):
             char_stage[name] = 'stage1'
         else:
             char_stage[name] = 'stage2'
@@ -688,6 +697,25 @@ def compute_zone1_persona_flags(state, memory_text=''):
         raw_unlocked = list(state.get('secrets_unlocked') or ())
     unlocked = sorted({str(x).strip() for x in raw_unlocked if str(x).strip()})
     return {'char_stage': char_stage, 'unlocked_secrets': unlocked}
+
+
+def _extract_character_stage_spine(root, name, stage_bucket):
+    """Extract only the single-line active psychological spine for a heroine's stage (for Zone 2 mid-session upgrade patches)."""
+    if stage_bucket not in ('stage1', 'stage2', 'stage3') or name not in PEOPLE:
+        return ''
+    entries = _load_kb_entries(root, '角色类')
+    found = [e.get('content', '') for e in entries if '※索引key※ char.' + name in e.get('content', '')]
+    if len(found) != 1:
+        return ''
+    m = _SPINE_BLOCK_RE.search(found[0])
+    if not m:
+        return ''
+    target_num = stage_bucket[-1]
+    for ln in (x.strip() for x in m.group(1).splitlines() if x.strip()):
+        sm = _SPINE_STAGE_LINE_RE.match(ln)
+        if sm and sm.group(1) == target_num:
+            return sm.group(2).strip()
+    return ''
 
 
 def _filter_character_body_for_scene(root, name, body, *, stage_bucket=None, unlocked_secrets=()):
@@ -957,10 +985,10 @@ def _heroine_passive_desc(lv_num, *, remote=False):
     if lv_num == 3:
         eye = '且你能敏锐洞察她的防线裂口' if not remote else ''
         return f'疲劳诱导生效(焦灼、劳作或抗拒会令她心神更快倦怠松懈，潜意识仍易替你合理化{eye})'
-    return '防线支配生效(你几乎一眼看穿她的虚实，高压之下她防线极易动摇溃散)'
+    return '防线支配生效(你几乎一眼看穿她的虚实，高压之下她高羞耻矜持防线亦会被直接穿透溃散)'
 
 
-def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, include_points=False, intel_catalog=None):
+def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, include_points=False, intel_catalog=None, text=''):
     """Translate raw panel stats into human psychological director guidance without RPG number leakage."""
     panels = (state or {}).get('panels', [])
     panel_map = _parse_panel_map(panels)
@@ -997,7 +1025,9 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
             phys_parts.append('宿主情欲渐起')
         if intl.get('scene_active') or h_vig < 80:
             if h_vig < 15:
-                phys_parts.append('亲密耐力见底(体能透支动作略沉，宜稍作缓冲或温存收束)')
+                phys_parts.append('亲密耐力见底(已失护底托举，体能透支动作略沉，宜稍作缓冲或温存收束)')
+            elif h_vig < 25:
+                phys_parts.append('亲密耐力逼近断崖(再释放或强推极易失护底，宜留力缓冲)')
             elif h_vig < 45:
                 phys_parts.append('亲密耐力偏低(体能消耗明显)')
             else:
@@ -1010,8 +1040,18 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
         notes.append(f'宿主状态：{st_desc}{charm_part}，商战眼界[{biz_note}]{extra}{phys_clause}。')
 
     if intel_state['held'] or int(intel_state.get('leverage_charges', 0) or 0) > 0:
-        name_map = {it['id']: it['name'] for it in (intel_catalog or {}).get('items', [])}
-        held_labels = [name_map.get(iid, iid) for iid in intel_state['held']]
+        item_map = {it['id']: it for it in (intel_catalog or {}).get('items', []) if isinstance(it, dict) and it.get('id')}
+        name_map = {iid: it.get('name', iid) for iid, it in item_map.items()}
+        held_labels = []
+        for iid in intel_state['held']:
+            it = item_map.get(iid)
+            if it:
+                tgts = '/'.join(sorted((it.get('effects') or {}).keys()))
+                desc = str(it.get('desc') or '').strip()[:36]
+                detail = f'可对{tgts}亮牌：{desc}' if tgts and desc else (desc or tgts)
+                held_labels.append(f'{it.get("name", iid)}({detail})' if detail else it.get('name', iid))
+            else:
+                held_labels.append(iid)
         lev_parts = []
         if intel_state.get('leverage_armed'):
             lev_name = name_map.get(intel_state['leverage_armed'], intel_state['leverage_armed'])
@@ -1020,7 +1060,7 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
             lev_parts.append(f'已展开商业牵制底气（余{int(intel_state["leverage_charges"])}次压迫护航）')
         lev_note = ('；' + '；'.join(lev_parts)) if lev_parts else ''
         if held_labels:
-            notes.append(f'宿主私下掌握的未动用商业线索：{"、".join(held_labels)}（仅宿主知晓，玩家未亮牌前NPC不可知晓{lev_note}）。')
+            notes.append(f'宿主私下掌握的未动用商业线索：{"；".join(held_labels)}（仅宿主知晓，玩家未亮牌前NPC不可知晓；若玩家当面亮牌请让台词明指具体把柄细节{lev_note}）。')
         elif lev_parts:
             notes.append(f'宿主商业牵制态势：{"；".join(lev_parts)}（仅自然化入气场，禁直呼机制词）。')
 
@@ -1035,6 +1075,8 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
     sess_orgasms = intl.get('session_orgasms') if isinstance(intl.get('session_orgasms'), dict) else {}
     cast = (state or {}).get('cast', [])
     location = (state or {}).get('location', '')
+    priv_now = str(intl.get('privacy') or 'open_public')
+    public_crowded = (priv_now == 'open_public') and (len(cast) >= 2 or '徐承邺' in cast)
 
     def _heroine_tension_directive(name, tension_prof, last_shift_kind=''):
         """Translate dual-axis SES/SIS tension & dark-box resentment into concise character-faithful acting cues."""
@@ -1045,6 +1087,8 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
         if res >= 30:
             return '【真实裂痕·委屈戒备】因先前越界或压迫仍存真实委屈与戒心，防备收紧且拒走半推半就，须先展现尊重与诚意方渐冰释'
         if quad == 'coy_tension' or last_shift_kind == 'coy_fluster':
+            if public_crowded:
+                return '【公开顾忌·压抑局促】心底虽有隐秘软意，但此刻身处多人公开场合顾忌旁人视线，遇明显肢体越界必先抽身挡驾，绝不可当众顺水迎合'
             if name == '沈知韫':
                 return '【表里拉扯】嘴上端着长辈体面低声轻斥或借正事岔开，耳尖泛红、呼吸发软却未真推开，显出默许试探的隐秘偏心'
             if name == '苏婉青':
@@ -1097,7 +1141,7 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
                 cur_des=desire,
                 cur_dep=dep,
                 cur_passive=lv_num,
-                privacy=str(intl.get('privacy') or 'open_public'),
+                privacy=priv_now,
                 has_buff=bool(char_buffs),
                 resentment=resentment,
             )
@@ -1134,7 +1178,7 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
             flags.append(f'本场已达高潮{s_org}次(余韵敏锐且耐受下降)')
 
         if npc_st <= 15:
-            flags.append('身心透支进入生理断电期(未获玩家括号强行授权前严禁继续深/重度推进，须转入照料、低声安抚或余韵收束)')
+            flags.append('身心透支进入生理断电期(除非玩家输入含括号强行授权如（强行继续/不管断电），否则严禁深/重度推进，须转入照料、低声安抚或余韵收束)')
         elif npc_st < 40:
             flags.append('神态略显疲倦，支撑克制更耗心力')
 
@@ -1196,8 +1240,10 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
             if not (su_unlocked or aff > 85) and aff >= 75:
                 flags.append('心底仍对大房名分与徐承邺留着最后一层顾忌，尚未彻底交底')
             su_exposed = 'INTEL-002' in (mech.get('secrets_unlocked') or ())
-            if su_exposed:
-                flags.append('眼线身份已被宿主当面揭穿(心虚受制，不再主动替徐承邺盯梢，开启私下周旋/妥协线)')
+            if su_exposed and aff >= 70 and shame <= 50:
+                flags.append('眼线身份已被宿主当面揭穿且彻底倒戈(心虚受制，不再主动替徐承邺盯梢，转入私下共谋/妥协线)')
+            elif su_exposed:
+                flags.append('眼线身份已被宿主当面揭穿(心虚受制、明面敷衍周旋，但尚未彻底倒戈，暗底仍可能顾忌大房留后手)')
             elif not remote and location == '徐家主宅' and (aff < 70 or shame > 80):
                 flags.append('心底仍顾忌大房名分与婆婆礼数，在主宅言行愈发谨小慎微，遇试探必先以礼数微笑岔开')
         phys = ((state or {}).get('physiology') or {}).get(name) or {}
@@ -1209,7 +1255,7 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
         if stats.get('怀孕') == 'True' or phys.get('pregnancy_stage') == 'confirmed':
             flags.append('已确诊怀孕(孕期易倦、体态敏感与伦理身份反差并存)')
         elif phys.get('pregnancy_stage') == 'latent':
-            flags.append('早孕潜伏微兆(尚未知情确诊，偶现嗜睡/晨起微恶心/小腹微胀)')
+            flags.append('早孕潜伏微兆(尚在2日观察期未确诊，偶现嗜睡/晨起微恶心/小腹微胀，未正式验孕前禁直断已怀孕)')
         elif intl.get('scene_active') or desire >= 45 or shame <= 75 or dep >= 15:
             c_phase = phys.get('cycle_phase')
             if not c_phase:
@@ -1262,7 +1308,7 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
             notes.append(line)
 
     # 空间隐私、房间级同席与女主间暗流态势
-    priv = str(intl.get('privacy') or 'open_public')
+    priv = priv_now
     sub_loc = str(intl.get('sub_location') or '').strip()
     p_actors = [a for a in (intl.get('present_actors') or []) if a in cast]
     noise = int(intl.get('noise_risk') or 0)
@@ -1287,12 +1333,38 @@ def compile_state_qualitative_brief(state, memory_text='', include_tasks=False, 
             sp_parts.append('女主间暗流：' + '、'.join(ih_hot))
         notes.append('空间与私密态势：' + '；'.join(sp_parts) + '。')
 
-    # 私密贴身收藏态势（仅持有时注入，守知情隔离）
+    # 私密贴身收藏态势（优先在场角色藏品，同时若玩家明确提及场外藏品/衣物也一并带出，守知情隔离）
     ks_list = [k for k in (intl.get('keepsakes') or []) if isinstance(k, dict) and k.get('name')]
     if ks_list:
-        here_ks = [k for k in ks_list if k.get('owner') in cast] or ks_list[:3]
+        onstage_ks = [k for k in ks_list if k.get('owner') in cast]
+        offstage_ks = [k for k in ks_list if k.get('owner') not in cast]
+        picked_ks = list(onstage_ks[:3]) if onstage_ks else list(ks_list[:3])
+        picked_ids = {id(k) for k in picked_ks}
+        q_txt = str(text or '')
+        if q_txt and offstage_ks:
+            ks_kind_words = {
+                'panties': ('内裤', '底裤', '蕾丝'),
+                'stockings': ('丝袜', '黑丝', '白丝', '袜'),
+                'bra': ('内衣', '文胸', '胸罩'),
+                'nightwear': ('睡裙', '睡衣', '真丝'),
+                'accessory': ('手帕', '发圈', '发带', '饰品', '耳环', '丝巾'),
+            }
+            for k in offstage_ks:
+                if id(k) in picked_ids or len(picked_ks) >= 4:
+                    continue
+                owner = str(k.get('owner') or '')
+                kname = str(k.get('name') or '')
+                kwords = ks_kind_words.get(str(k.get('kind') or ''), ())
+                if (owner and owner in q_txt) or (kname and kname in q_txt) or any(w in q_txt for w in kwords):
+                    picked_ks.append(k)
+                    picked_ids.add(id(k))
+        if len(picked_ks) < 4:
+            for k in onstage_ks[3:]:
+                if id(k) not in picked_ids and len(picked_ks) < 4:
+                    picked_ks.append(k)
+                    picked_ids.add(id(k))
         ks_parts = []
-        for k in here_ks[:4]:
+        for k in picked_ks[:4]:
             m_lbl = save_store.KEEPSAKE_METHOD_LABELS.get(k.get('method', ''), '私密留存')
             c_lbl = save_store.KEEPSAKE_CONDITION_LABELS.get(k.get('condition', ''), '余香')
             a_lbl = '失主已知' if k.get('owner_aware') else '失主未觉'
@@ -1633,7 +1705,7 @@ def _extract_recent_cliche_motifs(history):
 
 
 ANCHOR_HISTORY_MODES = ('balanced', 'full')
-_ARCHIVE_RECALL_RE = re.compile(r'之前|上次|那天|记得|旧账|当初|最早|以前|查一下|回忆|前几天|说过|答应过|忘了')
+_ARCHIVE_RECALL_RE = re.compile(r'之前|上次|那天|记得|记不记得|昨天|昨晚|前阵子|早先|那件事|旧账|当初|最早|以前|查一下|回忆|前几天|说过|答应过|忘了')
 
 
 def normalize_anchor_history_mode(value):
@@ -1649,7 +1721,9 @@ _EMPTY_LIST_HASH = _short_hash([])
 _ITEM_GENERIC_STOPWORDS = frozenset({
     '道具', '物品', '东西', '礼盒', '礼物', '组合', '套装', '配件', '器具', '装置',
     '设备', '随身', '定制', '私密', '高定', '精品', '手工', '超薄', '微型', '隐蔽',
-    '临时', '永久', '消耗', '日常', '居家', '专用', '专属', '催化', '滴剂',
+    '临时', '永久', '消耗', '日常', '居家', '专用', '专属',
+    '无色', '热感', '暖调', '清神', '私人', '典藏', '古董', '精装', '商业', '艺术',
+    '十年', '暗纹', '真丝', '蕾丝', '按摩', '银质', '遮光', '纽扣', '磁吸',
 })
 _ITEM_SUFFIX_STRIP_RE = re.compile(r'(?:礼盒|套装|组合|盒|瓶|袋|包|件)$')
 _BUFF_MATH_JARGON_RE = re.compile(
@@ -1728,6 +1802,13 @@ def _extract_item_core_tokens(name):
     tokens = {raw}
     for m in re.finditer(r'《([^》]{2,20})》', raw):
         tokens.add(m.group(1).strip())
+    for m in re.finditer(r'[（(]([^）)]{2,12})[）)]', raw):
+        inner = m.group(1).strip()
+        if inner and inner not in _ITEM_GENERIC_STOPWORDS:
+            tokens.add(inner)
+            if len(inner) >= 4:
+                tokens.add(inner[-2:])
+                tokens.add(inner[:2])
     base = re.sub(r'[（(][^）)]*[）)]', '', raw)
     base = re.sub(r'《[^》]*》', '', base).strip()
     if len(base) >= 2:
@@ -1746,6 +1827,13 @@ def _extract_item_core_tokens(name):
                 tokens.add(src[-3:])
             if len(src) >= 2:
                 tokens.add(src[-2:])
+            # Extract non-stopword 2-char and 3-char interior nouns (e.g. 黑咖啡/咖啡/针孔/茉莉/香薰/蜡烛/录音)
+            if len(src) >= 4:
+                for span in (2, 3):
+                    for idx in range(0, len(src) - span + 1):
+                        sub = src[idx:idx + span]
+                        if sub not in _ITEM_GENERIC_STOPWORDS:
+                            tokens.add(sub)
     return {t for t in tokens if len(t) >= 2 and t not in _ITEM_GENERIC_STOPWORDS}
 
 
@@ -1778,11 +1866,37 @@ def match_item_in_text(text, item, pool=None):
 
 
 def find_mentioned_items(text, items):
-    """Return subset of items clearly mentioned in text (exact or unambiguous core noun)."""
+    """Return subset of items clearly mentioned in text; on multi-item suffix collision (e.g. two oils),
+    surface up to 3 colliding candidates instead of silently dropping all of them."""
     if not text or not items:
         return []
+    txt = str(text or '')
     pool = [it for it in items if isinstance(it, dict) and it.get('name')]
-    return [it for it in pool if match_item_in_text(text, it, pool)]
+    if not pool:
+        return []
+    unique_hits = [it for it in pool if match_item_in_text(txt, it, pool)]
+    if unique_hits:
+        return unique_hits
+    # Collision fallback: if a specific token matches 2..3 items (e.g., two custom '精油'/'摄像头' items), return them.
+    tok_owners = {}
+    for it in pool:
+        for tok in _extract_item_core_tokens(it.get('name', '')):
+            if tok in txt:
+                tok_owners.setdefault(tok, []).append(it)
+    if not tok_owners:
+        return []
+    best_tok = max(tok_owners.keys(), key=lambda t: (len(t), -len(tok_owners[t])))
+    colliding = tok_owners[best_tok]
+    if 1 <= len(colliding) <= 3:
+        seen = set()
+        out = []
+        for it in colliding:
+            key = str(it.get('id') or '') or str(it.get('name') or '')
+            if key not in seen:
+                seen.add(key)
+                out.append(it)
+        return out
+    return []
 
 
 def _emit_diff_list(delta, unchanged_blocks, key, value, cur_hash, prev_hash, can_diff):
@@ -1834,7 +1948,7 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
     is_single = (mode == 'single_prefix_v2')
     cat = intel_catalog if intel_catalog is not None else sp.load_intel_catalog(root, optional=True)
     brief = compile_state_qualitative_brief(
-        state, memory_text, include_tasks=is_single, include_points=is_single, intel_catalog=cat,
+        state, memory_text, include_tasks=is_single, include_points=is_single, intel_catalog=cat, text=text,
     )
     cast = (state or {}).get('cast', [])
     location = (state or {}).get('location', '')
@@ -1945,6 +2059,10 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
     cast_set_local = set(cast or ())
     seen_refs_set = {r for r in (injected_refs or ()) if isinstance(r, str) and r}
     seen_guides_set = {g for g in (injected_guides or ()) if isinstance(g, str) and g}
+    pflags_now_delta = compute_zone1_persona_flags(state, memory_text)
+    sel_text_local = selected.get('text', '') if isinstance(selected, dict) else ''
+    turn_probe_text = f'{text or ""}\n{sel_text_local}'
+
     if mode in ('dual_stream_v2', 'single_prefix_v2') and references:
         ref_names_ordered = list(dict.fromkeys(
             (r['name'] if isinstance(r, dict) else str(r))
@@ -1955,11 +2073,11 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
         new_ref_names = [n for n in offstage_names if n not in seen_refs_set]
         seen_active_refs = [n for n in offstage_names if n in seen_refs_set]
         if new_ref_names:
-            ref_pflags = compute_zone1_persona_flags(state, memory_text)
-            ref_unlocked = tuple(zone1_flags.get('unlocked_secrets') or ()) if isinstance(zone1_flags, dict) and 'unlocked_secrets' in zone1_flags else tuple(ref_pflags['unlocked_secrets'])
+            ref_unlocked = tuple(zone1_flags.get('unlocked_secrets') or ()) if isinstance(zone1_flags, dict) and 'unlocked_secrets' in zone1_flags else tuple(pflags_now_delta['unlocked_secrets'])
+            ref_stage_map = compute_zone1_persona_flags({**(state or {}), 'cast': new_ref_names}, memory_text)['char_stage']
             ref_chars = compile_characters(
                 root, [], new_ref_names, include_host=False,
-                stage_filter={}, unlocked_secrets=ref_unlocked,
+                stage_filter=ref_stage_map, unlocked_secrets=ref_unlocked,
             )
             ref_rels = compile_relationships_delta(root, cast, new_ref_names)
             delta['referenced_offstage'] = {
@@ -1973,16 +2091,53 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
                 'rule': '以上人物仍不在场(完整人设与称谓锁已于本会话前文交付)，严禁写成[D:...]台词或当场动作。',
             }
 
+    # Mid-session char_stage upgrade patch in Zone 2 (keeps Zone 1 100% byte-frozen for KV cache)
+    if mode in ('dual_stream_v2', 'single_prefix_v2') and isinstance(zone1_flags, dict) and isinstance(zone1_flags.get('char_stage'), dict):
+        z1_stages = zone1_flags['char_stage']
+        stage_patches = {}
+        for cname in cast:
+            cur_st = pflags_now_delta['char_stage'].get(cname)
+            frozen_st = z1_stages.get(cname)
+            guide_key = f'stage:{cname}:{cur_st}'
+            if cur_st and frozen_st and cur_st != frozen_st and guide_key not in seen_guides_set:
+                spine_txt = _extract_character_stage_spine(root, cname, cur_st)
+                if spine_txt:
+                    stage_patches[cname] = f'[{cur_st}] {spine_txt}'
+                    newly_injected_guides.append(guide_key)
+        if stage_patches:
+            delta['persona_stage_updates'] = {
+                'characters': stage_patches,
+                'rule': '本会话内以下在场角色心理防线已跨入新阶段，优先按此新阶段亲密心理边界演绎（覆盖前文旧阶段脊梁）。',
+            }
+
+    # Conditional studio painting unlock permission hint (eliminates S03 chicken-and-egg deadlock)
+    cur_unlocked_set = set(pflags_now_delta.get('unlocked_secrets') or ())
+    if (
+        mode in ('dual_stream_v2', 'single_prefix_v2')
+        and '徐念薇' in cast_set_local
+        and 'SECRET-XNW-PAINTING' not in cur_unlocked_set
+        and re.search(r'旧画|蒙布|白布|画框|画布|画架|画展|赞助', turn_probe_text)
+    ):
+        pm_s03 = _parse_panel_map((state or {}).get('panels', []))
+        xnw_aff_m = re.match(r'-?\d+', str((pm_s03.get('徐念薇') or {}).get('好感', '0')))
+        xnw_aff = int(xnw_aff_m.group(0)) if xnw_aff_m else 0
+        if location == '工作室' or xnw_aff >= 70:
+            delta['painting_unlock_hint'] = (
+                '本轮玩家主动探查画室蒙布旧画/画展受阻且满足揭破条件（工作室现场或高好感）：'
+                '允许徐念薇在强烈情绪拉扯下被拆穿防线，可自然道破旧画与画展受阻心结（仍须守住嘴硬清冷底色，禁突兀大段倒苦水）。'
+            )
+
     z1_vig = bool(zone1_flags.get('vig')) if isinstance(zone1_flags, dict) else _needs_vigilance_rules(state, memory_text)
     z1_intl = bool(zone1_flags.get('intl')) if isinstance(zone1_flags, dict) else _needs_intimate_zone1(state, memory_text)
     need_vig_now = _needs_vigilance_rules(state, memory_text)
-    if mode in ('dual_stream_v2', 'single_prefix_v2') and need_vig_now and not z1_vig and 'vigilance' not in seen_guides_set:
+    mentions_vig_now = _mentions_vigilance(turn_probe_text)
+    if mode in ('dual_stream_v2', 'single_prefix_v2') and (need_vig_now or mentions_vig_now) and not z1_vig and 'vigilance' not in seen_guides_set:
         vig_body = _load_vigilance_body(root, protocol_mode=mode)
         if vig_body:
             delta['vigilance_craft_guide'] = vig_body
             newly_injected_guides.append('vigilance')
-    elif _mentions_vigilance(text) and not z1_vig and not need_vig_now and 'vigilance' not in seen_guides_set:
-        delta['vigilance_turn_note'] = '本轮玩家提及徐承邺或监视相关词：遵循信息差与真实证据原则，未实际目击或来电前不凭空制造撞见或实锤。'
+        elif mentions_vig_now:
+            delta['vigilance_turn_note'] = '本轮玩家提及徐承邺或监视相关词：遵循信息差与真实证据原则，未实际目击或来电前不凭空制造撞见或实锤。'
 
     sd = sp.format_surprise_directive(director_roll)
     if sd:
@@ -2179,20 +2334,32 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
             delta, unchanged_blocks, 'deployed_items_remote', deployed_remote,
             dep_remote_hash, (prev_state_hashes or {}).get('dep_remote') if can_diff_blocks else None, can_diff_blocks,
         )
-        # On-demand mention recall: if player free-text references an item whose list was diff-omitted,
-        # re-surface just that item card so long sessions never suffer item amnesia.
-        if text:
+        # On-demand mention recall: if player free-text or selected option references an item whose list
+        # was diff-omitted (including delivered gifts or single deployed device generic cue), re-surface it.
+        if turn_probe_text.strip():
             omitted_pool = []
+            omitted_devices = []
             if 'held_items' in unchanged_blocks:
                 omitted_pool.extend({**x, 'status': '背包持有'} for x in held_view)
             if 'deployed_items_here' in unchanged_blocks:
-                omitted_pool.extend({**x, 'status': '已部署(当前现场)'} for x in deployed_here)
+                devs_h = [{**x, 'status': '已部署(当前现场)'} for x in deployed_here]
+                omitted_pool.extend(devs_h)
+                omitted_devices.extend(devs_h)
             if 'deployed_items_remote' in unchanged_blocks:
-                omitted_pool.extend({**x, 'status': '已部署(远程)'} for x in deployed_remote)
-            if omitted_pool:
-                recalled_items = find_mentioned_items(text, omitted_pool)[:3]
-                if recalled_items:
-                    delta['mentioned_items'] = recalled_items
+                devs_r = [{**x, 'status': '已部署(远程)'} for x in deployed_remote]
+                omitted_pool.extend(devs_r)
+                omitted_devices.extend(devs_r)
+            if 'delivered_gifts_to_cast' in unchanged_blocks:
+                omitted_pool.extend({**x, 'status': '已赠予在场人物'} for x in delivered_to_cast)
+            recalled_items = find_mentioned_items(turn_probe_text, omitted_pool)[:3] if omitted_pool else []
+            if (
+                not recalled_items
+                and len(omitted_devices) == 1
+                and re.search(r'远程|监控|画面|针孔|摄像头|录音|监听|窃听|回看|回听|拆除|回收|拆下|取回', turn_probe_text)
+            ):
+                recalled_items = list(omitted_devices)
+            if recalled_items:
+                delta['mentioned_items'] = recalled_items
         if is_single:
             delta['tasks'] = state.get('tasks')
         if new_history_only:
@@ -2253,7 +2420,7 @@ def build_user_delta(root, state, projection, history, new_history_only, text, s
                 '请穿插1～2句简短[N]私密内心系统提示，紧密贴合当前局面、人物与玩家诉求（策略/社交/官能/私密穿搭/隐秘装备题材均自由不设限），'
                 '推出1～3件不与existing_names重名的新道具，明确标出【品级T1~T4】、【道具名】、具体用途与参考积分：'
                 'T1寻常小物(10~30分,开局即用)、T2进阶利器(32~60分,轻中度官能/公关/工具)、T3稀缺重器(65~120分,监控/深控/核心筹码)、T4深渊禁品(150~260分,高危强催化/终阶筹码)；'
-                '【道具不是修改器铁律】严禁设计直接增减属性的道具（如直接加好感/减羞耻/加堕落/加魅力/加商业嗅觉/加积分/回体力精力/清警惕），仅可设计间接/辅助效果（营造氛围、感官放大、话题破冰、降低防备与越界缓和、隐秘情报或监控筹码）来帮助玩家靠互动赢得推进；'
+                '【道具不是修改器铁律】严禁设计直接增减属性的道具（如直接加好感/减羞耻/加堕落/加魅力/加商业嗅觉/加积分/回体力精力/清警惕），文案与名称亦严禁含“药水/丹药/修改器/直接降羞耻/直接加好感”等禁词（否则会被后台拒收），仅可设计间接/辅助效果（营造氛围、感官放大、话题破冰、降低防备与越界缓和、隐秘情报或监控筹码）来帮助玩家靠互动赢得推进；'
                 '建议优先含1件当前可买实用款，超阶/强效道具也照常上架但标T3/T4由程序锁门待后期解锁；仅作上架展示，本幕不得直接凭空塞进主角手里。'
             ),
         }
@@ -2404,8 +2571,9 @@ def _extract_transfer_source_bodies(memory_text, transfers):
 
 
 def _compact_intimate_for_settlement(intl, cast):
-    """Strip pure backend numeric matrices (body_dev/host_phys/session_orgasms/inter_heroine) Stage 2 never reads,
-    while preserving 100% of scene_active, privacy, sub_location, present_actors, attire, traces, and keepsakes."""
+    """Strip pure backend numeric matrices (body_dev/host_phys/session_orgasms) Stage 2 never reads,
+    while preserving scene_active, privacy, sub_location, present_actors, attire, traces, keepsakes,
+    and active inter_heroine suspicion state."""
     if not isinstance(intl, dict):
         return intl
     scene_active = bool(intl.get('scene_active'))
@@ -2429,6 +2597,9 @@ def _compact_intimate_for_settlement(intl, cast):
         for ks in (intl.get('keepsakes') or ())
         if isinstance(ks, dict)
     ]
+    raw_ih = intl.get('inter_heroine') if isinstance(intl.get('inter_heroine'), dict) else {}
+    ih_hot = {k: int(v) for k, v in raw_ih.items() if int(v or 0) > 0}
+    heroines_in_cast = [c for c in (cast or ()) if c in save_store.HEROINES]
     out = {
         'scene_active': scene_active,
         'privacy': intl.get('privacy', 'open_public'),
@@ -2441,11 +2612,15 @@ def _compact_intimate_for_settlement(intl, cast):
         out['traces'] = traces_out
     if keepsakes_out:
         out['keepsakes'] = keepsakes_out
+    if ih_hot:
+        out['inter_heroine'] = ih_hot
+    if ih_hot or len(heroines_in_cast) >= 2:
+        out['inter_heroine_pairs'] = list(save_store.INTER_HEROINE_PAIRS)
     return out
 
 
 def _compact_items_for_settlement(items, text, operation_context):
-    """Keep full item fields for items referenced in player input/op; emit compact 5-key refs for untouched inventory."""
+    """Keep full item fields for referenced items; emit compact stubs with giftable & short hint for untouched inventory."""
     if not items:
         return []
     op_blob = json.dumps(operation_context or {}, ensure_ascii=False) if operation_context else ''
@@ -2459,13 +2634,20 @@ def _compact_items_for_settlement(items, text, operation_context):
         if (iname and iname in haystack) or (iid and iid in haystack) or match_item_in_text(text, it, items):
             out.append(it)
         else:
-            out.append({
+            f = it.get('fields') or {}
+            giftable = bool(it.get('giftable', f.get('可赠予', '是') != '否'))
+            short_desc = str(f.get('描述') or it.get('desc') or it.get('description') or '').strip()[:24]
+            stub = {
                 'id': iid,
                 'name': iname,
                 'qty': it.get('quantity', 1),
                 'usage_mode': it.get('usage_mode', ''),
-                'status': (it.get('fields') or {}).get('当前状态', ''),
-            })
+                'giftable': giftable,
+                'status': f.get('当前状态', ''),
+            }
+            if short_desc:
+                stub['hint'] = short_desc
+            out.append(stub)
     return out
 
 
@@ -2523,20 +2705,59 @@ def _build_free_text_item_hint(text, state, operation_context, preview_cost):
 
 
 def _format_anchors_compact_lossless(anchors):
-    """Encode active anchors as lossless single-line records (0 text truncation, ~30% less JSON key overhead)."""
+    """Encode active anchors as lossless single-line records preserving known_by privacy scope."""
     out = []
     for a in anchors or ():
         if isinstance(a, dict):
-            out.append(f"{a.get('id', '')}|{a.get('kind', '')}|D{a.get('day', 1)}|★{a.get('importance', 3)}|{a.get('text', '')}")
+            kb = a.get('known_by')
+            scope_tag = ''
+            if isinstance(kb, (list, tuple)) and kb:
+                others = [str(x).strip() for x in kb if str(x).strip() and str(x).strip() != '徐志北']
+                if not others:
+                    scope_tag = '|私密'
+                elif len(others) < 4:
+                    scope_tag = '|知情:' + ','.join(others)
+            out.append(f"{a.get('id', '')}|{a.get('kind', '')}|D{a.get('day', 1)}|★{a.get('importance', 3)}{scope_tag}|{a.get('text', '')}")
         elif isinstance(a, str) and a:
             out.append(a)
     return out
 
 
+def _build_prev_turn_brief(history):
+    """Build ultra-compact 1-turn prior context digest for Stage 2 action_changed/effective_progress/option_stagnation."""
+    if not isinstance(history, (list, tuple)) or not history:
+        return None
+    last = next((t for t in reversed(history) if isinstance(t, dict)), None)
+    if not last:
+        return None
+    brief = {}
+    inp = str(last.get('input') or '').strip()
+    if inp:
+        brief['input'] = inp[:60]
+    dec = last.get('decision')
+    if isinstance(dec, dict) and isinstance(dec.get('options'), list):
+        opts = []
+        for o in dec['options'][:3]:
+            if isinstance(o, dict) and o.get('text'):
+                oid = str(o.get('id') or '').strip()
+                opts.append(f"{oid}:{str(o['text']).strip()[:24]}" if oid else str(o['text']).strip()[:24])
+        if opts:
+            brief['prev_options'] = opts
+    msgs = last.get('messages')
+    if isinstance(msgs, list) and msgs:
+        speakers = list(dict.fromkeys(
+            str(m.get('speaker') or '').strip()
+            for m in msgs if isinstance(m, dict) and str(m.get('speaker') or '').strip()
+        ))
+        if speakers:
+            brief['speakers'] = speakers[:4]
+    return brief or None
+
+
 def build_settlement_spec(root, state, projection, text, selected, resolved_op, intent_evidence,
                           preview_cost, runtime, memory_text, resolution_policy, output_contract,
                           operation_context, required_sources=(), intel_catalog=None, director_roll=None,
-                          settlement_custom_rules=None, memory_view=None):
+                          settlement_custom_rules=None, memory_view=None, history=None):
     """Build static-system + compact-user specification for background SUMMARY Tools.Chat.call."""
     root_p = Path(root)
     dir_ctx_full = sp.build_director_settlement_context(root, memory_text, director_roll=director_roll)
@@ -2544,7 +2765,7 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
     channels_enum_json = json.dumps(channels_enum, ensure_ascii=False, separators=(',', ':'))
 
     sys_cache_key = (
-        'settlement_sys_base',
+        'settlement_sys_base_v2',
         channels_enum_json,
         _stat_sig(root_p / 'txt文件/事件注册表.json'),
         _stat_sig(root_p / 'txt文件/知识库/系统标签类.json'),
@@ -2554,9 +2775,9 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
         catalog = compile_event_catalog(root, live_mode=True)
         sys_rules = compile_knowledge_rules(root, {}, '', '', mode='settlement')
         base_sys_prompt = _sc_cache_set(sys_cache_key, _clean_text(
-            '你是深渊天平后台结构化结算器（非作家，不改写剧情）。根据玩家行动、前台已生成的完整微幕正文与选项，'
-            '严格提取事实并输出单个合法裸JSON对象，严禁代码围栏或前后解释。\n'
-            '输出骨架（严禁多余顶层键；仅 foreground_decision_missing==true 时附带 fallback_decision）：\n'
+            '你是深渊天平后台结构化结算器（非作家，不改写剧情）。根据玩家行动与前台完整微幕正文/选项，'
+            '严格提取事实输出单个合法裸JSON，严禁代码围栏或前后解释。\n'
+            '输出骨架（禁多余顶层键；仅foreground_decision_missing==true时附fallback_decision）：\n'
             '{"operation":""或合法操作对象,"handoff":""或原因,"checks":{"intent":"单行依据","knowledge":"信息边界","action":"操作核对","pace":"节奏依据"},'
             '"resolution":{"category":"A|B|C|SYSTEM","basis":"判档依据","clock":{"day":正整数,"time":"HH:MM","basis":"时间推进依据"},'
             '"events":[{"group":"事件组","target":"角色名或系统宿主","tags":["白名单原标签"],"evidence":"正文逐字子串"}],'
@@ -2565,56 +2786,52 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
             '"sleep":{"kind":"none|collapse|interrupted|overnight","start":{"day":正整数,"time":"HH:MM"}或"HH:MM"或空串,"evidence":"正文子串或空串"},"task":""或6键对象,"items":[]},'
             '"quality_flags":[]}\n'
             '硬性规则：\n'
-            '1. 传输空值约定：无操作operation、无待处理handoff、无任务resolution.task、无睡眠起点resolution.sleep.start、'
-            '免费SYSTEM的resolution.conditions、无NPC时的conditions.npc 均明确写空字符串""，不得省略键或留空。\n'
-            '2. 分类与费用：遵循context.resolution_policy；fixed_option必须原样返回required_category禁止重新判档：'
-            '日常态(intimate_mode=false)下A/B档严禁出现任何C烈度_*标签；亲密进行态(intimate_mode=true)下A档仍禁C烈度_*，B档允许按实际正文触碰记录C烈度_轻度或C烈度_中度（深度/重度仍须走C档）。'
-            'custom按实际成立行为判A/B/C不得免费；system固定为SYSTEM。严禁口算最终数值。\n'
-            '3. 事件与依据：events每项含group/target/tags/evidence；只用下列合法标签原名；'
-            'evidence必须是foreground_messages中某条text的逐字原样子串（若正文含｛表层｜潜台词｝，可引用原串或表层子串，严禁改字或引用decision选项）；'
-            'host_events的target固定为"系统宿主"（优雅掌控_魅力精进：每场景限1次，仅宿主展现游刃有余的魅力掌控时打入）；'
-            '【监视目标防错铁律】vigilance_events的target限被监视者("沈知韫"/"苏婉青"/"徐念薇"/"徐志北")，严禁填"徐承邺"；仅口头提及其行程无警惕变化时省略；'
-            'shame_events/depravity_events/ds_events/affection_events 严禁填徐承邺（死亡查岗_沉沦期target填在场女主）；当operation_context.detail.kind=="inspect_deployed"时，允许对detail.remote_cast中的远程目标据正文结算自慰_暗中纾解/堕落_私密自渎/意外撞破_私密自渎，其余事件组target必须严格属于本场实际在场角色姓名。目标体力<=15且无玩家括号强行授权时严禁施加C烈度_深度/重度。免费SYSTEM不得附带事件/任务/物品。'
-            '「首次」「深度操控_首次」「内射_首次核爆」「同质化免疫_回合2/3」「小憩单日限次」「失眠防叠加」「状态_空耗惩罚」「生理_危险期」均由后端据持久化记录自动派生与拦截，模型只需如实标注本幕发生的基础事件。'
+            '1. 空值约定：无operation/handoff/task/sleep.start/免费SYSTEM的conditions/无NPC的conditions.npc均写""，不得省略键。\n'
+            '2. 分类与费用：遵循context.resolution_policy；fixed_option原样返回required_category禁重判：'
+            '日常态(intimate_mode=false)A/B禁C烈度_*；亲密态(intimate_mode=true)A仍禁C烈度_*，B按正文允许C烈度_轻度/中度（深度/重度仍须C档）。'
+            'custom按实际判A/B/C；system固定SYSTEM。严禁口算数值。\n'
+            '3. 事件与依据：events含group/target/tags/evidence（仅白名单原名）；'
+            'evidence须为foreground_messages某条text逐字子串（含｛表层｜潜台词｝可引原串或表层，禁改字/引decision）；'
+            'host_events的target固定"系统宿主"（优雅掌控_魅力精进每场景限1次）；'
+            '【监视目标防错铁律】vigilance_events的target限被监视者("沈知韫"/"苏婉青"/"徐念薇"/"徐志北")，严禁填"徐承邺"；无警惕变化时省略；'
+            'shame/depravity/ds/affection严禁填徐承邺（死亡查岗_沉沦期填在场女主）；inspect_deployed时允许对remote_cast结算自慰_暗中纾解/堕落_私密自渎/意外撞破_私密自渎，其余target须在场。目标体力<=15且无括号强行授权禁C烈度_深度/重度。SYSTEM禁附事件/任务/物品。'
+            '「首次」「深度操控_首次」「内射_首次核爆」「同质化免疫_回合2/3」「小憩单日限次」「失眠防叠加」「状态_空耗惩罚」「生理_危险期」均由后端自动派生拦截，只需标注基础事件。'
             '多档标签判准速查（严禁自造白名单外标签）：'
-            '心理破冰_暧昧试探(羞耻>70时的安全言语暧昧/轻度拉近试探，只降羞耻不扣好感)、'
-            'C烈度_轻度(明确越界挑逗/近距离施压/非敏感部位试探)、C烈度_中度(亲吻/隔衣贴合/轻度敏感部位触碰)、C烈度_深度(褪衣暴露/直接敏感带抚弄/口交侍奉，仅限C档)、C烈度_重度(实质性交/强行突破/高危越界结合，仅限C档)；'
-            '高潮_轻度累积(初段爱抚/边缘挑弄)、高潮_中度累积(持续密集快感/深入刺激)、高潮_重度累积(临近绝顶/强烈痉挛)、触发高潮_绝顶清算(明确达到高潮绝顶)；'
-            '刺激_视觉(近距凝视/暴露羞耻)、刺激_嗅觉(贴颈呼吸/体香气息)、刺激_听觉(耳语喘息/羞耻指令)、刺激_物理(实质肢体爱抚/器官接触)；'
-            '消耗_轻微焦虑(短暂心虚/轻微防备)、消耗_日常劳作(常规奔波家务办公消耗)、消耗_剧烈抗拒(剧烈挣扎/高强度体力与心理拉扯)；'
-            'VIGILANCE（外地密室无来电/旁人外传严禁打目击确认或异常行迹）：目击确认(徐在场撞见)、证据实锤(物证影像)、异常行迹(本人察觉/来电查岗露馅/旁人看见外传)、眼线汇报(苏或旁人向徐汇报)、'
+            '心理破冰_暧昧试探(羞耻>70安全言语暧昧/轻度拉近试探，只降羞耻不扣好感)、'
+            'C烈度_轻度(挑逗/近压/非敏试探)、C烈度_中度(亲吻/隔衣贴合/轻敏触)、C烈度_深度(褪衣/敏带抚弄/口交，仅限C档)、C烈度_重度(性交/强破，仅限C档)；'
+            '高潮_轻度累积(初段爱抚)、高潮_中度累积(持续密集快感)、高潮_重度累积(临近绝顶痉挛)、触发高潮_绝顶清算(明确绝顶)；'
+            '刺激_视觉(凝视/暴露)、刺激_嗅觉(贴颈/体香)、刺激_听觉(耳语/喘息)、刺激_物理(肢体爱抚)；'
+            '临界突破_魅力压迫(宿主魅力≥70强势施压破欲望80瓶颈)、临界突破_心理羞辱(心理羞辱破欲望80瓶颈)；'
+            '无意识被侵_苏醒发现(断电/昏迷被侵后苏醒察觉)、耻感反弹_苏醒(失守后清醒反扑愧疚)、外射_体表面部(体外射精仅计羞耻余韵不进受孕)；'
+            '消耗_轻微焦虑(心虚防备)、消耗_日常劳作(奔波劳作/失眠崩溃)、消耗_剧烈抗拒(剧烈挣扎拉扯)；'
+            'VIGILANCE（外地密室无来电/旁人严禁打目击确认或异常行迹）：目击确认(徐撞见)、证据实锤(物证影像)、异常行迹(查岗露馅/旁人外传)、眼线汇报(苏/旁人汇报)、'
             '降警惕_轻度(缓疑)、降警惕_中度(圆场)、降警惕_深度(消痕)、合理解释(解释)、转移注意(引开)、无异常回合(平静)。\n'
-            '4. conditions：普通付费action必须交完整7字段对象(intensity/effective_progress/scene/npc/action_changed/stress_signals/breakout_triggered)，'
-            'intensity须与category一致，无NPC仅npc写""；effective_progress仅当本幕产生了新信息/线索、态度或防备真实改变、明确约定、场景转移或有效事件时判true，纯礼貌寒暄/重复关怀/原地客套必须判false；免费SYSTEM的conditions写""。\n'
-            '5. clock：按剧情实际经过单调向前，首次从第1天初始化；sleep.kind为overnight须连续>=6小时跨夜至05:00~12:59且evidence为正文子串。\n'
-            '6. memory：输出 {"fact":"<=160字新因果或空串","anchor_ops":[],"chronicle_digest":""}。'
-            'fact仅记本幕有长期因果价值的新事实（禁换行，不复述pending_facts，无价值写""）；'
-            'anchor_ops（最多3条，对照格式为"A-号|类型|D天|★权重|完整正文"的active_anchors维护永久承诺/转折/线索/藏物，无变化交[]）：'
-            '{"op":"add","kind":"promise|milestone|secret|clue|relationship","importance":1到5,"text":"<=100字","private_host":false} / '
+            '4. conditions：付费action交完整7字段对象，intensity=category；对照context.prev_turn_brief判断action_changed与effective_progress（仅新线索/态度实变/明确约定/转场/有效事件判true，寒暄客套判false）；'
+            'breakout_triggered仅在触发破局时填精确键名("破局_日常冗余"/"破局_模式重复"/"破局_社交淤积"/"破局_张力淤积")否则[]；SYSTEM写""。\n'
+            '5. clock：单调向前，首次第1天初始化；sleep.kind=overnight须连续>=6h跨夜至05:00~12:59且含正文evidence。\n'
+            '6. memory：{"fact":"<=160字新因果或空串","anchor_ops":[],"chronicle_digest":""}。'
+            'fact仅记有长期因果价值的新事实（禁换行、不复述pending_facts）；'
+            'anchor_ops（<=3条，对照带私密/知情标的active_anchors维护，无变化[]）：'
+            '{"op":"add","kind":"promise|milestone|secret|clue|relationship","importance":1-5,"text":"<=100字","private_host":false,"known_by":["可选精准知情角色"]} / '
             '{"op":"update","id":"A-号","text":"<=100字"} / {"op":"resolve","id":"A-号","note":"<=40字"}；'
-            'chronicle_digest通常写""；仅当context含chronicle_archive_request时，将所列8幕浓缩为{"public":"<=260字公共纪要","views":{"角色名":"<=140字私密线"}}（禁将私密混入public或泄K01绝密）。\n'
-            '7. operation：若context.operation_context.requested非空且现场未拒绝，原样返回该对象（拒执行写""并在handoff说明）；若requested为空但含free_text_item_hint且正文确已动用所列道具，可按hint补发合法operation。\n'
-            '8. checks：intent/knowledge/action/pace 四条具体单行事实依据，禁用“已读取/通过/同上”。\n'
-            '9. quality_flags：数组，无问题写[]；若违背括号显形、擅加反派滤镜、越界代打或选项同质化（记"option_stagnation"）简要列出；'
-            '明显人设OOC对照context.persona_anchors记"persona_ooc:<角色名>:<≤24字原因>"（仅内敛变直白话痨/大段自剖/清冷长篇吐槽等严重偏离，轻微起伏勿报）；'
-            '未解锁暗线穿帮对照context.unlocked_secrets记"secret_premature_leak:<角色名>:<≤24字原因>"（仅台词提前道破打听主宅/深圳走账/画展旧画/并购漏洞）。\n'
-            '10. 任务续接与道具增量：仅当 context.cost_preview.kind=="action" 且 (context.tasks.current 为空或 context.tasks.current.status=="已完成") 时，'
-            '参考 context.task_whitelist_current 续接1个温和且自然可达的新任务，填入 resolution.task 六键对象：'
-            '{"title":"简短中文标题","target":"系统宿主|沈知韫|徐念薇|苏婉青","attr":"系统宿主限积分/经验值/商业嗅觉/体力，三女主仅好感","value":严格大于当前值的正整数,"tier":"small|medium|large","item_desc":"非空小物描述"}（例：积分+6~20，好感+2~5）。'
-            '若已有进行中任务或为免费SYSTEM，resolution.task 必须写 ""。严禁为凑任务目标编造未发生事件。'
-            '系统商城兑换与委托奖励领取已由前端确定性通道处理，无兑换或任务待发资格时严禁填 action=="add"，无正文逐字依据时 resolution.items 写 []；'
-            '确有正文依据时每项为 {"entry":{"name":"道具名","action":"add|consume|archive",...},"evidence":"正文原样子串"}。\n'
-            '11. 商业情报亮牌：情报整理入库与商业杠杆预备已由前端确定性通道处理；仅当玩家在正文中明确亮牌动用 context.held_intel 中某条一次性情报时，才可选填 resolution.intel_used={"id":"INTEL-00X","target":"合法对象","evidence":"正文原样子串"}，否则省略或写 ""。\n'
-            '12. 活体世界回响（可选）：仅当 context.cost_preview.kind=="action" 时，可选填 resolution.director_echo 对象（无变化省略或写""，严禁编造）：'
-            '{"new_thread":{"who":["角色名"],"topic":"<=28字具体未完线头/承诺/破绽/藏物","tension":"soft|hard"}或"","close_thread":"本幕已了结的active_threads编号或""","clock_nudges":{"CLK_XXX":1或-1}或{},"used_channel":"真实变故填下列媒介之一否则\\"\\"","mind_updates":{"在场角色名":{"mood":"<=32字未散余绪","preoccupation":"<=36字新牵挂","impression":"<=36字对志北新主观印象或心结"}}}；'
-            f'合法媒介 channels_enum={channels_enum_json}；'
-            'mind_updates仅在正文确有情绪余波/新牵挂/记账印象时摘录（无变化省略），严禁泄露未解锁绝密。\n'
-            '13. 段末抉择兜底（仅缺省触发）：foreground_decision_missing为false时省略fallback_decision；'
-            '为true时补fallback_decision={"prompt":"<=300字","options":[{"id":"A","text":"日常(<=500字)"},{"id":"B","text":"社交(<=500字)"},{"id":"C","text":"主动(<=500字)"}]}'
-            '（三项互异；转场项可附"operation":{"code":"move_player","destination":"合法地点"}）。\n'
-            '14. resolution.scene_state（可选，无变化省略或写""）：仅本幕发生隐私/子区/衣着/痕迹/女主暗流/部位开发/释放/贴身衣物/【商城定制】/画室旧画揭破或进出亲密态时填：'
-            '{"intimate_active":true或false,"privacy":"open_public|semi_open|thin_wall|under_cover|locked_private","sub_location":"<=48字子区名","present_actors":["当前房内实际同席角色"],"attire_updates":{"女主名":{"outfit":"穿搭名或default","state":"neat|disheveled|half_undressed|wet|torn"}},"trace_adds":{"女主名":[{"kind":"吻痕|指印|潮红|发丝凌乱","desc":"<=60字","turns":4,"visible":true}]},"inter_heroine_deltas":{"A->B":1或-1},"body_acts":{"女主名":["oral|hand|chest|foot|core"]},"host_release":true,"keepsake_adds":[{"owner":"女主名","name":"衣物名","kind":"panties|stockings|bra|nightwear|accessory","method":"stolen|taken_intimate|gifted","condition":"fresh_warm|stained_damp|faded","desc":"<=60字"}],"keepsake_updates":[{"id":"KS-编号","owner_aware":true,"condition":"stained_damp"}],"shop_adds":[{"name":"道具名","grade":"T1|T2|T3|T4","category":"sensual|covert|daily","usage_mode":"gift|consumable_target|reusable_tool|deployable_device","price":10到260,"pack_qty":1到3,"desc":"用途说明","system_effect":""或"buff:名:1-3:效"或"deploy_device:camera|audio|aroma","max_per_save":1到3}],"unlock_secrets":["SECRET-XNW-PAINTING"]}'
-            '（子键均可选；贴身衣物只走keepsake_adds；shop_adds仅shop_custom_requested==true按正文摘录禁入items；unlock_secrets仅徐念薇在场且正文揭破旧画/画展时填["SECRET-XNW-PAINTING"]）。\n\n'
+            'chronicle_digest仅在含chronicle_archive_request时填{"public":"<=260字","views":{"角色":"<=140字"}}，禁将私密混入public或泄K01绝密（K01=徐志北系亡夫遗嘱唯一合法继承人，仅沈知韫知情）。\n'
+            '7. operation：requested非空且未拒绝则原样返回（拒写""并在handoff说明）；requested空但含free_text_item_hint且正文确已动用时按hint补发。\n'
+            '8. checks：intent/knowledge/action/pace 四条具体单行依据，禁“已读取/通过/同上”。\n'
+            '9. quality_flags：无问题[]；违括号显形/反派滤镜/代打/选项同质化(对照prev_turn_brief.prev_options记"option_stagnation")简列；'
+            '明显OOC对照persona_anchors及当前阶段记"persona_ooc:<角色>:<≤24字>"（仅严重偏离，stage2/3亲密态自然放宽话量勿误报）；'
+            '暗线穿帮对照unlocked_secrets（映射：INTEL-001=深圳走账/沈,INTEL-002=眼线盯梢/苏,INTEL-003=并购漏洞/徐承邺,SECRET-XNW-PAINTING=画展旧画/念薇）记"secret_premature_leak:<角色>:<≤24字>"。\n'
+            '10. 任务续接与道具增量：仅当 context.cost_preview.kind=="action" 且 (context.tasks.current 为空或 status=="已完成") 时，'
+            '参考 task_whitelist_current 续接1个自然可达新任务入 resolution.task：'
+            '{"title":"简短标题","target":"系统宿主|沈知韫|徐念薇|苏婉青","attr":"宿主限积分/经验值/商业嗅觉/体力，女主仅好感","value":严格大于当前值的正整数,"tier":"small|medium|large","item_desc":"非空小物描述"}（例：积分+6~20，好感+2~5）；否则写""。禁编造事件凑任务。'
+            '无兑换/任务待发资格禁填action=="add"，无正文逐字依据resolution.items写[]；确有依据填{"entry":{"name":"名","action":"add|consume|archive",...},"evidence":"正文子串"}。\n'
+            '11. 商业情报亮牌：仅正文明确亮牌动用held_intel时填resolution.intel_used={"id":"INTEL-00X","target":"合法对象","evidence":"正文子串"}，否则省略或""。\n'
+            '12. 活体世界回响（可选）：仅action填resolution.director_echo（无变化省略/""）：'
+            '{"new_thread":{"who":["名"],"topic":"<=28字","tension":"soft|hard"}或"","close_thread":"编号或""","clock_nudges":{"CLK_XXX":1或-1}或{},"used_channel":"媒介或\\"\\"","mind_updates":{"在场角色":{"mood":"<=32字","preoccupation":"<=36字","impression":"<=36字"}}}；'
+            f'channels_enum={channels_enum_json}；mind_updates禁泄未解锁绝密或K01。\n'
+            '13. 段末抉择兜底：foreground_decision_missing为false时省略fallback_decision；true时补{"prompt":"<=300字","options":[{"id":"A","text":"<=500字"},{"id":"B","text":"<=500字"},{"id":"C","text":"<=500字"}]}。\n'
+            '14. resolution.scene_state（可选，无变化省略/""）：仅隐私/子区/衣着/痕迹/女主暗流/部位开发/释放/贴身衣物/【商城定制】/画室旧画揭破或进出亲密态时填：'
+            '{"intimate_active":bool,"privacy":"open_public|semi_open|thin_wall|under_cover|locked_private","sub_location":"<=48字","present_actors":["房内同席"],"attire_updates":{"女主":{"outfit":"名或default","state":"neat|disheveled|half_undressed|wet|torn"}},"trace_adds":{"女主":[{"kind":"吻痕|指印|潮红|发丝凌乱","desc":"<=60字","turns":4,"visible":true}]},"inter_heroine_deltas":{"A->B":1或-1},"body_acts":{"女主":["oral|hand|chest|foot|core"]},"host_release":true,"keepsake_adds":[{"owner":"女主","name":"名","kind":"panties|stockings|bra|nightwear|accessory","method":"stolen|taken_intimate|gifted","condition":"fresh_warm|stained_damp|faded","desc":"<=60字"}],"keepsake_updates":[{"id":"KS-号","owner_aware":true,"condition":"stained_damp"}],"shop_adds":[{"name":"名","grade":"T1-T4","category":"sensual|covert|daily","usage_mode":"gift|consumable_target|reusable_tool|deployable_device","price":10-260,"pack_qty":1-3,"desc":"说明","system_effect":""或"buff:名:1-3:效"或"deploy_device:camera|audio|aroma","max_per_save":1-3}],"unlock_secrets":["SECRET-XNW-PAINTING"]}'
+            '（子键均可选；贴身衣物走keepsake_adds；shop_adds仅shop_custom_requested==true按正文摘录且避开shop_existing_names；徐念薇在场且正文揭破旧画/画展时务必填unlock_secrets:["SECRET-XNW-PAINTING"]）。\n\n'
             '【合法事件标签白名单】\n'
             + json.dumps(catalog, ensure_ascii=False, separators=(',', ':'))
             + '\n\n【事件触发判定精简规则】\n'
@@ -2631,6 +2848,7 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
     )
 
     panels = (state or {}).get('panels', [])
+    cast_s2 = list((state or {}).get('cast') or ())
     icat = intel_catalog if intel_catalog is not None else sp.load_intel_catalog(root, optional=True)
     istate = sp.parse_intel_block(memory_text)
     held_intel = [
@@ -2638,15 +2856,24 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
         for it in icat.get('items', []) if it['id'] in istate['held']
     ]
     raw_mind_s2 = (state or {}).get('npc_mind') if isinstance((state or {}).get('npc_mind'), dict) else {}
-    cast_mind_s2 = {
-        cname: {
-            'mood': (raw_mind_s2.get(cname) or {}).get('mood', ''),
-            'preoccupation': (raw_mind_s2.get(cname) or {}).get('preoccupation', ''),
-            'impressions': [it.get('text', '') for it in ((raw_mind_s2.get(cname) or {}).get('impressions') or []) if isinstance(it, dict) and it.get('text')],
+    cast_mind_s2 = {}
+    for cname in cast_s2:
+        if cname not in raw_mind_s2 or not isinstance(raw_mind_s2.get(cname), dict):
+            continue
+        cm = raw_mind_s2[cname]
+        entry_m = {
+            'mood': cm.get('mood', ''),
+            'preoccupation': cm.get('preoccupation', ''),
+            'impressions': [it.get('text', '') for it in (cm.get('impressions') or []) if isinstance(it, dict) and it.get('text')],
         }
-        for cname in ((state or {}).get('cast') or ())
-        if cname in raw_mind_s2
-    }
+        res_v = int(cm.get('resentment') or 0)
+        if res_v > 0:
+            entry_m['resentment'] = res_v
+        sk = str(cm.get('last_shift_kind') or '').strip()
+        if sk:
+            entry_m['last_shift_kind'] = sk
+        cast_mind_s2[cname] = entry_m
+
     if isinstance(memory_view, dict):
         mem_store_ctx = {
             'active_anchors': _format_anchors_compact_lossless(memory_view.get('active_anchors_index', [])),
@@ -2679,29 +2906,70 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
     deployed_items = (state or {}).get('deployed_items', [])
     guard_reg = load_secret_guard_registry(root)
     vb_map = guard_reg.get('voice_budgets') if isinstance(guard_reg, dict) else {}
-    persona_anchors = {
-        cname: f"{vb_map[cname].get('style', '')}｜{vb_map[cname].get('daily_hint', '')}"
-        for cname in ((state or {}).get('cast') or ())
-        if isinstance(vb_map, dict) and isinstance(vb_map.get(cname), dict)
+    pflags_s2 = compute_zone1_persona_flags(state, memory_text)
+    stage_labels_s2 = {
+        'stage1': 'stage1初防(严守日常克制)',
+        'stage2': 'stage2拉扯(允许半推半就与试探增多)',
+        'stage3': 'stage3深陷(亲密态允许情感外露与主动互动，勿按初防误报OOC)',
     }
+    persona_anchors = {}
+    for cname in cast_s2:
+        if isinstance(vb_map, dict) and isinstance(vb_map.get(cname), dict):
+            st_key = (pflags_s2.get('char_stage') or {}).get(cname, '')
+            st_note = f'｜当前阶段:{stage_labels_s2.get(st_key, st_key)}' if st_key else ''
+            persona_anchors[cname] = f"{vb_map[cname].get('style', '')}｜{vb_map[cname].get('daily_hint', '')}{st_note}"
     unlocked_s2 = sorted({
         str(x).strip()
         for x in (((state or {}).get('mechanics') or {}).get('secrets_unlocked') or ())
         if str(x).strip()
     })
 
+    # Compact handoff context: vigilance position/hot targets, active cast buffs, latent pregnancy, prev turn brief
+    vig_s2 = _parse_vigilance_state(memory_text)
+    vig_pub_s2 = (state or {}).get('vigilance') if isinstance((state or {}).get('vigilance'), dict) else {}
+    vig_pos_s2 = str(vig_pub_s2.get('position') or vig_s2.get('position') or '外地')
+    vig_brief_s2 = {'xu_position': vig_pos_s2}
+    if vig_s2.get('hot'):
+        vig_brief_s2['hot'] = vig_s2['hot']
+    elif isinstance(vig_pub_s2.get('targets'), dict):
+        pub_hot = [
+            f"{t}:{int(v.get('vigilance', v.get('level', 0)) or 0)}/发现{int(v.get('discovery', 0) or 0)}"
+            for t, v in vig_pub_s2['targets'].items()
+            if isinstance(v, dict) and (int(v.get('vigilance', v.get('level', 0)) or 0) > 0 or int(v.get('discovery', 0) or 0) > 0)
+        ]
+        if pub_hot:
+            vig_brief_s2['hot'] = pub_hot
+
+    buff_map_s2 = _parse_buffs_inline(memory_text)
+    active_buffs_s2 = {
+        cname: [f"{b['name']}(剩{b['turns']}轮)" for b in buff_map_s2[cname]]
+        for cname in cast_s2 if buff_map_s2.get(cname)
+    }
+    phys_s2 = (state or {}).get('physiology') if isinstance((state or {}).get('physiology'), dict) else {}
+    latent_preg_s2 = [
+        cname for cname in cast_s2
+        if isinstance(phys_s2.get(cname), dict) and (
+            phys_s2[cname].get('pregnancy_stage') == 'latent' or bool(phys_s2[cname].get('latent_until'))
+        )
+    ]
+    prev_turn_brief = _build_prev_turn_brief(history)
+
     user_context = {
         'location': (state or {}).get('location'),
-        'cast': (state or {}).get('cast', []),
+        'cast': cast_s2,
         'presence': (state or {}).get('presence', {}),
-        'intimate': _compact_intimate_for_settlement((state or {}).get('intimate'), (state or {}).get('cast', [])),
+        'vigilance_brief': vig_brief_s2,
+        'intimate': _compact_intimate_for_settlement((state or {}).get('intimate'), cast_s2),
         **({'cast_mind': cast_mind_s2} if cast_mind_s2 else {}),
         **({'persona_anchors': persona_anchors} if persona_anchors else {}),
         **({'unlocked_secrets': unlocked_s2} if unlocked_s2 else {}),
+        **({'active_buffs': active_buffs_s2} if active_buffs_s2 else {}),
+        **({'pregnancy_latent': latent_preg_s2} if latent_preg_s2 else {}),
         'panels': panels,
         **({'task_whitelist_current': _extract_task_whitelist_values(panels)} if can_issue_task else {}),
         **({'held_intel': held_intel} if held_intel else {}),
         'director_context': dir_ctx_dynamic,
+        **({'prev_turn_brief': prev_turn_brief} if prev_turn_brief else {}),
         'player_input': text,
         'selection': selected,
         'operation_context': operation_context,
@@ -2722,9 +2990,20 @@ def build_settlement_spec(root, state, projection, text, selected, resolved_op, 
         user_context['free_text_item_hint'] = free_text_hint
     shop_custom_query = sp.detect_shop_custom_request(text) if (preview_cost or {}).get('kind') == 'action' else None
     if shop_custom_query:
+        shop_cat_s2 = sp.load_shop_catalog(root, optional=True)
+        existing_s2_names = [it['name'] for it in shop_cat_s2.get('items', [])]
+        try:
+            st_s2, _, _ = save_store.load_bundle(root)
+            existing_s2_names.extend(
+                it.get('name', '') for it in ((st_s2.get('shop') or {}).get('dynamic_catalog') or [])
+                if isinstance(it, dict) and it.get('name')
+            )
+        except Exception:
+            pass
         user_context['shop_custom_requested'] = True
         user_context['shop_custom_query'] = shop_custom_query
-        user_context['shop_custom_rule'] = '道具非修改器：严禁直接增减属性/好感/羞耻/堕落/魅力/嗅觉/体力/精力/积分/经验/警惕，仅限间接辅助；不合规项不摘录。'
+        user_context['shop_existing_names'] = existing_s2_names[-30:]
+        user_context['shop_custom_rule'] = '道具非修改器：严禁直接增减属性/好感/羞耻/堕落/魅力/嗅觉/体力/精力/积分/经验/警惕，仅限间接辅助；重名或含禁词项不摘录。'
     return {
         'system_prompt': system_prompt,
         'system_sha256': _digest_text(system_prompt),

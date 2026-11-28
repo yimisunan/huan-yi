@@ -1490,15 +1490,33 @@ def build_director_settlement_context(root, memory_text, director_roll=None):
             'p': st['p'],
             'max': int(meta.get('max_segments', 4)),
         }
-    return {
+    triggered = bool(isinstance(director_roll, dict) and director_roll.get('triggered'))
+    out = {
         'active_threads': [
             {'id': t['id'], 'who': t['who'], 'topic': t['topic']}
             for t in dstate['active_threads']
         ],
         'offstage_clocks': clocks_view,
         'channels_enum': list(channels_map.keys()),
-        'triggered_this_turn': bool(isinstance(director_roll, dict) and director_roll.get('triggered')),
+        'triggered_this_turn': triggered,
     }
+    if triggered:
+        mode = str(director_roll.get('mode') or 'preset_beat')
+        bid = str(director_roll.get('beat_id') or director_roll.get('event_id') or '').strip()
+        anchor = str(director_roll.get('anchor') or director_roll.get('topic') or director_roll.get('title') or '').strip()
+        spark = str(director_roll.get('spark_pair') or director_roll.get('move_name') or '').strip()
+        banned = [str(x) for x in (director_roll.get('banned_channels') or []) if isinstance(x, str) and x]
+        bits = [mode]
+        if bid:
+            bits.append(bid)
+        if anchor:
+            bits.append(anchor[:48])
+        if spark:
+            bits.append(spark[:28])
+        if banned:
+            bits.append('禁复媒介:' + '/'.join(banned[:3]))
+        out['triggered_summary'] = '｜'.join(bits)[:140]
+    return out
 
 
 def format_surprise_directive(director_roll, catalog=None):
